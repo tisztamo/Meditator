@@ -1,0 +1,17 @@
+task: prompt/task/doc/improve.md
+attention:
+  - ./README.md
+requirements: >-
+  Write a detailed readme for this project.
+
+  Project name: StreamOfConsciousness
+
+  It is an AI agent that maintains a state in the form of a knowledge base - a
+  directory structure of markdown and metadata files, and continuously executes
+  streaming calls to LLMs , generating a stream of consciousness. When an
+  external event happen (e.g. in the form of an incoming prompt from a user, a
+  web api call or as a result of a tool call, or simply after some timeout), the
+  consciousness stops and a pipeline of a few non-streamed call to an LLM
+  decides which prompt use next as the source of consciousness. The stream is
+  printed on the console or to a websocket. There is a webapp too to serve the
+  stream and receive inputs.

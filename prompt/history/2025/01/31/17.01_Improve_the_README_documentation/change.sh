@@ -1,3 +1,10 @@
+#!/bin/sh
+set -e
+goal="Improve the README documentation"
+echo "Plan:"
+echo "1. Overwrite the content of README.md with detailed documentation"
+
+cat > README.md << 'EOF'
 # StreamOfConsciousness
 
 **StreamOfConsciousness** is an AI agent designed to maintain a persistent state in the form of a knowledge base. The knowledge base is stored as a directory structure containing Markdown files and associated metadata. Using this data store, the agent continuously executes streaming calls to Large Language Models (LLMs), generating a flowing "stream of consciousness." When an external event occurs—such as an incoming user prompt, a web API call, a tool invocation, or a periodic timeout—the ongoing stream of consciousness is interrupted, and a new set of non-streamed LLM calls determines the next prompt and resumes the stream of consciousness.
@@ -80,3 +87,6 @@ This project is available under the MIT License. See [LICENSE](./LICENSE) for de
 - Feel free to submit pull requests to improve or expand functionality.
 
 Thank you for using **StreamOfConsciousness**. We hope it enhances your AI development experience with continuous, long-term context and a truly streaming flow of thoughts!
+EOF
+
+echo "\033[32mDone: $goal\033[0m\n"
