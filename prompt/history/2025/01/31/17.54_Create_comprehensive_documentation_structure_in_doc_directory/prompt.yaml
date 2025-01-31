@@ -1,0 +1,7 @@
+task: prompt/task/doc/improve.md
+attention:
+  - ./README.md
+requirements: >-
+  Create doc/ dir and the structure of the docs. It is a chatbot anyone can run
+  on his machine, or use it as a chatbot component in an application Think a bit
+  about target audience while creating the structure.
