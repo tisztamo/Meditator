@@ -1,5 +1,5 @@
 {
   "dependencies": {
-    "@aijunior/dev": "file:../Junior"
+    "@aijunior/dev": "^0.3.23"
   }
 }
