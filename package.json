@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@aijunior/dev": "file:../Junior"
+  }
+}
