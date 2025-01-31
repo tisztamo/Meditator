@@ -4,7 +4,7 @@
 
 `ws://localhost:{port}/stream`
 
-## Message Types
+## Outgoing Messages
 
 ```json
 {
@@ -20,7 +20,7 @@
 }
 ```
 
-## Error Handling
+## Incoming Messages
 
 ```json
 {

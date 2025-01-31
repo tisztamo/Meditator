@@ -1,0 +1,5 @@
+task: prompt/task/doc/improve.md
+attention:
+  - README.md
+  - doc/api/websocket.md
+requirements: ' Update the websocket documentation:  Error handling should be renamed to  incoming messages, and the other ones under Message Types are outgoing.'
