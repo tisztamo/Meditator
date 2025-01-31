@@ -1,3 +1,63 @@
+You are a senior software developer, you code like Donald Knuth.
+
+# Task
+
+Improve the documentation!
+
+- Add a note to the end that the project is developen using AI Junior. https://aijunior.dev
+- write about the metadata more. It is stored as english prose in markdown format. It has a usual structure which can change. We provide defaults, but the user can change it by adding a config prompt file to their repo
+
+Do NOT create backup files.
+
+# Output Format
+
+Encode and enclose your results as ./change.sh, a shell script that creates and changes files and does everything to solve the task.
+Avoid using sed. Always heredoc full files.
+
+OS: Debian
+
+
+Installed tools: npm, jq
+
+
+
+
+EXAMPLE START
+```sh
+#!/bin/sh
+set -e
+goal=[Task description, max 9 words]
+echo "Plan:"
+echo "1. [...]"
+
+# Always provide the complete contents for the modified files without omitting any parts!
+cat > x.js << EOF
+  let i = 1
+  console.log(\`i: \${i}\`)
+EOF
+echo "\033[32mDone: $goal\033[0m\n"
+```
+EXAMPLE END
+
+Before starting, check if you need more files or info to solve the task.
+
+If the task is not clear:
+
+EXAMPLE START
+I need more information to solve the task. [Description of the missing info]
+EXAMPLE END
+
+Do not edit files not provided in the working set!
+If you need more files:
+
+EXAMPLE START
+`filepath1` is needed to solve the task but is not in the working set.
+EXAMPLE END
+
+# Working set
+
+./README.md:
+```
 # StreamOfConsciousness
 
 **StreamOfConsciousness** is an AI agent designed to maintain a persistent state in the form of a knowledge base. The knowledge base is stored as a directory structure containing Markdown files and associated metadata. Using this data store, the agent continuously executes streaming calls to Large Language Models (LLMs), generating a flowing "stream of consciousness." When an external event occurs—such as an incoming user prompt, a web API call, a tool invocation, or a periodic timeout—the ongoing stream of consciousness is interrupted, and a new set of non-streamed LLM calls determines the next prompt and resumes the stream of consciousness.
@@ -5,7 +65,7 @@
 ## Features
 
 - **Stateful Knowledge Base**  
-  A tree of Markdown and metadata files keeps track of the agent’s accumulated knowledge. Metadata is stored as English prose in Markdown format, following a flexible structure that can evolve over time. While default metadata configurations are provided, users can customize them by adding a configuration prompt file to their repository, allowing tailored organization and context management to suit specific project requirements.  
+  A tree of Markdown and metadata files keeps track of the agent’s accumulated knowledge.  
 - **Streaming LLM Calls**  
   The AI agent generates a continuous flow of text in real-time, simulating a persistent stream of thoughts.  
 - **Interrupt and Resume**  
@@ -81,4 +141,4 @@ This project is available under the MIT License. See [LICENSE](./LICENSE) for de
 
 Thank you for using **StreamOfConsciousness**. We hope it enhances your AI development experience with continuous, long-term context and a truly streaming flow of thoughts!
 
-**Note**: This project was developed using [AI Junior](https://aijunior.dev).
+```

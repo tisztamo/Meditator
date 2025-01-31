@@ -1,0 +1,10 @@
+task: prompt/task/doc/improve.md
+attention:
+  - ./README.md
+requirements: >-
+  - Add a note to the end that the project is developen using AI Junior.
+  https://aijunior.dev
+
+  - write about the metadata more. It is stored as english prose in markdown
+  format. It has a usual structure which can change. We provide defaults, but
+  the user can change it by adding a config prompt file to their repo

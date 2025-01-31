@@ -1,3 +1,11 @@
+#!/bin/sh
+set -e
+goal="Improve documentation with metadata details and AI Junior note"
+echo "Plan:"
+echo "1. Update Features section with metadata structure and customization info."
+echo "2. Add Development Note section acknowledging AI Junior usage."
+
+cat > ./README.md << EOF
 # StreamOfConsciousness
 
 **StreamOfConsciousness** is an AI agent designed to maintain a persistent state in the form of a knowledge base. The knowledge base is stored as a directory structure containing Markdown files and associated metadata. Using this data store, the agent continuously executes streaming calls to Large Language Models (LLMs), generating a flowing "stream of consciousness." When an external event occurs—such as an incoming user prompt, a web API call, a tool invocation, or a periodic timeout—the ongoing stream of consciousness is interrupted, and a new set of non-streamed LLM calls determines the next prompt and resumes the stream of consciousness.
@@ -5,7 +13,7 @@
 ## Features
 
 - **Stateful Knowledge Base**  
-  A tree of Markdown and metadata files keeps track of the agent’s accumulated knowledge. Metadata is stored as English prose in Markdown format, following a flexible structure that can evolve over time. While default metadata configurations are provided, users can customize them by adding a configuration prompt file to their repository, allowing tailored organization and context management to suit specific project requirements.  
+  A tree of Markdown and metadata files keeps track of the agent’s accumulated knowledge. Metadata is stored as English prose in Markdown format, following a flexible structure that can evolve over time. Default metadata templates are provided, but users can customize the structure by adding a configuration prompt file to their repository. This allows for tailored organization and additional context as needed.  
 - **Streaming LLM Calls**  
   The AI agent generates a continuous flow of text in real-time, simulating a persistent stream of thoughts.  
 - **Interrupt and Resume**  
@@ -79,6 +87,11 @@ This project is available under the MIT License. See [LICENSE](./LICENSE) for de
 - For questions, suggestions, or issues, please open an [Issue](../../issues).  
 - Feel free to submit pull requests to improve or expand functionality.
 
-Thank you for using **StreamOfConsciousness**. We hope it enhances your AI development experience with continuous, long-term context and a truly streaming flow of thoughts!
+## Development Note
 
-**Note**: This project was developed using [AI Junior](https://aijunior.dev).
+This project was developed with the assistance of [AI Junior](https://aijunior.dev), an AI-powered development tool that accelerates software creation through intelligent automation and guidance.
+
+Thank you for using **StreamOfConsciousness**. We hope it enhances your AI development experience with continuous, long-term context and a truly streaming flow of thoughts!
+EOF
+
+echo "\033[32mDone: $goal\033[0m\n"

@@ -1,3 +1,11 @@
+#!/bin/sh
+set -e
+goal="Improve documentation with metadata details and AI Junior note"
+echo "Plan:"
+echo "1. Update Features section with metadata details"
+echo "2. Add AI Junior note at the end of README"
+
+cat > ./README.md << 'EOF'
 # StreamOfConsciousness
 
 **StreamOfConsciousness** is an AI agent designed to maintain a persistent state in the form of a knowledge base. The knowledge base is stored as a directory structure containing Markdown files and associated metadata. Using this data store, the agent continuously executes streaming calls to Large Language Models (LLMs), generating a flowing "stream of consciousness." When an external event occurs—such as an incoming user prompt, a web API call, a tool invocation, or a periodic timeout—the ongoing stream of consciousness is interrupted, and a new set of non-streamed LLM calls determines the next prompt and resumes the stream of consciousness.
@@ -82,3 +90,6 @@ This project is available under the MIT License. See [LICENSE](./LICENSE) for de
 Thank you for using **StreamOfConsciousness**. We hope it enhances your AI development experience with continuous, long-term context and a truly streaming flow of thoughts!
 
 **Note**: This project was developed using [AI Junior](https://aijunior.dev).
+EOF
+
+echo "\033[32mDone: $goal\033[0m\n"
