@@ -15,7 +15,7 @@
 
 ```json
 {
-  "type": "token",
+  "type": "thought fragment",
   "data": {"content": "Paris", "complete": false}
 }
 ```
@@ -24,7 +24,8 @@
 
 ```json
 {
-  "type": "error",
-  "data": {"message": "LLM timeout"}
+  "type": "input prompt",
+  "data": {"message": "Where is the Eiffel Tower?"}
 }
 ```
+
