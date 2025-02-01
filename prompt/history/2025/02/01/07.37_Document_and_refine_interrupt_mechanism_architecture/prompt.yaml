@@ -1,0 +1,21 @@
+task: prompt/task/doc/improve.md
+attention:
+  - README.md
+  - doc/architecture/llm-streams.md
+  - doc/index.md
+requirements: >-
+  Refine the interrupt mechanism.
+
+
+  Internal interrupt generators are separate tasks that run according to a
+  schedule (e.g. after every generated token, in every 10 seconds). They can
+  also use LLMs to understand the recent stream, they can also access the main
+  knowledge base and they have their own state in a separate, private knowledge
+  base.
+
+  An interrupt - either internal or external - is a markdown document describing
+  datetime, the interrupt source/type, last tokens of the output stream,
+  interrupt reason and any other info relevant to the interrupt.
+
+
+  Think deeply and refine thoughtfully!
