@@ -1,3 +1,71 @@
+You are a senior software developer, you code like Donald Knuth.
+
+# Task
+
+Improve the documentation!
+
+Rewrite the knowledge base documentation. The current one is just the first sketch, we need more thought and refinement. The current one is also inconsistent, need to fix.
+- Directories (and subdirs) are &#34;Abstractions&#34;
+- Normal markdown files contain &#34;Atoms&#34;
+- Find good definitions for Atom and Abstraction!
+- We call Atoms and Abstraction together: Topics
+- index.md is present in every dir, it contains a one-liner title, a one paragraph description and links to the main topics in this abstraction (either subdirs (sub-abstractions) or files (atoms) in this dir). The text of the link is a short one-liner about the linked topic and its relation to this parent abstraction.
+- We do not need metadata.md.
+- Every atom can have its own metadata. atom1.md is the atom itself, atom1.meta.md is contains the metadata
+- index.meta.md contains the abstraction&#39;s metadata
+
+
+Do NOT create backup files.
+
+# Output Format
+
+Encode and enclose your results as ./change.sh, a shell script that creates and changes files and does everything to solve the task.
+Avoid using sed. Always heredoc full files.
+
+OS: Debian
+
+
+Installed tools: npm, jq
+
+
+
+
+EXAMPLE START
+```sh
+#!/bin/sh
+set -e
+goal=[Task description, max 9 words]
+echo "Plan:"
+echo "1. [...]"
+
+# Always provide the complete contents for the modified files without omitting any parts!
+cat > x.js << EOF
+  let i = 1
+  console.log(\`i: \${i}\`)
+EOF
+echo "\033[32mDone: $goal\033[0m\n"
+```
+EXAMPLE END
+
+Before starting, check if you need more files or info to solve the task.
+
+If the task is not clear:
+
+EXAMPLE START
+I need more information to solve the task. [Description of the missing info]
+EXAMPLE END
+
+Do not edit files not provided in the working set!
+If you need more files:
+
+EXAMPLE START
+`filepath1` is needed to solve the task but is not in the working set.
+EXAMPLE END
+
+# Working set
+
+README.md:
+```
 # StreamOfConsciousness
 
 **StreamOfConsciousness** is an AI agent designed to maintain a persistent state in the form of a knowledge base. The knowledge base is stored as a directory structure containing Markdown files and associated metadata. Using this data store, the agent continuously executes streaming calls to Large Language Models (LLMs), generating a flowing "stream of consciousness." When an external event occurs—such as an incoming user prompt, a web API call, a tool invocation, or a periodic timeout—the ongoing stream of consciousness is interrupted, and a new set of non-streamed LLM calls determines the next prompt and resumes the stream of consciousness.
@@ -18,10 +86,8 @@
 ## Architecture Overview
 
 1. **Knowledge Base (File System)**  
-   - Organizes knowledge into **Abstractions** (directories) and **Atoms** (Markdown files), collectively called **Topics**.  
-   - Each Abstraction contains an `index.md` with a title, description, and links to related Topics. Metadata is stored in `index.meta.md`.  
-   - Atoms represent individual knowledge units with optional `<atom>.meta.md` files for metadata.  
-   - The agent interacts with this structure to maintain persistent, evolving context.  
+   - Directory structure with Markdown files and metadata.  
+   - The agent reads from and writes to this filesystem to maintain long-term context.  
 
 2. **LLM Streams**  
    - Continuous calls to an LLM produce a "stream of consciousness" printed to the console or sent through a websocket.  
@@ -84,3 +150,38 @@ This project is available under the MIT License. See [LICENSE](./LICENSE) for de
 Thank you for using **StreamOfConsciousness**. We hope it enhances your AI development experience with continuous, long-term context and a truly streaming flow of thoughts!
 
 **Note**: This project was developed using [AI Junior](https://aijunior.dev).
+
+```
+doc/architecture/knowledge-base.md:
+```
+# Knowledge Base Architecture
+
+## Structure
+
+```text
+knowledge/
+  topic-1/
+    index.md          # Main content
+    metadata.md       # Free-form English metadata
+    subtopic-a.md
+  topic-2/
+    index.md
+    diagram.png.meta  # Image metadata
+```
+
+## Metadata Handling
+
+Metadata files:
+- Always same name as parent file/directory + `.md`
+- Markdown format for flexible documentation
+- Example metadata.md:
+  ```markdown
+  ## Context Relations
+  - Related to [topic-2](../topic-2/index.md)
+  - Created: 2023-10-01
+  
+  ## Custom Fields
+  Importance: high
+  ```
+
+```

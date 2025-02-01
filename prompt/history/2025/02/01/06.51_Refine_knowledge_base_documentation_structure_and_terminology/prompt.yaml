@@ -1,0 +1,29 @@
+task: prompt/task/doc/improve.md
+attention:
+  - README.md
+  - doc/architecture/knowledge-base.md
+requirements: >
+  Rewrite the knowledge base documentation. The current one is just the first
+  sketch, we need more thought and refinement. The current one is also
+  inconsistent, need to fix.
+
+  - Directories (and subdirs) are "Abstractions"
+
+  - Normal markdown files contain "Atoms"
+
+  - Find good definitions for Atom and Abstraction!
+
+  - We call Atoms and Abstraction together: Topics
+
+  - index.md is present in every dir, it contains a one-liner title, a one
+  paragraph description and links to the main topics in this abstraction (either
+  subdirs (sub-abstractions) or files (atoms) in this dir). The text of the link
+  is a short one-liner about the linked topic and its relation to this parent
+  abstraction.
+
+  - We do not need metadata.md.
+
+  - Every atom can have its own metadata. atom1.md is the atom itself,
+  atom1.meta.md is contains the metadata
+
+  - index.meta.md contains the abstraction's metadata
