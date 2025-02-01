@@ -7,7 +7,7 @@ pkgs.mkShell {
     pkgs.tmux
     pkgs.htop
     pkgs.nodejs
-    glow
+    pkgs.glow
   ];
 
   shellHook = ''
