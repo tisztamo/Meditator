@@ -1,0 +1,13 @@
+task: prompt/task/doc/improve.md
+attention:
+  - README.md
+  - doc/architecture/interrupt-mechanism.md
+requirements: >-
+  - External and internal interrupts are handled the same way
+
+  - Remove "System Events" from External Interrupt Sources. Currently only the
+  three "user inputs" are external sources. Also don't call them user inputs,
+  just external sources.
+
+  - Custom Generators are not a third type besides token- and time- based ones,
+  because custom ones can be any of them. They are a separate thing.

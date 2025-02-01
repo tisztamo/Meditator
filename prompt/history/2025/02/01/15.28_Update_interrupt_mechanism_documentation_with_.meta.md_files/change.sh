@@ -1,3 +1,11 @@
+#!/bin/sh
+set -e
+goal="Update interrupt mechanism documentation with .meta.md files"
+echo "Plan:"
+echo "1. Update interrupt-mechanism.md to use .meta.md instead of .json"
+echo "2. Keep all other previous corrections"
+
+cat > doc/architecture/interrupt-mechanism.md << 'EOF'
 # Interrupt Mechanism
 
 The StreamOfConsciousness system employs a sophisticated interrupt mechanism that handles both internal and external interrupts to manage and control the continuous stream of consciousness. All interrupts are processed through the same central handling pipeline. This document details the architecture and implementation of this system.
@@ -114,3 +122,6 @@ Generators can:
   - Analyze recent output
   - Evaluate context
   - Make decisions about generating interrupts
+EOF
+
+echo "\033[32mDone: $goal\033[0m\n"
