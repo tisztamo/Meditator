@@ -6,7 +6,6 @@ pkgs.mkShell {
     pkgs.git
     pkgs.tmux
     pkgs.htop
-    pkgs.nodejs
     pkgs.glow
   ];
 
@@ -15,8 +14,9 @@ pkgs.mkShell {
     NO_COLOR="\033[0m";
 
     printf "$HEAD_COLOR\n"
-    echo "------------- StreamOfConsciousness dev environment------------"
-    echo "---------------------------------------------------------------"
+    echo "------------- StreamOfConsciousness dev environment---------------"
+    echo "- You need to install bun manually as the nix package has issues -"
+    echo "------------------------------------------------------------------"
     printf "$NO_COLOR"
 
   '';
