@@ -1,0 +1,11 @@
+<s-mind name="Basic Stream of Toughts">
+  <s-stream name="stream">
+    <s-interrupts>
+      <s-timeout name="wander" timeout="120" sigma="30"></s-timeout>
+      <s-loop-sentinel timeout="45"></s-loop-sentinel>
+    </s-interrupts>
+    <s-interrupt-handler></s-interrupt-handler>
+    <s-console></s-console>
+    <s-ws port="7627"></s-ws>
+  </s-stream>
+</s-mind>
