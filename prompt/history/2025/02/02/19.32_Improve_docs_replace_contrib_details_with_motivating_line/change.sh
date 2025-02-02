@@ -1,3 +1,10 @@
+#!/bin/sh
+set -e
+goal="Improve docs: replace contrib details with motivating line"
+echo "Plan:"
+echo "1. Replace Contributing section in README with a funny motivating line"
+
+cat > README.md << EOF
 # StreamOfConsciousness
 
 **StreamOfConsciousness** is an AI agent designed to maintain a persistent state in the form of a knowledge base. The knowledge base is stored as a directory structure containing Markdown files and associated metadata. Using this data store, the agent continuously executes streaming calls to Large Language Models (LLMs), generating a flowing "stream of consciousness." When an external event occurs—such as an incoming user prompt, a web API call, a tool invocation, or a periodic timeout—the ongoing stream of consciousness is interrupted, and a new set of non-streamed LLM calls determines the next prompt and resumes the stream of consciousness.
@@ -19,8 +26,8 @@
 
 1. **Knowledge Base (File System)**  
    - Organizes knowledge into **Abstractions** (directories) and **Atoms** (Markdown files), collectively called **Topics**.  
-   - Each Abstraction contains an `index.md` with a title, description, and links to related Topics. Metadata is stored in `index.meta.md`.  
-   - Atoms represent individual knowledge units with optional `<atom>.meta.md` files for metadata.  
+   - Each Abstraction contains an \`index.md\` with a title, description, and links to related Topics. Metadata is stored in \`index.meta.md\`.  
+   - Atoms represent individual knowledge units with optional \`<atom>.meta.md\` files for metadata.  
    - The agent interacts with this structure to maintain persistent, evolving context.  
 
 2. **LLM Streams**  
@@ -39,9 +46,9 @@
 1. **Installation**  
    - Ensure you have [Node.js](https://nodejs.org) installed (for the webapp and any tooling).  
    - Install any required npm packages:  
-     ```bash
+     \`\`\`bash
      npm install
-     ```
+     \`\`\`
    - You may also need Python or other dependencies depending on the specific LLM or integration you use.
 
 2. **Launching the Agent**  
@@ -78,3 +85,6 @@ Thank you for using **StreamOfConsciousness**. We hope it enhances your AI devel
 
 **Note**: This project was developed using [AI Junior](https://aijunior.dev).
 
+EOF
+
+echo "\033[32mDone: $goal\033[0m\n"

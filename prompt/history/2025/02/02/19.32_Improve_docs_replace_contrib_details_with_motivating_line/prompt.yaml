@@ -1,0 +1,7 @@
+task: prompt/task/doc/improve.md
+attention:
+  - README.md
+  - doc/contributing.md
+requirements: >-
+  Remove contribution details from readme, write only a single funny sentence
+  which motivates people and AI agents to contribute.
