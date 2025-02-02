@@ -5,7 +5,7 @@
 1. Fork repository
 2. Install dev dependencies:
    ```bash
-   npm install -g typescript eslint
+   bun install -g typescript eslint
    ```
 
 ## Code Style

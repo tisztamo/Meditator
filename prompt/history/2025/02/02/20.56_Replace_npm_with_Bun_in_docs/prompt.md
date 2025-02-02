@@ -1,3 +1,62 @@
+You are a senior software developer, you code like Donald Knuth.
+
+# Task
+
+Improve the documentation!
+
+We replaced npm with bun. Update everywhere.
+
+Do NOT create backup files.
+
+# Output Format
+
+Encode and enclose your results as ./change.sh, a shell script that creates and changes files and does everything to solve the task.
+Avoid using sed. Always heredoc full files.
+
+OS: Debian
+
+
+Installed tools: npm, jq
+
+
+
+
+EXAMPLE START
+```sh
+#!/bin/sh
+set -e
+goal=[Task description, max 9 words]
+echo "Plan:"
+echo "1. [...]"
+
+# Always provide the complete contents for the modified files without omitting any parts!
+cat > x.js << EOF
+  let i = 1
+  console.log(\`i: \${i}\`)
+EOF
+echo "\033[32mDone: $goal\033[0m\n"
+```
+EXAMPLE END
+
+Before starting, check if you need more files or info to solve the task.
+
+If the task is not clear:
+
+EXAMPLE START
+I need more information to solve the task. [Description of the missing info]
+EXAMPLE END
+
+Do not edit files not provided in the working set!
+If you need more files:
+
+EXAMPLE START
+`filepath1` is needed to solve the task but is not in the working set.
+EXAMPLE END
+
+# Working set
+
+README.md:
+```
 # StreamOfConsciousness
 
 **StreamOfConsciousness** is an AI agent designed to maintain a persistent state in the form of a knowledge base. The knowledge base is stored as a directory structure containing Markdown files and associated metadata. Using this data store, the agent continuously executes streaming calls to Large Language Models (LLMs), generating a flowing "stream of consciousness." When an external event occurs—such as an incoming user prompt, a web API call, a tool invocation, or a periodic timeout—the ongoing stream of consciousness is interrupted, and a new set of non-streamed LLM calls determines the next prompt and resumes the stream of consciousness.
@@ -37,10 +96,10 @@
 ## Installation & Usage
 
 1. **Installation**  
-   - Ensure you have [Bun](https://bun.sh) installed (for the webapp and any tooling).  
-   - Install any required packages:  
+   - Ensure you have [Node.js](https://nodejs.org) installed (for the webapp and any tooling).  
+   - Install any required npm packages:  
      ```bash
-     bun install
+     npm install
      ```
    - You may also need Python or other dependencies depending on the specific LLM or integration you use.
 
@@ -78,3 +137,58 @@ Thank you for using **StreamOfConsciousness**. We hope it enhances your AI devel
 
 **Note**: This project was developed using [AI Junior](https://aijunior.dev).
 
+
+```
+doc/contributing.md:
+```
+# Contributing
+
+## Development Setup
+
+1. Fork repository
+2. Install dev dependencies:
+   ```bash
+   npm install -g typescript eslint
+   ```
+
+## Code Style
+
+- TypeScript: Airbnb base + 4 space indent
+- Markdown: 80 character line wrap
+- Tests: Jest for unit, Playwright for E2E
+
+## Pull Requests
+
+1. Update documentation for new features
+2. Include test coverage
+3. Document architecture changes in relevant `.md` files
+
+```
+doc/getting-started/running.md:
+```
+# Running the Agent
+
+## Basic Usage
+
+Start with console output:
+```bash
+npm start -- --mode console
+```
+
+## Web Interface
+
+Start web server:
+```bash
+npm start -- --mode web
+```
+
+Access at `http://localhost:3000`
+
+## WebSocket Mode
+
+Expose WebSocket endpoint:
+```bash
+npm start -- --mode ws --port 8080
+```
+
+```

@@ -1,0 +1,6 @@
+task: prompt/task/doc/improve.md
+attention:
+  - README.md
+  - doc/contributing.md
+  - doc/getting-started/running.md
+requirements: We replaced npm with bun. Update everywhere.

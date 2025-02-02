@@ -4,14 +4,14 @@
 
 Start with console output:
 ```bash
-npm start -- --mode console
+bun start -- --mode console
 ```
 
 ## Web Interface
 
 Start web server:
 ```bash
-npm start -- --mode web
+bun start -- --mode web
 ```
 
 Access at `http://localhost:3000`
@@ -20,5 +20,5 @@ Access at `http://localhost:3000`
 
 Expose WebSocket endpoint:
 ```bash
-npm start -- --mode ws --port 8080
+bun start -- --mode ws --port 8080
 ```

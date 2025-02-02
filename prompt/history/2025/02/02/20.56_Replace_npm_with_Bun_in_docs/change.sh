@@ -1,3 +1,13 @@
+#!/bin/sh
+set -e
+goal="Replace npm with Bun in docs"
+echo "Plan:"
+echo "1. Update README.md installation steps to use Bun"
+echo "2. Update contributing.md npm command to bun"
+echo "3. Modify running.md examples to use bun start"
+
+# Update README.md
+cat > README.md << EOF
 # StreamOfConsciousness
 
 **StreamOfConsciousness** is an AI agent designed to maintain a persistent state in the form of a knowledge base. The knowledge base is stored as a directory structure containing Markdown files and associated metadata. Using this data store, the agent continuously executes streaming calls to Large Language Models (LLMs), generating a flowing "stream of consciousness." When an external event occurs—such as an incoming user prompt, a web API call, a tool invocation, or a periodic timeout—the ongoing stream of consciousness is interrupted, and a new set of non-streamed LLM calls determines the next prompt and resumes the stream of consciousness.
@@ -19,8 +29,8 @@
 
 1. **Knowledge Base (File System)**  
    - Organizes knowledge into **Abstractions** (directories) and **Atoms** (Markdown files), collectively called **Topics**.  
-   - Each Abstraction contains an `index.md` with a title, description, and links to related Topics. Metadata is stored in `index.meta.md`.  
-   - Atoms represent individual knowledge units with optional `<atom>.meta.md` files for metadata.  
+   - Each Abstraction contains an \`index.md\` with a title, description, and links to related Topics. Metadata is stored in \`index.meta.md\`.  
+   - Atoms represent individual knowledge units with optional \`<atom>.meta.md\` files for metadata.  
    - The agent interacts with this structure to maintain persistent, evolving context.  
 
 2. **LLM Streams**  
@@ -39,9 +49,9 @@
 1. **Installation**  
    - Ensure you have [Bun](https://bun.sh) installed (for the webapp and any tooling).  
    - Install any required packages:  
-     ```bash
+     \`\`\`bash
      bun install
-     ```
+     \`\`\`
    - You may also need Python or other dependencies depending on the specific LLM or integration you use.
 
 2. **Launching the Agent**  
@@ -78,3 +88,59 @@ Thank you for using **StreamOfConsciousness**. We hope it enhances your AI devel
 
 **Note**: This project was developed using [AI Junior](https://aijunior.dev).
 
+EOF
+
+# Update doc/contributing.md
+cat > doc/contributing.md << EOF
+# Contributing
+
+## Development Setup
+
+1. Fork repository
+2. Install dev dependencies:
+   \`\`\`bash
+   bun install -g typescript eslint
+   \`\`\`
+
+## Code Style
+
+- TypeScript: Airbnb base + 4 space indent
+- Markdown: 80 character line wrap
+- Tests: Jest for unit, Playwright for E2E
+
+## Pull Requests
+
+1. Update documentation for new features
+2. Include test coverage
+3. Document architecture changes in relevant \`.md\` files
+EOF
+
+# Update doc/getting-started/running.md
+cat > doc/getting-started/running.md << EOF
+# Running the Agent
+
+## Basic Usage
+
+Start with console output:
+\`\`\`bash
+bun start -- --mode console
+\`\`\`
+
+## Web Interface
+
+Start web server:
+\`\`\`bash
+bun start -- --mode web
+\`\`\`
+
+Access at \`http://localhost:3000\`
+
+## WebSocket Mode
+
+Expose WebSocket endpoint:
+\`\`\`bash
+bun start -- --mode ws --port 8080
+\`\`\`
+EOF
+
+echo "\033[32mDone: $goal\033[0m\n"
