@@ -1,8 +1,9 @@
 {
   "dependencies": {
-    "@aijunior/dev": "^0.3.23"
+    "amanita": "^0.1.1",
+    "jsdom": "^26.0.0"
   },
   "devDependencies": {
-    "jsdom": "^26.0.0"
+    "@aijunior/dev": "^0.3.23"
   }
 }
