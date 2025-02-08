@@ -1,0 +1,11 @@
+<m-mind name="Basic Stream of Toughts">
+  <m-stream name="stream">
+    <m-interrupts>
+      <m-timeout name="wander" timeout="120" sigma="30"></m-timeout>
+      <m-loop-sentinel timeout="45"></m-loop-sentinel>
+    </m-interrupts>
+    <m-interrupt-handler></m-interrupt-handler>
+    <m-console></m-console>
+    <m-ws port="7627"></m-ws>
+  </m-stream>
+</m-mind>

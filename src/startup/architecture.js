@@ -2,7 +2,7 @@ import { readFile } from "fs/promises";
 
 async function getArchitectureFilePath() {
   const args = process.argv;
-  const defaultPath = "./meditator.asml";
+  const defaultPath = "architecture/meditator.asml";
   
   const fileArgIndex = args.findIndex(arg => arg === "--architecture-file" || arg === "-a");
   if (fileArgIndex !== -1 && args[fileArgIndex + 1]) {
