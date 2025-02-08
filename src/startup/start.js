@@ -11,6 +11,7 @@ loadMindComponents(document).then((components) => {
     console.log("Meditating... Press Ctrl+C to stop.");
     process.on("SIGINT", async function () {
         console.log('Goodbye...');
+        console.log(document.body.innerHTML)
         process.exit();
     });
     setInterval(() => {}, 1000);
