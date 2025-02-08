@@ -1,1 +1,1 @@
-preload = "./src/jsdom.js"
+preload = "./src/startup/jsdom.js"
