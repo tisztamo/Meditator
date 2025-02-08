@@ -10,8 +10,8 @@
 
 1. Clone repository:
    ```bash
-   git clone https://github.com/yourorg/StreamOfConsciousness.git
-   cd StreamOfConsciousness
+   git clone https://github.com/yourorg/Meditator.git
+   cd Meditator
    ```
 
 2. Install dependencies:

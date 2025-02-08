@@ -1,6 +1,6 @@
 # Interrupt Mechanism
 
-The StreamOfConsciousness system employs a sophisticated interrupt mechanism that handles both internal and external interrupts to manage and control the continuous stream of consciousness. All interrupts are processed through the same central handling pipeline. This document details the architecture and implementation of this system.
+The Meditator system employs a sophisticated interrupt mechanism that handles both internal and external interrupts to manage and control the continuous stream of consciousness. All interrupts are processed through the same central handling pipeline. This document details the architecture and implementation of this system.
 
 ## Overview
 

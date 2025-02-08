@@ -1,6 +1,6 @@
-# StreamOfConsciousness Documentation
+# Meditator Documentation
 
-Welcome to the StreamOfConsciousness documentation. This resource covers everything from installation to deep architectural insights.
+Welcome to the Meditator documentation. This resource covers everything from installation to deep architectural insights.
 
 ## Core Sections
 

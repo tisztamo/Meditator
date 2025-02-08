@@ -14,7 +14,7 @@ pkgs.mkShell {
     NO_COLOR="\033[0m";
 
     printf "$HEAD_COLOR\n"
-    echo "------------- StreamOfConsciousness dev environment---------------"
+    echo "------------------- Meditator dev environment --------------------"
     echo "- You need to install bun manually as the nix package has issues -"
     echo "------------------------------------------------------------------"
     printf "$NO_COLOR"
