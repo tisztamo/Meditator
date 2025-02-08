@@ -1,0 +1,8 @@
+task: prompt/task/doc/improve.md
+attention:
+  - README.md
+  - doc/architecture/knowledge-base.md
+requirements: >-
+  Based on the available documentation, create a reference knowledge base, which
+  is the knowledge base from which the README and all other documentation could
+  have been generated. Save it to doc/reference-kb/
