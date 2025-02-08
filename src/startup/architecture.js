@@ -15,6 +15,7 @@ async function getArchitectureFilePath() {
 export async function readArchitectureFile() {
   const filePath = await getArchitectureFilePath();
   try {
+    console.info(`Reading architecture file: ${filePath}`);
     const content = await readFile(filePath, "utf-8");
     return content;
   } catch (error) {
