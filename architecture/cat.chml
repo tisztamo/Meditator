@@ -1,0 +1,10 @@
+<m-mind name="Toughts of a yellow cat">
+  <m-stream skipload="true"></m-stream>
+  <interrupts>
+    <m-sleep name="sleep" timeout="3600" sigma="300" skipLoad="true"></m-sleep>
+    <m-eat name="eat" timeout="1800" sigma="300" skipLoad="true"></m-eat>
+    <cat-nyau name="wander" timeout="120" sigma="30" skipLoad="true"></cat-nyau>
+    <m-loop-sentinel timeout="45" skipLoad="true"></m-loop-sentinel>
+  </interrupts>
+  <m-interrupt-handler skipLoad="true"></m-interrupt-handler>
+</m-mind>
