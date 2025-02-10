@@ -1,0 +1,13 @@
+<m-hive skipLoad="true">
+  <m-mind name="Single Stream of Toughts">
+    <m-stream name="stream" skipLoad="true">
+      <m-interrupts skipLoad="true">
+        <m-timeout name="wander" timeout="120" sigma="30" skipLoad="true"></m-timeout>
+        <m-loop-sentinel timeout="45" skipLoad="true"></m-loop-sentinel>
+      </m-interrupts>
+      <m-interrupt-handler skipLoad="true"></m-interrupt-handler>
+      <m-console skipLoad="true"></m-console>
+      <m-ws port="7627" skipLoad="true"></m-ws>
+    </m-stream>
+  </m-mind>  
+</m-hive>

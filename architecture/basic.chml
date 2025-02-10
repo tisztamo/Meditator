@@ -1,2 +1,3 @@
 <m-mind name="Basic Stream of Toughts">
+  <m-stream skipload="true"></m-stream>
 </m-mind>
