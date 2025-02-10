@@ -3,7 +3,7 @@
 
 *- Meditator is mostly docware yet! -*
 
-**Meditator** is an AI agent emitting a continual flow of thoughts. It is designed to maintain a persistent state in the form of a knowledge base. Using this knowledge base store, the agent continuously executes streaming calls to Large Language Models (LLMs), generating a flowing "stream of consciousness." When an external event occurs — such as an incoming user prompt, a web API call, a tool invocation result, or a periodic timeout — the ongoing thought is interrupted, and a new set of non-streamed LLM calls determines the next prompt and resumes the stream of consciousness.
+**Meditator** is an AI agent emitting a continual flow of thoughts. It is designed to maintain a persistent state in the form of a knowledge base. Using this knowledge base, the agent continuously executes streaming calls to Large Language Models (LLMs), generating a flowing "stream of consciousness." When external or internal events occurs — such as an incoming user prompt, a tool invocation result, a periodic timeout or an associative break — the ongoing thought is interrupted, and a new set of non-streamed LLM calls determines the next prompt and resumes the stream of consciousness.
 
 ## Features
 
