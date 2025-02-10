@@ -1,15 +1,20 @@
 # Meditator
 
-**Meditator** is an AI agent designed to maintain a persistent state in the form of a knowledge base. The knowledge base is stored as a directory structure containing Markdown files and associated metadata. Using this data store, the agent continuously executes streaming calls to Large Language Models (LLMs), generating a flowing "stream of consciousness." When an external event occurs—such as an incoming user prompt, a web API call, a tool invocation, or a periodic timeout—the ongoing stream of consciousness is interrupted, and a new set of non-streamed LLM calls determines the next prompt and resumes the stream of consciousness.
+
+*- Meditator is mostly docware yet! -*
+
+**Meditator** is an AI agent emitting a continual flow of thoughts. It is designed to maintain a persistent state in the form of a knowledge base. Using this knowledge base store, the agent continuously executes streaming calls to Large Language Models (LLMs), generating a flowing "stream of consciousness." When an external event occurs — such as an incoming user prompt, a web API call, a tool invocation result, or a periodic timeout — the ongoing thought is interrupted, and a new set of non-streamed LLM calls determines the next prompt and resumes the stream of consciousness.
 
 ## Features
 
 - **Stateful Knowledge Base**  
-  A tree of Markdown and metadata files keeps track of the agent’s accumulated knowledge. Metadata is stored as English prose in Markdown format, following a flexible structure that can evolve over time. While default metadata configurations are provided, users can customize them by adding a configuration prompt file to their repository, allowing tailored organization and context management to suit specific project requirements.  
+  A tree of Markdown and metadata files stored in a git repo keeps track of the agent’s accumulated knowledge. Metadata is stored as English prose in Markdown format, following a flexible structure that can evolve over time. While default metadata configurations are provided, users can customize them by adding a configuration prompt file to their repository, allowing tailored organization and context management to suit specific project requirements.  
 - **Streaming LLM Calls**  
   The AI agent generates a continuous flow of text in real-time, simulating a persistent stream of thoughts.  
 - **Interrupt and Resume**  
-  External events stop the current stream and trigger a short pipeline of non-streamed LLM calls to decide on the next prompt for the ongoing stream.  
+  External events stop the current stream and trigger a short pipeline of non-streamed LLM calls to decide on the next prompt for the ongoing stream.
+- **Tools**
+  Standard tooling like secure python execution and web search is available.
 - **Console and Websocket Output**  
   The stream of consciousness can be displayed in a console or streamed to a websocket for real-time updates.  
 - **Web Application**  
