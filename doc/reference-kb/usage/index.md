@@ -3,7 +3,7 @@
 Follow these guidelines to set up and run Meditator:
 
 1. **Installation**
-   - Ensure all prerequisites (e.g., Bun, Node.js, Python) are installed.
+   - Install the Bun runtime (install docs)[https://bun.sh/docs/installation]
    - Run: \`bun install\`
 2. **Launching the Agent**
    - Use the provided scripts or Docker container to start Meditator.
