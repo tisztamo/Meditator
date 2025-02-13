@@ -5,11 +5,28 @@ export class MStream extends A(HTMLElement) {
     stream = null
 
     async onConnect() {
-        this.stream = await createStream()
-        console.log("Stream created," , this.stream)
+        await this.createStream()
+        await this.processStream()
+    }
+
+    async createStream() {
+        this.stream = await createStream(this.attr("model") || "deepseek-chat")
+        console.log("Stream created")
+    }
+
+    async processStream() {
         for await (const chunk of this.stream) {
-            console.log(chunk.choices[0]?.delta?.content || '');
+            const content = chunk.choices[0]?.delta?.content || ''
+            if (content) {
+                this.handleChunk(content)
+            }
         }
+        console.log("\nStream ended")
+    }
+
+    handleChunk(content) {
+        this.textContent += content
+        process.stdout.write(content)
     }
 }
 
