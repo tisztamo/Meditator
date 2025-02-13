@@ -1,5 +1,5 @@
 import A from "amanita"
-import {createStream} from "../modelAccess/streamingModel.js"
+import {createContinuationStream} from "../modelAccess/streamingModel.js"
 
 export class MStream extends A(HTMLElement) {
     stream = null
@@ -10,8 +10,7 @@ export class MStream extends A(HTMLElement) {
     }
 
     async createStream() {
-        this.stream = await createStream(this.attr("model") || "deepseek-chat")
-        console.log("Stream created")
+        this.stream = await createContinuationStream(this.attr("prompt"), this.attr("model") || "deepseek-chat")
     }
 
     async processStream() {
@@ -21,7 +20,7 @@ export class MStream extends A(HTMLElement) {
                 this.handleChunk(content)
             }
         }
-        console.log("\nStream ended")
+        console.debug("\nStream ended")
     }
 
     handleChunk(content) {
