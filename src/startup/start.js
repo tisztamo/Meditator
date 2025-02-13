@@ -4,14 +4,14 @@ import { loadMindComponents } from "./loadMindComponents.js"
 
 document.body.innerHTML = `${await readArchitectureFile()}`
 
-console.log("Executing architecture:")
-console.log(document.body.innerHTML)
+console.debug("Executing architecture:")
+console.debug(document.body.innerHTML)
 
 loadMindComponents(document).then((components) => {
-    console.log("Meditating... Press Ctrl+C to stop.");
+    console.log("Meditating... Press Ctrl+C to stop.\n");
     process.on("SIGINT", async function () {
         console.log('Goodbye...');
-        console.log(document.body.innerHTML)
+        console.debug(document.body.innerHTML)
         process.exit();
     });
     setInterval(() => {}, 1000);
