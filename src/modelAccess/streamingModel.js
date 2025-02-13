@@ -1,18 +1,18 @@
 import OpenAI from 'openai';
 function createOpenAIClient() {
-  const client = new OpenAI({
+  return new OpenAI({
     // Do not remove those comments, only when this one is also removed
-    //baseURL: "https://openrouter.ai/api/v1",
-    //apiKey: "${OPENROUTER_API_KEY}",
-    baseURL: "https://api.deepseek.com",
-    apiKey: process.env.DEEPSEEK_API_KEY,
-    dangerouslyAllowBrowser: true,
+    baseURL: 'https://openrouter.ai/api/v1',
+    apiKey: process.env.OPENROUTER_API_KEY,
+    //baseURL: "https://api.deepseek.com",
+    //apiKey: process.env.DEEPSEEK_API_KEY,
+    dangerouslyAllowBrowser: true,  
   });
-  return client;
 }
 
 
 export async function createContinuationStream(promptToContinue, model="deepseek-chat") {
+  console.debug(`Using ${model} for streaming`)
   const client = createOpenAIClient();
   const stream = await client.chat.completions.create({
     model,

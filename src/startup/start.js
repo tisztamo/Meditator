@@ -1,6 +1,9 @@
 import "amanita/stdlib"
 import {readArchitectureFile} from "./architecture.js"
 import { loadMindComponents } from "./loadMindComponents.js"
+import { initializeDebugMode } from "../config/debug.js";
+
+initializeDebugMode();
 
 document.body.innerHTML = `${await readArchitectureFile()}`
 
