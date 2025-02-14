@@ -13,7 +13,7 @@ console.debug(document.body.innerHTML)
 loadMindComponents(document).then((components) => {
     console.log("Meditating... Press Ctrl+C to stop.\n");
     process.on("SIGINT", async function () {
-        console.log('Goodbye...');
+        console.log('\n\nGoodbye...');
         console.debug(document.body.innerHTML)
         process.exit();
     });
