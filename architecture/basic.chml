@@ -1,7 +1,10 @@
-<m-mind name="Basic Stream of Toughts">
-  <m-stream model="google/gemini-2.0-flash-lite-preview-02-05:free" prompt="I see Margarete as she comes out from the water. Her hair is so beautiful as... "></m-stream>
+<m-mind name="Basic Stream of Toughts" prompt="I see Margarete as she comes out from the water. Her hair is so beautiful as... ">
+  <m-prompt>
+    I see Margarete as she comes out from the water. Her hair is so beautiful as... 
+  </m-prompt>
+  <m-stream name="stream" model="google/gemini-2.0-flash-lite-preview-02-05:free"></m-stream>
   <m-interrupts>
-    <m-timeout name="wander" timeout="1" sigma="1" prompt="Your mind just wandered off to a random new topic."></m-timeout>
+    <m-timeout name="wander" timeout="2" sigma="1" prompt="Your mind just wandered off to a random new topic."></m-timeout>
     <m-console skipLoad="true"></m-console>
   </m-interrupts>
 </m-mind>

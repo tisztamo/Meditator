@@ -1,6 +1,6 @@
-import A from "amanita"
+import {MBaseComponent} from "./mBaseComponent.js"
 
-export class MTimeout extends A(HTMLElement) {
+export class MTimeout extends MBaseComponent {
     timeout = 0
     sigma = 0
 
@@ -18,7 +18,7 @@ export class MTimeout extends A(HTMLElement) {
     }
 
     handleTimeout = () => {
-        const prompt = this.attr("prompt") // TODO: prompt reading infrastructure
+        const prompt = this.getPrompt()
         console.debug(`Timeout reached in [name=${this.attr("name")}], interrupting with prompt: ${prompt}`)
         this.pub(prompt)
         this.dispatchEvent(new CustomEvent("interrupt", {

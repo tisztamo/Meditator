@@ -1,6 +1,6 @@
-import A from "amanita"
+import {MBaseComponent} from "./mBaseComponent.js"
 
-export class MInterrupts extends A(HTMLElement) {
+export class MInterrupts extends MBaseComponent {
     "@interrupt-request" = e => {
         console.debug("Interrupt received, details:", e.detail)
         const interrupt = e.detail

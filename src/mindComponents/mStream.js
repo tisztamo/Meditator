@@ -1,16 +1,28 @@
-import A from "amanita"
+import {MBaseComponent} from "./mBaseComponent.js"
 import {createContinuationStream} from "../modelAccess/streamingModel.js"
 
-export class MStream extends A(HTMLElement) {
+/**
+ * m-stream generates a stream of thoughts.
+ * It must be a direct child of m-mind or another root-level mind component.
+ * 
+ * @pub chunk
+ */
+export class MStream extends MBaseComponent {
     stream = null
 
-    async onConnect() {
-        await this.createStream()
+    "../prompt" = async prompt => {
+        this.abortStream()
+        await this.createStream(prompt)
         this.processStream()
     }
 
-    async createStream() {
-        this.stream = await createContinuationStream(this.attr("prompt"), this.attr("model") || "deepseek-chat")
+    "../@interrupt" = e => {
+        console.debug("Interrupt received in m-stream, aborting stream")
+        this.abortStream()
+    }
+
+    async createStream(prompt) {
+        this.stream = await createContinuationStream(prompt ||this.getPrompt(), this.attr("model") || "deepseek-chat")
     }
 
     async processStream() {
@@ -21,16 +33,19 @@ export class MStream extends A(HTMLElement) {
             }
         }
         console.debug("\nStream ended")
+        this.stream = null
     }
 
     handleChunk(content) {
         this.pub("chunk", content)
         process.stdout.write(content)
-    }
 
-    "..m-mind/@interrupt" = e => { // TODO: this definition makes it impossible for m-stream to work without m-mind which is bad- e.g. an extended m-x-mind is not possible now
-        console.debug("Interrupt received in m-stream, aborting stream")
-        this.stream.controller.abort()
+    }
+    abortStream() {
+        if (this.stream) {
+            this.stream.controller.abort()
+            this.stream = null
+        }
     }
 }
 
