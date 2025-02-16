@@ -7,6 +7,7 @@ pkgs.mkShell {
     pkgs.tmux
     pkgs.htop
     pkgs.glow
+    pkgs.unzip
   ];
 
   shellHook = ''
@@ -16,6 +17,7 @@ pkgs.mkShell {
     printf "$HEAD_COLOR\n"
     echo "------------------- Meditator dev environment --------------------"
     echo "- You need to install bun manually as the nix package has issues -"
+    echo "- To install bun: curl -fsSL https://bun.sh/install | bash       -"
     echo "------------------------------------------------------------------"
     printf "$NO_COLOR"
 
