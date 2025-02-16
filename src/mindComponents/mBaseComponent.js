@@ -10,5 +10,16 @@ export class MBaseComponent extends A(HTMLElement) {
         if (promptEl) {
             return promptEl.textContent
         }
+        return getDirectTextContent(this)
     }
+}
+
+function getDirectTextContent(element) {
+    let text = ""
+    for (const node of element.childNodes) {
+        if (node.nodeType === Node.TEXT_NODE) {
+            text += node.textContent.trim() + "\n"
+        }
+    }
+    return text
 }
