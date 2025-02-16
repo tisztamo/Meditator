@@ -6,7 +6,7 @@ export class MStream extends A(HTMLElement) {
 
     async onConnect() {
         await this.createStream()
-        await this.processStream()
+        this.processStream()
     }
 
     async createStream() {
@@ -24,8 +24,13 @@ export class MStream extends A(HTMLElement) {
     }
 
     handleChunk(content) {
-        this.textContent += content
+        this.pub("chunk", content)
         process.stdout.write(content)
+    }
+
+    "..m-mind/@interrupt" = e => { // TODO: this definition makes it impossible for m-stream to work without m-mind which is bad- e.g. an extended m-x-mind is not possible now
+        console.debug("Interrupt received in m-stream, aborting stream")
+        this.stream.controller.abort()
     }
 }
 

@@ -1,6 +1,6 @@
 <m-mind name="Agent Meditator">
   <m-stream name="stream">
-    <m-tools>
+    <m-tools skipLoad="true">
       <m-websearch name="websearch" skipLoad="true"></m-websearch>
       <m-docker name="vm" skipLoad="true"></m-docker>
       <m-filesystem name="fs" skipLoad="true"></m-filesystem>
