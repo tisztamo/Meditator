@@ -1,10 +1,17 @@
-<m-mind name="Basic Stream of Toughts" prompt="I see Margarete as she comes out from the water. Her hair is so beautiful as... ">
+<m-mind name="Basic Stream of Toughts">
   <m-prompt>
     I see Margarete as she comes out from the water. Her hair is so beautiful as... 
   </m-prompt>
   <m-stream name="stream" model="google/gemini-2.0-flash-lite-preview-02-05:free"></m-stream>
   <m-interrupts>
+    <m-timeout name="planner" kb="projectMemory" timeout="60" sigma="20" skipLoad="true">
+      Develop and maintain a plan for the next 10 minutes.
+      <kb-overview skipLoad="true"></kb-overview>
+      <kb-tasks size="1000" skipLoad="true"></kb-tasks>
+      <kb-current-task size="1000" skipLoad="true"></kb-current-task>
+    </m-timeout>
     <m-timeout name="wander" timeout="2" sigma="1" prompt="Your mind just wandered off to a random new topic."></m-timeout>
     <m-console skipLoad="true"></m-console>
+    <m-timeout name="watchdog" reset="..[name=stream]/chunk" timeout="10000" sigma="2000" prompt="The mind has been silent for too long. It's time to wake up."></m-timeout>
   </m-interrupts>
 </m-mind>
