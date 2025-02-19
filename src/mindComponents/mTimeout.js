@@ -21,7 +21,7 @@ export class MTimeout extends MBaseComponent {
         const prompt = this.getPrompt()
         console.debug(`Timeout reached in [name=${this.attr("name")}], interrupting with prompt: ${prompt}`)
         this.pub(prompt)
-        this.dispatchEvent(new CustomEvent("interrupt", {
+        this.dispatchEvent(new CustomEvent("interrupt-request", {
             bubbles: true,
             detail: prompt
         }))

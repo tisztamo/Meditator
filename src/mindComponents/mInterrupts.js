@@ -5,7 +5,7 @@ export class MInterrupts extends MBaseComponent {
         console.debug("Interrupt received, details:", e.detail)
         const interrupt = e.detail
         if (this.checkRateLimit(interrupt)) {
-            console.debug("Rate limit exceeded, cancel interrupting")
+            console.debug("Rate limit exceeded, cancel interrupting", e.detail)
             e.preventDefault()
         } else {
             this.pub(interrupt)

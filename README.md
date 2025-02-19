@@ -1,9 +1,8 @@
 # Meditator
 
+*- WARNING: Meditator is mostly docware yet! -*
 
-*- Meditator is mostly docware yet! -*
-
-**Meditator** is an AI agent emitting a continual flow of thoughts. It is designed to maintain a persistent state in the form of a knowledge base. Using this knowledge base, the agent continuously executes streaming calls to Large Language Models (LLMs), generating a flowing "stream of consciousness." When external or internal events occurs — such as an incoming user prompt, a tool invocation result, a periodic timeout or an associative break — the ongoing thought is interrupted, and a new set of non-streamed LLM calls determines the next prompt and resumes the stream of consciousness.
+**Meditator** is an AI agent emitting a continual flow of thoughts. It is designed to maintain a persistent state in the form of a knowledge base. Using this knowledge base, the agent continuously executes streaming calls to Large Language Models (LLMs), generating a flowing "stream of consciousness." When external or internal events occur — such as an incoming user prompt, a tool invocation result, a periodic timeout or an associative break — the ongoing thought is interrupted, and a new set of non-streamed LLM calls determines the next prompt and resumes the stream of consciousness. Under the hood there is an AI agent framework - The Meditator Framework - which allows you to program your agent in HTML without coding, using only structured prompts and execute it with ease. These prompts adhere to a spec and are executed using a set of standard components written in the component framework called Amanita. Amanita provides a highly declarative way to build applications with web components that refer each other using a pub-sub mechanism and a simple query language to target subscription binding. Amanita, and thus Meditator can run both on the server and in the browser.
 
 ## Features
 
