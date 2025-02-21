@@ -1,0 +1,21 @@
+<m-mind name="Compression Test">
+    <m-stream-generator name="generator">
+        This is a long text that we will use to test the compression mechanism. 
+        It contains multiple sentences and ideas that should be compressed.
+        We want to make sure the compressor can handle a significant amount of text.
+        The text should be long enough to trigger multiple compression cycles.
+        We'll talk about various topics to make it interesting.
+        First, let's discuss artificial intelligence and its impact on society.
+        Then we can move on to environmental concerns and sustainable development.
+        Finally, we'll touch on the future of space exploration and technology.
+        This should give us enough content to test the compression algorithm properly.
+        The compressor should maintain the key ideas while reducing the length significantly.
+    
+    </m-stream-generator>
+    
+    <m-compress name="compressor" 
+                maxLength="200"
+                src="/[name=generator]/chunk"
+                model="google/gemini-2.0-flash-lite-preview-02-05:free">
+    
+</m-mind>
