@@ -25,5 +25,6 @@ export class MTimeout extends MBaseComponent {
             bubbles: true,
             detail: prompt
         }))
+        this.setUp()
     }
 }

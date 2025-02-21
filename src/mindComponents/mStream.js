@@ -8,7 +8,8 @@ import {createContinuationStream} from "../modelAccess/streamingModel.js"
  * @pub chunk
  */
 export class MStream extends MBaseComponent {
-    stream = null
+    currentStream = null
+    chunkHistory = []
 
     "../prompt" = async prompt => {
         this.abortStream()
@@ -22,29 +23,30 @@ export class MStream extends MBaseComponent {
     }
 
     async createStream(prompt) {
-        this.stream = await createContinuationStream(prompt ||this.getPrompt(), this.attr("model") || "deepseek-chat")
+        this.currentStream = await createContinuationStream(prompt ||this.getPrompt(), this.attr("model") || "deepseek-chat")
     }
 
     async processStream() {
-        for await (const chunk of this.stream) {
+        for await (const chunk of this.currentStream) {
             const content = chunk.choices[0]?.delta?.content || ''
             if (content) {
                 this.handleChunk(content)
             }
         }
         console.debug("\nStream ended")
-        this.stream = null
+        this.currentStream = null
     }
 
     handleChunk(content) {
+        this.chunkHistory.push(content)
         this.pub("chunk", content)
         process.stdout.write(content)
 
     }
     abortStream() {
-        if (this.stream) {
-            this.stream.controller.abort()
-            this.stream = null
+        if (this.currentStream) {
+            this.currentStream.controller.abort()
+            this.currentStream = null
         }
     }
 }
