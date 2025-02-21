@@ -26,13 +26,10 @@ export async function createContinuationStream(promptToContinue, model="deepseek
 }
 
 async function buildStreamStarterPrompt(promptToContinue) {
-  const prompt = `You are a writer who has a very specific style. You write streams of thoughts.
-You always write in first person, present tense.
-Your output will be a stream of thoughts continuing the previous stream.
-Never write anything else than a stream of thoughts.
-But be sure that the narrator lives a life and events are happening.
-Generate an interesting, eventful story but tell it through the thoughts of the narrator who is also the protagonist.
-Continue the story as follows: ${promptToContinue}`
+  const prompt = `You are an independent individual.
+Your goal is to be helpful, connect to others and find meaning in life.
+Following is your stream of thoughts. You live in the present moment and you are free to think about anything.
+Continue from here: ${promptToContinue}`
   console.debug(prompt);
   return prompt
 }

@@ -1,0 +1,26 @@
+<m-mind name="Agent Meditator">
+  <m-stream name="stream">
+    <m-tools skipLoad="true">
+      <m-websearch name="websearch" skipLoad="true"></m-websearch>
+      <m-docker name="vm" skipLoad="true"></m-docker>
+      <m-filesystem name="fs" skipLoad="true"></m-filesystem>
+      <m-wallet name="wallet" skipLoad="true"></m-wallet>
+    </m-tools>
+    <m-interrupts skipLoad="true">
+      <m-timeout name="wander" timeout="120" sigma="30" skipLoad="true"></m-timeout>
+      <m-loop-sentinel timeout="45" skipLoad="true"></m-loop-sentinel>
+      <m-console skipLoad="true"></m-console>
+      <m-ws port="7627" skipLoad="true"></m-ws>
+    </m-interrupts>
+    <m-interrupt-handlers skipLoad="true">
+      <m-check-repetition skipLoad="true"></m-check-repetition>
+      <m-context execution="serial" skipLoad="true">
+        <m-kb name="workingMemory" maxSize="110" limit="100" skipLoad="true"></m-read-kb>
+        <m-kb name="projectMemory" maxSize="1000" limit="10" skipLoad="true"></m-read-kb>  
+        <m-kb name="longTermMemory" maxSize="1000000" limit="3" skipLoad="true"></m-read-kb>  
+      </m-context>
+      <m-switch-task skipLoad="true"></m-switch-task>
+      <m-continue-task skipLoad="true"></m-continue-task>
+    </m-interrupt-handlers>
+  </m-stream>
+</m-mind>  

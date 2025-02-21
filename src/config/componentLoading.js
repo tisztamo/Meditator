@@ -11,10 +11,10 @@
 export function getMindComponentsPaths() {
   const paths = [];
 
-  // Check for CLI argument (assuming it's passed as --mind-components-path)
-  const cliArg = process.argv.find(arg => arg.startsWith('--mind-components-path='));
-  if (cliArg) {
-    paths.push(cliArg.split('=')[1]);
+  // Check for CLI argument (assuming it's passed as --mind-components-path or -p)
+  const cliArgIndex = process.argv.findIndex(arg => arg === '--mind-components-path' || arg === '-p');
+  if (cliArgIndex !== -1 && process.argv[cliArgIndex + 1]) {
+    paths.push(process.argv[cliArgIndex + 1]);
   }
 
   // Check for environment variable

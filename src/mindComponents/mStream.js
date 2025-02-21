@@ -48,5 +48,3 @@ export class MStream extends MBaseComponent {
         }
     }
 }
-
-customElements.define("m-stream", MStream)

@@ -13,7 +13,7 @@ export class MTimeout extends MBaseComponent {
         this.sigma = Number(this.attr("sigma")) || 0
         const normalRandom = Math.sqrt(-2 * Math.log(Math.random())) * Math.cos(2 * Math.PI * Math.random())
         const timeoutMs = this.timeout * 1000 + normalRandom * this.sigma * 1000
-        console.debug(`Setting timeout for [name=${this.attr("name")}] to ${timeoutMs}ms`)
+        console.debug(`Setting timeout for [name=${this.attr("name")}] to ${Math.round(timeoutMs)}ms`)
         setTimeout(this.handleTimeout, timeoutMs)
     }
 
@@ -27,5 +27,3 @@ export class MTimeout extends MBaseComponent {
         }))
     }
 }
-
-customElements.define("m-timeout", MTimeout);

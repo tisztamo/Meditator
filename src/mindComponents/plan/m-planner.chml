@@ -1,0 +1,10 @@
+<m-timeout name="planner" kb="projectMemory" timeout="[../timeHorizon]" sigma="[../sigma]" skipLoad="true">
+    Develop and maintain a plan for the next ${timeHorizon} seconds.
+    The plan, if exists, is stored under the key ${this.name} in the knowledge base.
+    The plan is a list of tasks, which are stored under the key ${this.name}/tasks in the knowledge base.
+    The current task is stored under the key ${this.name}/currentTask in the knowledge base.
+
+    <kb-overview skipLoad="true"></kb-overview>
+    <kb-tasks size="1000" skipLoad="true"></kb-tasks>
+    <kb-current-task size="1000" skipLoad="true"></kb-current-task>
+</m-timeout>

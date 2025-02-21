@@ -1,6 +1,10 @@
 import A from "amanita"
 
 export class MBaseComponent extends A(HTMLElement) {
+    onConnect() {
+        this.pub("prompt", this.getPrompt())
+    }
+    
     getPrompt() {
         const promptAttr = this.attr("prompt")
         if (promptAttr) {

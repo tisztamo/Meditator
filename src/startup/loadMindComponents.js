@@ -52,33 +52,31 @@ async function loadModuleForTag(tag, dom) {
   const camelCaseName = kebabToCamel(tag);
   const componentPaths = getMindComponentsPaths();
   
-  // Try each path in order until we find the module
   for (const basePath of componentPaths) {
     const moduleUrl = new URL(`${basePath}/${camelCaseName}.js`, import.meta.url);
     
     try {
-      // Dynamically import the module
       const module = await import(moduleUrl);
-      await registerCustomElement(tag, camelCaseName, module);
+    
+      const pascalCaseName = camelCaseName.charAt(0).toUpperCase() + camelCaseName.slice(1);
+      await registerCustomElement(tag, pascalCaseName, module, moduleUrl);
       return module;
     } catch (error) {
       // If this is the last path and we still haven't found it, handle the error
       if (basePath === componentPaths[componentPaths.length - 1]) {
-        return handleModuleLoadError(error, tag, dom, moduleUrl);
+        return handleModuleLoadError(error, tag, dom);
       }
       continue;
     }
   }
 }
 
-async function registerCustomElement(tag, exportedComponentName, module) {
-  // Get the exported class (assumed to be named same as camelCase)
+async function registerCustomElement(tag, exportedComponentName, module, moduleUrl) {
   const ComponentClass = module[exportedComponentName];
   if (!ComponentClass) {
     throw new Error(`Module ${moduleUrl} does not export ${exportedComponentName}`);
   }
 
-  // Register the custom element if not already registered
   if (!customElements.get(tag)) {
     try {
       customElements.define(tag, ComponentClass);
@@ -88,7 +86,7 @@ async function registerCustomElement(tag, exportedComponentName, module) {
   }
 }
 
-function handleModuleLoadError(error, tag, dom, moduleUrl) {
+function handleModuleLoadError(error, tag, dom) {
   const componentPaths = getMindComponentsPaths();
   const pathsMessage = `\nAttempted paths:\n${componentPaths.map(p => `- ${p}`).join('\n')}`;
   const configMessage = '\nYou can configure component paths via:\n- CLI argument: --mind-components-path=<path>\n- Environment variable: MIND_COMPONENTS_PATH\n- Default: ./mindComponents/ dir';
@@ -96,15 +94,15 @@ function handleModuleLoadError(error, tag, dom, moduleUrl) {
   // If any element of this tag in the DOM has skipload="true", drop a warning and continue
   if (dom.querySelector(`${tag}[skipload="true"]`)) {
     console.warn(
-      `Warning: Failed to load/register module for ${tag}. skipload="true" is set; skipping load.` +
-      (!handleModuleLoadError.firstError ? `\nError: ${error.message}${pathsMessage}\n${configMessage}` : '')
+      `Warning: Failed to load/register module for ${tag}.` +
+      (!handleModuleLoadError.firstError ? `\n${error.message}\n${pathsMessage}\n${configMessage}\n` : '')
     );
     handleModuleLoadError.firstError = true;
     return null;
   }
 
   // Otherwise, re-throw with additional context
-  console.error(`Failed to load module for ${tag}`)
+  console.error(`Failed to load module for ${tag} and skipLoad="true" is not set.`)
   console.log(!handleModuleLoadError.firstError ? `${pathsMessage}\n${configMessage}` : '');
   handleModuleLoadError.firstError = true;
   throw error;

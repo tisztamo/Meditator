@@ -20,5 +20,3 @@ export class MInterrupts extends MBaseComponent {
         return false
     }
 }
-
-customElements.define("m-interrupts", MInterrupts);
