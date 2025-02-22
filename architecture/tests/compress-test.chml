@@ -1,20 +1,34 @@
 <m-mind name="Compression Test">
     <m-stream-generator name="generator">
-        This is a long text that we will use to test the compression mechanism. 
-        It contains multiple sentences and ideas that should be compressed.
-        We want to make sure the compressor can handle a significant amount of text.
-        The text should be long enough to trigger multiple compression cycles.
-        We'll talk about various topics to make it interesting.
-        First, let's discuss artificial intelligence and its impact on society.
-        Then we can move on to environmental concerns and sustainable development.
-        Finally, we'll touch on the future of space exploration and technology.
-        This should give us enough content to test the compression algorithm properly.
-        The compressor should maintain the key ideas while reducing the length significantly.
-    
+It would be nice to try out a new hobby. Something that gets me out of my head a little, you knre sometimes. I've been thinking about pottery. I love the idea of working with my hands, gettingible. Imagine taking raw clay and coaxing it into a beautiful bowl or vase. The process sound
+
+Or... maybe something more physically active? I've always been drawn to the ocean. Learning to ng of the sun on my skin, the salt spray, the challenge of riding a wave… It sounds exhilaratinto be really good for the soul.
+
+Hmm, surfing might be a bit ambitious to start, though, I'd probably spend most the time eatingaccessible. I could probably find a beginner's class fairly easily. I wonder if there are any lbly look that up.
+
+On the other hand, I also love to read. Maybe joining a book club would be a good option. I'd gople, which is nice, and it might even introduce me to new genres or authors I wouldn't pick upssion, especially when I can learn from others.
+
+Decisions, decisions! I'm already feeling a little overwhelmed just thinking about it. Maybe think it. I'll research both pottery studios and book clubs tonight. Then, I'll just pick the oneOr... neither. Maybe something entirely different will catch my eye in the meantime. That's them to choose. The adventure of discovery. I quite like that.
+That reminds me... I should probably water the plants. I completely forgot about that this morn're starting to look a little droopy. It's funny how quickly I can get lost in thought, forgettto my little green friends.
+
+Speaking of green… I've been meaning to find a place to volunteer some time. I've got some timeork at a community garden? I enjoy being outside, and the idea of contributing to something thaling. Plus, it would be a great way to meet other people who share that same kind of connection
+
+I wonder what kind of volunteering options are in the city... I should probably jot that down oight. Pottery studios, book clubs, and community gardens. Or maybe I could even combine a few othat meets at a pottery studio, and the profits from the pottery classes go to the local communittle far-fetched, even for me. But it's fun to think about the possibilities.
+
+I’ve always loved the idea of combining different interests. One things adds to the other, it meautiful. I definitely should try to bring that approach to a new hobby. Okay, back to the plane things get worse.
+Right, plants! Almost forgot again. Water, water, water. It's amazing how much a little bit of hem perk up after a good soak always makes me feel a tiny bit like I've performed a small miracse of satisfaction.
+
+Speaking of small miracles... I do wonder how that new neighbor's garden is doing. The one withen them out there lately, but I remember they were saying something about growing tomatoes. I kou know, lend a hand with the weeding or watering, but I get a little shy, sometimes. Might havbably a missed opportunity to make a new connection.
+
+It reminds me of when I first moved in here. I was so nervous about meeting people. But then I red off to a random new topic.
+I was about to say, Mrs. Rodriguez! She's been here for ages. Always out in her garden, growinge one who first welcomed me to the neighborhood. Brought me a little jar of her homemade jam – d she always has a smile and a kind word. It’s funny, I probably haven't spoken to her in a fewm rushing off to somewhere. Must make time to stop and chat with her tomorrow.
+
+She's a perfect example of how simple connections can brighten your day. We talked about the ror a bit, about life in general. I learned so much from just having a chat with an elder. You knn your own        
     </m-stream-generator>
     
     <m-compress name="compressor" 
-                maxLength="200"
+                maxLength="400"
+                targetLength="200"
                 src="/[name=generator]/chunk"
                 model="google/gemini-2.0-flash-lite-preview-02-05:free">
     

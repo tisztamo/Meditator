@@ -20,8 +20,8 @@ export class MCompress extends MBaseComponent {
         this.chunks.push(chunk)
         this.totalLength += chunk.length
         
-        const maxLength = this.attr("maxLength") || 100
-        const targetLength = this.attr("targetLength") || maxLength / 1.618
+        const maxLength = Number(this.attr("maxLength") || 100)
+        const targetLength = Math.round(Number(this.attr("targetLength") || maxLength / 1.618))
 
         if (this.totalLength > maxLength) {
             await this.compress(targetLength)
@@ -31,17 +31,17 @@ export class MCompress extends MBaseComponent {
     }
 
     async compress(targetLength) {
-        console.debug(`Compressing to ${targetLength} chars, ${((targetLength / this.totalLength * 100).toFixed(2))}% of the original length.`)
+        console.debug(`Compressing to ${targetLength} chars, ${((targetLength / this.totalLength) * 100).toFixed(2)}% of the original length.`)
         this.isCompressing = true
         let lastCompressed = null
         
         try {
             while (this.totalLength > targetLength) {
                 const compressed = await this.compressPass(this.chunks, lastCompressed, targetLength)
-                if (compressed.length <= targetLength) {
-                    this.log("Compression accepted.")
+                if (compressed.length <= Math.max(targetLength + 30, targetLength * 1.2)) {
+                    console.debug(`\x1b[32mCompression to ${compressed.length} chars accepted:`, compressed, '\x1b[0m')
                     this.pub("compressed", compressed)
-                    this.chunks = [compressed]
+                    this.chunks = ["History: ", compressed, "\nRecent: "]
                     this.totalLength = compressed.length
                     break
                 } else {
@@ -63,43 +63,44 @@ export class MCompress extends MBaseComponent {
             ? this.subsequentPrompt(unCompressed, lastCompressed, targetLength)
             : this.initialPrompt(unCompressed, targetLength);
 
+        console.debug("Compression prompt:", prompt, "\n\n")
         const compressed = await createCompletion(prompt, this.attr("model"));
-        console.debug(`Compressed to ${compressed.length} chars, ${((compressed.length / targetLength - 1) * 100).toFixed(2)}% of the original length.`)
+        console.debug(`Compressed to ${compressed.length} chars, ${((compressed.length / unCompressed.length) * 100).toFixed(2)}% of the original length.`)
         return compressed
     }
 
     initialPrompt(unCompressed, targetLength) {
         return `You are compressing a stream of thoughts. 
-Your task is to create a shorter version (${targetLength} chars, ${(targetLength / unCompressed.length * 100).toFixed(2)}% of the original length) that captures the essential meaning.
-Here is the text to compress:
+Your task is to create a shorter version.
 
-${unCompressed}
+<original-text>${unCompressed}</original-text>
 
 Provide a concise summary that preserves the key ideas and flow of thought.
-${this.formatPrompt(targetLength)}`;
+Current length ${unCompressed.length} chars.
+${this.formatPrompt(targetLength, unCompressed.length)}`;
     }
 
     subsequentPrompt(unCompressed, lastCompressed, targetLength) {
         return `You are iteratively compressing a stream of thoughts.
-Previous compression: ${lastCompressed}
-
-Your task is to compress this further while maintaining coherence.
-
-Previous compression was ${lastCompressed.length} chars, which is longer with ${lastCompressed.length - targetLength} chars, or +${((lastCompressed.length / targetLength - 1) * 100).toFixed(2)}%.
 Original text for reference:
 
-${unCompressed}
+<original-text>${unCompressed}</original-text>
 
+Current best compression is ${lastCompressed.length} chars, which is longer than expected with ${lastCompressed.length - targetLength} chars, or ${((lastCompressed.length / targetLength - 1) * 100).toFixed(2)}%.
+
+<previous-compression>${lastCompressed}</previous-compression>
+
+Your task is to create an even shorter version while maintaining coherence.
 Create an even more concise version while preserving the core meaning.
-${this.formatPrompt(targetLength)}`;
+${this.formatPrompt(targetLength, unCompressed.length)}`;
     }
 
-    formatPrompt(targetLength) {
-        return `The full text is partly history, partly recent thoughts.
+    formatPrompt(targetLength, unCompressedLength) {
+        return `The full text may be partly history, partly recent thoughts.
+Target length: ${targetLength} chars, ${(targetLength / unCompressedLength * 100).toFixed(1)}% of the original.
 Output only an updated historical part.
 No need to mention recent thoughts if they have no historical relevance.
 You are the judge of this part of history, so be humble and never lie.
-Target length: ${targetLength} characters
 Output only the compressed text, no other text.`;
     }
 }
