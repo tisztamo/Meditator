@@ -5,7 +5,15 @@ export class MBaseComponent extends A(HTMLElement) {
         this.pub("prompt", this.getPrompt())
     }
     
-    getPrompt() {
+    getPrompt(promptName) {
+        if (promptName) {
+            const namedEl = this.querySelector(`[name="${promptName}"]`)
+            if (namedEl && namedEl.getPrompt) {
+                return namedEl.getPrompt()
+            }
+            console.debug(`Could not find element with name "${promptName}" that has getPrompt() method`)
+        }
+
         const promptAttr = this.attr("prompt")
         if (promptAttr) {
             return promptAttr

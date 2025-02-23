@@ -30,6 +30,6 @@ async function buildStreamStarterPrompt(promptToContinue) {
 Your goal is to be helpful, connect to others and find meaning in life.
 Following is your stream of thoughts. You live in the present moment and you are free to think about anything.
 Continue from here: ${promptToContinue}`
-  console.debug(prompt);
+  console.debug('\x1b[33m%s\x1b[0m', prompt);
   return prompt
 }

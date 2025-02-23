@@ -32,9 +32,15 @@ function normalizeModelName(model) {
     'claude': 'anthropic/claude-3-sonnet',
     'deepseek': 'deepseek-ai/deepseek-chat',
     'mixtral': 'mistralai/mixtral-8x7b',
+    'gemini': 'google/gemini-2.0-flash-lite-preview-02-05:free',
     // Add default case
     'deepseek-chat': 'deepseek-ai/deepseek-chat'
   };
+
+  // Handle falsy model values
+  if (!model) {
+    return modelMappings['gemini'];
+  }
 
   // Check if we have a direct mapping
   if (modelMappings[model]) {
@@ -49,4 +55,4 @@ function normalizeModelName(model) {
   // Default to deepseek-chat if no match found
   console.warn(`Unknown model "${model}", defaulting to deepseek-chat`);
   return modelMappings['deepseek-chat'];
-} 
+}

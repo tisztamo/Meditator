@@ -1,6 +1,6 @@
 <m-mind streamingModel="google/gemini-2.0-flash-lite-preview-02-05:free">
-  <m-stream name="stream" model="[../streamingModel]"></m-stream>
-  <m-interrupts appendFrom="../innerTemplate">
+  <m-stream name="stream" model="../attr('streamingModel')"></m-stream>
+  <m-interrupts>
     <m-console skipLoad="true"></m-console>
     <m-timeout name="watchdog" reset="..[name=stream]/chunk" timeout="10000" sigma="2000" prompt="The mind has been silent for too long. It's time to wake up."></m-timeout>
   </m-interrupts>

@@ -3,12 +3,13 @@ import {MBaseComponent} from "./mBaseComponent.js"
 export class MCompress extends MBaseComponent {
 
     chunks = []
+    lastCompressed = ""
     totalLength = 0
     isCompressing = false
     pendingChunks = []
 
     onConnect() {
-        this.sub(this.attr("src") || "..[name=stream]/chunk", this["[src]"])
+        this.sub(this.attr("src") || "/stream/chunk", this["[src]"])
     }
 
     "[src]" = async chunk => {
@@ -33,19 +34,20 @@ export class MCompress extends MBaseComponent {
     async compress(targetLength) {
         console.debug(`Compressing to ${targetLength} chars, ${((targetLength / this.totalLength) * 100).toFixed(2)}% of the original length.`)
         this.isCompressing = true
-        let lastCompressed = null
+        let lastPassResult = null
         
         try {
             while (this.totalLength > targetLength) {
-                const compressed = await this.compressPass(this.chunks, lastCompressed, targetLength)
+                const compressed = await this.compressPass(this.chunks, lastPassResult, targetLength)
                 if (compressed.length <= Math.max(targetLength + 30, targetLength * 1.2)) {
                     console.debug(`\x1b[32mCompression to ${compressed.length} chars accepted:`, compressed, '\x1b[0m')
-                    this.pub("compressed", compressed)
+                    this.lastCompressed = compressed
                     this.chunks = ["History: ", compressed, "\nRecent: "]
                     this.totalLength = compressed.length
+                    this.pub("compressed", compressed)
                     break
                 } else {
-                    lastCompressed = compressed
+                    lastPassResult = compressed
                 }
             }
         } finally {
@@ -67,6 +69,10 @@ export class MCompress extends MBaseComponent {
         const compressed = await createCompletion(prompt, this.attr("model"));
         console.debug(`Compressed to ${compressed.length} chars, ${((compressed.length / unCompressed.length) * 100).toFixed(2)}% of the original length.`)
         return compressed
+    }
+
+    async getPrompt(promptName) {
+        return this.lastCompressed
     }
 
     initialPrompt(unCompressed, targetLength) {
