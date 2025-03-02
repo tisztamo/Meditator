@@ -49,8 +49,9 @@
    - You may also need Python or other dependencies depending on the specific LLM or integration you use.
 
 2. **Launching the Agent**  
-   - Start the system (for example, with a simple Node.js script or a Docker container if provided).  
-   - Observe the continuous stream of text output in the console or via a websocket endpoint.
+   - Start the system: `bun run meditator.js`  
+   - Observe the continuous stream of text output in the console or (in the future) via a websocket endpoint.
+   - Press Ctrl-C to stop.
 
 3. **Interacting**  
    - Use the provided web interface or direct API calls to send new prompts.  
