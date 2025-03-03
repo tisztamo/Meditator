@@ -1,4 +1,5 @@
 import {MBaseComponent} from "./mBaseComponent.js"
+import { parseTime } from '../config/timeParser.js';
 
 export class MTimeout extends MBaseComponent {
     timeout = 0
@@ -9,10 +10,14 @@ export class MTimeout extends MBaseComponent {
     }
 
     setUp() {
-        this.timeout = Number(this.attr("timeout")) || 120
-        this.sigma = Number(this.attr("sigma")) || 0
+        const timeout = this.attr("timeout") || "1000ms"
+        const sigma = this.attr("sigma") || "0ms"
+        
+        this.timeoutMs = parseTime(timeout, 'ms')
+        this.sigmaMs = parseTime(sigma, 'ms')
+        
         const normalRandom = Math.sqrt(-2 * Math.log(Math.random())) * Math.cos(2 * Math.PI * Math.random())
-        const timeoutMs = this.timeout * 1000 + normalRandom * this.sigma * 1000
+        const timeoutMs = this.timeoutMs + normalRandom * this.sigmaMs
         console.debug(`Setting timeout for [name=${this.attr("name")}] to ${Math.round(timeoutMs)}ms`)
         setTimeout(this.handleTimeout, timeoutMs)
     }
@@ -28,3 +33,5 @@ export class MTimeout extends MBaseComponent {
         this.setUp()
     }
 }
+
+customElements.define('m-timeout', MTimeout);

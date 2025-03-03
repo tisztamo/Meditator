@@ -18,7 +18,7 @@ export class MStream extends MBaseComponent {
     }
 
     "../@interrupt" = e => {
-        console.debug("Interrupt received in m-stream, aborting stream")
+        console.debug("\x1b[31mInterrupt received in m-stream, aborting stream\x1b[0m")
         this.abortStream()
     }
 

@@ -2,7 +2,7 @@ import {MBaseComponent} from "./mBaseComponent.js"
 
 export class MMind extends MBaseComponent {
     "@interrupt" = async e => {
-        console.debug("Interrupt received in m-mind, generating new prompt")
+        console.debug("\x1b[31mInterrupt received in m-mind, generating new prompt\x1b[0m")
 
         const recentHistory = this.getRecentHistory()
 

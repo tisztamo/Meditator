@@ -2,10 +2,10 @@ import {MBaseComponent} from "./mBaseComponent.js"
 
 export class MInterrupts extends MBaseComponent {
     "@interrupt-request" = e => {
-        console.debug("Interrupt received, details:", e.detail)
+        console.debug("\x1b[31mInterrupt received, details:", e.detail, '\x1b[0m')
         const interrupt = e.detail
         if (this.checkRateLimit(interrupt)) {
-            console.debug("Rate limit exceeded, cancel interrupting", e.detail)
+            console.debug("\x1b[31mRate limit exceeded, cancel interrupting", e.detail, '\x1b[0m')
             e.preventDefault()
         } else {
             this.pub(interrupt)
