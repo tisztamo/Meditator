@@ -21,6 +21,10 @@ export class MMind extends MBaseComponent {
     
    getRecentHistory(maxChars = 1000) {
         const streamEl = this.querySelector('m-stream')
+        if (!streamEl) {
+            console.error("No m-stream found in m-mind")
+            return "Error: No m-stream found in m-mind"
+        }
         let totalLength = 0
         let startIndex = streamEl.chunkHistory.length - 1
         

@@ -7,7 +7,7 @@
  * @param {string} [defaultUnit='ms'] - Default unit to use if only a number is provided
  * @returns {number} Time in milliseconds
  */
-export function parseTime(timeExpr, defaultUnit = 'ms') {
+export function parseTime(timeExpr, defaultUnit = 's') {
   // If it's already a number, apply default unit
   if (typeof timeExpr === 'number') {
     return convertToMs(timeExpr, defaultUnit);

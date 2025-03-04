@@ -3,10 +3,10 @@
   <m-stream name="stream" model="google/gemini-2.0-flash-lite-preview-02-05:free"></m-stream>
   <m-interrupts>
     <m-compress name="history" maxLength="1000"></m-compress>
-    <m-planner name="taskPlanner" timeHorizon="300" kb="taskMemory"></m-planner>
-    <m-planner name="pomodoroPlanner" timeHorizon="1800" kb="projectMemory"></m-planner>
-    <m-planner name="dayPlanner" timeHorizon="86400" kb="projectMemory"></m-planner>
-    <m-planner name="strategicPlanner" timeHorizon="31536000" kb="projectMemory"></m-planner>
-    <m-timeout name="wander" timeout="3" sigma="1" prompt="Your mind just wandered off to a random new topic."></m-timeout>
+    <m-planner name="taskPlanner" timeHorizon="5m" kb="taskMemory"></m-planner>
+    <m-planner name="pomodoroPlanner" timeHorizon="30m" kb="projectMemory"></m-planner>
+    <m-planner name="dayPlanner" timeHorizon="24h" kb="projectMemory"></m-planner>
+    <m-planner name="strategicPlanner" timeHorizon="31536000s" kb="projectMemory"></m-planner>
+    <m-timeout name="wander" timeout="3s" sigma="1s" prompt="Your mind just wandered off to a random new topic."></m-timeout>
   </m-interrupts>
 </m-mind>

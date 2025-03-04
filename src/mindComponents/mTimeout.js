@@ -10,11 +10,8 @@ export class MTimeout extends MBaseComponent {
     }
 
     setUp() {
-        const timeout = this.attr("timeout") || "1000ms"
-        const sigma = this.attr("sigma") || "0ms"
-        
-        this.timeoutMs = parseTime(timeout, 'ms')
-        this.sigmaMs = parseTime(sigma, 'ms')
+        this.timeoutMs = parseTime(this.attr("timeout") || "1000ms")
+        this.sigmaMs = parseTime(this.attr("sigma") || "0ms")
         
         const normalRandom = Math.sqrt(-2 * Math.log(Math.random())) * Math.cos(2 * Math.PI * Math.random())
         const timeoutMs = this.timeoutMs + normalRandom * this.sigmaMs
