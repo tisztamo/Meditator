@@ -1,4 +1,7 @@
 import OpenAI from 'openai';
+import { logger } from '../infrastructure/logger';
+
+const log = logger('model.js');
 
 function createOpenAIClient() {
   return new OpenAI({
@@ -11,7 +14,7 @@ function createOpenAIClient() {
 export async function createCompletion(prompt, model = "deepseek-chat") {
   // Validate and normalize model name
   const normalizedModel = normalizeModelName(model);
-  console.debug(`Using ${normalizedModel} for completion`);
+  log.debug(`Using ${normalizedModel} for completion`);
   
   const client = createOpenAIClient();
   const completion = await client.chat.completions.create({
@@ -53,6 +56,6 @@ function normalizeModelName(model) {
   }
 
   // Default to deepseek-chat if no match found
-  console.warn(`Unknown model "${model}", defaulting to deepseek-chat`);
+  log.warn(`Unknown model "${model}", defaulting to deepseek-chat`);
   return modelMappings['deepseek-chat'];
 }

@@ -1,5 +1,8 @@
 import {MBaseComponent} from "./mBaseComponent.js"
 import {createContinuationStream} from "../modelAccess/streamingModel.js"
+import { logger } from '../infrastructure/logger';
+
+const log = logger('mStream.js');
 
 /**
  * m-stream generates a stream of thoughts.
@@ -18,7 +21,7 @@ export class MStream extends MBaseComponent {
     }
 
     "../@interrupt" = e => {
-        console.debug("\x1b[31mInterrupt received in m-stream, aborting stream\x1b[0m")
+        log.debug("\x1b[31mInterrupt received in m-stream, aborting stream\x1b[0m")
         this.abortStream()
     }
 
@@ -33,7 +36,7 @@ export class MStream extends MBaseComponent {
                 this.handleChunk(content)
             }
         }
-        console.debug("\nStream ended")
+        log.debug("\nStream ended")
         this.currentStream = null
     }
 

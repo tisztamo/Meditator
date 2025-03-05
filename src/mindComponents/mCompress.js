@@ -1,4 +1,7 @@
 import {MBaseComponent} from "./mBaseComponent.js"
+import { logger } from '../infrastructure/logger';
+
+const log = logger('mCompress.js');
 
 export class MCompress extends MBaseComponent {
 
@@ -32,7 +35,7 @@ export class MCompress extends MBaseComponent {
     }
 
     async compress(targetLength) {
-        console.debug(`Compressing to ${targetLength} chars, ${((targetLength / this.totalLength) * 100).toFixed(2)}% of the original length.`)
+        log.debug(`Compressing to ${targetLength} chars, ${((targetLength / this.totalLength) * 100).toFixed(2)}% of the original length.`)
         this.isCompressing = true
         let lastPassResult = null
         
@@ -40,7 +43,7 @@ export class MCompress extends MBaseComponent {
             while (this.totalLength > targetLength) {
                 const compressed = await this.compressPass(this.chunks, lastPassResult, targetLength)
                 if (compressed.length <= Math.max(targetLength + 30, targetLength * 1.2)) {
-                    console.debug(`\x1b[32mCompression to ${compressed.length} chars accepted:`, compressed, '\x1b[0m')
+                    log.debug(`\x1b[32mCompression to ${compressed.length} chars accepted:`, compressed, '\x1b[0m')
                     this.lastCompressed = compressed
                     this.chunks = ["History: ", compressed, "\nRecent: "]
                     this.totalLength = compressed.length
@@ -65,9 +68,9 @@ export class MCompress extends MBaseComponent {
             ? this.subsequentPrompt(unCompressed, lastCompressed, targetLength)
             : this.initialPrompt(unCompressed, targetLength);
 
-        console.debug("Compression prompt:", prompt, "\n\n")
+        log.debug("Compression prompt:", prompt, "\n\n")
         const compressed = await createCompletion(prompt, this.attr("model"));
-        console.debug(`Compressed to ${compressed.length} chars, ${((compressed.length / unCompressed.length) * 100).toFixed(2)}% of the original length.`)
+        log.debug(`Compressed to ${compressed.length} chars, ${((compressed.length / unCompressed.length) * 100).toFixed(2)}% of the original length.`)
         return compressed
     }
 

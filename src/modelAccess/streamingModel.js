@@ -1,4 +1,8 @@
 import OpenAI from 'openai';
+import { logger } from '../infrastructure/logger';
+
+const log = logger('streamingModel.js');
+
 function createOpenAIClient() {
   return new OpenAI({
     // Do not remove those comments, only when this one is also removed
@@ -12,7 +16,7 @@ function createOpenAIClient() {
 
 
 export async function createContinuationStream(promptToContinue, model="deepseek-chat") {
-  console.debug(`Using ${model} for streaming`)
+  log.debug(`Using ${model} for streaming`);
   const client = createOpenAIClient();
   const stream = await client.chat.completions.create({
     model,
@@ -30,6 +34,6 @@ async function buildStreamStarterPrompt(promptToContinue) {
 Your goal is to be helpful, connect to others and find meaning in life.
 Following is your stream of thoughts. You live in the present moment and you are free to think about anything.
 Continue from here: ${promptToContinue}`
-  console.debug('\x1b[33m%s\x1b[0m', prompt);
+  log.debug('\x1b[33m%s\x1b[0m', prompt);
   return prompt
 }

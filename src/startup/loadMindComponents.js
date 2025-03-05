@@ -1,5 +1,8 @@
 import { getUnregisteredCustomElements } from "./getUnregisteredCustomElements.js";
 import { getMindComponentsPaths } from '../config/componentLoading.js';
+import { logger } from '../infrastructure/logger';
+
+const log = logger('loadMindComponents.js');
 
 /**
  * Converts a kebab-case string (e.g. "m-stream") to camelCase (e.g. "mStream").
@@ -93,7 +96,7 @@ function handleModuleLoadError(error, tag, dom) {
 
   // If any element of this tag in the DOM has skipload="true", drop a warning and continue
   if (dom.querySelector(`${tag}[skipload="true"]`)) {
-    console.warn(
+    log.warn(
       `Warning: Failed to load/register module for ${tag}.` +
       (!handleModuleLoadError.firstError ? `\n${error.message}\n${pathsMessage}\n${configMessage}\n` : '')
     );
@@ -102,8 +105,8 @@ function handleModuleLoadError(error, tag, dom) {
   }
 
   // Otherwise, re-throw with additional context
-  console.error(`Failed to load module for ${tag} and skipLoad="true" is not set.`)
-  console.log(!handleModuleLoadError.firstError ? `${pathsMessage}\n${configMessage}` : '');
+  log.error(`Failed to load module for ${tag} and skipLoad="true" is not set.`);
+  log.log(!handleModuleLoadError.firstError ? `${pathsMessage}\n${configMessage}` : '');
   handleModuleLoadError.firstError = true;
   throw error;
 }

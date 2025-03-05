@@ -1,4 +1,7 @@
 import { readFile } from "fs/promises";
+import { logger } from '../infrastructure/logger';
+
+const log = logger('architecture.js');
 
 async function getArchitectureFilePath() {
   const args = process.argv;
@@ -17,7 +20,7 @@ async function getArchitectureFilePath() {
 export async function readArchitectureFile() {
   const filePath = await getArchitectureFilePath();
   try {
-    console.info(`Reading architecture file: ${filePath}`);
+    log.info(`Reading architecture file: ${filePath}`);
     const content = await readFile(filePath, "utf-8");
     return content;
   } catch (error) {

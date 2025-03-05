@@ -1,8 +1,11 @@
 import {MBaseComponent} from "./mBaseComponent.js"
+import { logger } from '../infrastructure/logger';
+
+const log = logger('mMind.js');
 
 export class MMind extends MBaseComponent {
     "@interrupt" = async e => {
-        console.debug("\x1b[31mInterrupt received in m-mind, generating new prompt\x1b[0m")
+        log.debug("\x1b[31mInterrupt received in m-mind, generating new prompt\x1b[0m")
 
         const recentHistory = this.getRecentHistory()
 
@@ -22,7 +25,7 @@ export class MMind extends MBaseComponent {
    getRecentHistory(maxChars = 1000) {
         const streamEl = this.querySelector('m-stream')
         if (!streamEl) {
-            console.error("No m-stream found in m-mind")
+            log.error("No m-stream found in m-mind")
             return "Error: No m-stream found in m-mind"
         }
         let totalLength = 0

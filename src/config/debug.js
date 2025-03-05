@@ -1,26 +1,11 @@
-export const debugConfig = {
-    isDebugMode: false
-};
+import { configureDebug } from '../infrastructure/logger';
 
-// Store original console.debug
-const originalConsoleDebug = console.debug.bind(console);
 
 export function initializeDebugMode() {
-    const debugMode = process.argv.includes('--debug');
-    setDebugMode(debugMode);
-}
-
-export function setDebugMode(enabled) {
-    debugConfig.isDebugMode = enabled;
-    // Replace console.debug with no-op function when debug mode is disabled
-    if (!enabled) {
-        console.debug = () => {};
-    } else {
-        // Restore original console.debug when debug mode is enabled
-        console.debug = originalConsoleDebug;
+    const debugArg = process.argv.find(arg => arg.startsWith('--debug'));
+    let debugMode = false;
+    if (debugArg) {
+        debugMode = debugArg.includes('=') ? debugArg.split('=')[1] : 'all';
     }
+    configureDebug(debugMode);
 }
-
-export function isDebugMode() {
-    return debugConfig.isDebugMode;
-} 
