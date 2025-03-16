@@ -3,6 +3,24 @@ import { logger } from '../infrastructure/logger';
 
 const log = logger('mRecentHistory.js');
 
+/**
+ * Manages recent history by organizing content into blocks and compressing them.
+ * Provides advanced history management with multiple compression strategies.
+ * 
+ * @interface
+ * Attributes:
+ *   - src: Input stream path (defaults to "/stream/chunk")
+ *   - blockCount: Maximum number of blocks to maintain (defaults to 10)
+ *   - maxLength: Maximum overall length before triggering compression
+ *   - targetLength: Desired length after compression
+ *   - model: Optional model to use for compression
+ * 
+ * Topics subscribed to:
+ *   - Configured by "src" attribute (defaults to "/stream/chunk"): Receives text chunks
+ * 
+ * Topics published to:
+ *   - "history": Published with compressed history
+ */
 export class MRecentHistory extends MBaseComponent {
     blocks = []
     maxBlockCount = 0
@@ -15,6 +33,10 @@ export class MRecentHistory extends MBaseComponent {
     currentBlockLength = 0
     targetBlockLength = 0
 
+    /**
+     * Initializes the component by subscribing to the source stream
+     * Sets up configuration parameters from attributes
+     */
     onConnect() {
         this.sub(this.attr("src") || "/stream/chunk", this["[src]"])
         this.maxBlockCount = Number(this.attr("blockCount") || 10)
@@ -33,7 +55,7 @@ export class MRecentHistory extends MBaseComponent {
         this.currentBlockLength += chunk.length
 
 
-        if (this.currentBlockLength >= targetBlockLength) {
+        if (this.currentBlockLength >= this.targetBlockLength) {
             const compressedBlock = await this.compressBlock(this.currentBlock.join(""))
             this.blocks.push(compressedBlock)
             
@@ -65,12 +87,17 @@ export class MRecentHistory extends MBaseComponent {
                 this.currentBlock.join("")
             ].join("\n")
 
-            this.lastCompressed = await this.compressIteratively(
-                allContent,
-                targetLength,
-                this.initialAllPrompt,
-                this.subsequentAllPrompt
-            )
+            // Check if the total length is smaller than maxLength
+            if (allContent.length <= targetLength) {
+                this.lastCompressed = allContent;
+            } else {
+                this.lastCompressed = await this.compressIteratively(
+                    allContent,
+                    targetLength,
+                    this.initialAllPrompt,
+                    this.subsequentAllPrompt
+                );
+            }
         } finally {
             this.isCompressing = false
             this.pendingChunks.forEach(this["[src]"])

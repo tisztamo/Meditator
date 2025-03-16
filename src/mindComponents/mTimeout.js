@@ -4,14 +4,37 @@ import { logger } from '../infrastructure/logger';
 
 const log = logger('mTimeout.js');
 
+/**
+ * Timer component that triggers interrupts after a specified timeout period.
+ * Uses normal distribution for randomizing timeout values.
+ * 
+ * @interface
+ * Attributes:
+ *   - timeout: Time until interrupt is triggered (defaults to "1000ms")
+ *   - sigma: Standard deviation for randomizing the timeout (defaults to "0ms")
+ *   - name: Identifier for logging
+ * 
+ * Topics published to:
+ *   - Value from getPrompt(): Published on timeout
+ * 
+ * Events dispatched:
+ *   - "interrupt-request": Bubbling event to request interruption
+ */
 export class MTimeout extends MBaseComponent {
     timeout = 0
     sigma = 0
 
+    /**
+     * Sets up the timeout on component connection
+     */
     onConnect() {
         this.setUp()
     }
 
+    /**
+     * Configures and starts the timeout timer
+     * Calculates timeout with random variation based on sigma
+     */
     setUp() {
         this.timeoutMs = parseTime(this.attr("timeout") || "1000ms")
         this.sigmaMs = parseTime(this.attr("sigma") || "0ms")
@@ -22,6 +45,11 @@ export class MTimeout extends MBaseComponent {
         setTimeout(this.handleTimeout, timeoutMs)
     }
 
+    /**
+     * Handles timeout expiration
+     * Publishes the prompt and dispatches an interrupt-request event
+     * Then sets up a new timeout
+     */
     handleTimeout = () => {
         const prompt = this.getPrompt()
         log.debug(`Timeout reached in [name=${this.attr("name")}], interrupting with prompt: ${prompt}`)

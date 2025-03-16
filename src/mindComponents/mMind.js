@@ -3,7 +3,26 @@ import { logger } from '../infrastructure/logger';
 
 const log = logger('mMind.js');
 
+/**
+ * Core mind component that handles interrupts and manages thought history.
+ * 
+ * @interface
+ * Event listeners:
+ *   - "interrupt": Handles interruption events and generates new prompts
+ * 
+ * Topics published to:
+ *   - "prompt": Published when new prompt is generated after an interrupt
+ * 
+ * Children components:
+ *   - m-stream: Used to access the chunk history
+ */
 export class MMind extends MBaseComponent {
+    /**
+     * Handler for interrupt events
+     * Builds a new prompt incorporating original prompt, history and interrupt details
+     * 
+     * @param {CustomEvent} e - The interrupt event with details about the interruption cause
+     */
     "@interrupt" = async e => {
         log.debug("\x1b[31mInterrupt received in m-mind, generating new prompt\x1b[0m")
 
@@ -22,6 +41,12 @@ export class MMind extends MBaseComponent {
 
     }
     
+   /**
+    * Retrieves recent history from the m-stream component
+    * 
+    * @param {number} maxChars - Maximum number of characters to retrieve from history
+    * @returns {string[]} Array of recent history chunks
+    */
    getRecentHistory(maxChars = 1000) {
         const streamEl = this.querySelector('m-stream')
         if (!streamEl) {
