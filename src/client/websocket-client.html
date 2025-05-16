@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meditator WebSocket Client</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        #output {
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            padding: 15px;
+            height: 400px;
+            overflow-y: auto;
+            margin-bottom: 15px;
+            white-space: pre-wrap;
+        }
+        #input {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            box-sizing: border-box;
+        }
+        #status {
+            color: #666;
+            margin-bottom: 10px;
+        }
+        .thought-fragment {
+            color: #2a7ae2;
+        }
+        .status-message {
+            color: #888;
+            font-style: italic;
+        }
+        .user-input {
+            color: #2e8b57;
+            font-weight: bold;
+        }
+        .error-message {
+            color: #d43f3a;
+        }
+        .reconnect-message {
+            color: #f0ad4e;
+        }
+    </style>
+</head>
+<body>
+    <h1>Meditator WebSocket Client</h1>
+    <div id="status">Disconnected</div>
+    <div id="output"></div>
+    <input type="text" id="input" placeholder="Type your message and press Enter" disabled>
+    <button id="connect">Connect</button>
+    <button id="disconnect" disabled>Disconnect</button>
+    <button id="toggle-auto-reconnect">Auto-Reconnect: On</button>
+
+    <script>
+        const outputElement = document.getElementById('output');
+        const inputElement = document.getElementById('input');
+        const statusElement = document.getElementById('status');
+        const connectButton = document.getElementById('connect');
+        const disconnectButton = document.getElementById('disconnect');
+        const toggleAutoReconnectButton = document.getElementById('toggle-auto-reconnect');
+        
+        let websocket = null;
+        let reconnectAttempts = 0;
+        let reconnectTimer = null;
+        let autoReconnect = true;
+        let manualDisconnect = false;
+        let connectionStartTime = null;
+        const MAX_RECONNECT_DELAY = 5000; // 5 seconds in ms
+        const MIN_RECONNECT_DELAY = 10;   // 10 ms
+        const MAX_RECONNECT_TIME = 60000; // 1 minute in ms
+        
+        // Initialize auto-reconnect toggle
+        toggleAutoReconnectButton.addEventListener('click', () => {
+            autoReconnect = !autoReconnect;
+            toggleAutoReconnectButton.textContent = `Auto-Reconnect: ${autoReconnect ? 'On' : 'Off'}`;
+            
+            if (!autoReconnect && reconnectTimer) {
+                clearTimeout(reconnectTimer);
+                reconnectTimer = null;
+            }
+        });
+
+        // Add message to the output area
+        function addMessage(message, className) {
+            const messageElement = document.createElement('div');
+            messageElement.className = className;
+            messageElement.textContent = message;
+            outputElement.appendChild(messageElement);
+            outputElement.scrollTop = outputElement.scrollHeight;
+        }
+        
+        // Calculate reconnection delay with exponential backoff
+        function getReconnectDelay() {
+            // Calculate how long we've been trying to reconnect
+            const elapsedTime = Date.now() - connectionStartTime;
+            
+            // If we've been trying longer than MAX_RECONNECT_TIME, use max delay
+            if (elapsedTime >= MAX_RECONNECT_TIME) {
+                return MAX_RECONNECT_DELAY;
+            }
+            
+            // Calculate progress as a value between 0 and 1
+            const progress = elapsedTime / MAX_RECONNECT_TIME;
+            
+            // Exponentially increase from MIN to MAX delay based on progress
+            // Use a base-2 exponential curve: min * 2^(log2(max/min) * progress)
+            const ratio = Math.log2(MAX_RECONNECT_DELAY / MIN_RECONNECT_DELAY);
+            const delay = MIN_RECONNECT_DELAY * Math.pow(2, ratio * progress);
+            
+            return Math.min(delay, MAX_RECONNECT_DELAY);
+        }
+        
+        // Attempt to reconnect with exponential backoff
+        function reconnect() {
+            if (!autoReconnect || manualDisconnect) return;
+            
+            const delay = getReconnectDelay();
+            reconnectAttempts++;
+            
+            addMessage(`Reconnecting in ${(delay/1000).toFixed(2)} seconds (attempt ${reconnectAttempts})...`, 'reconnect-message');
+            statusElement.textContent = `Reconnecting in ${(delay/1000).toFixed(2)}s...`;
+            
+            // Clear any existing timer
+            if (reconnectTimer) {
+                clearTimeout(reconnectTimer);
+            }
+            
+            // Set timer for reconnect
+            reconnectTimer = setTimeout(() => {
+                connect(true);
+            }, delay);
+        }
+        
+        // Connect to WebSocket server
+        function connect(isReconnect = false) {
+            try {
+                // Clear any existing timer
+                if (reconnectTimer) {
+                    clearTimeout(reconnectTimer);
+                    reconnectTimer = null;
+                }
+                
+                // Set or reset connection start time for reconnection calculations
+                if (!isReconnect || !connectionStartTime) {
+                    connectionStartTime = Date.now();
+                }
+                
+                manualDisconnect = false;
+                
+                const host = window.location.hostname || 'localhost';
+                websocket = new WebSocket(`ws://${host}:7627/stream`);
+                
+                if (isReconnect) {
+                    addMessage(`Reconnecting (attempt ${reconnectAttempts})...`, 'reconnect-message');
+                } else {
+                    addMessage('Connecting to Meditator stream...', 'status-message');
+                }
+                
+                websocket.onopen = () => {
+                    statusElement.textContent = 'Connected';
+                    inputElement.disabled = false;
+                    connectButton.disabled = true;
+                    disconnectButton.disabled = false;
+                    
+                    if (isReconnect) {
+                        addMessage('Reconnected to Meditator stream', 'status-message');
+                    } else {
+                        addMessage('Connected to Meditator stream', 'status-message');
+                    }
+                    
+                    // Reset reconnect attempts on successful connection
+                    reconnectAttempts = 0;
+                };
+                
+                websocket.onclose = (event) => {
+                    const wasConnected = !connectButton.disabled;
+                    
+                    statusElement.textContent = 'Disconnected';
+                    inputElement.disabled = true;
+                    connectButton.disabled = false;
+                    disconnectButton.disabled = true;
+                    
+                    if (wasConnected) {
+                        const reason = event.reason ? ` (${event.reason})` : '';
+                        addMessage(`Disconnected from Meditator stream${reason}`, 'status-message');
+                    }
+                    
+                    websocket = null;
+                    
+                    // Attempt to reconnect if not manually disconnected
+                    if (!manualDisconnect && wasConnected && autoReconnect) {
+                        reconnect();
+                    }
+                };
+                
+                websocket.onerror = (error) => {
+                    addMessage(`WebSocket error${error.message ? ': ' + error.message : ''}`, 'error-message');
+                    statusElement.textContent = 'Error';
+                    console.error('WebSocket error:', error);
+                    
+                    // Error will trigger onclose, which will handle reconnection
+                };
+                
+                websocket.onmessage = (event) => {
+                    try {
+                        const message = JSON.parse(event.data);
+                        
+                        if (message.type === 'thought_fragment') {
+                            addMessage(message.data.content, 'thought-fragment');
+                        } else if (message.type === 'status') {
+                            addMessage(
+                                `Status: ${message.data.state || message.data.status || 'Update'} - ${message.data.message || ''}`,
+                                'status-message'
+                            );
+                        }
+                    } catch (error) {
+                        console.error('Error parsing message:', error);
+                        addMessage(`Error parsing message: ${event.data}`, 'status-message');
+                    }
+                };
+                
+                return true;
+            } catch (error) {
+                console.error('Connection error:', error);
+                addMessage(`Connection error: ${error.message}`, 'error-message');
+                
+                if (autoReconnect && !manualDisconnect) {
+                    reconnect();
+                }
+                
+                return false;
+            }
+        }
+        
+        // Disconnect from WebSocket server
+        function disconnect() {
+            manualDisconnect = true;
+            
+            // Clear any reconnect timer
+            if (reconnectTimer) {
+                clearTimeout(reconnectTimer);
+                reconnectTimer = null;
+            }
+            
+            if (websocket) {
+                websocket.close();
+                // onclose handler will update UI
+            } else {
+                statusElement.textContent = 'Disconnected';
+                addMessage('Disconnected from Meditator stream', 'status-message');
+            }
+            
+            // Reset reconnect attempts on manual disconnect
+            reconnectAttempts = 0;
+        }
+        
+        // Send a message to the server
+        function sendMessage(message) {
+            if (websocket && websocket.readyState === WebSocket.OPEN) {
+                addMessage(`You: ${message}`, 'user-input');
+                
+                // Send as structured message
+                const structuredMessage = {
+                    type: 'input',
+                    data: {
+                        message: message
+                    }
+                };
+                
+                websocket.send(JSON.stringify(structuredMessage));
+                inputElement.value = '';
+            }
+        }
+        
+        // Set up event listeners
+        connectButton.addEventListener('click', () => connect());
+        disconnectButton.addEventListener('click', disconnect);
+        
+        inputElement.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                const message = inputElement.value.trim();
+                if (message) {
+                    sendMessage(message);
+                }
+            }
+        });
+    </script>
+</body>
+</html> 

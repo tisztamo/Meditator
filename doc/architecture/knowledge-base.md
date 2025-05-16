@@ -83,3 +83,77 @@ This Abstraction covers fundamental principles that form the foundation of our s
 - [Encapsulation](./encapsulation.md): Isolation of component internals
 - [Polymorphism](./polymorphism.md): Interface flexibility patterns
 ```
+
+## State Management Integration
+
+The knowledge base architecture integrates with the system's state management to provide persistent storage for both system state and accumulated knowledge.
+
+### Interrupt State Storage
+
+Alongside the primary knowledge base, the system maintains a specialized directory structure for interrupt state management:
+
+```text
+interrupt-state/
+  token-monitor/
+    state_12345_full_abc123.md     # Full state snapshot
+    state_12346_partial_def456.md  # Partial state update
+    state.meta.md                  # Metadata about state chain
+  time-based/
+    state_12345_full_abc123.md     # Full state snapshot
+    state_12346_partial_def456.md  # Partial state update
+    state.meta.md                  # Metadata about state chain
+```
+
+### State Chain System
+
+The interrupt state management uses a sophisticated state chain system:
+
+1. **Full States**: Complete snapshots of a component's state
+2. **Partial States**: Incremental updates that reference previous states
+3. **State Chain**: Linked sequence of states that can be traversed to reconstruct full state
+
+State files contain embedded metadata with references to previous states in the chain:
+
+```markdown
+# Token Monitor State
+
+Last updated: 2023-10-01T12:34:56Z
+Token count: A56E89
+
+## Pattern Metrics
+...content...
+
+<!-- Previous State: state_12345_full_abc123.md -->
+<!-- State Type: partial -->
+<!-- Created: 2023-10-01T12:30:00Z -->
+```
+
+### State Metadata
+
+Each generator type maintains a `state.meta.md` file with additional information:
+
+```markdown
+# Generator Metadata
+
+- **currentStateFile**: state_12346_partial_def456.md
+- **lastUpdated**: 2023-10-01T12:34:56Z
+- **isCurrentStateFull**: false
+
+## stateFiles
+- **state_12346_partial_def456.md**
+  - timestamp: 2023-10-01T12:34:56Z
+  - isFullState: false
+- **state_12345_full_abc123.md**
+  - timestamp: 2023-10-01T12:30:00Z
+  - isFullState: true
+```
+
+## Knowledge Base Updates
+
+When using the UPDATE_KB strategy in the interrupt handler, the system can automatically:
+
+1. Create new Atoms based on emerging knowledge
+2. Update metadata to reflect new relationships
+3. Reorganize Abstractions as knowledge evolves
+
+This ensures the knowledge base remains a living repository that grows and adapts with the system's experiences and interactions.

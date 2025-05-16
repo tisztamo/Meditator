@@ -7,7 +7,7 @@ Welcome to the Meditator documentation. This resource covers everything from ins
 - [Getting Started](getting-started/installation.md)
 - [Configuration Guide](getting-started/configuration.md)
 - [Web Interface](guides/web-interface.md)
-- [System Architecture](architecture/knowledge-base.md)
+- [System Architecture](architecture/index.md)
   - [Knowledge Base Structure](architecture/knowledge-base.md)
   - [LLM Streams](architecture/llm-streams.md)
   - [Interrupt Mechanism](architecture/interrupt-mechanism.md)
@@ -16,15 +16,41 @@ Welcome to the Meditator documentation. This resource covers everything from ins
 
 ## For Different Audiences
 
-**End Users**  
-Start with [Installation](getting-started/installation.md) and [Running the Agent](getting-started/running.md).
+### End Users  
+Start with the basics:
+- [Installation](getting-started/installation.md)
+- [Running the Agent](getting-started/running.md)
+- [Interacting with Meditator](guides/interaction.md)
+- [Basic Configuration](getting-started/configuration.md)
 
-**Developers/Integrators**  
-- Begin with [Integration Guide](guides/integration.md) and [API Reference](api/websocket.md)
-- For custom interrupt generators, see [Interrupt Mechanism](architecture/interrupt-mechanism.md)
+### Developers & Integrators  
+Understand the API and extension points:
+- [Integration Guide](guides/integration.md)
+- [API Reference](api/websocket.md)
+- [Custom Interrupt Generators](architecture/interrupt-mechanism.md#interrupt-generators)
+- [Knowledge Base Integration](architecture/knowledge-base.md#state-management-integration)
 
-**Maintainers**  
-- Review [Architecture Overview](architecture/knowledge-base.md)
-- Understand the [Interrupt Mechanism](architecture/interrupt-mechanism.md)
-- See [Contributing Guide](contributing.md)
+### System Maintainers  
+Dive deep into architecture:
+- [Knowledge Base Architecture](architecture/knowledge-base.md)
+- [Interrupt Mechanism](architecture/interrupt-mechanism.md)
+- [LLM Stream Management](architecture/llm-streams.md)
+- [State Persistence System](architecture/knowledge-base.md#state-chain-system)
+- [Contributing Guidelines](contributing.md)
+
+## Key Components
+
+- **Mind (`mMind`)**: Core component that handles interrupts and manages thought flow
+- **Stream (`mStream`)**: Manages the continuous stream of text from the LLM
+- **Interrupts (`mInterrupts`)**: Processes interrupt events through the multi-stage pipeline
+- **Token Monitor (`mTokenMonitor`)**: Analyzes token stream for patterns requiring interrupts
+- **Timeout (`mTimeout`)**: Generates time-based interrupts based on configured intervals
+
+## System Features
+
+- **Continuous Stream of Consciousness**: Real-time streaming text generation
+- **Structured Interrupt Handling**: Sophisticated multi-stage pipeline for interrupts
+- **State Management**: Persistent storage with partial/full state chain system
+- **Declarative Configuration**: HTML-like syntax for defining agent behavior
+- **Component Architecture**: Modular design with pub/sub communication
 

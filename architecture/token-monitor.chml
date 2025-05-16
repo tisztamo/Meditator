@@ -1,0 +1,14 @@
+<m-mind name="Stream with Token Monitor">
+  I'm going to explore some interesting ideas and concepts that might lead to unexpected places.
+  <m-stream name="stream" model="google/gemini-2.0-flash-lite-preview-02-05:free"></m-stream>
+  <m-interrupts model="google/gemini-2.0-flash-lite-preview-02-05:free" rateLimit="5000">
+    <m-recent-history name="recent-history" maxLength="3000" ratio="10"></m-recent-history>
+    <m-token-monitor name="content-monitor" 
+                   maxBufferSize="2000" 
+                   model="google/gemini-2.0-flash-lite-preview-02-05:free">
+      <!-- This is a token-based interrupt generator that monitors the content -->
+      <!-- It will analyze the content and potentially trigger interrupts -->
+    </m-token-monitor>
+    <m-timeout name="wander" timeout="30s" sigma="5s" prompt="Your mind just wandered off to a random new topic."></m-timeout>
+  </m-interrupts>
+</m-mind> 

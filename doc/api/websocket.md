@@ -2,20 +2,20 @@
 
 ## Endpoint
 
-`ws://localhost:{port}/stream`
+`ws://localhost:7627/stream`
 
 ## Outgoing Messages
 
 ```json
 {
   "type": "status",
-  "data": {"state": "streaming"}
+  "data": {"state": "streaming", "previousState": "starting", "timestamp": "2023-10-15T12:34:56.789Z"}
 }
 ```
 
 ```json
 {
-  "type": "thought fragment",
+  "type": "thought_fragment",
   "data": {"content": "Paris", "complete": false}
 }
 ```
@@ -24,7 +24,7 @@
 
 ```json
 {
-  "type": "input prompt",
+  "type": "input",
   "data": {"message": "Where is the Eiffel Tower?"}
 }
 ```

@@ -7,7 +7,7 @@
 ## Features
 
 - **Stateful Knowledge Base**  
-  A tree of Markdown and metadata files stored in a git repo keeps track of the agent’s accumulated knowledge. Metadata is stored as English prose in Markdown format, following a flexible structure that can evolve over time. While default metadata configurations are provided, users can customize them by adding a configuration prompt file to their repository, allowing tailored organization and context management to suit specific project requirements.  
+  A tree of Markdown and metadata files stored in a git repo keeps track of the agent's accumulated knowledge. Metadata is stored as English prose in Markdown format, following a flexible structure that can evolve over time. While default metadata configurations are provided, users can customize them by adding a configuration prompt file to their repository, allowing tailored organization and context management to suit specific project requirements.  
 - **Streaming LLM Calls**  
   The AI agent generates a continuous flow of text in real-time, simulating a persistent stream of thoughts.  
 - **Interrupt and Resume**  
@@ -17,7 +17,7 @@
 - **Console and Websocket Output**  
   The stream of consciousness can be displayed in a console or streamed to a websocket for real-time updates.  
 - **Web Application**  
-  A complementary web interface is provided to visualize the agent’s stream and accept user inputs.
+  A complementary web interface is provided to visualize the agent's stream and accept user inputs.
 
 ## Architecture Overview
 
@@ -29,7 +29,7 @@
 
 2. **LLM Streams**  
    - Continuous calls to an LLM produce a "stream of consciousness" printed to the console or sent through a websocket.  
-   - When the stream is active, it represents the AI’s on-the-fly thought process, including intermediate ideas and reasoning.  
+   - When the stream is active, it represents the AI's on-the-fly thought process, including intermediate ideas and reasoning.  
 
 3. **Interrupt Mechanism**  
    - External triggers—user messages, API calls, or elapsed time—pause the stream.  
@@ -50,12 +50,19 @@
 
 2. **Launching the Agent**  
    - Start the system: `bun run meditator.js`  
-   - Observe the continuous stream of text output in the console or (in the future) via a websocket endpoint.
+   - Observe the continuous stream of text output in the console or via a websocket endpoint.
    - Press Ctrl-C to stop.
 
 3. **Interacting**  
-   - Use the provided web interface or direct API calls to send new prompts.  
-   - On receiving a new prompt, the agent’s current stream is halted, a short decision pipeline is executed, and a new stream begins with the updated context.
+   - Use the provided web interface or WebSocket API to send new prompts.  
+   - On receiving a new prompt, the agent's current stream is halted, a short decision pipeline is executed, and a new stream begins with the updated context.
+
+4. **Using WebSockets**
+   - The agent can stream its thoughts via WebSocket on port 7627
+   - Connect to `ws://localhost:7627/stream` to receive the stream
+   - A basic web client is included at `src/client/websocket-client.html`
+   - Run the client: `bun run src/client/server.js` and visit http://localhost:3000
+   - Alternatively, use the setup script: `bun run setup-and-run.js` to start everything at once
 
 ## Configuration
 
