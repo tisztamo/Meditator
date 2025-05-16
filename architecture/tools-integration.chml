@@ -1,0 +1,40 @@
+<!-- Tools Integration with Other Components Example -->
+<m-mind name="Research Assistant Agent">
+  <m-stream name="main-stream" model="anthropic/claude-3-opus-20240229">
+    <!-- Tools configuration -->
+    <m-tools>
+      <m-shell name="shell" cwd="/research/data" timeout="15000"></m-shell>
+    </m-tools>
+    
+    <!-- Comprehensive interrupt handling -->
+    <m-interrupts>
+      <m-timeout name="research-prompt" 
+                 timeout="120s" 
+                 prompt="Consider using the shell tool to analyze data."></m-timeout>
+      
+      <m-token-monitor name="tool-suggester"
+                       patterns="Uncertainty in data,Statistical analysis needed"
+                       weights="0.8,0.9"></m-token-monitor>
+      
+      <m-recent-history maxLength="10000"></m-recent-history>
+      <m-ws port="8080"></m-ws>
+    </m-interrupts>
+    
+    <!-- Knowledge integration -->
+    <m-kb name="research-kb" 
+          maxSize="1000000" 
+          persistPath="/research/knowledge"></m-kb>
+  </m-stream>
+</m-mind>
+
+<!-- 
+Example flow:
+1. Token monitor detects "Statistical analysis needed"
+2. Agent uses shell tool:
+   
+   Use tool: shell
+   python3 -c "import pandas as pd; df = pd.read_csv('data.csv'); print(df.describe())"
+   
+3. Results return via interrupt
+4. Agent stores insights in knowledge base
+--> 

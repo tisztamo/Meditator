@@ -1,0 +1,26 @@
+<!-- Advanced Tools Configuration Example -->
+<m-mind name="Advanced Tools Agent">
+  <m-stream name="stream" model="anthropic/claude-3-opus-20240229">
+    <m-tools prefix="You have access to these helpful tools:">
+      <!-- Shell tool with specific configuration -->
+      <m-shell name="shell" 
+               cwd="/projects/research" 
+               timeout="5000"
+               shell="/bin/bash"></m-shell>
+    </m-tools>
+    
+    <m-interrupts>
+      <m-timeout name="idle" timeout="45s" sigma="10s"></m-timeout>
+      <m-ws port="8080"></m-ws>
+      <m-token-monitor 
+        patterns="I need to run a command,I should check the file system" 
+        weights="0.8,0.7">
+      </m-token-monitor>
+    </m-interrupts>
+  </m-stream>
+</m-mind>
+
+<!-- Example usage:
+  Use tool: shell
+  python3 analyze_data.py --input data.csv --output results.json
+--> 

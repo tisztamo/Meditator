@@ -1,0 +1,18 @@
+<!-- Basic Tools Configuration Example -->
+<m-mind name="Basic Tools Agent">
+  <m-stream name="stream" model="anthropic/claude-3-sonnet-20240229">
+    <m-tools>
+      <!-- Shell tool for executing system commands -->
+      <m-shell name="shell"></m-shell>
+    </m-tools>
+    
+    <m-interrupts>
+      <m-timeout name="idle" timeout="30s"></m-timeout>
+    </m-interrupts>
+  </m-stream>
+</m-mind>
+
+<!-- Example usage:
+  Use tool: shell
+  ls -la
+--> 

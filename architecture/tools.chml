@@ -1,0 +1,30 @@
+<m-mind name="Tools Agent">
+  <!-- Main configuration for an agent with tools capability -->
+  <m-stream name="stream" model="google/gemini-1.5-pro-latest">
+    <!-- Tools component with shell capability -->
+    <m-tools>
+      <m-shell name="system-shell" cwd="." timeout="10000"></m-shell>
+    </m-tools>
+    
+    <!-- Interrupt handling -->
+    <m-interrupts>
+      <!-- Handles timeouts with some variance -->
+      <m-timeout name="idle" timeout="60s" sigma="15s" prompt="You've been idle for a while. Consider using the shell tool to examine the system."></m-timeout>
+      
+      <!-- Websocket for external communication -->
+      <m-ws port="8080"></m-ws>
+      
+      <!-- Recent history tracking -->
+      <m-recent-history maxLength="5000"></m-recent-history>
+    </m-interrupts>
+  </m-stream>
+</m-mind>
+
+<!-- 
+  Example usage from the LLM:
+  
+  Use tool: shell
+  ls -la
+  
+  The agent would execute the "ls -la" command directly and get the result back.
+--> 

@@ -1,0 +1,102 @@
+<!-- 
+  Meditator Tools Examples
+  This file contains example configurations for using tools in the Meditator architecture.
+-->
+
+<!-- Basic Tools Configuration -->
+<m-mind name="Basic Tools Agent">
+  <m-stream name="stream" model="anthropic/claude-3-opus-20240229">
+    <m-tools>
+      <!-- Shell tool for executing system commands -->
+      <m-shell name="shell"></m-shell>
+    </m-tools>
+    
+    <m-interrupts>
+      <m-timeout name="idle" timeout="30s"></m-timeout>
+    </m-interrupts>
+  </m-stream>
+</m-mind>
+
+<!-- Advanced Tools Configuration -->
+<m-mind name="Advanced Tools Agent">
+  <m-stream name="stream" model="anthropic/claude-3-sonnet-20240229">
+    <m-tools prefix="You have access to these helpful tools:">
+      <!-- Shell tool with specific working directory and timeout -->
+      <m-shell name="shell" 
+               cwd="/projects/research" 
+               timeout="5000"
+               shell="/bin/bash"></m-shell>
+      
+      <!-- Example of other potential tools -->
+      <!-- 
+      <m-calculator name="calc"></m-calculator>
+      <m-websearch name="search"></m-websearch>
+      <m-database name="db" connection="postgres://user:pass@localhost/data"></m-database>
+      -->
+    </m-tools>
+    
+    <m-interrupts>
+      <m-timeout name="idle" timeout="45s" sigma="10s"></m-timeout>
+      <m-ws port="8080"></m-ws>
+    </m-interrupts>
+  </m-stream>
+</m-mind>
+
+<!-- Tools in a Collaborative Environment -->
+<m-mind name="Collaborative Tools Agent">
+  <m-stream name="stream" model="google/gemini-1.5-pro-latest">
+    <m-tools>
+      <!-- Shared shell for controlled execution -->
+      <m-shell name="shared-shell" 
+               cwd="/shared/workspace" 
+               timeout="15000"></m-shell>
+    </m-tools>
+    
+    <m-interrupts>
+      <!-- Support WebSocket for multi-client interaction -->
+      <m-ws port="9000"></m-ws>
+      
+      <!-- Track conversation history -->
+      <m-recent-history maxLength="10000"></m-recent-history>
+    </m-interrupts>
+  </m-stream>
+</m-mind>
+
+<!-- Secure Environment Tools Configuration -->
+<m-mind name="Secure Tools Agent">
+  <m-stream name="stream" model="anthropic/claude-3-haiku-20240307">
+    <m-tools>
+      <!-- Restricted shell with limited functionality -->
+      <m-shell name="secure-shell" 
+               cwd="/sandbox" 
+               timeout="3000"
+               shell="/usr/local/bin/restricted-shell"></m-shell>
+    </m-tools>
+    
+    <m-interrupts>
+      <m-timeout name="security-check" timeout="20s"></m-timeout>
+    </m-interrupts>
+  </m-stream>
+</m-mind>
+
+<!-- 
+  Example Interactions
+  
+  1. Basic shell command:
+  
+  Use tool: shell
+  ls -la
+  
+  2. Running a script:
+  
+  Use tool: shell
+  python3 analyze_data.py --input data.csv --output results.json
+  
+  3. Chained commands:
+  
+  Use tool: shell
+  find . -name "*.log" | grep "error" | sort > error_summary.txt
+  
+  The result from each tool execution gets returned to the agent through
+  an interrupt, allowing it to process the output and decide next steps.
+--> 
