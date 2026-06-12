@@ -80,7 +80,7 @@ export class MTimeout extends MBaseComponent {
             const meta = await this.stateManager.loadMeta();
             
             // Update interrupt history
-            if (!meta.interrupts) {
+            if (!Array.isArray(meta.interrupts)) {
                 meta.interrupts = [];
             }
             

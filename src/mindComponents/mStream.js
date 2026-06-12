@@ -100,26 +100,7 @@ export class MStream extends MBaseComponent {
      */
     "../@interrupt" = e => {
         log.debug("\x1b[31mInterrupt received in m-stream\x1b[0m");
-        
-        // Parse the interrupt to determine how to handle it
-        let interrupt;
-        
-        if (typeof e.detail === 'string' && e.detail.includes('## Interrupt Record')) {
-            try {
-                // Parse and update the interrupt record
-                interrupt = InterruptRecord.fromMarkdown(e.detail);
-                
-                // Add context information
-                interrupt.context.streamState = this.streamState;
-                interrupt.context.lastOutput = this.getRecentOutput(500);
-                
-                // Replace the event detail with the updated record
-                e.detail = interrupt.toMarkdown();
-            } catch (error) {
-                log.error("Error updating interrupt context:", error);
-            }
-        }
-        
+
         // Transition to INTERRUPTED state
         this._changeState(StreamState.INTERRUPTED);
         

@@ -298,17 +298,16 @@ ${JSON.stringify(analysisResults, null, 2)}
             throw new Error("Invalid interrupt structure");
         }
         
-        // Add reception metadata
-        const enhanced = { ...interrupt };
-        enhanced.additionalData = {
-            ...enhanced.additionalData,
+        // Add reception metadata (mutate in-place to preserve InterruptRecord methods)
+        interrupt.additionalData = {
+            ...interrupt.additionalData,
             reception: {
                 timestamp: new Date().toISOString(),
                 processingPipeline: "multi-step"
             }
         };
-        
-        return enhanced;
+
+        return interrupt;
     }
     
     /**
