@@ -30,6 +30,10 @@ Because the tail is always carried forward verbatim, the thought survives every 
 
 **Economy** (`m-economy`) reads real API usage (OpenRouter reports true cost) and slows the pace as the budget drains: a tired mind thinks slower; an exhausted one almost sleeps, but the watchdog keeps it alive.
 
+## Intro site
+
+Open [`site/index.html`](site/index.html) — a single self-contained page (no build, no dependencies). Its hero window replays an unedited first-session transcript; if a Meditator is running locally, the window connects to `ws://localhost:7627` and becomes the live mind, input box included.
+
 ## Running
 
 ```bash
