@@ -5,7 +5,7 @@ const log = logger('architecture.js');
 
 async function getArchitectureFilePath() {
   const args = process.argv;
-  const defaultPath = "architecture/meditator.chml"; // Default architecture file path, relative to the project root.
+  const defaultPath = "architecture/awake.chml"; // Default architecture file path, relative to the project root.
                                                      // chml is chatbot markup language, subset of html 1.0
                                                      // components are implemented either in src/mindComponents/ or in architecture/
   

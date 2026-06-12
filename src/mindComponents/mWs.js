@@ -45,9 +45,10 @@ export class MWs extends MBaseComponent {
         log.error("WebSocket server error:", error);
       });
       
-      // Subscribe to stream chunks and state changes
-      this.sub("../chunk", this["../chunk"]);
-      this.sub("../state", this["../state"]);
+      // Subscribe to stream chunks and state changes (absolute refs so this
+      // component can live anywhere in the mind)
+      this.sub(this.attr("src") || "/stream/chunk", this.onChunk);
+      this.sub(this.attr("stateSrc") || "/stream/state", this.onState);
       
       log.debug("WebSocket component initialized");
     } catch (error) {
@@ -182,26 +183,27 @@ export class MWs extends MBaseComponent {
       }
     });
     
-    // Create an interrupt record
+    // Create an urgent external stimulus and put it on the interrupt bus
     const interrupt = new InterruptRecord({
       source: "WebSocketClient",
       type: "UserInput",
-      reason: input,
+      reason: `A voice arrives from outside: "${input}"`,
+      salience: 1,
+      urgent: true,
       context: {
         clientId: clientInfo.clientId,
         timestamp: new Date().toISOString()
       }
     });
-    
-    // Publish interrupt request
-    this.pub("interrupt-request", interrupt.toMarkdown());
+
+    this.dispatchEvent(new CustomEvent("interrupt-request", { bubbles: true, detail: interrupt }));
   }
   
   /**
    * Handle stream chunk events
    * @param {string} chunk - The chunk content
    */
-  "../chunk" = (chunk) => {
+  onChunk = (chunk) => {
     // Broadcast chunk to all connected clients
     this.broadcastToClients({
       type: "thought_fragment",
@@ -216,7 +218,7 @@ export class MWs extends MBaseComponent {
    * Handle stream state change events
    * @param {Object} stateInfo - Information about the state change
    */
-  "../state" = (stateInfo) => {
+  onState = (stateInfo) => {
     // Broadcast state changes to all connected clients
     this.broadcastToClients({
       type: "status",

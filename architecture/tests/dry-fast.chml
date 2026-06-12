@@ -1,0 +1,25 @@
+<!-- Fast-cycle test mind for MEDITATOR_DRY_RUN=1: tiny buffers and short timers
+     so consolidation, queued and urgent stimuli, association and persistence
+     all happen within a one-minute run. Not meant for live models. -->
+<m-mind name="test-mind" pace="1.5s" paceSigma="0.3s" tailLength="400">
+  A small test mind.
+
+  <m-stream name="stream" burstTokens="100"></m-stream>
+
+  <m-memory name="memory"
+            tailLength="400" recentLength="300" storyLength="500"
+            blockMin="150" storyEvery="2"
+            persist="state" journal="journal"></m-memory>
+
+  <m-interrupts name="attention" threshold="0.3" rateLimit="2s" keep="2"></m-interrupts>
+
+  <m-timeout name="wander" timeout="10s" sigma="2s" salience="0.7"
+             prompt="My mind drifts toward something else."></m-timeout>
+
+  <m-timeout name="poke" timeout="24s" sigma="2s" salience="1" urgent="true"
+             prompt="Something urgent from outside demands my attention right now."></m-timeout>
+
+  <m-associate name="associate" every="3" cooldown="8s"></m-associate>
+
+  <m-economy name="economy" budget="1.00"></m-economy>
+</m-mind>

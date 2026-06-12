@@ -1,301 +1,176 @@
-import {MBaseComponent} from "./mBaseComponent.js"
-import {createContinuationStream} from "../modelAccess/streamingModel.js"
+import { MBaseComponent } from "./mBaseComponent.js"
+import { chatStream, defaultModel } from "../modelAccess/llm.js"
 import { logger } from '../infrastructure/logger.js';
-import { InterruptRecord } from '../infrastructure/interruptRecord.js';
 
 const log = logger('mStream.js');
 
 /**
- * Stream states as defined in the architecture
- * @enum {string}
- */
-const StreamState = {
-  IDLE: 'idle',
-  STARTING: 'starting',
-  STREAMING: 'streaming',
-  INTERRUPTED: 'interrupted',   // Stream is paused by an interrupt and can be resumed or terminated
-  COMPLETED: 'completed',
-  ERROR: 'error'
-};
-
-/**
- * Generates and manages a stream of text from a language model.
- * Must be a direct child of m-mind or another root-level mind component.
- * Implements the full state machine described in the architecture.
- * 
+ * The thinking voice. Produces the stream of consciousness as a sequence of
+ * short BURSTS — each burst is one streamed LLM call. The continuity between
+ * bursts is not this component's job: m-mind assembles every burst's prompt
+ * (the attention frame) so that the verbatim tail of the previous burst is
+ * always carried forward.
+ *
+ * An interruption is therefore not a special state here. A new prompt simply
+ * supersedes the current burst: the in-flight stream is aborted quietly and a
+ * new one starts. The old pause/resume fiction is gone — you cannot resume a
+ * closed HTTP stream, and with tail-carryover you do not need to.
+ *
  * @interface
  * Attributes:
- *   - model: The model to use for streaming (defaults to "deepseek-chat")
- *   - resumable: Whether interrupts are resumable (defaults to "true")
- * 
+ *   - model: model for the voice (falls back to ancestor "model" attr, then default)
+ *   - burstTokens: max tokens per burst (default 350)
+ *   - temperature: sampling temperature (default 0.9)
+ *
  * Subscriptions:
- *   - "../prompt": Receives prompts from parent component
- *   - "../@interrupt": Handles interruption events
- *   - "../resume": Handles resume commands
- *   - "../terminate": Handles termination commands
- * 
- * Topics published to:
- *   - "chunk": Published when new content is received from the stream
- *   - "state": Published when stream state changes
+ *   - "../prompt": receives {system, frame, prefix?, kind?} or a plain string
+ *
+ * Topics published:
+ *   - "chunk": each text fragment as it arrives (the prefix is emitted as a chunk too)
+ *   - "boundary": {reason: completed|aborted|error|superseded, burstIndex, burstChars, error?}
+ *                 emitted when a burst ends and was NOT superseded by a newer prompt
+ *   - "state": {oldState, newState, timestamp} — kept for the websocket client
  */
+/**
+ * Trims the longest overlap between the end of the carried text and the start
+ * of the new burst (also when the new text starts with extra whitespace).
+ */
+export function trimSeamOverlap(prev, next) {
+    const lead = (next.match(/^\s*/) || [""])[0]
+    const body = next.slice(lead.length)
+    const max = Math.min(prev.length, body.length, 100)
+    for (let k = max; k >= 4; k--) {
+        if (prev.endsWith(body.slice(0, k))) return body.slice(k)
+    }
+    return next
+}
+
 export class MStream extends MBaseComponent {
-    currentStream = null
     chunkHistory = []
-    streamState = StreamState.IDLE
-    pausedText = ""
-    pausedContext = null
-    lastChunkTime = null
-    isResumable = true
-    
-    /**
-     * Sets up the component on connection
-     */
-    onConnect() {
-      // Subscribe to additional commands
-      this.sub("../resume", this["../resume"]);
-      this.sub("../terminate", this["../terminate"]);
-      this.isResumable = this.attr("resumable") !== "false"; // Default to true
-    }
-    
-    /**
-     * Changes the stream state and publishes the new state
-     * @param {string} newState - The new state from StreamState enum
-     * @private
-     */
-    _changeState(newState) {
-      if (this.streamState === newState) return;
-      
-      const oldState = this.streamState;
-      this.streamState = newState;
-      
-      log.debug(`Stream state changed: ${oldState} -> ${newState}`);
-      
-      // Publish state change
-      this.pub("state", {
-        oldState,
-        newState,
-        timestamp: new Date().toISOString()
-      });
-    }
-    
-    /**
-     * Handles prompt events from parent component
-     * Aborts any existing stream and creates a new one with the provided prompt
-     * 
-     * @param {string} prompt - The prompt to send to the model
-     */
-    "../prompt" = async prompt => {
-        this.abortStream()
-        this._changeState(StreamState.STARTING);
-        await this.createStream(prompt)
-        this._changeState(StreamState.STREAMING);
-        this.processStream()
+    streamState = "idle"
+    burstIndex = 0
+    _current = null      // {burst, generation}
+    _generation = 0
+
+    "../prompt" = async payload => {
+        this._generation += 1
+        const generation = this._generation
+        this._supersede()
+        await this._startBurst(payload, generation)
     }
 
-    /**
-     * Handles interrupt events from parent component
-     * Changes stream state and manages the stream
-     * 
-     * @param {CustomEvent} e - The interrupt event
-     */
-    "../@interrupt" = e => {
-        log.debug("\x1b[31mInterrupt received in m-stream\x1b[0m");
-
-        // Transition to INTERRUPTED state
-        this._changeState(StreamState.INTERRUPTED);
-        
-        // Save current context for potential resumption if resumable is enabled
-        if (this.isResumable) {
-            this.pauseStream();
-        } else {
-            // If not resumable, abort the stream
-            this.abortStream();
+    _supersede() {
+        if (this._current) {
+            this._current.superseded = true
+            this._current.burst.abort()
+            this._current = null
         }
-    }
-    
-    /**
-     * Handles resume events
-     * Resumes a paused stream in interrupted state
-     */
-    "../resume" = () => {
-        if (this.streamState !== StreamState.INTERRUPTED) {
-            log.warn("Cannot resume stream - not in interrupted state");
-            return;
-        }
-        
-        if (!this.isResumable || !this.pausedContext || !this.pausedContext.stream) {
-            log.warn("Cannot resume - stream not resumable or no paused context available");
-            return;
-        }
-        
-        log.debug("Resuming interrupted stream");
-        this.resumeStream();
-    }
-    
-    /**
-     * Handles termination events
-     * Terminates the current stream completely
-     */
-    "../terminate" = () => {
-        if (this.streamState !== StreamState.INTERRUPTED) {
-            log.warn("Cannot terminate - not in interrupted state");
-            return;
-        }
-        
-        log.debug("Terminating interrupted stream");
-        this.abortStream();
     }
 
-    /**
-     * Creates a new stream using the provided prompt
-     * 
-     * @param {string} prompt - The prompt to send to the model
-     */
-    async createStream(prompt) {
-        this.currentStream = await createContinuationStream(prompt || this.getPrompt(), this.attr("model") || "deepseek-chat")
-    }
+    async _startBurst(payload, generation) {
+        const { system, frame, prefix, dedupe } =
+            typeof payload === 'string' ? { frame: payload } : payload
 
-    /**
-     * Processes the current stream, handling each chunk as it arrives
-     */
-    async processStream() {
+        this.burstIndex += 1
+        const burstIndex = this.burstIndex
+        let burstChars = 0
+
+        const messages = []
+        if (system) messages.push({ role: 'system', content: system })
+        messages.push({ role: 'user', content: frame })
+
+        // The bridge (or any injected text) physically enters the stream:
+        // it becomes part of the monologue, the tail, the memory, the journal.
+        if (prefix) {
+            this._emitChunk(prefix)
+            burstChars += prefix.length
+        }
+
+        this._changeState("streaming")
+        let context = null
         try {
-            for await (const chunk of this.currentStream) {
-                // Check if we've been paused or aborted
-                if (this.streamState !== StreamState.STREAMING) {
-                    break;
+            const burst = await chatStream({
+                model: this.attr("model") || this.env("model") || defaultModel('stream'),
+                messages,
+                maxTokens: Number(this.attr("burstTokens") || 350),
+                temperature: Number(this.attr("temperature") || 0.9),
+            })
+            context = { burst, superseded: false }
+            this._current = context
+
+            // Models often re-anchor by echoing the last words of the carried
+            // tail. Buffer the first ~100 chars and trim the overlap so burst
+            // seams read as one continuous text.
+            let pending = ""
+            let seamChecked = !dedupe
+            for await (const text of burst) {
+                if (context.superseded) break
+                if (!seamChecked) {
+                    pending += text
+                    if (pending.length >= 100) {
+                        const trimmed = trimSeamOverlap(dedupe, pending)
+                        seamChecked = true
+                        this._emitChunk(trimmed)
+                        burstChars += trimmed.length
+                        pending = ""
+                    }
+                    continue
                 }
-                
-                const content = chunk.choices[0]?.delta?.content || ''
-                if (content) {
-                    this.handleChunk(content)
-                    this.lastChunkTime = Date.now();
-                }
+                this._emitChunk(text)
+                burstChars += text.length
             }
-            
-            if (this.streamState === StreamState.STREAMING) {
-                log.debug("\nStream completed normally");
-                this._changeState(StreamState.COMPLETED);
+            if (!seamChecked && pending && !context.superseded) {
+                const trimmed = trimSeamOverlap(dedupe, pending)
+                this._emitChunk(trimmed)
+                burstChars += trimmed.length
+            }
+
+            if (!context.superseded) {
+                this._finishBurst({ reason: "completed", burstIndex, burstChars })
             }
         } catch (error) {
-            if (error.name === 'AbortError') {
-                log.debug("\nStream aborted");
-            } else {
-                log.error("Stream error:", error)
-                this._changeState(StreamState.ERROR);
-            }
+            if (context?.superseded) return
+            log.error("Burst error:", error.message || error)
+            this._finishBurst({ reason: "error", burstIndex, burstChars, error: error.message || String(error) })
         } finally {
-            if (this.streamState !== StreamState.INTERRUPTED) {
-                this.currentStream = null;
-            }
+            if (this._current === context) this._current = null
         }
     }
 
-    /**
-     * Handles a content chunk from the stream
-     * Adds it to history and publishes it
-     * 
-     * @param {string} content - The content chunk from the stream
-     */
-    handleChunk(content) {
-        this.chunkHistory.push(content)
-        this.pub("chunk", content)
-        process.stdout.write(content)
+    _finishBurst(boundary) {
+        this._changeState("idle")
+        process.stdout.write("\n")
+        this.pub("boundary", boundary)
     }
-    
-    /**
-     * Aborts the current stream if one exists
-     */
-    abortStream() {
-        if (this.currentStream) {
-            this.currentStream.controller.abort()
-            this.currentStream = null;
-            this.pausedText = "";
-            this.pausedContext = null;
+
+    _emitChunk(text) {
+        this.chunkHistory.push(text)
+        if (this.chunkHistory.length > 4000) {
+            this.chunkHistory.splice(0, this.chunkHistory.length - 2000)
         }
+        this.pub("chunk", text)
+        process.stdout.write(text)
     }
-    
-    /**
-     * Pauses the current stream
-     * Used when transitioning to interrupted state to save context for potential resumption
-     */
-    pauseStream() {
-        if (this.currentStream && this.streamState === StreamState.INTERRUPTED) {
-            // Save context including the current stream
-            this.pausedContext = {
-                stream: this.currentStream,
-                lastChunkTime: this.lastChunkTime,
-                timestampPaused: Date.now()
-            };
-            
-            log.debug("Stream paused in interrupted state");
-        }
+
+    _changeState(newState) {
+        if (this.streamState === newState) return
+        const oldState = this.streamState
+        this.streamState = newState
+        this.pub("state", { oldState, newState, timestamp: new Date().toISOString() })
     }
-    
+
     /**
-     * Resumes a previously paused stream
-     * Only works if the stream is in interrupted state and has saved context
-     */
-    async resumeStream() {
-        if (this.streamState !== StreamState.INTERRUPTED) {
-            log.warn("Cannot resume - stream not in interrupted state");
-            return;
-        }
-        
-        if (!this.pausedContext || !this.pausedContext.stream) {
-            log.warn("Cannot resume - no paused context available");
-            return;
-        }
-        
-        log.debug("Resuming stream from interrupted state");
-        
-        // Restore the stream from paused context
-        this.currentStream = this.pausedContext.stream;
-        this.lastChunkTime = this.pausedContext.lastChunkTime;
-        
-        // Clear paused context
-        this.pausedContext = null;
-        
-        // Resume processing the stream
-        this._changeState(StreamState.STREAMING);
-        this.processStream();
-    }
-    
-    /**
-     * Gets the most recent output from the stream
-     * 
-     * @param {number} maxChars - Maximum characters to return
-     * @returns {string} Recent output
+     * Recent verbatim output — fallback tail source when no m-memory is present.
+     * @param {number} maxChars
+     * @returns {string}
      */
     getRecentOutput(maxChars = 1000) {
-        let totalLength = 0
-        let startIndex = this.chunkHistory.length - 1
-        
-        // Work backwards through chunks until we have enough chars or reach the start
-        while (startIndex >= 0 && totalLength < maxChars) {
-            totalLength += this.chunkHistory[startIndex].length
-            startIndex--
+        let total = 0
+        let start = this.chunkHistory.length
+        while (start > 0 && total < maxChars) {
+            start -= 1
+            total += this.chunkHistory[start].length
         }
-        
-        // Adjust startIndex to include the chunk that put us over maxChars
-        startIndex = Math.max(0, startIndex + 1)
-        
-        return this.chunkHistory.slice(startIndex).join("")
-    }
-    
-    /**
-     * Gets information about the current stream state
-     * 
-     * @returns {Object} Object containing stream state information
-     */
-    getStreamStateInfo() {
-        return {
-            currentState: this.streamState,
-            chunkCount: this.chunkHistory.length,
-            lastChunkTime: this.lastChunkTime,
-            isPaused: this.streamState === StreamState.INTERRUPTED,
-            isResumable: this.isResumable && this.pausedContext !== null,
-            isActive: [StreamState.STREAMING, StreamState.INTERRUPTED].includes(this.streamState)
-        };
+        return this.chunkHistory.slice(start).join("")
     }
 }

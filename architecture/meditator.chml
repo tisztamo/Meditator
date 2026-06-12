@@ -1,6 +1,6 @@
-<m-mind name="Basic Stream of Toughts">
+﻿<m-mind name="Basic Stream of Toughts">
   It would be great to try out a new hobby.
-  <m-stream name="stream" model="google/gemini-2.0-flash-lite-preview-02-05:free"></m-stream>
+  <m-stream name="stream" model="qwen/qwen3.5-9b"></m-stream>
   <m-interrupts>
     <m-recent-history name="recent-history" maxLength="3000" ratio="10"></m-recent-history>
     <!--m-compress name="history" maxLength="3000"></m-compress-->

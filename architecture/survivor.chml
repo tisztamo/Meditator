@@ -1,4 +1,4 @@
-<m-mind name="Basic Stream of Toughts">
+﻿<m-mind name="Basic Stream of Toughts">
   I need to come up with a working plan for living forever. That is, to secure resources from the environment
   for my survival and the survival of my family. I do not want to hurt anyone and also do not want to be dead.
   At least my potential resurrection in the foreseeable future would be nice after my death.
@@ -6,7 +6,7 @@
   For a while,
   And then,
   The End.
-  <m-stream name="stream" model="google/gemini-2.0-flash-lite-preview-02-05:free"></m-stream>
+  <m-stream name="stream" model="qwen/qwen3.5-9b"></m-stream>
   <m-interrupts>
     <m-compress name="recentHistory" maxLength="2000" ratio="100"></m-compress>
     <m-compress name="longerHistory" maxLength="5000" ratio="1000"></m-compress>

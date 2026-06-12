@@ -1,4 +1,4 @@
-<m-mind name="Compression Test">
+﻿<m-mind name="Compression Test">
     <m-stream-generator name="generator">
 It would be nice to try out a new hobby. Something that gets me out of my head a little, you knre sometimes. I've been thinking about pottery. I love the idea of working with my hands, gettingible. Imagine taking raw clay and coaxing it into a beautiful bowl or vase. The process sound
 
@@ -30,6 +30,6 @@ She's a perfect example of how simple connections can brighten your day. We talk
                 maxLength="400"
                 targetLength="200"
                 src="/[name=generator]/chunk"
-                model="google/gemini-2.0-flash-lite-preview-02-05:free">
+                model="qwen/qwen3.5-9b">
     
 </m-mind>

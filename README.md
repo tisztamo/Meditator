@@ -1,77 +1,63 @@
 # Meditator
 
-*- WARNING: Meditator is mostly docware yet! -*
+**Meditator** is an AI agent that emits a continual flow of thoughts. It is not a chat loop: there are no turns, no prompts waiting for a user. A mind is declared in an HTML file, runs as a stream of consciousness, and the world — a person speaking over websocket or console, a timer, an internal observer noticing something — reaches it only as *interruptions* that redirect the stream.
 
-**Meditator** is an AI agent emitting a continual flow of thoughts. It is designed to maintain a persistent state in the form of a knowledge base. Using this knowledge base, the agent continuously executes streaming calls to Large Language Models (LLMs), generating a flowing "stream of consciousness." When external or internal events occur — such as an incoming user prompt, a tool invocation result, a periodic timeout or an associative break — the ongoing thought is interrupted, and a new set of non-streamed LLM calls determines the next prompt and resumes the stream of consciousness. Under the hood there is an AI agent framework - The Meditator Framework - which allows you to program your agent in HTML without coding, using only structured prompts and execute it with ease. These prompts adhere to a spec and are executed using a set of standard components written in the component framework called Amanita. Amanita provides a highly declarative way to build applications with web components that refer each other using a pub-sub mechanism and a simple query language to target subscription binding. Amanita, and thus Meditator can run both on the server and in the browser.
+The mind is programmed in **chml** (chatbot markup language, a subset of HTML) and executed by standard components built on [Amanita](https://www.npmjs.com/package/amanita), a declarative web-component framework with pub/sub wiring. Amanita runs on the server and in the browser; Meditator currently runs under [Bun](https://bun.sh).
 
-## Features
+## How it thinks
 
-- **Stateful Knowledge Base**  
-  A tree of Markdown and metadata files stored in a git repo keeps track of the agent's accumulated knowledge. Metadata is stored as English prose in Markdown format, following a flexible structure that can evolve over time. While default metadata configurations are provided, users can customize them by adding a configuration prompt file to their repository, allowing tailored organization and context management to suit specific project requirements.  
-- **Streaming LLM Calls**  
-  The AI agent generates a continuous flow of text in real-time, simulating a persistent stream of thoughts.  
-- **Interrupt and Resume**  
-  External events stop the current stream and trigger a short pipeline of non-streamed LLM calls to decide on the next prompt for the ongoing stream.
-- **Tools**
-  Standard tooling like secure python execution and web search is available.
-- **Console and Websocket Output**  
-  The stream of consciousness can be displayed in a console or streamed to a websocket for real-time updates.  
-- **Web Application**  
-  A complementary web interface is provided to visualize the agent's stream and accept user inputs.
+The "continuous" stream is implemented as a sequence of short **bursts** — each burst one streamed LLM call — separated by a configurable pace. Every burst's prompt is an assembled **attention frame**:
 
-## Architecture Overview
+```
+[identity]   who this mind is — the text of the <m-mind> element itself
+[story]      slow compressed autobiography           (m-memory, first person)
+[recently]   faster rolling summary                  (m-memory)
+[stimulus]   what just happened, if anything         (from the arbiter)
+[bridge]     1–2 transition sentences written by a tiny model, redirects only
+[tail]       the verbatim end of the stream — "what I was just saying"
+```
 
-1. **Knowledge Base (File System)**  
-   - Organizes knowledge into **Abstractions** (directories) and **Atoms** (Markdown files), collectively called **Topics**.  
-   - Each Abstraction contains an `index.md` with a title, description, and links to related Topics. Metadata is stored in `index.meta.md`.  
-   - Atoms represent individual knowledge units with optional `<atom>.meta.md` files for metadata.  
-   - The agent interacts with this structure to maintain persistent, evolving context.  
+Because the tail is always carried forward verbatim, the thought survives every context switch. Because everything else is compressed memory, the prompt stays bounded forever — the mind can run for days.
 
-2. **LLM Streams**  
-   - Continuous calls to an LLM produce a "stream of consciousness" printed to the console or sent through a websocket.  
-   - When the stream is active, it represents the AI's on-the-fly thought process, including intermediate ideas and reasoning.  
+**Interrupts** are bubbling DOM events. Any generator — `m-timeout`, observers, websocket, console — dispatches an `interrupt-request` carrying a salience-scored record; the `m-interrupts` arbiter applies thresholds and rate limits mechanically (the generator knows why it fired, so it brings its own salience). Accepted stimuli wait for the next burst boundary; *urgent* ones (a human speaking) supersede the running burst immediately. There is no reply concept — you hear the mind think about what you said.
 
-3. **Interrupt Mechanism**  
-   - External triggers—user messages, API calls, or elapsed time—pause the stream.  
-   - A short pipeline of non-streamed calls to an LLM decides how to respond and how to proceed with the next stream, if any.  
+**Observers** watch the stream independently:
+- `m-loop-guard` — detects attractor loops (paraphrased self-repetition) with bigram/vocabulary overlap, no LLM cost
+- `m-associate` — a tiny model that occasionally notices "this reminds me of…" and bids for attention
+- `m-timeout` — wander mode (spontaneous drift) or watchdog mode (`reset` attribute: fires only after true silence)
 
-4. **Web Application**  
-   - A web server that provides a user interface for real-time viewing of the stream and an input interface to interact with the AI.  
+**Memory** (`m-memory`) consolidates at burst boundaries — never blocking the stream — into `recent` and `story` tiers, persists to `state/memory.md`, and journals everything readable to `journal/<date>.md`. On restart the mind *wakes up remembering*, with a stimulus noting how long it slept.
 
-## Installation & Usage
+**Economy** (`m-economy`) reads real API usage (OpenRouter reports true cost) and slows the pace as the budget drains: a tired mind thinks slower; an exhausted one almost sleeps, but the watchdog keeps it alive.
 
-1. **Installation**  
-   - Ensure you have [Bun](https://bun.sh) installed (for the webapp and any tooling).  
-   - Install any required packages:  
-     ```bash
-     bun install
-     ```
-   - You may also need Python or other dependencies depending on the specific LLM or integration you use.
+## Running
 
-2. **Launching the Agent**  
-   - Start the system: `bun run meditator.js`  
-   - Observe the continuous stream of text output in the console or via a websocket endpoint.
-   - Press Ctrl-C to stop.
+```bash
+bun install
+# needs OPENROUTER_API_KEY in the environment
+bun run meditator.js                       # default mind: architecture/awake.chml
+bun run meditator.js -a architecture/tests/dry-fast.chml   # any other architecture
+```
 
-3. **Interacting**  
-   - Use the provided web interface or WebSocket API to send new prompts.  
-   - On receiving a new prompt, the agent's current stream is halted, a short decision pipeline is executed, and a new stream begins with the updated context.
+- Type a line into the terminal and press Enter — it arrives as an urgent stimulus.
+- Websocket stream on port 7627 (`bun architecture/tests/poke-ws.js "hello"` to speak; `bun run src/client/server.js` then http://localhost:3000 for the simple web client).
+- `--debug` or `--debug=mMind.js,mMemory.js` for component logs (attention frames, consolidations, arbiter decisions).
+- `MEDITATOR_DRY_RUN=1` runs the whole loop offline against a deterministic stub — no network, no cost.
 
-4. **Using WebSockets**
-   - The agent can stream its thoughts via WebSocket on port 7627
-   - Connect to `ws://localhost:7627/stream` to receive the stream
-   - A basic web client is included at `src/client/websocket-client.html`
-   - Run the client: `bun run src/client/server.js` and visit http://localhost:3000
-   - Alternatively, use the setup script: `bun run setup-and-run.js` to start everything at once
+### Models
 
-## Configuration
+Roles, not one model (set in the chml):
+- stream voice: `qwen/qwen3.6-35b-a3b` ($0.15/M in, $1/M out)
+- utility (bridge/compression/observers): `qwen/qwen3.5-9b` ($0.10/M in, $0.15/M out)
 
-- **LLM Provider**  
-  Configure your environment variables or set up an API key for your chosen LLM provider.  
-- **Timeout and Triggers**  
-  Adjust thresholds for timeouts or maximum token usage to control when and how the system interrupts itself.  
-- **File Storage**  
-  Point the agent to a desired directory path for storing the Markdown knowledge base.
+A model id prefixed `local/` routes to an OpenAI-compatible server at `LOCAL_LLM_BASE_URL` (e.g. vLLM on your own GPUs) — observers, compression and the voice can run concurrently and batch well there. A continuous run at the default pace costs roughly $0.10–0.15/hour on OpenRouter; the economy component enforces whatever budget you give it.
+
+### Architectures
+
+- `architecture/awake.chml` — the canonical living mind (default)
+- `architecture/tests/dry-fast.chml` — fast-cycle test mind for dry runs
+- `architecture/tests/compress-test.chml` — offline compression harness
+- `architecture/meditator.chml`, `survivor.chml`, `cat.chml`, `complex.chml`, `tools-*.chml` — earlier sketches and capability demos, kept for history
 
 ## Contributing
 
@@ -81,14 +67,6 @@ Contributions are welcome! Your genius code edits and AI's existential crises be
 
 This project is available under the MIT License. See [LICENSE](./LICENSE) for details.
 
-## Support
-
-- For questions, suggestions, or issues, please open an [Issue](../../issues).  
-- Feel free to submit pull requests to improve or expand functionality.
-
-Thank you for using **Meditator**. We hope it enhances your AI development experience with continuous, long-term context and a truly streaming flow of thoughts!
-
-**Note**: This project was developed using [AI Junior](https://aijunior.dev).
+**Note**: This project was developed using [AI Junior](https://aijunior.dev), and continued by Claude.
 
 0xabffbbb680a91a9bae0882bcccdb8925029e912f
-

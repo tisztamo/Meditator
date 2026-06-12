@@ -22,6 +22,9 @@ export class InterruptRecord {
     source,
     type,
     reason,
+    salience,
+    urgent = false,
+    suggestion = null,
     context = {},
     additionalData = {}
   }) {
@@ -29,11 +32,41 @@ export class InterruptRecord {
     this.source = source;
     this.type = type;
     this.reason = reason;
+    this.salience = typeof salience === 'number' ? Math.max(0, Math.min(1, salience)) : 0.5;
+    this.urgent = !!urgent;
+    this.suggestion = suggestion;
     this.context = {
       lastOutput: context.lastOutput || '',
       streamState: context.streamState || 'unknown'
     };
     this.additionalData = additionalData;
+  }
+
+  /**
+   * Renders the interrupt as a short first-person stimulus line for the
+   * attention frame — what the mind experiences, not a bureaucratic record.
+   * @returns {string}
+   */
+  renderForFrame() {
+    const parts = [this.reason];
+    if (this.suggestion) parts.push(this.suggestion);
+    return parts.join(' ');
+  }
+
+  /**
+   * Coerces event detail of any supported shape (InterruptRecord, plain object,
+   * legacy markdown string, plain string) into an InterruptRecord.
+   * @param {*} detail
+   * @returns {InterruptRecord}
+   */
+  static coerce(detail) {
+    if (detail instanceof InterruptRecord) return detail;
+    if (typeof detail === 'string') {
+      if (detail.includes('## Interrupt Record')) return InterruptRecord.fromMarkdown(detail);
+      return new InterruptRecord({ source: 'External', type: 'Raw', reason: detail, urgent: true, salience: 1 });
+    }
+    if (detail && typeof detail === 'object') return new InterruptRecord(detail);
+    return new InterruptRecord({ source: 'Unknown', type: 'Unknown', reason: String(detail) });
   }
 
   /**

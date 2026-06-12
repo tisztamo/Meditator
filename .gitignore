@@ -5,3 +5,8 @@ node_modules/
 /prompt.md
 /change.sh
 node_modules
+
+# runtime artifacts of a living mind
+interrupt-state/
+state/
+journal/
