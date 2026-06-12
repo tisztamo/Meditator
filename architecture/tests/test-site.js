@@ -37,6 +37,21 @@ check('no JS errors', errors.length === 0);
 check(`stream is typing (${streamText.length} chars so far)`, streamText.length > 40);
 check(`wake stimulus rendered (${stimCount} stim lines)`, stimCount >= 1);
 check('caret exists', !!dom.window.document.querySelector('#stream .caret'));
+
+const doc = dom.window.document;
+const awakeCode = doc.querySelector('#view-awake pre').textContent;
+check('awake.chml rendered in code tab', awakeCode.includes('<m-mind') && awakeCode.includes('m-loop-guard'));
+check('owl.chml source present', doc.querySelector('#view-owl pre').textContent.includes('night-owl'));
+const card = doc.querySelector('.flipcard');
+const cardCode = card.querySelector('.card-back pre').textContent;
+check('card back carries code', cardCode.includes('<m-'));
+card.click();
+check('card flips on click', card.classList.contains('flipped'));
+card.click();
+check('card flips back', !card.classList.contains('flipped'));
+doc.querySelectorAll('.tab')[1].click();
+check('tab switch shows owl', doc.getElementById('view-owl').style.display === 'block'
+    && doc.getElementById('view-awake').style.display === 'none');
 if (errors.length) console.log('errors:', errors);
 console.log(failures === 0 ? 'ALL PASS' : `${failures} FAILURES`);
 process.exit(failures === 0 ? 0 : 1);

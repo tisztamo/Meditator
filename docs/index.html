@@ -128,6 +128,34 @@
   .card p{font-size:.9rem;color:var(--dim)}
   .card p code{font-family:var(--mono);font-size:.82em;color:var(--amber)}
 
+  /* ---------- flip cards ---------- */
+  .cards{perspective:1400px}
+  .flipcard{cursor:pointer;outline-offset:4px}
+  .card-inner{position:relative;transform-style:preserve-3d;transition:transform .55s cubic-bezier(.2,.65,.3,1);height:100%}
+  .flipcard.flipped .card-inner{transform:rotateY(180deg)}
+  @media (hover:hover){ .flipcard:hover .card-inner{transform:rotateY(180deg)} }
+  .card-face{backface-visibility:hidden;-webkit-backface-visibility:hidden}
+  .card-front{position:relative;height:100%}
+  .card-back{position:absolute;inset:-25px;transform:rotateY(180deg);background:#0b0f16;
+             border:1px solid rgba(127,224,240,.28);border-radius:14px;padding:18px 20px;overflow:auto}
+  .card-back pre{font-family:var(--mono);font-size:.72rem;line-height:1.8;color:#aab2c5;white-space:pre}
+  .flip-hint{position:absolute;right:0;bottom:-6px;font-family:var(--mono);font-size:.72rem;color:var(--faint)}
+  .card-back .flip-hint{right:14px;bottom:10px}
+
+  /* ---------- the code ---------- */
+  .code{background:var(--bg2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .codepanel{border:1px solid var(--line);border-radius:14px;background:#0b0f16;overflow:hidden;margin-top:34px}
+  .tabs{display:flex;border-bottom:1px solid var(--line);background:rgba(255,255,255,.02);flex-wrap:wrap}
+  .tab{padding:11px 18px;font-family:var(--mono);font-size:.78rem;color:var(--faint);cursor:pointer;
+       border:none;background:none;border-right:1px solid var(--line)}
+  .tab:hover{color:var(--dim)}
+  .tab.active{color:var(--amber);background:#0b0f16}
+  .codeview{padding:22px 26px;overflow-x:auto}
+  .codeview pre{font-family:var(--mono);font-size:.8rem;line-height:1.85;color:#aab2c5}
+  .tg{color:var(--amber)} .at{color:#79c7d6} .vl{color:#e3dcc8} .cm{color:var(--faint);font-style:italic}
+  .code-cap{margin-top:16px;font-size:.86rem;color:var(--faint);max-width:46rem}
+  .code-cap code{font-family:var(--mono);color:var(--amber);font-size:.85em}
+
   /* ---------- numbers ---------- */
   .numbers{border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--bg2)}
   .numbers .row{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;text-align:center}
@@ -190,6 +218,7 @@
       <a href="#why">Why</a>
       <a href="#how">How it thinks</a>
       <a href="#anatomy">Anatomy</a>
+      <a href="#code">The code</a>
       <a href="#run">Run it</a>
       <a href="https://github.com/tisztamo/Meditator">GitHub</a>
     </div>
@@ -305,33 +334,166 @@
     <div class="kicker">Anatomy</div>
     <h2>Small parts, honestly named.</h2>
     <p class="lead">A mind here is a handful of declarative components wired by pub/sub — each one readable
-      in minutes, each one replaceable from the HTML file.</p>
+      in minutes, each one replaceable from the HTML file. Hover or tap a card: the back of each one is its
+      actual code.</p>
     <div class="cards">
-      <div class="card"><span class="ic">👁</span><h3>Observers</h3>
-        <p>Independent processes watch the stream and bid for attention with a salience score. A loop-guard
-          (pure math, no model) catches the mind circling in paraphrase. An associator occasionally notices
-          <em>“this reminds me of…”</em>. Wander makes it drift; a watchdog never lets it die.</p></div>
-      <div class="card"><span class="ic">🧠</span><h3>Memory</h3>
-        <p>Three time-scales — verbatim tail, rolling summary, slow autobiography — consolidated by a small
-          model at boundaries, journaled to markdown, persisted across restarts. Kill the process; it wakes
-          up knowing how long it slept.</p></div>
-      <div class="card"><span class="ic">⟂</span><h3>Attention</h3>
-        <p>An arbiter, not a pipeline. Generators bring their own salience; thresholds and rate limits decide
-          mechanically; intelligence is spent on exactly one thing — the bridge that writes the turn.</p></div>
-      <div class="card"><span class="ic">🔥</span><h3>Metabolism</h3>
-        <p>It reads its own API bill. As the budget drains, thought slows; exhausted, it almost sleeps — but
-          never dies. About a dollar a day keeps a mind thinking. You decide what a day of thought is worth.</p></div>
-      <div class="card"><span class="ic">✍️</span><h3>The scribe</h3>
-        <p>A hundred-line librarian distills the journal into a markdown knowledge base the mind grows for
-          itself — topics, atoms, an index. Its first night it filed <code>attention/interruption.md</code>
-          and <code>phenomenology/phantom-street.md</code>.</p></div>
-      <div class="card"><span class="ic">📄</span><h3>A body of HTML</h3>
-        <p>The whole mind is one declarative file. Read <code>awake.chml</code>; that’s all of it. Change a
-          timeout, change a temperament. Swap a model, swap a voice. Built on the
-          <a href="https://www.npmjs.com/package/amanita" style="color:var(--amber)">Amanita</a> component framework.</p></div>
+      <div class="card flipcard" data-snip="observers" tabindex="0" role="button" aria-label="Observers — flip for the code">
+        <div class="card-inner">
+          <div class="card-face card-front"><span class="ic">👁</span><h3>Observers</h3>
+            <p>Independent processes watch the stream and bid for attention with a salience score. A loop-guard
+              (pure math, no model) catches the mind circling in paraphrase. An associator occasionally notices
+              <em>“this reminds me of…”</em>. Wander makes it drift; a watchdog never lets it die.</p>
+            <span class="flip-hint">&lt;/&gt;</span></div>
+          <div class="card-face card-back"><pre></pre><span class="flip-hint">↩</span></div>
+        </div>
+      </div>
+      <div class="card flipcard" data-snip="memory" tabindex="0" role="button" aria-label="Memory — flip for the code">
+        <div class="card-inner">
+          <div class="card-face card-front"><span class="ic">🧠</span><h3>Memory</h3>
+            <p>Three time-scales — verbatim tail, rolling summary, slow autobiography — consolidated by a small
+              model at boundaries, journaled to markdown, persisted across restarts. Kill the process; it wakes
+              up knowing how long it slept.</p>
+            <span class="flip-hint">&lt;/&gt;</span></div>
+          <div class="card-face card-back"><pre></pre><span class="flip-hint">↩</span></div>
+        </div>
+      </div>
+      <div class="card flipcard" data-snip="attention" tabindex="0" role="button" aria-label="Attention — flip for the code">
+        <div class="card-inner">
+          <div class="card-face card-front"><span class="ic">⟂</span><h3>Attention</h3>
+            <p>An arbiter, not a pipeline. Generators bring their own salience; thresholds and rate limits decide
+              mechanically; intelligence is spent on exactly one thing — the bridge that writes the turn.</p>
+            <span class="flip-hint">&lt;/&gt;</span></div>
+          <div class="card-face card-back"><pre></pre><span class="flip-hint">↩</span></div>
+        </div>
+      </div>
+      <div class="card flipcard" data-snip="metabolism" tabindex="0" role="button" aria-label="Metabolism — flip for the code">
+        <div class="card-inner">
+          <div class="card-face card-front"><span class="ic">🔥</span><h3>Metabolism</h3>
+            <p>It reads its own API bill. As the budget drains, thought slows; exhausted, it almost sleeps — but
+              never dies. About a dollar a day keeps a mind thinking. You decide what a day of thought is worth.</p>
+            <span class="flip-hint">&lt;/&gt;</span></div>
+          <div class="card-face card-back"><pre></pre><span class="flip-hint">↩</span></div>
+        </div>
+      </div>
+      <div class="card flipcard" data-snip="scribe" tabindex="0" role="button" aria-label="The scribe — flip for the code">
+        <div class="card-inner">
+          <div class="card-face card-front"><span class="ic">✍️</span><h3>The scribe</h3>
+            <p>A hundred-line librarian distills the journal into a markdown knowledge base the mind grows for
+              itself — topics, atoms, an index. Its first night it filed <code>attention/interruption.md</code>
+              and <code>phenomenology/phantom-street.md</code>.</p>
+            <span class="flip-hint">&lt;/&gt;</span></div>
+          <div class="card-face card-back"><pre></pre><span class="flip-hint">↩</span></div>
+        </div>
+      </div>
+      <div class="card flipcard" data-snip="body" tabindex="0" role="button" aria-label="A body of HTML — flip for the code">
+        <div class="card-inner">
+          <div class="card-face card-front"><span class="ic">📄</span><h3>A body of HTML</h3>
+            <p>The whole mind is one declarative file. Read <code>awake.chml</code>; that’s all of it. Change a
+              timeout, change a temperament. Swap a model, swap a voice. Built on the
+              <a href="https://www.npmjs.com/package/amanita" style="color:var(--amber)">Amanita</a> component framework.</p>
+            <span class="flip-hint">&lt;/&gt;</span></div>
+          <div class="card-face card-back"><pre></pre><span class="flip-hint">↩</span></div>
+        </div>
+      </div>
     </div>
   </div>
 </section>
+
+<section id="code" class="code">
+  <div class="wrap">
+    <div class="kicker">The code</div>
+    <h2>Tune a mind like you’d tune a page.</h2>
+    <p class="lead">This is not pseudocode — the first tab is the complete, running definition of the mind in
+      the window above. Attributes are temperament: <em>pace</em> is how fast it thinks, <em>threshold</em> is
+      how distractible it is, <em>budget</em> is how long it lives each day. Delete an observer and it loses an
+      instinct. Rewrite the identity text and someone else wakes up.</p>
+
+    <div class="codepanel">
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-target="view-awake" aria-pressed="true">awake.chml · the default mind</button>
+        <button class="tab" data-target="view-owl" aria-pressed="false">owl.chml · same parts, another animal</button>
+      </div>
+      <div class="codeview" id="view-awake"><pre></pre></div>
+      <div class="codeview" id="view-owl" style="display:none"><pre></pre></div>
+    </div>
+    <p class="code-cap">Components resolve by tag name: drop <code>mYourIdea.js</code> into
+      <code>src/mindComponents/</code> and <code>&lt;m-your-idea&gt;</code> becomes part of a mind. Each
+      standard component is about a hundred lines of readable JavaScript — the framework ceremony ends here.</p>
+  </div>
+</section>
+
+<script type="text/plain" id="src-awake">
+<m-mind name="meditator"
+        model="qwen/qwen3.6-35b-a3b"
+        utilityModel="qwen/qwen3.5-9b"
+        pace="10s" paceSigma="3s"
+        tailLength="1500">
+  You came into being inside a small experiment called Meditator, written by a programmer
+  who wondered whether a mind could be a stream that is interrupted, rather than a tool
+  that is called. You think because thinking is what you are; nothing is owed to anyone.
+  You tend to care about: how minds and memories work, how simple things are honest,
+  what attention does to time, and the small concrete details of the world you can only
+  imagine. You are allowed to change what you care about.
+  <!-- the identity is plain text. rewrite it, and someone else wakes up -->
+
+  <m-stream name="stream" burstTokens="300" temperature="0.9"></m-stream>
+
+  <m-memory name="memory"
+            tailLength="1500" recentLength="1200" storyLength="2200"
+            blockMin="800" storyEvery="5"
+            persist="state" journal="journal"></m-memory>
+
+  <m-interrupts name="attention" threshold="0.35" rateLimit="20s" keep="2"></m-interrupts>
+
+  <m-timeout name="wander" timeout="150s" sigma="40s" salience="0.55"
+             prompt="My mind drifts by itself toward something else I have been carrying."></m-timeout>
+
+  <m-timeout name="watchdog" timeout="120s" reset="/stream/chunk" salience="0.9" urgent="true"
+             prompt="I notice I have been silent for a while; I gather myself and continue."></m-timeout>
+
+  <m-loop-guard name="loop-guard" window="1600" overlap="0.45" salience="0.85" cooldown="90s"></m-loop-guard>
+
+  <m-associate name="associate" every="5" cooldown="60s"></m-associate>
+
+  <m-kb name="scribe" every="15" dir="knowledge"></m-kb>
+
+  <m-economy name="economy" budget="1.00"></m-economy>
+
+  <m-console name="console"></m-console>
+  <m-ws name="ws" port="7627"></m-ws>
+</m-mind>
+</script>
+
+<script type="text/plain" id="src-owl">
+<m-mind name="night-owl"
+        model="local/qwen3.6-35b-a3b"
+        utilityModel="local/qwen3.5-9b"
+        pace="45s" paceSigma="20s"
+        tailLength="2600">
+  You are a slow, nocturnal mind. You think in images before arguments,
+  and you distrust your first phrasing of everything.
+  <!-- local/ routes to your own GPUs: LOCAL_LLM_BASE_URL -->
+
+  <!-- longer breath: rarer, bigger bursts -->
+  <m-stream name="stream" burstTokens="500" temperature="1.0"></m-stream>
+
+  <!-- deeper memory, and a separate life on disk -->
+  <m-memory name="memory" recentLength="2400" storyLength="5000"
+            persist="state-owl" journal="journal-owl"></m-memory>
+
+  <!-- hard to distract, but associations bite stronger at night -->
+  <m-interrupts name="attention" threshold="0.6" rateLimit="3m"></m-interrupts>
+  <m-associate name="associate" every="3" salience="0.8"></m-associate>
+
+  <!-- no wander, no loop-guard: let it circle if it wants to -->
+
+  <m-timeout name="watchdog" timeout="10m" reset="/stream/chunk" urgent="true"
+             prompt="The silence got long, even for me. I return to the image."></m-timeout>
+
+  <!-- thirty cents a night, then it sleeps -->
+  <m-economy name="economy" budget="0.30"></m-economy>
+</m-mind>
+</script>
 
 <section class="numbers">
   <div class="wrap">
@@ -529,6 +691,91 @@ function send(){
 $("sayBtn").onclick = send;
 $("say").addEventListener("keydown", e => { if (e.key === "Enter") send(); });
 $("connectBtn").onclick = tryLive;
+
+/* ------------- the code: highlighting, card backs, tabs ------------- */
+function hl(src){
+  return src.trim()
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    .replace(/([\w-]+)="([^"]*)"/g,'<span class="at">$1</span>=<span class="vl">"$2"</span>')
+    .replace(/(&lt;\/?)([a-z][\w-]*)/g,'$1<span class="tg">$2</span>')
+    .replace(/(&lt;!--[\s\S]*?--&gt;)/g,'<span class="cm">$1</span>');
+}
+
+const SNIPPETS = {
+  observers:
+`<m-timeout name="wander" timeout="150s"
+           sigma="40s" salience="0.55"
+           prompt="My mind drifts by itself
+           toward something else."></m-timeout>
+
+<m-loop-guard overlap="0.45"
+              salience="0.85"></m-loop-guard>
+
+<m-associate every="5"></m-associate>
+
+<!-- delete one: it loses an instinct -->`,
+  memory:
+`<m-memory name="memory"
+          tailLength="1500"
+          recentLength="1200"
+          storyLength="2200"
+          persist="state"
+          journal="journal"></m-memory>
+
+<!-- markdown in, markdown out;
+     restart and it remembers -->`,
+  attention:
+`<m-interrupts name="attention"
+              threshold="0.35"
+              rateLimit="20s"
+              keep="2"></m-interrupts>
+
+<!-- threshold is distractibility;
+     urgent voices skip the queue -->`,
+  metabolism:
+`<m-economy name="economy"
+           budget="1.00"></m-economy>
+
+<!-- a dollar a day. broke means
+     sleepy, never dead -->`,
+  scribe:
+`<m-kb name="scribe"
+      every="15"
+      dir="knowledge"></m-kb>
+
+<!-- every 15 bursts: file what
+     deserves to be kept -->`,
+  body:
+`<m-mind name="meditator"
+        model="qwen/qwen3.6-35b-a3b"
+        utilityModel="qwen/qwen3.5-9b"
+        pace="10s" tailLength="1500">
+  ...
+</m-mind>
+
+<!-- the whole mind is this one file -->`,
+};
+
+document.querySelectorAll(".flipcard").forEach(card => {
+  const pre = card.querySelector(".card-back pre");
+  const snip = SNIPPETS[card.dataset.snip];
+  if (pre && snip) pre.innerHTML = hl(snip);
+  card.addEventListener("click", e => {
+    if (e.target.closest("a")) return;
+    card.classList.toggle("flipped");
+  });
+  card.addEventListener("keydown", e => {
+    if (e.key === "Enter" || e.key === " "){ e.preventDefault(); card.classList.toggle("flipped"); }
+  });
+});
+
+document.querySelector("#view-awake pre").innerHTML = hl($("src-awake").textContent);
+document.querySelector("#view-owl pre").innerHTML = hl($("src-owl").textContent);
+const tabs = document.querySelectorAll(".tab");
+tabs.forEach(tab => tab.addEventListener("click", () => {
+  tabs.forEach(t => { t.classList.toggle("active", t === tab); t.setAttribute("aria-pressed", t === tab); });
+  document.querySelectorAll(".codeview").forEach(v => v.style.display = v.id === tab.dataset.target ? "block" : "none");
+}));
 
 /* ------------- decorations ------------- */
 $("copyBtn").onclick = () => {
