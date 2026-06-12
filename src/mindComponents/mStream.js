@@ -68,7 +68,7 @@ export class MStream extends MBaseComponent {
     }
 
     async _startBurst(payload, generation) {
-        const { system, frame, prefix, dedupe } =
+        const { system, frame, prefix, dedupe, burstTokens } =
             typeof payload === 'string' ? { frame: payload } : payload
 
         this.burstIndex += 1
@@ -92,7 +92,7 @@ export class MStream extends MBaseComponent {
             const burst = await chatStream({
                 model: this.attr("model") || this.env("model") || defaultModel('stream'),
                 messages,
-                maxTokens: Number(this.attr("burstTokens") || 350),
+                maxTokens: Number(burstTokens || this.attr("burstTokens") || 350),
                 temperature: Number(this.attr("temperature") || 0.9),
             })
             context = { burst, superseded: false }

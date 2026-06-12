@@ -8,8 +8,7 @@
 
   <m-memory name="memory"
             tailLength="400" recentLength="300" storyLength="500"
-            blockMin="150" storyEvery="2"
-            persist="state" journal="journal"></m-memory>
+            blockMin="150" storyEvery="2"></m-memory>
 
   <m-interrupts name="attention" threshold="0.3" rateLimit="2s" keep="2"></m-interrupts>
 

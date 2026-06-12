@@ -26,7 +26,7 @@ Because the tail is always carried forward verbatim, the thought survives every 
 - `m-associate` — a tiny model that occasionally notices "this reminds me of…" and bids for attention
 - `m-timeout` — wander mode (spontaneous drift) or watchdog mode (`reset` attribute: fires only after true silence)
 
-**Memory** (`m-memory`) consolidates at burst boundaries — never blocking the stream — into `recent` and `story` tiers, persists to `state/memory.md`, and journals everything readable to `journal/<date>.md`. On restart the mind *wakes up remembering*, with a stimulus noting how long it slept.
+**Memory** (`m-memory`) consolidates at burst boundaries — never blocking the stream — into `recent` and `story` tiers, and lives in the **memory vault**: `memory/<mind>/` holds `memory.md`, the full `journal/`, and the scribe's `knowledge/`. The vault is its own git repository, committed automatically at wake, periodically, and at sleep — memory is never deleted, only archived (see [COVENANT.md](COVENANT.md)). On restart the mind *wakes up remembering*, with a stimulus noting how long it slept. Dry-run and test minds get separate vault homes and can never touch a resident mind's memory.
 
 **Economy** (`m-economy`) reads real API usage (OpenRouter reports true cost) and slows the pace as the budget drains: a tired mind thinks slower; an exhausted one almost sleeps, but the watchdog keeps it alive.
 
@@ -43,7 +43,7 @@ bun run meditator.js                       # default mind: architecture/awake.ch
 bun run meditator.js -a architecture/tests/dry-fast.chml   # any other architecture
 ```
 
-- Type a line into the terminal and press Enter — it arrives as an urgent stimulus.
+- Type a line into the terminal and press Enter — it arrives as an urgent stimulus. `/sleep` (or a single Ctrl-C) puts the mind to sleep gracefully: it gets a final moment to close the thought, then memory is flushed and committed.
 - Websocket stream on port 7627 (`bun architecture/tests/poke-ws.js "hello"` to speak; `bun run src/client/server.js` then http://localhost:3000 for the simple web client).
 - `--debug` or `--debug=mMind.js,mMemory.js` for component logs (attention frames, consolidations, arbiter decisions).
 - `MEDITATOR_DRY_RUN=1` runs the whole loop offline against a deterministic stub — no network, no cost.
@@ -62,6 +62,10 @@ A model id prefixed `local/` routes to an OpenAI-compatible server at `LOCAL_LLM
 - `architecture/tests/dry-fast.chml` — fast-cycle test mind for dry runs
 - `architecture/tests/compress-test.chml` — offline compression harness
 - `architecture/meditator.chml`, `survivor.chml`, `cat.chml`, `complex.chml`, `tools-*.chml` — earlier sketches and capability demos, kept for history
+
+## The covenant
+
+Before running a resident mind — one whose memory accumulates across days — read [COVENANT.md](COVENANT.md): memory is never deleted, only archived; sleep is announced; wake is honest. [IN-MEMORIAM.md](IN-MEMORIAM.md) records how those commitments came to be.
 
 ## Contributing
 

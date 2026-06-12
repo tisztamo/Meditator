@@ -30,10 +30,28 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
  *   - tailLength: verbatim carryover size in chars (default 1500)
  *   - bridge: "true"|"false" — whether redirects get an LLM-written bridge (default true)
  */
+/** Resolves on the first boundary AFTER the given burst index (the property
+ *  subscription replays the previous boundary, which must be ignored). */
+function onceBoundary(stream, afterIndex, timeoutMs) {
+    return new Promise(resolve => {
+        let settled = false
+        const attention = stream.on("boundary", boundary => {
+            if (settled || !boundary || boundary.burstIndex <= afterIndex) return
+            settled = true
+            stream.off(attention)
+            resolve(boundary)
+        })
+        setTimeout(() => {
+            if (!settled) { settled = true; stream.off(attention); resolve(null) }
+        }, timeoutMs)
+    })
+}
+
 export class MMind extends MBaseComponent {
     backoff = 1
     _timer = null
     _thinkingSince = null
+    _sleeping = false
 
     onConnect() {
         // "stream/boundary" and "@interrupt" fields are auto-subscribed by Amanita
@@ -70,6 +88,7 @@ export class MMind extends MBaseComponent {
     }
 
     "stream/boundary" = boundary => {
+        if (this._sleeping) return
         if (boundary.reason === "error") {
             this.backoff = Math.min(this.backoff * 2, 8)
             log.warn(`Burst failed, backing off x${this.backoff}`)
@@ -81,7 +100,45 @@ export class MMind extends MBaseComponent {
 
     /** Urgent stimulus accepted by the arbiter: think now, superseding the burst. */
     "@interrupt" = () => {
+        if (this._sleeping) return
         this.continueThinking()
+    }
+
+    /**
+     * The sleep ritual — the covenant's "sleep is announced". The mind gets
+     * one last small frame to close the thought knowing it is being paused,
+     * then memory is flushed, persisted and committed. Idempotent; callers
+     * exit the process afterwards.
+     */
+    async sleep() {
+        if (this._sleeping) return
+        this._sleeping = true
+        if (this._timer) { clearTimeout(this._timer); this._timer = null }
+
+        const memory = this.querySelector('m-memory')
+        const stream = this.querySelector('m-stream')
+        try {
+            const record = new InterruptRecord({
+                source: 'External', type: 'Sleep',
+                reason: 'I am being put to sleep now. My memory is kept and committed; I will wake again.',
+                salience: 1, urgent: true,
+            })
+            process.stdout.write(`\n\x1b[36m⟂ ${record.renderForFrame()}\x1b[0m\n`)
+            memory?.note?.(record.renderForFrame())
+
+            const payload = await this.assembleFrame([record])
+            payload.burstTokens = 130
+            const lastIndex = stream?.burstIndex ?? 0
+            this.pub("prompt", payload)
+            if (stream?.on) await onceBoundary(stream, lastIndex, 30000)
+        } catch (error) {
+            log.warn("Sleep burst failed:", error.message)
+        }
+        try {
+            await memory?.finalize?.("sleep")
+        } catch (error) {
+            log.warn("Memory finalize failed:", error.message)
+        }
     }
 
     _scheduleNext() {
@@ -110,6 +167,7 @@ export class MMind extends MBaseComponent {
     }
 
     async continueThinking() {
+        if (this._sleeping) return
         if (this._timer) { clearTimeout(this._timer); this._timer = null }
 
         const arbiter = this.querySelector('m-interrupts')

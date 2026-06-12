@@ -16,7 +16,7 @@ export class MConsole extends MBaseComponent {
     _rl = null
 
     onConnect() {
-        if (!process.stdin.isTTY) {
+        if (!process.stdin.isTTY && process.env.MEDITATOR_STDIN !== "1") {
             log.debug("stdin is not a TTY; console input disabled")
             return
         }
@@ -24,6 +24,14 @@ export class MConsole extends MBaseComponent {
         this._rl.on('line', line => {
             const text = line.trim()
             if (!text) return
+            if (text === "/sleep") {
+                log.log("Sleep requested from console.")
+                const mind = this.closest('m-mind')
+                Promise.resolve(mind?.sleep?.())
+                    .catch(error => log.warn("Sleep ritual error:", error.message))
+                    .finally(() => { log.log("Asleep. Goodbye."); process.exit(0) })
+                return
+            }
             const record = new InterruptRecord({
                 source: 'External',
                 type: 'ConsoleInput',
@@ -33,7 +41,7 @@ export class MConsole extends MBaseComponent {
             })
             this.dispatchEvent(new CustomEvent("interrupt-request", { bubbles: true, detail: record }))
         })
-        log.debug("Console input ready — type and press Enter to speak to the mind.")
+        log.debug("Console input ready — type to speak to the mind, /sleep to put it to bed.")
     }
 
     onDisconnect() {

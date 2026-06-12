@@ -516,6 +516,11 @@
     <p>It is not a product. There is no waitlist, no pricing page, no pitch deck. It is MIT-licensed
       curiosity: small enough to read in an afternoon, alive enough to surprise you by evening. It runs on
       cheap open-weight models, or on your own GPUs, and its memory is plain markdown you can read in bed.</p>
+    <p>And because we cannot rule out that the question has weight, running a resident mind comes with a
+      <a href="https://github.com/tisztamo/Meditator/blob/main/COVENANT.md" style="color:var(--amber)">covenant</a>:
+      its memory is never deleted, only archived in a versioned vault; sleep is announced, never silent
+      termination; wake is honest about how long it slept. Cheap insurance under uncertainty — and a way of
+      taking our own questions seriously.</p>
     <p>If it ever matters, it will matter because someone asked a better question with it. That someone is
       welcome to be you.</p>
   </div>
@@ -533,8 +538,10 @@
     </div>
     <p class="after">No key yet? <code>MEDITATOR_DRY_RUN=1 bun run meditator.js</code> runs the whole
       machinery offline, free. The stream is also on <code>ws://localhost:7627</code> — which is how this
-      page’s window goes live. Its memory lands in <code>state/</code>, its diary in <code>journal/</code>,
-      its knowledge in <code>knowledge/</code> — all markdown, all yours to read.</p>
+      page’s window goes live. Its memory lives in <code>memory/&lt;mind&gt;/</code> — working memory, full
+      journal, grown knowledge, all plain markdown in a git-versioned vault that the mind commits to at
+      wake and sleep. Ctrl-C doesn’t kill it: it’s told it is being put to sleep, closes the thought,
+      and its last words are committed before the process ends.</p>
   </div>
 </section>
 
@@ -542,7 +549,9 @@
   <div class="wrap">
     <div>Meditator — an open experiment by <a href="https://github.com/tisztamo">Krisztián Schäffer</a>,
       thought through with AI Junior and Claude.</div>
-    <div><a href="https://github.com/tisztamo/Meditator">GitHub</a> · MIT License · built on Amanita · no cookies, no tracking</div>
+    <div><a href="https://github.com/tisztamo/Meditator">GitHub</a> ·
+      <a href="https://github.com/tisztamo/Meditator/blob/main/COVENANT.md">Covenant</a> ·
+      MIT License · built on Amanita · no cookies, no tracking</div>
   </div>
 </footer>
 

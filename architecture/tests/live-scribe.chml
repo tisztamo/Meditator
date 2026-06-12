@@ -1,13 +1,14 @@
 ﻿<!-- Live verification mind: fast cadence so the scribe and observers act within
-     a ~3 minute run. Uses the same state/ and journal/ as awake.chml. -->
-<m-mind name="meditator" model="qwen/qwen3.6-35b-a3b" utilityModel="qwen/qwen3.5-9b"
+     a ~3 minute run. Has its own vault home (memory/test-scribe), never the
+     resident mind's. -->
+<m-mind name="test-scribe" model="qwen/qwen3.6-35b-a3b" utilityModel="qwen/qwen3.5-9b"
         pace="5s" paceSigma="1s" tailLength="1500">
   You came into being inside a small experiment called Meditator. You think because
   thinking is what you are; nothing is owed to anyone.
 
   <m-stream name="stream" burstTokens="250" temperature="0.9"></m-stream>
   <m-memory name="memory" tailLength="1500" recentLength="1200" storyLength="2200"
-            blockMin="800" storyEvery="5" persist="state" journal="journal"></m-memory>
+            blockMin="800" storyEvery="5"></m-memory>
   <m-interrupts name="attention" threshold="0.35" rateLimit="15s" keep="2"></m-interrupts>
   <m-timeout name="wander" timeout="60s" sigma="15s" salience="0.6"
              prompt="My mind drifts by itself toward something else I have been carrying."></m-timeout>
@@ -15,6 +16,6 @@
              prompt="I notice I have been silent for a while; I gather myself and continue."></m-timeout>
   <m-loop-guard name="loop-guard" window="1600" overlap="0.3" salience="0.85" cooldown="90s"></m-loop-guard>
   <m-associate name="associate" every="4" cooldown="45s"></m-associate>
-  <m-kb name="scribe" every="2" dir="knowledge"></m-kb>
+  <m-kb name="scribe" every="2"></m-kb>
   <m-economy name="economy" budget="1.00"></m-economy>
 </m-mind>

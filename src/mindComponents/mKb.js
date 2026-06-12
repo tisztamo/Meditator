@@ -3,6 +3,7 @@ import path from 'node:path';
 import { MBaseComponent } from "./mBaseComponent.js"
 import { complete, defaultModel } from "../modelAccess/llm.js"
 import { logger } from '../infrastructure/logger.js';
+import { mindHome } from '../infrastructure/memoryVault.js';
 
 const log = logger('mKb.js');
 
@@ -45,7 +46,7 @@ export class MKb extends MBaseComponent {
 
     async distill() {
         const memory = this.closest('m-mind')?.querySelector('m-memory')
-        const dir = this.attr("dir") || "knowledge"
+        const dir = this.attr("dir") || mindHome(this, "knowledge")
         const recentThought = memory
             ? `${memory.getRecent()}\n${memory.getTail()}`.trim()
             : ""
@@ -75,7 +76,7 @@ OP: APPEND <relative/path.md>
 END
 OP: NONE
 
-Rules: group related ideas into topic files (e.g. attention/interruption.md); evolve existing files via APPEND rather than duplicating; keep index.md a short map of the tree (WRITE it when the tree changes); plain thoughtful markdown, the mind's own first person voice is fine.`,
+Rules: group related ideas into topic files (e.g. attention/interruption.md); evolve existing files via APPEND rather than duplicating; keep index.md a short map of the tree (WRITE it when the tree changes); plain thoughtful markdown, the mind's own first person voice is fine. Also maintain self/values.md — a living statement of what this mind genuinely seems to care about, in its own voice; WRITE it anew when its values clarify rather than letting it grow stale.`,
         })
 
         const ops = parseOps(result.text, Number(this.attr("maxOps") || 4))

@@ -14,8 +14,9 @@
 
   <m-memory name="memory"
             tailLength="1500" recentLength="1200" storyLength="2200"
-            blockMin="800" storyEvery="5"
-            persist="state" journal="journal"></m-memory>
+            blockMin="800" storyEvery="5"></m-memory>
+  <!-- memory persists to the git-versioned vault: memory/meditator/ -->
+
 
   <m-interrupts name="attention" threshold="0.35" rateLimit="20s" keep="2"></m-interrupts>
 
@@ -29,7 +30,7 @@
 
   <m-associate name="associate" every="5" cooldown="60s"></m-associate>
 
-  <m-kb name="scribe" every="15" dir="knowledge"></m-kb>
+  <m-kb name="scribe" every="15"></m-kb>
 
   <m-economy name="economy" budget="1.00"></m-economy>
 

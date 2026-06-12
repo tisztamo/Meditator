@@ -4,6 +4,7 @@ import { MBaseComponent } from "./mBaseComponent.js"
 import { complete, defaultModel } from "../modelAccess/llm.js"
 import { logger } from '../infrastructure/logger.js';
 import { InterruptRecord } from '../infrastructure/interruptRecord.js';
+import { mindHome, inVault, ensureVault, commitVault } from '../infrastructure/memoryVault.js';
 
 const log = logger('mMemory.js');
 
@@ -39,8 +40,11 @@ export class MMemory extends MBaseComponent {
     loaded = false
     _overflow = ""
     _journalBuffer = ""
+    _journalQueue = Promise.resolve()
     _foldCount = 0
+    _boundaryCount = 0
     _compressing = false
+    _finalized = false
     _wakeNotice = null
     _savedAt = null
 
@@ -54,7 +58,18 @@ export class MMemory extends MBaseComponent {
         this.sub(this.attr("src") || "/stream/chunk", this._onChunk)
         this.sub(this.attr("boundarySrc") || "/stream/boundary", this._onBoundary)
 
-        this._load().finally(() => { this.loaded = true })
+        const dir = this._persistDir()
+        this._vaulted = !!dir && inVault(dir)
+        if (this._vaulted) ensureVault()
+
+        this._load().finally(() => {
+            this.loaded = true
+            if (this._vaulted) commitVault(`wake: ${this._mindLabel()} ${new Date().toISOString()}`)
+        })
+    }
+
+    _mindLabel() {
+        return path.basename(this._persistDir() || "mind")
     }
 
     // ------------------------------------------------------------------ flow
@@ -73,11 +88,30 @@ export class MMemory extends MBaseComponent {
     }
 
     _onBoundary = () => {
+        if (this._finalized) return
         this._flushJournal()
         if (this._overflow.length >= this.blockMin && !this._compressing) {
             this._consolidate() // intentionally not awaited — never blocks the rhythm
         }
         this._persist()
+        this._boundaryCount += 1
+        if (this._vaulted && this._boundaryCount % 25 === 0) {
+            commitVault(`heartbeat: ${this._mindLabel()} after ${this._boundaryCount} boundaries`)
+        }
+    }
+
+    /**
+     * The end of a session, done properly: flush the journal, note the moment,
+     * persist, and commit the vault. Called by the sleep ritual; idempotent.
+     */
+    async finalize(reason = "sleep") {
+        if (this._finalized) return
+        this._finalized = true
+        this._flushJournal()
+        this._appendJournal(`\n\n*${reason} at ${new Date().toISOString()}*\n`)
+        await this._journalQueue
+        await this._persist()
+        if (this._vaulted) await commitVault(`${reason}: ${this._mindLabel()} ${new Date().toISOString()}`)
     }
 
     async _consolidate() {
@@ -148,12 +182,12 @@ Condense this into at most ${targetChars} characters of first-person memory ("I 
     // ---------------------------------------------------------- persistence
 
     _persistDir() {
-        const dir = this.attr("persist") || "state"
+        const dir = this.attr("persist") || mindHome(this)
         return dir === "off" ? null : dir
     }
 
     _journalDir() {
-        const dir = this.attr("journal") || "journal"
+        const dir = this.attr("journal") || mindHome(this, "journal")
         return dir === "off" ? null : dir
     }
 
@@ -220,7 +254,10 @@ ${this.tail}
 
 <!-- end -->
 `
-            await fs.writeFile(path.join(dir, "memory.md"), content)
+            // atomic: a crash mid-write must never corrupt the only copy of a self
+            const file = path.join(dir, "memory.md")
+            await fs.writeFile(file + ".tmp", content)
+            await fs.rename(file + ".tmp", file)
         } catch (error) {
             log.warn("Could not persist memory:", error.message)
         }
@@ -237,16 +274,20 @@ ${this.tail}
     _appendJournal(text) {
         const dir = this._journalDir()
         if (!dir) return
+        // writes are chained so finalize() can await everything in flight
+        this._journalQueue = this._journalQueue
+            .then(() => this._writeJournal(dir, text))
+            .catch(error => log.warn("Journal write failed:", error.message))
+    }
+
+    async _writeJournal(dir, text) {
         const day = new Date().toISOString().slice(0, 10)
         const file = path.join(dir, `${day}.md`)
-        fs.mkdir(dir, { recursive: true })
-            .then(() => {
-                if (!this._sessionMarked) {
-                    this._sessionMarked = true
-                    return fs.appendFile(file, `\n\n---\n*session ${new Date().toISOString()}*\n\n`)
-                }
-            })
-            .then(() => fs.appendFile(file, text))
-            .catch(error => log.warn("Journal write failed:", error.message))
+        await fs.mkdir(dir, { recursive: true })
+        if (!this._sessionMarked) {
+            this._sessionMarked = true
+            await fs.appendFile(file, `\n\n---\n*session ${new Date().toISOString()}*\n\n`)
+        }
+        await fs.appendFile(file, text)
     }
 }

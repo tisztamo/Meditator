@@ -47,7 +47,7 @@ function addUsage(usage) {
   if (typeof usage.cost === 'number') totals.cost += usage.cost;
 }
 
-function isDryRun() {
+export function isDryRun() {
   return process.env.MEDITATOR_DRY_RUN === '1' || process.env.MEDITATOR_DRY_RUN === 'true';
 }
 
