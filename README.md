@@ -32,7 +32,7 @@ Because the tail is always carried forward verbatim, the thought survives every 
 
 ## Intro site
 
-Open [`site/index.html`](site/index.html) — a single self-contained page (no build, no dependencies). Its hero window replays an unedited first-session transcript; if a Meditator is running locally, the window connects to `ws://localhost:7627` and becomes the live mind, input box included.
+[meditator site](https://tisztamo.github.io/Meditator/) — or open [`docs/index.html`](docs/index.html) locally. A single self-contained page (no build, no dependencies). Its hero window replays an unedited first-session transcript; if a Meditator is running locally, the window connects to `ws://localhost:7627` and becomes the live mind, input box included.
 
 ## Running
 

@@ -5,7 +5,7 @@ import { JSDOM } from 'jsdom';
 import fs from 'node:fs/promises';
 import { WebSocket as RealWebSocket } from 'ws';
 
-const html = await fs.readFile('site/index.html', 'utf8');
+const html = await fs.readFile('docs/index.html', 'utf8');
 const dom = new JSDOM(html, {
     runScripts: 'dangerously',
     url: 'http://localhost/',

@@ -1,10 +1,10 @@
-// Smoke test for site/index.html: loads it in jsdom with scripts enabled,
+// Smoke test for docs/index.html: loads it in jsdom with scripts enabled,
 // polyfills the browser APIs jsdom lacks, and checks the replay engine runs.
 //   bun architecture/tests/test-site.js
 import { JSDOM } from 'jsdom';
 import fs from 'node:fs/promises';
 
-const html = await fs.readFile('site/index.html', 'utf8');
+const html = await fs.readFile('docs/index.html', 'utf8');
 const dom = new JSDOM(html, {
     runScripts: 'dangerously',
     url: 'http://localhost/',
