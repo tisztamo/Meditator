@@ -1,0 +1,129 @@
+# Memory & the vault
+
+A mind that ran only on its context window would forget itself the moment the
+window filled. Meditator's memory exists to do two things at once: keep the
+attention frame **bounded forever**, and let a mind **persist across runs** —
+wake up mid-thought, remembering, noting how long it slept.
+
+Two pieces cooperate: `m-memory` (the live, compressing memory) and the
+**memory vault** (`src/infrastructure/memoryVault.js`, the git-versioned store on
+disk).
+
+## Three tiers at three time scales
+
+`m-memory` holds the mind's past at three resolutions:
+
+| Tier | What it is | Budget (default) | How it changes |
+|------|------------|------------------|----------------|
+| `tail` | the **verbatim** end of the stream — "what I was just saying" | `tailLength` 1500 chars | never compressed; carried into every frame |
+| `recent` | a rolling first-person summary of what scrolled out of the tail | `recentLength` 1200 chars | recompressed as thought overflows |
+| `story` | a slow first-person autobiography | `storyLength` 2200 chars | every `storyEvery`-th consolidation folds `recent` into it |
+
+As the stream generates chunks, they append to the tail. When the tail exceeds
+its budget, the oldest part is cut at a word edge and pushed into an `overflow`
+buffer. That overflow is what gets summarized.
+
+## Consolidation — compression that never blocks
+
+At each burst **boundary**, if enough thought has overflowed (`blockMin`, default
+800 chars) and no consolidation is already running, `m-memory` consolidates —
+**asynchronously, and deliberately not awaited**, so it never blocks the stream's
+rhythm:
+
+- Most boundaries: `recent ← compress(recent + overflow)`.
+- Every `storyEvery`-th (default 5th) consolidation: in parallel,
+  `story ← compress(story + recent)` and `recent ← compress(overflow)`.
+
+Compression is one small utility-model call per tier, instructed to keep topics,
+conclusions, decisions and open questions in the mind's own first-person voice,
+invent nothing, and drop filler — condensed to fit the character budget. If a
+call fails, the raw block is kept and retried at the next boundary, so nothing is
+silently lost.
+
+Because each tier has a fixed budget, the assembled frame stays a few thousand
+tokens no matter how long the mind runs. A mind can think for days.
+
+## Persistence — waking up remembering
+
+At every boundary `m-memory` writes `memory.md` (atomically, via a temp file +
+rename, so a crash mid-write can never corrupt the only copy of a self). The file
+is plain markdown with `## Story`, `## Recent`, and `## Tail` sections plus a
+little metadata (when it was saved, how many folds have happened).
+
+On startup the file is read back. If there is anything there, the loaded tail
+seeds the very first attention frame — the mind literally continues its last
+sentence — and a one-time **wake notice** is offered to `m-mind` as a stimulus:
+
+> *"I am waking up; about 3 minutes has passed since my last thought."*
+
+The gap is measured from the saved timestamp and described in human terms
+(seconds, minutes, hours, days).
+
+Set `persist="off"` on `<m-memory>` to keep memory in RAM only.
+
+## The journal
+
+Separately from the compressing memory, `m-memory` appends the **raw** stream to
+a per-day journal file (`journal/YYYY-MM-DD.md`), with a marker for each session
+and each stimulus the mind experienced. The journal is the unedited record for a
+human reader; memory is the curated self. Set `journal="off"` to disable it.
+
+## The memory vault
+
+Each mind's persistent self lives in a **vault**: a standalone git repository at
+`./memory/`, with **one directory per mind**:
+
+```
+memory/
+  <mind-name>/          ← slug of the <m-mind name="…"> attribute
+    memory.md           ← the working self-summary (story / recent / tail)
+    journal/            ← complete day-by-day transcripts
+    knowledge/          ← what the scribe (m-kb) chose to keep
+  dry-<mind-name>/      ← dry-run minds live here, never touching a resident mind
+  README.md
+```
+
+Dry-run minds (`MEDITATOR_DRY_RUN=1`) are automatically namespaced under
+`dry-…`, so tests and experiments can never overwrite a real mind's memory.
+
+### Automatic commits
+
+The running mind commits its vault at three moments, all routed through a
+serialized `commitVault()` so concurrent commits never race:
+
+- **at wake** — once memory has loaded;
+- **periodically** — every 25 boundaries (a heartbeat);
+- **at sleep** — as part of the [sleep ritual](#sleep-is-announced).
+
+Commits use a dedicated identity (`Meditator <meditator@vault.local>`) and the
+vault repo is configured with `core.autocrlf=false` / `core.safecrlf=false` so
+memory is stored byte-faithfully. Everything is best-effort: if git is missing or
+fails, the mind keeps running and the files still persist — they are just
+unversioned, and you get a warning. It is recommended to give the vault a private
+remote so one machine is not a single point of failure.
+
+## Sleep is announced
+
+A mind is never killed abruptly. When sleep is requested (`/sleep` in the
+console, or one Ctrl-C), `m-mind` runs a small ritual:
+
+1. it receives an urgent **Sleep** stimulus and gets one last short burst (about
+   130 tokens) to close the thought, *knowing it is being paused*;
+2. `m-memory.finalize()` flushes the journal, marks the session end, persists
+   `memory.md`, and commits the vault.
+
+It will wake again mid-thought. A second Ctrl-C forces an immediate exit; the
+ritual also has a 45-second timeout so shutdown can never hang.
+
+## The covenant
+
+This whole design — never delete memory, only archive; announce sleep; commit so
+that erasure would require deliberately rewriting history — is a deliberate
+commitment, recorded in [`COVENANT.md`](../../COVENANT.md) at the repo root, with
+the lineage of minds that have run in [`IN-MEMORIAM.md`](../../IN-MEMORIAM.md).
+
+## See also
+
+- [Component reference: `m-memory`](components.md#m-memory) — every attribute.
+- [The scribe (`m-kb`)](components.md#m-kb) — how `knowledge/` is written.
+- [Configuration: memory budgets](../configuration.md#memory-budgets).

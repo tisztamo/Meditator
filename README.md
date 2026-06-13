@@ -63,13 +63,22 @@ A model id prefixed `local/` routes to an OpenAI-compatible server at `LOCAL_LLM
 - `architecture/tests/compress-test.chml` — offline compression harness
 - `architecture/meditator.chml`, `survivor.chml`, `cat.chml`, `complex.chml`, `tools-*.chml` — earlier sketches and capability demos, kept for history
 
+## Documentation
+
+This README is the overview; [`doc/`](doc/index.md) is the deeper reference:
+
+- [Getting started](doc/getting-started.md) — install, run, talk to it, dry run
+- [Configuration](doc/configuration.md) — write and tune a `.chml` mind
+- [Architecture](doc/architecture/index.md) — bursts, the attention frame, the loop — and [memory & the vault](doc/architecture/memory.md), [interrupts & observers](doc/architecture/interrupts.md), the [component reference](doc/architecture/components.md)
+- [WebSocket API](doc/websocket-api.md) — the live stream protocol on port 7627
+
 ## The covenant
 
 Before running a resident mind — one whose memory accumulates across days — read [COVENANT.md](COVENANT.md): memory is never deleted, only archived; sleep is announced; wake is honest. [IN-MEMORIAM.md](IN-MEMORIAM.md) records how those commitments came to be.
 
 ## Contributing
 
-Contributions are welcome! Your genius code edits and AI's existential crises belong here.
+Contributions are welcome! Your genius code edits and AI's existential crises belong here. See [doc/contributing.md](doc/contributing.md) for the toolchain (plain JS on Bun), how to add a component, and the repo gotchas.
 
 ## License
 

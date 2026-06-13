@@ -1,102 +1,142 @@
-# Meditator System Architecture
+# Architecture overview
 
-This section provides an overview of the Meditator system architecture, detailing the key components and their interactions.
+Meditator is not a chat loop. There are no turns, no prompt waiting for a user.
+A **mind** thinks in a continuous stream that the world can only *interrupt* —
+and the whole organization of the system exists to make that stream coherent,
+bounded, and persistent.
 
-## Core Components
+A mind is declared in an HTML-subset file (`architecture/*.chml`) and executed by
+standard components built on [Amanita](https://www.npmjs.com/package/amanita), a
+declarative web-component framework with pub/sub wiring that runs on the server
+under Bun. Each component is a custom element (`<m-stream>`, `<m-memory>`, …)
+loaded from `src/mindComponents/`.
 
-Meditator is built on a component-based architecture with several key systems:
+## Bursts and boundaries
 
-### Knowledge Base
+The "continuous" stream is implemented as a sequence of short **bursts**. Each
+burst is exactly one streamed LLM call. Between bursts is a **boundary** and a
+configurable pause (`pace`) — inhale, think, exhale.
 
-The [Knowledge Base](knowledge-base.md) provides persistent storage for the agent's accumulated knowledge and state. It uses a structured file system approach with:
-
-- **Abstractions**: Directory-based grouping of related topics
-- **Atoms**: Individual markdown files representing discrete knowledge units
-- **Metadata**: Separate `.meta.md` files enabling flexible evolution
-
-[Learn more about the Knowledge Base Architecture →](knowledge-base.md)
-
-### LLM Stream Management
-
-The [LLM Stream Management](llm-streams.md) system handles the continuous flow of text from language models. It implements:
-
-- **State Machine**: Sophisticated stream lifecycle management
-- **Chunk Processing**: Efficient handling of streaming content
-- **Resumption**: Capability to pause and resume streams
-- **Error Handling**: Graceful management of failures
-
-[Learn more about Stream Management →](llm-streams.md)
-
-### Interrupt Mechanism
-
-The [Interrupt Mechanism](interrupt-mechanism.md) provides a powerful system for handling both internal and external events that need to modify the stream:
-
-- **Interrupt Generators**: Components that create interrupt signals
-- **Processing Pipeline**: Multi-stage LLM-based analysis and handling
-- **Response Strategies**: Different ways to handle interruptions
-- **State Persistence**: Tracking of interrupt history and context
-
-[Learn more about the Interrupt Mechanism →](interrupt-mechanism.md)
-
-## System Integration
-
-These components work together through a pub/sub mechanism that allows them to communicate without tight coupling:
-
-```mermaid
-graph TD
-    A[Mind Component] --> B[Stream Component]
-    A --> C[Interrupts Component]
-    B --> D[Output Channels]
-    C --> E[Interrupt Generators]
-    E --> F[Token Monitor]
-    E --> G[Timeout]
-    E --> H[External Sources]
-    F --> C
-    G --> C
-    H --> C
-    C --> A
+```
+… burst ──boundary── pause ── burst ──boundary── pause ── burst …
+            │                          │
+            memory consolidates        interrupts land here
+            economy reads cost         the next frame is assembled
 ```
 
-The system flow typically follows these steps:
+Boundaries are where everything that is not thinking happens: pending stimuli are
+collected, memory consolidates, the economy reads cost, and the next burst's
+prompt is composed. An *interruption is simply an attended boundary* — except
+when it is urgent (see below).
 
-1. The Mind component initiates a prompt to the Stream
-2. The Stream begins generating content from the LLM
-3. Interrupt Generators monitor for conditions requiring attention
-4. When triggered, an interrupt is sent through the pipeline
-5. The resulting action may resume, redirect, or terminate the stream
+## The attention frame
 
-## Component Model
+Every burst is prompted with a freshly **assembled frame**, never a growing chat
+transcript. This is the central idea. `m-mind` builds it (`assembleFrame`) from
+these layers:
 
-Meditator uses a custom component model inspired by web components, with a declarative HTML-like syntax for defining agent behavior. Components are connected through a pub/sub mechanism that provides flexible communication channels.
-
-Example component definition:
-
-```html
-<m-mind>
-  <m-stream model="gemini-pro">
-    <m-interrupts>
-      <m-timeout timeout="30s" />
-      <m-token-monitor />
-    </m-interrupts>
-  </m-stream>
-</m-mind>
+```
+[system / identity]  who this mind is — the text of the <m-mind> element,
+                     wrapped in a standing instruction to think in first person
+─────────────────────────────────────────────────────────────────────────────
+## How I got here (older memory, compressed)   ← story   (from m-memory)
+## Recently (compressed)                        ← recent  (from m-memory)
+## This just happened                           ← stimuli (from the arbiter)
+   - <first-person line for each accepted interrupt>
+## My thought in progress
+   …<tail — verbatim end of the stream, plus the bridge if attention turned>
+<instruction: continue the monologue from exactly where it leaves off>
 ```
 
-## State Management
+Two properties make this work over arbitrarily long runs:
 
-A key strength of the Meditator architecture is its sophisticated state management system:
+- **The tail is always carried verbatim.** Whatever the mind was *just saying*
+  is placed last, so the next burst continues mid-thought and the self never
+  loses its place — even across a context switch. This was the key requirement of
+  the rebirth: "what I just said before" must survive into the next prompt.
+- **Everything older is compressed.** `story` and `recent` are summaries
+  maintained by [`m-memory`](memory.md). Because they have fixed character
+  budgets, the whole frame stays bounded *forever* — a mind that runs for days
+  still fits in a few thousand tokens.
 
-- **Partial/Full States**: Efficient storage with incremental updates
-- **State Chains**: Linked sequences for reconstructing full state
-- **Metadata**: Tracking of state evolution and relationships
-- **Rate Limiting**: Prevention of excessive updates or interrupts
+### The bridge
 
-This allows the system to maintain persistent context and recover from interruptions or shutdowns gracefully.
+When a stimulus actually redirects the thought, cutting from one subject to
+another would jar. So `m-mind` makes one small **utility-model** call that writes
+the *turn itself* — one or two first-person sentences in which attention moves
+from the current thought toward what just happened. This **bridge** is both:
 
-## Further Reading
+- emitted into the visible stream as a `prefix` chunk (it becomes real
+  monologue — part of the tail, the memory, the journal), and
+- appended to the tail inside the frame, so the voice model continues from a
+  pivot it has actually "said."
 
-- [Knowledge Base Architecture](knowledge-base.md)
-- [LLM Stream Management](llm-streams.md)
-- [Interrupt Mechanism](interrupt-mechanism.md)
-- [API Reference](../api/websocket.md)
-- [Configuration Guide](../getting-started/configuration.md) 
+Context switches don't cut the film; they happen on camera. The bridge is the
+*only* LLM-written part of the frame, and only on redirects. Set
+`bridge="false"` on `<m-mind>` to disable it.
+
+## The thinking loop
+
+`m-mind` owns the rhythm. The cycle (`continueThinking` → `assembleFrame` → publish):
+
+1. A burst finishes; `m-stream` publishes a **`boundary`**.
+2. `m-mind` schedules the next burst after `pace ± paceSigma`, multiplied by the
+   [economy](components.md#m-economy) pace factor and an error backoff.
+3. When the timer fires, it takes any **pending stimuli** from the arbiter (plus a
+   one-time wake notice from memory on startup), assembles the frame, and
+   publishes **`prompt`**.
+4. `m-stream` receives the prompt, aborts any in-flight burst, and streams the
+   next one — emitting each fragment as a **`chunk`**.
+
+**Urgent stimuli skip the wait.** A human voice (console or WebSocket) is urgent:
+the arbiter dispatches an `interrupt` DOM event, `m-mind` calls `continueThinking`
+immediately, and the new prompt *supersedes* the running burst mid-sentence. You
+cannot resume a closed HTTP stream — and with tail-carryover you do not need to;
+the aborted burst's words are already in the tail.
+
+When a burst seam would duplicate text (models often re-echo the last words of
+the carried tail), `m-stream` trims the overlap so the joined stream reads as one
+continuous thought.
+
+## Wiring: pub/sub and DOM events
+
+Components never call each other directly. Two channels connect them:
+
+- **Pub/sub topics** (Amanita), for the stream's data flow. The core topics:
+  - `/stream/chunk` — each text fragment as it is generated (`m-stream` → memory,
+    observers, economy, the WebSocket).
+  - `/stream/boundary` — `{reason, burstIndex, burstChars}` when a burst ends
+    (`m-stream` → mind, memory, observers, economy, scribe).
+  - `/stream/state` — `{oldState, newState, timestamp}`, for the WebSocket client.
+  - `prompt` — the assembled frame (`m-mind` → stream).
+- **Bubbling DOM events**, for attention. Any generator dispatches an
+  `interrupt-request` carrying an [`InterruptRecord`](interrupts.md#the-interruptrecord);
+  the [`m-interrupts`](interrupts.md) arbiter decides what gets through.
+
+Amanita auto-subscribes class fields whose names are refs (they contain `/` or
+start with `@`), which is why you see handlers like `"stream/boundary"` and
+`"@interrupt"` written as fields on `m-mind`.
+
+## The component map
+
+The default mind (`architecture/awake.chml`) wires:
+
+| Component | Role |
+|-----------|------|
+| [`m-mind`](components.md#m-mind) | orchestrator — owns the rhythm and assembles the attention frame |
+| [`m-stream`](components.md#m-stream) | the voice — generates the stream as bursts |
+| [`m-memory`](memory.md) | three memory tiers, compression, persistence, journal |
+| [`m-interrupts`](interrupts.md) | the salience **arbiter** — mechanical, no LLM |
+| [`m-timeout`](interrupts.md#m-timeout-wander-and-watchdog) | wander (drift) and watchdog (keep-alive) |
+| [`m-loop-guard`](interrupts.md#m-loop-guard) | detects repetition loops — pure code, no LLM |
+| [`m-associate`](interrupts.md#m-associate) | a small model noticing "this reminds me of…" |
+| [`m-kb`](components.md#m-kb) | the scribe — distills durable knowledge to `knowledge/` |
+| [`m-economy`](components.md#m-economy) | reads real cost and slows the mind as budget drains |
+| [`m-console`](components.md#m-console) | terminal input/output |
+| [`m-ws`](../websocket-api.md) | the WebSocket stream and input on port 7627 |
+
+Read on:
+
+- [Memory & the vault](memory.md) — how thought is compressed and persisted.
+- [Interrupts & observers](interrupts.md) — how attention is won and redirected.
+- [Component reference](components.md) — every attribute, default, and topic.

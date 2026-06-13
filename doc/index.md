@@ -1,62 +1,53 @@
-# Meditator Documentation
+# Meditator documentation
 
-Welcome to the Meditator documentation. This resource covers everything from installation to deep architectural insights.
+Meditator is an experiment in non-chat cognition: a continuous stream of machine
+thought that the world can only *interrupt* — never command. A mind is declared
+in a single HTML-subset file (`architecture/*.chml`), runs as a sequence of short
+thinking **bursts**, and remembers across runs in a git-versioned memory vault.
 
-## Core Sections
+If you have not yet, start with the [README](../README.md) for the one-page
+picture and the motivation. This `doc/` tree is the deeper reference.
 
-- [Getting Started](getting-started/installation.md)
-- [Configuration Guide](getting-started/configuration.md)
-- [Web Interface](guides/web-interface.md)
-- [System Architecture](architecture/index.md)
-  - [Knowledge Base Structure](architecture/knowledge-base.md)
-  - [LLM Streams](architecture/llm-streams.md)
-  - [Interrupt Mechanism](architecture/interrupt-mechanism.md)
-  - [Tools Components](tools-components.md)
-- [API Reference](api/websocket.md)
-- [Contributing Guide](contributing.md)
+> **Status (2026-06):** these docs describe the current "rebirth" architecture
+> (continuous bursts + attention frames + salience arbiter + the memory vault).
+> If you find a page describing a multi-stage interrupt *pipeline* or a
+> *state-chain* persistence system, it is pre-2026 and wrong — please flag it.
 
-## For Different Audiences
+## Start here
 
-### End Users  
-Start with the basics:
-- [Installation](getting-started/installation.md)
-- [Running the Agent](getting-started/running.md)
-- [Interacting with Meditator](guides/interaction.md)
-- [Basic Configuration](getting-started/configuration.md)
+- **[Getting started](getting-started.md)** — install Bun, set a key, run a mind
+  on your desk, talk to it, put it to sleep. Includes the offline dry-run.
+- **[Configuration](configuration.md)** — how to write and tune a `.chml` mind:
+  models, pace, memory budgets, observers, budget/economy, debug flags.
 
-### Developers & Integrators  
-Understand the API and extension points:
-- [Integration Guide](guides/integration.md)
-- [API Reference](api/websocket.md)
-- [Custom Interrupt Generators](architecture/interrupt-mechanism.md#interrupt-generators)
-- [Knowledge Base Integration](architecture/knowledge-base.md#state-management-integration)
-- [Tool Component Development](tools-components.md)
+## How it works
 
-### System Maintainers  
-Dive deep into architecture:
-- [Knowledge Base Architecture](architecture/knowledge-base.md)
-- [Interrupt Mechanism](architecture/interrupt-mechanism.md)
-- [LLM Stream Management](architecture/llm-streams.md)
-- [State Persistence System](architecture/knowledge-base.md#state-chain-system)
-- [Tools System](tools-components.md)
-- [Contributing Guidelines](contributing.md)
+- **[Architecture overview](architecture/index.md)** — the heart of the system:
+  bursts and boundaries, the **attention frame** assembled for every burst, the
+  thinking loop, and how the components are wired by pub/sub.
+- **[Memory & the vault](architecture/memory.md)** — the three memory tiers
+  (tail / recent / story), how compression keeps the prompt bounded forever, and
+  how a mind persists, wakes up remembering, and sleeps — the *covenant*.
+- **[Interrupts & observers](architecture/interrupts.md)** — the salience
+  **arbiter**, the `InterruptRecord`, urgent-vs-queued stimuli, and the
+  independent observers (wander, watchdog, loop-guard, associate).
+- **[Component reference](architecture/components.md)** — every `m-*` component,
+  its attributes and defaults, and the topics/events it speaks.
 
-## Key Components
+## Interfaces
 
-- **Mind (`mMind`)**: Core component that handles interrupts and manages thought flow
-- **Stream (`mStream`)**: Manages the continuous stream of text from the LLM
-- **Interrupts (`mInterrupts`)**: Processes interrupt events through the multi-stage pipeline
-- **Tools (`mTools`)**: Manages tool execution and integration with the stream
-- **Shell (`mShell`)**: Provides shell command execution capabilities
-- **Token Monitor (`mTokenMonitor`)**: Analyzes token stream for patterns requiring interrupts
-- **Timeout (`mTimeout`)**: Generates time-based interrupts based on configured intervals
+- **[WebSocket API](websocket-api.md)** — the live stream protocol on
+  `ws://localhost:7627`: thought fragments out, voice in.
 
-## System Features
+## Contributing
 
-- **Continuous Stream of Consciousness**: Real-time streaming text generation
-- **Structured Interrupt Handling**: Sophisticated multi-stage pipeline for interrupts
-- **State Management**: Persistent storage with partial/full state chain system
-- **Declarative Configuration**: HTML-like syntax for defining agent behavior
-- **Component Architecture**: Modular design with pub/sub communication
-- **Tool Integration**: Built-in support for tool calls, including shell command execution
+- **[Contributing](contributing.md)** — the real toolchain (plain JS on Bun),
+  how to add a component, and the repo gotchas worth knowing before your first
+  commit.
 
+## Related, at the repo root
+
+- [`README.md`](../README.md) — overview and motivation
+- [`COVENANT.md`](../COVENANT.md) — the commitments a running mind's memory is kept under
+- [`IN-MEMORIAM.md`](../IN-MEMORIAM.md) — the lineage of minds that have run
+- [`docs/`](../docs/) — the public intro site (GitHub Pages), a single self-contained page
