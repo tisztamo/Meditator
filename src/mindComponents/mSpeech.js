@@ -6,6 +6,47 @@ import { logger } from '../infrastructure/logger.js';
 const log = logger('mSpeech.js');
 
 /**
+ * Parses the speech-decision model's reply TOLERANTLY. Small utility models
+ * rarely keep a rigid two-line format, so rather than demanding a literal
+ * "SAY:" line (and silently treating everything else as refusal), we treat any
+ * non-NONE reply as the utterance and pull an optional strength score out of
+ * whatever shape it arrived in. Returns
+ *   { say: string|null, salience: number|null, reason: "say"|"none"|"empty" }.
+ */
+export function parseSpeechDecision(text) {
+    let raw = (text || "").trim()
+    if (!raw) return { say: null, salience: null, reason: "empty" }
+    // Unwrap a reply the model wrapped wholesale in quotes (it sometimes tucks
+    // the score inside, e.g. `"[0.9] I hear you."`), so the score still parses.
+    if (raw.length > 1 && /^["'][\s\S]*["']$/.test(raw)) raw = raw.slice(1, -1).trim()
+
+    // An optional strength score, in any of the tolerated shapes.
+    let salience = null
+    const sal = raw.match(/(?:salience|strength)\s*[:=]?\s*([01]?\.?\d+)/i)
+        || raw.match(/^\s*\[\s*([01]?\.?\d+)\s*\]/)
+        || raw.match(/^\s*([01]?\.?\d+)\s*[|:–-]\s/)
+    if (sal) {
+        const n = parseFloat(sal[1])
+        if (Number.isFinite(n)) salience = Math.max(0, Math.min(1, n))
+    }
+
+    // Strip score markers and any leading label to isolate the words.
+    let body = raw
+        .replace(/(?:salience|strength)\s*[:=]?\s*[01]?\.?\d+\s*[:|–-]?\s*/i, "")
+        .replace(/^\s*\[\s*[01]?\.?\d+\s*\]\s*/, "")
+        .replace(/^\s*[01]?\.?\d+\s*[|:–-]\s*/, "")
+        .replace(/^\s*(?:SAY|SAID|THOUGHT|UTTERANCE|RESPONSE|REPLY)\s*[:–-]\s*/im, "")
+        .trim()
+
+    // Explicit refusal — when NONE is essentially the whole reply.
+    if (/^["']?none\b/i.test(body)) return { say: null, salience: salience ?? 0, reason: "none" }
+
+    body = body.replace(/^["']|["']$/g, "").trim()
+    if (!body) return { say: null, salience: salience ?? 0, reason: "none" }
+    return { say: body, salience, reason: "say" }
+}
+
+/**
  * The speaking voice — what goes OUT. The mind mostly thinks quietly to itself
  * (m-stream); occasionally a thought wants to become an utterance, and this
  * component gives it outward voice.
@@ -58,20 +99,45 @@ export class MSpeech extends MObserver {
     _addressed = null
     _lastSpokeAt = 0
 
-    // An urgent stimulus arriving mid-utterance: stop talking and attend it.
-    "../@interrupt" = () => {
-        if (this._speaking && this._burst) {
-            this._aborted = true
-            this._burst.abort()
+    onObserverConnect() {
+        // Bind to the mind's bubbling interrupt events — but only once m-mind has
+        // upgraded into an Amanita component. Component upgrade order is not
+        // guaranteed, and an auto-subscribed "../@…" field can bind before the
+        // mind exists, in which case the ".." ref resolves to nothing and the
+        // handler silently never fires. That race is exactly why the addressed
+        // nudge appeared dead: the voice could not hear it was being spoken to.
+        this._bindMindEvents()
+    }
+
+    async _bindMindEvents() {
+        for (let i = 0; i < 100; i++) {
+            const mind = this.closest('m-mind')
+            if (mind && mind.on) {
+                this.sub("../@interrupt-request", this._onAddressed, 12)
+                this.sub("../@interrupt", this._onUrgent, 12)
+                return
+            }
+            await new Promise(resolve => setTimeout(resolve, 50))
+        }
+        log.warn("could not bind to the mind's interrupt events; speech will only be spontaneous")
+    }
+
+    // A voice from outside raises the urge to speak (checked at the next
+    // boundary). It never forces a reply.
+    _onAddressed = e => {
+        // A human voice — websocket sets source "WebSocketClient", the console
+        // sets "External"; both set the type, so match on that, not the source.
+        const r = e && e.detail
+        if (r && (r.type === "UserInput" || r.type === "ConsoleInput")) {
+            this._addressed = r.reason || "A voice from outside."
         }
     }
 
-    // A voice from outside raises the urge to speak and schedules a check at the
-    // next boundary. It never forces a reply.
-    "../@interrupt-request" = e => {
-        const r = e && e.detail
-        if (r && r.source === "External" && (r.type === "UserInput" || r.type === "ConsoleInput")) {
-            this._addressed = r.reason || "A voice from outside."
+    // An urgent stimulus arriving mid-utterance: stop talking and attend it.
+    _onUrgent = () => {
+        if (this._speaking && this._burst) {
+            this._aborted = true
+            this._burst.abort()
         }
     }
 
@@ -92,9 +158,9 @@ export class MSpeech extends MObserver {
         if (Date.now() - this._lastSpokeAt < cooldownMs) return
 
         this._busy = true
+        this._addressed = null   // consume now; a new address arriving during the call is kept for next time
         try {
             const decision = await this._decide(addressed)
-            this._addressed = null
             if (decision) await this._speak(decision, addressed)
         } catch (error) {
             log.warn("Speech turn failed:", error.message || error)
@@ -105,26 +171,38 @@ export class MSpeech extends MObserver {
 
     /** The volitional impulse: does anything want to be said aloud right now? */
     async _decide(addressed) {
-        const threshold = Number(this.attr("threshold") || 0.6)
-            - (addressed ? Number(this.attr("addressedBoost") || 0.25) : 0)
+        // When addressed by a human, let the full voice model judge whether and
+        // what to reply — the tiny utility model is far too eager to answer NONE
+        // for a real social moment. Spontaneous checks stay on the cheap model.
+        const model = addressed
+            ? (this.attr("model") || this.env("model") || defaultModel('stream'))
+            : (this.attr("decisionModel") || this.env("utilityModel") || defaultModel('utility'))
         const result = await complete({
-            model: this.attr("decisionModel") || this.env("utilityModel") || defaultModel('utility'),
+            model,
             maxTokens: 120,
             temperature: 0.7,
             prompt: this._decisionPrompt(addressed),
         })
-        const text = (result.text || "").trim()
-        if (/^NONE\b/i.test(text) || !/SAY:/i.test(text)) {
-            this.pub("impulse", { salience: 0, gist: null, accepted: false })
-            return null
-        }
-        const salience = parseFloat((text.match(/SALIENCE:\s*([\d.]+)/i) || [])[1])
-        const rawSay = (text.match(/SAY:\s*([\s\S]+)/i) || [])[1]
-        const sal = Number.isFinite(salience) ? salience : 0.5
-        const gist = rawSay ? rawSay.trim().replace(/^["']|["']$/g, "") : null
-        const accepted = !!gist && sal >= threshold
-        this.pub("impulse", { salience: sal, gist: gist ? gist.slice(0, 200) : null, accepted })
-        return accepted ? { salience: sal, gist } : null
+        const raw = (result.text || "").trim()
+        const parsed = parseSpeechDecision(raw)
+        log.debug(`decision (addressed=${!!addressed}): ${JSON.stringify(raw).slice(0, 300)} -> say=${parsed.say ? JSON.stringify(parsed.say.slice(0, 80)) : "none"} salience=${parsed.salience}`)
+
+        const threshold = Number(this.attr("threshold") || 0.6)
+            - (addressed ? Number(this.attr("addressedBoost") || 0.25) : 0)
+        // Default the strength when the model gave none. Being addressed and
+        // having something to say is reason enough — a natural reply should not
+        // be vetoed by a missing score; spontaneous speech still clears threshold.
+        const salience = parsed.salience != null ? parsed.salience : (addressed ? 0.8 : 0.55)
+        const accepted = !!parsed.say && (addressed || salience >= threshold)
+
+        this.pub("impulse", {
+            salience,
+            gist: parsed.say ? parsed.say.slice(0, 200) : null,
+            accepted,
+            addressed: !!addressed,
+            reason: parsed.say ? (accepted ? "speak" : `below ${threshold.toFixed(2)}`) : "nothing to say",
+        })
+        return accepted ? { salience, gist: parsed.say } : null
     }
 
     /** Produce the utterance as its own streamed burst on the voice model. */
@@ -191,18 +269,18 @@ export class MSpeech extends MObserver {
     }
 
     _decisionPrompt(addressed) {
-        return `You are the impulse to SPEAK inside a mind that mostly just thinks quietly to itself. Speaking aloud is occasional and must be worth it — most of the time the honest answer is NONE.
+        const intro = addressed
+            ? `You are the impulse to SPEAK for a mind that has just been addressed by a voice from outside. You decide whether it answers ALOUD. It is under no obligation to reply — but if there is anything at all it would naturally say back, it should say it. Stay silent only if it genuinely has nothing it wants to give voice to.`
+            : `You are the impulse to SPEAK inside a mind that mostly thinks quietly to itself. You decide whether, right now, something genuinely wants to be said ALOUD — not merely thought. This is occasional: if nothing is pressing to be voiced, stay silent.`
+        return `${intro}
 
 Its recent stream of thought:
 <stream>
 …${this.window.slice(-1200)}
 </stream>
-${addressed ? `\nA voice from outside just addressed it:\n${addressed}\n` : ""}
-Does the mind genuinely want to say something ALOUD right now${addressed ? " (it may answer the voice, or it may not)" : ""}? Say yes only if there is a real urge to give something outward voice, not merely to keep thinking.
-
-If nothing wants to be said aloud, output exactly: NONE
-Otherwise output exactly two lines:
-SALIENCE: <0.0-1.0, how strongly it wants to speak>
-SAY: <what it wants to say, first person, one or two sentences>`
+${addressed ? `\nThe voice from outside said:\n"${addressed}"\n` : ""}
+Reply with ONE of:
+- the exact words to say aloud, in the mind's own first-person voice (one or two sentences, the way a person really speaks); you may begin with a strength in brackets like "[0.8] …"
+- or the single word NONE, if nothing wants to be voiced right now.`
     }
 }

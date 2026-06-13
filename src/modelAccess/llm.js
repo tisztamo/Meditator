@@ -280,7 +280,7 @@ function dryComplete({ prompt = '', messages }) {
     // The volitional speech impulse (mSpeech) — speak roughly every other check.
     drySpeechCounter += 1;
     reply = drySpeechCounter % 2 === 0
-      ? 'SALIENCE: 0.82\nSAY: I want to say this out loud, just once: the silence here is not empty, it has a texture.'
+      ? '[0.82] I want to say this out loud, just once: the silence here is not empty, it has a texture.'
       : 'NONE';
   } else if (/mid-thought transition|attention turns/i.test(text)) {
     reply = 'Hold on — something just shifted, and I want to turn toward it without dropping the thread entirely.';

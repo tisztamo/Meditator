@@ -421,8 +421,10 @@ function onFiled(d){
 function onImpulse(d){
   const sal = typeof d.salience === "number" ? d.salience.toFixed(2) : "?";
   const cls = d.accepted ? "warn" : "drop";
-  pushNode(byTag("m-speech"), evLine(`impulse ${sal} ${d.accepted?"✓ speak":"— stay quiet"}${d.gist?": "+d.gist:""}`, cls));
-  setNodeStat(byTag("m-speech"), `impulse ${sal} ${d.accepted?"✓":"✕"}`);
+  const tag = d.addressed ? "↩ " : "";
+  const why = d.accepted ? "✓ speak" : `— quiet (${d.reason || "none"})`;
+  pushNode(byTag("m-speech"), evLine(`${tag}impulse ${sal} ${why}${d.gist?": "+d.gist:""}`, cls));
+  setNodeStat(byTag("m-speech"), `${tag}${sal} ${d.accepted?"✓":"✕"}`);
 }
 function fmt(n){ return typeof n === "number" ? (n>=1000?(n/1000).toFixed(1)+"k":String(n)) : "—"; }
 
