@@ -648,12 +648,43 @@ async function replayLoop(){
 }
 
 /* ------------- live mode: a Meditator on localhost ------------- */
-function tryLive(){
-  let opened = false;
-  let s;
-  try { s = new WebSocket("ws://localhost:7627"); } catch { return; }
+let connecting = false, announceLive = false;
+/* set the sub line and (re)wire any retry link inside it back to a live try */
+function setSub(html){
+  sub.innerHTML = html;
+  const retry = document.getElementById("connectBtn2");
+  if (retry) retry.onclick = () => tryLive(true);
+}
+/* On load we probe ws://localhost:7627 silently (announce=false), so the
+   public site keeps its replay copy when no mind is running. A click sets
+   announce=true: the visitor asked, so we always show what happened. */
+function tryLive(announce){
+  if (announce) announceLive = true;
+  if (connecting || mode === "live"){
+    if (announceLive) setSub("● reaching for a mind on ws://localhost:7627 …");
+    return;
+  }
+  connecting = true;
+  let opened = false, settled = false, s;
+  if (announceLive) setSub("● reaching for a mind on ws://localhost:7627 …");
+  try { s = new WebSocket("ws://localhost:7627"); }
+  catch {                                       // e.g. blocked as mixed content on https
+    connecting = false;
+    if (announceLive) setSub("● can't open ws://localhost:7627 from here — run Meditator locally, then <a id='connectBtn2'>try again</a>");
+    announceLive = false;
+    return;
+  }
+  const fail = why => {
+    if (settled) return;
+    settled = true; connecting = false; clearTimeout(timer);
+    try { s.close(); } catch {}
+    if (announceLive) setSub(`● ${why} — run Meditator locally, then <a id='connectBtn2'>try again</a>`);
+    announceLive = false;
+  };
+  const timer = setTimeout(() => fail("no mind answered on ws://localhost:7627"), 2500);
   s.onopen = () => {
-    opened = true; ws = s; mode = "live";
+    opened = true; settled = true; connecting = false; announceLive = false; clearTimeout(timer);
+    ws = s; mode = "live";
     streamEl.textContent = ""; caret = null; currentP = null;
     dot.classList.add("live");
     title.textContent = "awake.chml — live · ws://localhost:7627";
@@ -671,16 +702,16 @@ function tryLive(){
     }
   };
   s.onclose = () => {
-    if (!opened) return;            // never connected: stay in replay silently
-    ws = null; mode = "replay";
+    clearTimeout(timer);
+    if (!opened){ fail("no mind found on ws://localhost:7627"); return; }
+    ws = null; mode = "replay"; connecting = false;
     dot.classList.remove("live");
     title.textContent = "awake.chml — replay of the first session · 2026-06-12";
-    sub.innerHTML = "● connection closed — replaying. <a id='connectBtn2'>reconnect</a>";
-    document.getElementById("connectBtn2").onclick = tryLive;
+    setSub("● connection closed — replaying. <a id='connectBtn2'>reconnect</a>");
     addMeta("(the mind went away — replay resumes)");
     queue = SCRIPT.slice(); qi = 0; replayLoop();
   };
-  s.onerror = () => { try { s.close(); } catch {} };
+  s.onerror = () => { fail("no mind found on ws://localhost:7627"); };
 }
 
 /* ------------- speaking to it ------------- */
@@ -699,7 +730,7 @@ function send(){
 }
 $("sayBtn").onclick = send;
 $("say").addEventListener("keydown", e => { if (e.key === "Enter") send(); });
-$("connectBtn").onclick = tryLive;
+$("connectBtn").onclick = () => tryLive(true);
 
 /* ------------- the code: highlighting, card backs, tabs ------------- */
 function hl(src){

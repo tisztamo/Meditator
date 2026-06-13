@@ -87,12 +87,31 @@
             }
         });
 
-        // Add message to the output area
+        // The block currently collecting streamed thought fragments, if any
+        let currentThought = null;
+
+        // Add a discrete message (status, input, error) on its own line.
+        // This also ends any thought block in progress, so the next fragment
+        // starts a fresh block below it.
         function addMessage(message, className) {
+            currentThought = null;
             const messageElement = document.createElement('div');
             messageElement.className = className;
             messageElement.textContent = message;
             outputElement.appendChild(messageElement);
+            outputElement.scrollTop = outputElement.scrollHeight;
+        }
+
+        // Append a streamed thought fragment to the running thought block,
+        // creating one if needed. Fragments flow together as continuous text;
+        // only the model's own newlines break lines (not each chunk).
+        function addThoughtFragment(text) {
+            if (!currentThought) {
+                currentThought = document.createElement('div');
+                currentThought.className = 'thought-fragment';
+                outputElement.appendChild(currentThought);
+            }
+            currentThought.appendChild(document.createTextNode(text));
             outputElement.scrollTop = outputElement.scrollHeight;
         }
         
@@ -213,7 +232,7 @@
                         const message = JSON.parse(event.data);
                         
                         if (message.type === 'thought_fragment') {
-                            addMessage(message.data.content, 'thought-fragment');
+                            addThoughtFragment(message.data.content);
                         } else if (message.type === 'status') {
                             addMessage(
                                 `Status: ${message.data.state || message.data.status || 'Update'} - ${message.data.message || ''}`,
