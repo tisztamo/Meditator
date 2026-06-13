@@ -97,5 +97,19 @@ The Studio serves its UI and a single control WebSocket on **:7600** (override
 with `STUDIO_PORT`). It binds to localhost; like the mind's own port, do not
 expose it to an untrusted network.
 
-Implementation: [`src/studio/server.js`](../src/studio/server.js) (supervisor) and
-[`src/studio/studio.html`](../src/studio/studio.html) (the single-page UI).
+## Built with Amanita
+
+The UI is itself an [Amanita](https://www.npmjs.com/package/amanita) component
+mesh — the same pub/sub web-component framework the mind is built from, now in the
+browser. A `<studio-conn>` element owns the WebSocket to the supervisor and the
+focus state; the panes (`<studio-roster>`, `<studio-stream>`, `<studio-tree>`,
+`<studio-header>`, …) wire to it through `/conn/` references: they **subscribe** to
+its published topics (roster, structure, stream fragments, events) and call its
+**command methods** (`wake` / `focus` / `sleep` / `speak`) for actions. The browser
+loads Amanita build-free — an importmap points `"amanita"` at `/amanita/a.js`, which
+the server static-mounts straight from `node_modules`. None of this changes the
+supervisor protocol; the wire messages are exactly as before.
+
+Implementation: [`src/studio/server.js`](../src/studio/server.js) (supervisor),
+[`src/studio/studio.html`](../src/studio/studio.html) (the page — an importmap and a
+declarative component tree), and [`src/studio/ui/`](../src/studio/ui/) (the components).

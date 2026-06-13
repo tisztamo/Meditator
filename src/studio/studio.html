@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Meditator — Studio</title>
+<script type="importmap">
+{ "imports": { "amanita": "/amanita/a.js" } }
+</script>
 <style>
   :root{
     --bg:#0a0d13; --bg2:#0d111a; --surface:#10141d; --surface2:#141926; --rail:#0b0e15;
@@ -161,350 +164,53 @@
   @keyframes blink{50%{opacity:0}}
   @keyframes pulse{50%{opacity:.45}}
   @media (max-width:900px){ main{grid-template-columns:1fr} .col.rail,.col.left{border-right:none;border-bottom:1px solid var(--line)} }
+
+  /* ---------- Amanita custom-element layout roles (additive) ---------- */
+  /* The UI is now an Amanita component mesh; these give the new tags the layout
+     role their predecessor divs had. studio-stream/#stream, studio-tree/#tree,
+     studio-toast/#toast and studio-speak.foot inherit their existing rules. */
+  studio-conn, studio-header, studio-log{display:contents}
+  studio-wake{display:block}
+  studio-roster{display:block}
 </style>
 </head>
 <body>
-  <header>
-    <span class="brand"><span class="dot" id="dot"></span><span class="mark">⟂</span> Meditator <span style="color:var(--faint);font-weight:400">Studio</span></span>
-    <div class="focusmeta" id="focusMeta"><span class="dim">no mind in focus</span></div>
-    <div class="state">
-      <span class="gauge" title="energy / spend">⚡<span class="bar"><i id="energyBar"></i></span><span id="energyTxt">—</span></span>
-      <span class="pill" id="statePill">—</span>
-      <span class="meta" id="connMeta" style="font-family:var(--mono);font-size:.74rem;color:var(--faint)">connecting…</span>
-    </div>
-  </header>
+  <!-- The Studio UI is an Amanita component mesh (src/studio/ui/). studio-conn
+       owns the WebSocket to the supervisor + the focus state; the panes wire to
+       it via /conn/ pub/sub refs and call its command methods. -->
+  <studio-conn name="conn">
+    <header>
+      <studio-header></studio-header>
+    </header>
 
-  <main>
-    <!-- roster rail -->
-    <div class="col rail">
-      <div class="colhead"><span>minds</span><span id="archRefresh" title="rescan architectures" style="cursor:pointer">⟳</span></div>
-      <div class="scroll">
-        <div class="wake">
-          <h4>wake a mind</h4>
-          <select id="archSelect"></select>
-          <div class="det" id="archDet"></div>
-          <div class="row">
-            <label class="dry"><input type="checkbox" id="dryRun"> dry-run <span style="color:var(--faint)">(offline, free)</span></label>
-            <button id="wakeBtn">Wake</button>
-          </div>
+    <main>
+      <!-- roster rail -->
+      <div class="col rail">
+        <div class="colhead"><span>minds</span><span id="archRefresh" title="rescan architectures" style="cursor:pointer">⟳</span></div>
+        <div class="scroll">
+          <studio-wake class="wake"></studio-wake>
+          <studio-roster></studio-roster>
         </div>
-        <div id="roster"></div>
       </div>
-    </div>
 
-    <!-- focused mind: stream -->
-    <div class="col left">
-      <div class="colhead"><span>stream of consciousness</span><span>thought · 🗣 speech · ⟂ stimulus</span></div>
-      <div id="stream"></div>
-      <div class="foot">
-        <input type="text" id="input" maxlength="400" placeholder="Speak to the mind — words arrive as experience, not instruction" disabled autocomplete="off">
-        <button id="sendBtn" disabled>Send</button>
+      <!-- focused mind: stream -->
+      <div class="col left">
+        <div class="colhead"><span>stream of consciousness</span><span>thought · 🗣 speech · ⟂ stimulus</span></div>
+        <studio-stream id="stream"></studio-stream>
+        <studio-speak class="foot"></studio-speak>
       </div>
-    </div>
 
-    <!-- focused mind: structure + logs -->
-    <div class="col right">
-      <div class="colhead"><span>the mind</span><span>click a part to open it</span></div>
-      <div id="tree"></div>
-      <details class="logs" id="logBox">
-        <summary>process log <span id="logHint" style="color:var(--faint)"></span></summary>
-        <div id="log"></div>
-      </details>
-    </div>
-  </main>
-  <div id="toast"></div>
+      <!-- focused mind: structure + logs -->
+      <div class="col right">
+        <div class="colhead"><span>the mind</span><span>click a part to open it</span></div>
+        <studio-tree id="tree"></studio-tree>
+        <studio-log></studio-log>
+      </div>
+    </main>
 
-<script>
-"use strict";
-const $ = id => document.getElementById(id);
-const dot=$("dot"), connMeta=$("connMeta"), focusMeta=$("focusMeta"), statePill=$("statePill");
-const energyBar=$("energyBar"), energyTxt=$("energyTxt");
-const streamEl=$("stream"), treeEl=$("tree"), logEl=$("log"), logBox=$("logBox"), logHint=$("logHint");
-const inputEl=$("input"), sendBtn=$("sendBtn");
-const archSelect=$("archSelect"), archDet=$("archDet"), dryRunEl=$("dryRun"), wakeBtn=$("wakeBtn"), rosterEl=$("roster");
+    <studio-toast id="toast"></studio-toast>
+  </studio-conn>
 
-/* ============================ connection (to the Studio supervisor) ============================ */
-let ws=null, manualClose=false, reconnectTimer=null, reconnectDelay=250; const MAX_DELAY=5000;
-let archList=[], rosterArr=[], rosterById={}, focusedId=null, publicPort=7627;
-
-function setConnected(on){
-  dot.classList.toggle("live", on); dot.classList.remove("err");
-  connMeta.textContent = on ? ("studio · "+location.host) : (manualClose?"disconnected":"connection lost");
-  if(!on){ wakeBtn.disabled=true; }
-}
-function connect(){
-  if(ws) return; manualClose=false; connMeta.textContent="connecting…";
-  try{ ws=new WebSocket(`ws://${location.host}`); }
-  catch(e){ dot.classList.add("err"); scheduleReconnect(); return; }
-  ws.onopen=()=>{ reconnectDelay=250; setConnected(true); };
-  ws.onmessage=e=>{ let m; try{m=JSON.parse(e.data);}catch{return;} onMsg(m); };
-  ws.onerror=()=>{ dot.classList.add("err"); };
-  ws.onclose=()=>{ ws=null; setConnected(false); if(!manualClose) scheduleReconnect(); };
-}
-function scheduleReconnect(){ if(manualClose) return; if(reconnectTimer) clearTimeout(reconnectTimer);
-  reconnectTimer=setTimeout(connect, reconnectDelay); reconnectDelay=Math.min(reconnectDelay*1.8, MAX_DELAY); }
-function send(obj){ if(ws && ws.readyState===WebSocket.OPEN) ws.send(JSON.stringify(obj)); }
-
-/* ============================ supervisor message router ============================ */
-function onMsg(m){
-  switch(m.type){
-    case "hello":         publicPort=m.data.publicPort||7627; break;
-    case "architectures": archList=m.data.list||[]; renderArchSelect(); break;
-    case "roster":        updateRoster(m.data.minds||[]); break;
-    case "woke":          if(m.data.id) focus(m.data.id); break;
-    case "lifecycle":     onLifecycle(m.data); break;
-    case "focus-reset":   if(m.data.id===focusedId) resetPanes(); break;
-    case "mind":          if(m.data.id===focusedId) handleMindMsg(m.data.msg); break;
-    case "log":           if(m.data.id===focusedId) appendLog(m.data.stream, m.data.line); break;
-    case "error":         toast(m.data.message); break;
-  }
-}
-
-/* ============================ wake panel ============================ */
-function renderArchSelect(){
-  const prev = archSelect.value;
-  archSelect.innerHTML="";
-  const groups = { main:[], test:[] };
-  for(const a of archList) (groups[a.group]||groups.main).push(a);
-  const addGroup=(label, arr)=>{
-    if(!arr.length) return;
-    const og=document.createElement("optgroup"); og.label=label;
-    for(const a of arr){ const o=document.createElement("option"); o.value=a.file;
-      o.textContent=`${a.name||a.file}  ·  ${a.file}`; og.appendChild(o); }
-    archSelect.appendChild(og);
-  };
-  addGroup("architectures", groups.main);
-  addGroup("tests", groups.test);
-  if(prev && archList.some(a=>a.file===prev)) archSelect.value=prev;
-  renderArchDet();
-}
-function selectedArch(){ return archList.find(a=>a.file===archSelect.value); }
-function renderArchDet(){
-  const a=selectedArch();
-  if(!a){ archDet.innerHTML=""; wakeBtn.disabled=true; return; }
-  const dry=dryRunEl.checked;
-  const home = dry ? `memory/dry-${a.homeSlug}` : a.home;
-  const hi = a.homeInfo||{};
-  const parts=[];
-  parts.push(`${a.model?`<span>${esc(a.model)}</span>`:`<span class="warn">no model set</span>`}${a.pace?` · pace ${esc(a.pace)}`:""}`);
-  parts.push(`→ <span class="home">${esc(home)}</span> ${dry?`<span class="ok">(fresh dry-run home)</span>`:(hi.exists?`<span class="ok">(existing memory · ${hi.files} entr${hi.files===1?"y":"ies"})</span>`:`<span>(new memory)</span>`)}`);
-  if(a.description) parts.push(`<span style="color:var(--faint);font-style:italic">${esc(a.description)}</span>`);
-  if(!a.hasWs) parts.push(`<span class="warn">⚠ no &lt;m-ws&gt; — it will run, but has no live window to watch</span>`);
-  if(a.sharesHomeWith && a.sharesHomeWith.length) parts.push(`<span class="warn">⚠ shares this memory (same identity) with: ${a.sharesHomeWith.map(esc).join(", ")}</span>`);
-  let busyBlock=false;
-  if(!dry && a.busy){ busyBlock=true; parts.push(`<span class="block">⛔ this memory is held by a running mind — sleep it first, enable dry-run, or give it its own name/memory=</span>`); }
-  archDet.innerHTML=parts.join("<br>");
-  wakeBtn.disabled = busyBlock;
-}
-archSelect.onchange=renderArchDet;
-dryRunEl.onchange=renderArchDet;
-wakeBtn.onclick=()=>{ const a=selectedArch(); if(!a) return; send({type:"wake", data:{file:a.file, dryRun:dryRunEl.checked}}); };
-$("archRefresh").onclick=()=>send({type:"refresh"});
-
-/* ============================ roster ============================ */
-function updateRoster(arr){
-  rosterArr=arr; rosterById={}; for(const m of arr) rosterById[m.id]=m;
-  if(focusedId && !rosterById[focusedId]) {/* focused mind gone from roster (dismissed) */}
-  renderRoster();
-  if(focusedId && rosterById[focusedId]) updateFocusHeader(rosterById[focusedId]);
-}
-function renderRoster(){
-  rosterEl.innerHTML="";
-  if(!rosterArr.length){ rosterEl.innerHTML=`<div class="empty">No minds yet.<br>Choose an architecture above and Wake one.</div>`; return; }
-  for(const m of rosterArr){
-    const card=document.createElement("div");
-    card.className="mind"+(m.id===focusedId?" focused":"");
-    const alive = m.state==="waking"||m.state==="awake"||m.state==="sleeping";
-    const e = typeof m.energy==="number"? Math.max(0,Math.min(1,m.energy)) : null;
-    card.innerHTML =
-      `<div class="top"><span class="nm">${esc(m.name||m.file)}</span><span class="badge ${m.state}">${m.state}</span></div>`+
-      `<div class="sub">${esc(m.file)} · :${m.port}${m.public?` <span class="pub">public</span>`:""}${m.dryRun?` · dry`:""}</div>`+
-      `<div class="sub">→ <span class="home">${esc(m.home)}</span></div>`+
-      (m.detail?`<div class="det">${esc(m.detail)}</div>`:"")+
-      (e!==null?`<div class="meter"><i style="width:${(e*100).toFixed(0)}%"></i></div>`:"")+
-      `<div class="acts"></div>`;
-    const acts=card.querySelector(".acts");
-    if(typeof m.spent==="number"){ const s=document.createElement("span"); s.style.cssText="font-family:var(--mono);font-size:.7rem;color:var(--dim);margin-right:auto;align-self:center"; s.textContent="$"+m.spent.toFixed(3); acts.appendChild(s); }
-    if(m.state==="awake"||m.state==="waking"){ acts.appendChild(btn("Sleep", ()=>act("sleep",m.id))); }
-    if(m.state==="sleeping"){ acts.appendChild(btn("Force", ()=>{ if(confirm("Force-kill this mind? Its last moments may be lost (the graceful ritual is already in progress).")) act("force",m.id); }, "force")); }
-    if(!alive){ acts.appendChild(btn("Dismiss", ()=>{ if(m.id===focusedId){ focusedId=null; resetPanes(); clearFocusHeader(); } act("dismiss", m.id); })); }
-    card.onclick=ev=>{ if(ev.target.tagName==="BUTTON") return; if(alive||m.id===focusedId) focus(m.id); };
-    rosterEl.appendChild(card);
-  }
-}
-function btn(label, onclick, cls){ const b=document.createElement("button"); if(cls)b.className=cls; b.textContent=label; b.onclick=e=>{e.stopPropagation();onclick();}; return b; }
-function act(type,id){ send({type, data:{id}}); }
-
-function onLifecycle(d){
-  const m=rosterById[d.id]; if(m){ m.state=d.state; m.detail=d.detail; }
-  renderRoster();
-  if(d.id===focusedId){
-    if(m) updateFocusHeader(m);
-    if(d.state==="exited"||d.state==="crashed"||d.state==="sleeping"){ endThought(); setSpeaking(false); setStreamState("idle"); }
-    setInputEnabled(d.state==="awake");
-    if(d.state==="crashed") toast("mind crashed — see the process log");
-  }
-}
-
-/* ============================ focus ============================ */
-function focus(id){
-  if(focusedId===id) return;
-  focusedId=id; resetPanes();
-  send({type:"focus", data:{id}});
-  renderRoster();
-  const m=rosterById[id]; if(m) updateFocusHeader(m);
-}
-function updateFocusHeader(m){
-  focusMeta.innerHTML = `<span class="nm">${esc(m.name||m.file)}</span>`+
-    `<span>${esc(m.file)}</span><span>:${m.port}${m.public?` <span class="pub">public ${publicPort}</span>`:""}</span>`+
-    `<span>→ ${esc(m.home)}</span>`;
-  setInputEnabled(m.state==="awake");
-  if(m.state==="exited"||m.state==="crashed"){ statePill.className="pill asleep"; statePill.textContent=m.state==="crashed"?"crashed":"asleep"; }
-  else if(m.state==="sleeping"){ statePill.className="pill asleep"; statePill.textContent="sleeping…"; }
-  else updateStatePill();
-}
-function clearFocusHeader(){ focusMeta.innerHTML=`<span class="dim">no mind in focus</span>`; statePill.className="pill"; statePill.textContent="—"; energyBar.style.width="0"; energyTxt.textContent="—"; setInputEnabled(false); }
-function setInputEnabled(on){ inputEl.disabled=!on; sendBtn.disabled=!on; }
-
-function resetPanes(){
-  streamEl.innerHTML=`<div class="placeholder"><span class="big">…</span><span>reconstituting this mind</span></div>`;
-  treeEl.innerHTML=""; logEl.innerHTML=""; logHint.textContent="";
-  nodes={byId:{},byName:{},byTag:{}}; lastFrame=null;
-  curP=null; caret=null; speaking=false; streamState="idle"; sayEl=null; saySpan=null; streamPrimed=false;
-  energyBar.style.width="0"; energyTxt.textContent="—";
-}
-
-/* ============================ focused mind: telemetry (ported dashboard) ============================ */
-let streamPrimed=false;
-function primeStream(){ if(!streamPrimed){ streamEl.innerHTML=""; streamPrimed=true; } }
-
-function handleMindMsg(m){
-  switch(m.type){
-    case "structure":        renderStructure(m.data.tree); break;
-    case "thought_fragment": primeStream(); addThought(m.data.content); break;
-    case "speech_fragment":  primeStream(); addSpeech(m.data.content); break;
-    case "status":           onStatus(m.data); break;
-    case "event":            onEvent(m.data); break;
-  }
-}
-function onStatus(d){
-  if(d.state){ if(d.state==="streaming"){ setStreamState("thinking"); } else { setStreamState("idle"); endThought(); } }
-}
-function onEvent(d){
-  const route=`${d.process}/${d.kind}`;
-  switch(route){
-    case "mind/frame":         onFrame(d); break;
-    case "stream/boundary":    primeStream(); addBoundary(d); pushNode(byTag("m-stream"), evLine(`burst #${d.burstIndex} · ${d.burstChars}c · ${d.reason}`, d.reason==="completed"?"good":d.reason==="error"?"bad":"")); setNodeStat(byTag("m-stream"), `#${d.burstIndex} ${d.reason}`); break;
-    case "attention/bid":      onBid(d); break;
-    case "attention/urgent":   onUrgent(d); break;
-    case "attention/decision": onDecision(d); break;
-    case "economy/energy":     onEnergy(d); break;
-    case "memory/state":       onMemoryState(d); break;
-    case "memory/compressed":  onCompressed(d); break;
-    case "scribe/filed":       onFiled(d); break;
-    case "speech/speaking":    setSpeaking(d.speaking); pushNode(byTag("m-speech"), evLine(d.speaking?"started speaking":"stopped speaking", d.speaking?"warn":"")); break;
-    case "speech/impulse":     onImpulse(d); break;
-    case "speech/boundary":    pushNode(byTag("m-speech"), evLine(`said ${d.chars||0}c · ${d.reason||""}`, "good")); break;
-  }
-}
-
-/* ----- stream pane ----- */
-let curP=null, caret=null, speaking=false, streamState="idle", sayEl=null, saySpan=null;
-function nearBottom(){ return streamEl.scrollHeight-streamEl.scrollTop-streamEl.clientHeight<120; }
-function scrollDown(){ streamEl.scrollTop=streamEl.scrollHeight; }
-function moveCaret(host){ if(caret) caret.remove(); caret=document.createElement("span"); caret.className="caret"; (host||streamEl).appendChild(caret); }
-function newPara(){ curP=document.createElement("p"); if(speaking) curP.className="thinned"; streamEl.appendChild(curP); moveCaret(curP); }
-function addThought(text){ const stick=nearBottom(); if(!curP) newPara(); caret?caret.before(text):curP.appendChild(document.createTextNode(text)); if(stick) scrollDown(); }
-function endThought(){ curP=null; if(caret){ caret.remove(); caret=null; } }
-function addSpeech(text){ const stick=nearBottom(); if(!sayEl){ endThought(); sayEl=document.createElement("div"); sayEl.className="say"; const lbl=document.createElement("span"); lbl.className="lbl"; lbl.textContent="spoken aloud"; sayEl.appendChild(lbl); saySpan=document.createElement("span"); sayEl.appendChild(saySpan); streamEl.appendChild(sayEl); } saySpan.appendChild(document.createTextNode(text)); if(stick) scrollDown(); }
-function endSpeech(){ sayEl=null; saySpan=null; }
-function addStim(text,cls){ const stick=nearBottom(); endThought(); primeStream(); const d=document.createElement("div"); d.className="stim"+(cls?(" "+cls):""); d.textContent="⟂ "+text; streamEl.appendChild(d); if(stick) scrollDown(); }
-function addBoundary(d){ const stick=nearBottom(); endThought(); const el=document.createElement("div"); el.className="bnd"; el.textContent=d.reason==="completed"?"burst":d.reason; streamEl.appendChild(el); if(stick) scrollDown(); }
-function setSpeaking(on){ if(on===speaking) return; speaking=on; if(!on) endSpeech(); endThought(); updateStatePill(); }
-function setStreamState(s){ streamState=s; updateStatePill(); }
-function updateStatePill(){ const sp=speaking; statePill.className="pill "+(sp?"speaking":streamState==="thinking"?"thinking":""); statePill.textContent=sp?(streamState==="thinking"?"speaking + thinking":"speaking"):streamState; }
-
-/* ----- structure tree ----- */
-let nodes={byId:{},byName:{},byTag:{}}, lastFrame=null;
-function renderStructure(tree){
-  treeEl.innerHTML=""; nodes={byId:{},byName:{},byTag:{}};
-  treeEl.appendChild(buildNode(tree,0));
-}
-function buildNode(node,depth){
-  const det=document.createElement("details"); det.className="node";
-  if(depth===0||node.tag==="m-stream"||node.tag==="m-speech") det.open=true;
-  const sum=document.createElement("summary");
-  sum.innerHTML=`<span class="tw">▶</span><span class="npulse"></span><span class="nname"></span> <span class="ntag"></span><span class="nstat"></span>`;
-  sum.querySelector(".nname").textContent=node.name||node.tag;
-  sum.querySelector(".ntag").textContent=node.name?node.tag:"";
-  det.appendChild(sum);
-  const body=document.createElement("div"); body.className="nbody";
-  const attrs=node.attrs||{}; const keys=Object.keys(attrs).filter(k=>k!=="name");
-  if(keys.length){ const ab=document.createElement("div"); ab.className="attrs"; for(const k of keys){ const s=document.createElement("span"); s.className="attr"; s.innerHTML=`<b>${esc(k)}</b> ${esc(attrs[k])}`; ab.appendChild(s);} body.appendChild(ab); }
-  if(node.text){ const t=document.createElement("div"); t.className="ident"; t.textContent=node.text; body.appendChild(t); }
-  const feed=document.createElement("div"); feed.className="feed"; body.appendChild(feed);
-  det.appendChild(body);
-  if(node.children&&node.children.length){ const kids=document.createElement("div"); kids.className="kids"; for(const c of node.children) kids.appendChild(buildNode(c,depth+1)); det.appendChild(kids); }
-  const rec={det,feed,pulse:sum.querySelector(".npulse"),stat:sum.querySelector(".nstat"),tag:node.tag,name:node.name};
-  const id=node.name?`name:${node.name}`:`tag:${node.tag}`;
-  nodes.byId[id]=rec; if(node.name&&!nodes.byName[node.name]) nodes.byName[node.name]=rec; if(!nodes.byTag[node.tag]) nodes.byTag[node.tag]=rec;
-  return det;
-}
-function byTag(t){ return nodes.byTag[t]||null; }
-function byName(n){ return nodes.byName[n]||null; }
-function pulse(rec){ if(!rec) return; rec.pulse.classList.add("on"); setTimeout(()=>rec.pulse.classList.remove("on"),320); }
-function setNodeStat(rec,text){ if(rec) rec.stat.textContent=text; }
-function pushNode(rec,html){ if(!rec) return; pulse(rec); const stick=rec.feed.scrollHeight-rec.feed.scrollTop-rec.feed.clientHeight<30; const div=document.createElement("div"); div.className="ev"; div.innerHTML=html; rec.feed.appendChild(div); while(rec.feed.children.length>40) rec.feed.removeChild(rec.feed.firstChild); if(stick) rec.feed.scrollTop=rec.feed.scrollHeight; }
-function evLine(text,cls){ return `<span class="t">${clock()}</span> <span class="${cls||""}">${esc(text)}</span>`; }
-function clock(){ return new Date().toTimeString().slice(0,8); }
-function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
-function originNode(type){ if(!type) return null;
-  if(type.startsWith("Time-")) return byName(type.slice(5));
-  if(type.startsWith("Observer-")) return byName(type.slice(9));
-  if(type==="Association") return byTag("m-associate");
-  if(type==="LoopGuard") return byTag("m-loop-guard");
-  if(type==="UserInput") return byTag("m-ws");
-  if(type==="ConsoleInput") return byTag("m-console");
-  return null; }
-
-/* ----- event handlers ----- */
-function onFrame(d){ lastFrame=d; const mind=nodes.byTag["m-mind"]; if(!mind) return; pulse(mind); setNodeStat(mind,`frame: ${d.frameKind}`);
-  let box=mind.feed.querySelector(".framebox"); if(!box){ box=document.createElement("div"); box.className="framebox"; mind.feed.prepend(box); }
-  const sys=d.system?`<span class="sys">— system —\n${esc(d.system)}\n\n— frame (${d.frameKind}) —\n</span>`:""; box.innerHTML=sys+esc(d.frame||""); }
-function onBid(d){ const sal=typeof d.salience==="number"?d.salience.toFixed(2):"?"; const line=`${d.urgent?"⚡":""}${esc(d.type||"?")} <span class="sal">${sal}</span> — ${esc(d.reason||"")}`;
-  pushNode(byTag("m-interrupts"), `<span class="t">${clock()}</span> ${line}`); const o=originNode(d.type); if(o&&o!==byTag("m-interrupts")) pushNode(o, evLine(`bid ${sal}: ${d.reason||""}`)); }
-function onUrgent(d){ addStim(d.reason||"urgent stimulus"); pushNode(byTag("m-interrupts"), evLine(`URGENT ${d.type}: ${d.reason||""}`,"warn")); }
-function onDecision(d){ const sal=typeof d.salience==="number"?d.salience.toFixed(2):"?"; const cls=d.accepted?"good":"drop";
-  pushNode(byTag("m-interrupts"), evLine(`${d.accepted?"✓":"✕"} ${d.type} ${sal} — ${d.why}`,cls)); setNodeStat(byTag("m-interrupts"), d.accepted?`✓ ${d.type}`:`✕ ${d.why}`);
-  if(d.accepted&&!d.urgent) addStim(d.reason||d.type); }
-function onEnergy(d){ const e=typeof d.energy==="number"?d.energy:1; energyBar.style.width=Math.max(0,Math.min(1,e))*100+"%";
-  const spent=typeof d.spent==="number"?` · $${d.spent.toFixed(3)}`:""; energyTxt.textContent=e.toFixed(2)+(d.paceFactor>1?` ·x${d.paceFactor}`:"");
-  const econ=byTag("m-economy"); setNodeStat(econ,`${e.toFixed(2)}${spent} · pace x${d.paceFactor||1}`); pushNode(econ, evLine(`energy ${e.toFixed(2)}${spent} · pace x${d.paceFactor||1}`)); }
-function onMemoryState(d){ setNodeStat(byTag("m-memory"), `tail ${fmt(d.tailLen)} · rec ${fmt(d.recentLen)} · sto ${fmt(d.storyLen)}`); }
-function onCompressed(d){ pushNode(byTag("m-memory"), evLine(`consolidated → recent ${fmt(d.recentLen)}c, story ${fmt(d.storyLen)}c`,"good")); if(d.recentPreview) pushNode(byTag("m-memory"), `<span class="t">${clock()}</span> <span class="t">recent:</span> ${esc(d.recentPreview)}…`); }
-function onFiled(d){ pushNode(byTag("m-kb"), evLine(`filed: ${(d.files||[]).join(", ")}`,"good")); setNodeStat(byTag("m-kb"), `filed ${(d.files||[]).length}`); }
-function onImpulse(d){ const sal=typeof d.salience==="number"?d.salience.toFixed(2):"?"; const cls=d.accepted?"warn":"drop"; const tag=d.addressed?"↩ ":""; const why=d.accepted?"✓ speak":`— quiet (${d.reason||"none"})`;
-  pushNode(byTag("m-speech"), evLine(`${tag}impulse ${sal} ${why}${d.gist?": "+d.gist:""}`,cls)); setNodeStat(byTag("m-speech"), `${tag}${sal} ${d.accepted?"✓":"✕"}`); }
-function fmt(n){ return typeof n==="number"?(n>=1000?(n/1000).toFixed(1)+"k":String(n)):"—"; }
-
-/* ============================ logs ============================ */
-let logCount=0;
-function appendLog(stream,line){ const stick=logEl.scrollHeight-logEl.scrollTop-logEl.clientHeight<40;
-  const div=document.createElement("div"); div.className="ln"+(stream==="err"?" err":""); div.textContent=line; logEl.appendChild(div);
-  while(logEl.children.length>500) logEl.removeChild(logEl.firstChild); logCount++; logHint.textContent=`· ${logCount}`; if(stick) logEl.scrollTop=logEl.scrollHeight; }
-
-/* ============================ speaking to the focused mind ============================ */
-function speak(){ const text=inputEl.value.trim(); if(!text||!focusedId) return; send({type:"input", data:{id:focusedId, message:text}}); addStim(`You said: "${text}"`,"you"); inputEl.value=""; }
-sendBtn.onclick=speak;
-inputEl.addEventListener("keydown", e=>{ if(e.key==="Enter") speak(); });
-
-/* ============================ toast ============================ */
-let toastTimer=null;
-function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("show"); if(toastTimer) clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove("show"),5200); }
-
-/* boot */
-clearFocusHeader();
-connect();
-</script>
+  <script type="module" src="/ui/index.js"></script>
 </body>
 </html>

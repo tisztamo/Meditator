@@ -144,6 +144,11 @@ function rosterSummary() {
 
 const app = express();
 app.use(express.static(path.dirname(fileURLToPath(import.meta.url))));
+// Serve the Amanita framework source to the browser so the Studio UI (an Amanita
+// component mesh) can `import A from "amanita"` build-free, via an importmap in
+// studio.html. The package is pure relative-imported ESM, so static-serving its
+// src/ is enough; unused files (worker/*, stdlib) are simply never fetched.
+app.use("/amanita", express.static(path.join(ROOT, "node_modules", "amanita", "src")));
 app.get("/", (_req, res) => res.sendFile(path.join(path.dirname(fileURLToPath(import.meta.url)), "studio.html")));
 const httpServer = app.listen(STUDIO_PORT, () => log(`Studio at http://localhost:${STUDIO_PORT}`));
 const wss = new WebSocketServer({ server: httpServer });
