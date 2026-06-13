@@ -36,6 +36,9 @@ picture and the motivation. This `doc/` tree is the deeper reference.
 
 ## Interfaces
 
+- **[The Studio](studio.md)** — an integrated browser environment to wake, watch,
+  speak to, and sleep minds, with an architecture picker and a roster of live
+  minds. Run `bun studio.js`; no per-mind terminal needed.
 - **[WebSocket API](websocket-api.md)** — the live stream protocol on
   `ws://localhost:7627`: thought fragments out, voice in.
 

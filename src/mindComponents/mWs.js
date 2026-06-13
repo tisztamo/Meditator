@@ -52,8 +52,10 @@ export class MWs extends MBaseComponent {
       // Dynamic import of WebSocket module
       const { WebSocketServer } = await import("ws");
 
-      // Get port from attribute or use default
-      const port = parseInt(this.attr("port") || "7627", 10);
+      // Get port from the environment (the Studio supervisor places each child
+      // on a distinct port via MEDITATOR_WS_PORT), else the attribute, else the
+      // public default 7627. A mind run directly with no env is unchanged.
+      const port = parseInt(process.env.MEDITATOR_WS_PORT || this.attr("port") || "7627", 10);
 
       // Initialize WebSocket server
       this.server = new WebSocketServer({ port });
@@ -178,6 +180,15 @@ export class MWs extends MBaseComponent {
           this.handleInputAndCreateInterrupt(client, jsonMessage.data.message);
           return;
         }
+
+        // Lifecycle control (e.g. the Studio supervisor asking the mind to sleep).
+        // Gated by MEDITATOR_WS_CONTROL so a directly-run or public-facing mind on
+        // 7627 never lets an arbitrary client end it; the supervisor sets the flag
+        // on the children it spawns.
+        if (jsonMessage.type === "control" && jsonMessage.action) {
+          this.handleControlMessage(jsonMessage.action);
+          return;
+        }
       } catch (e) {
         // Not JSON, treat as plain text
       }
@@ -234,6 +245,30 @@ export class MWs extends MBaseComponent {
     });
 
     this.dispatchEvent(new CustomEvent("interrupt-request", { bubbles: true, detail: interrupt }));
+  }
+
+  /**
+   * Handle a lifecycle control message. Only honored when MEDITATOR_WS_CONTROL=1
+   * (set by the Studio supervisor on the minds it spawns), so the public ws:7627
+   * contract is never a remote off-switch for a directly-run mind.
+   * @param {string} action - currently only "sleep"
+   */
+  async handleControlMessage(action) {
+    if (process.env.MEDITATOR_WS_CONTROL !== "1") {
+      log.debug(`Ignoring ws control "${action}" — MEDITATOR_WS_CONTROL not enabled.`);
+      return;
+    }
+    if (action === "sleep") {
+      log.log("Sleep requested via websocket control.");
+      const mind = this._mind();
+      try {
+        await Promise.resolve(mind && mind.sleep && mind.sleep());
+      } catch (error) {
+        log.warn("Sleep ritual error:", error.message);
+      }
+      log.log("Asleep. Goodbye.");
+      process.exit(0);
+    }
   }
 
   // -------------------------------------------------------------- transport

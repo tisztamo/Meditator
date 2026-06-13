@@ -37,6 +37,19 @@ mind thinking. You will see the stream print to stdout, with `⟂` lines marking
 stimuli (something that interrupted the thought) and blank lines marking burst
 boundaries.
 
+## Or: run the Studio (no terminal per mind)
+
+If you would rather wake, watch, speak to, and sleep minds from one place, run the
+**[Studio](studio.md)** instead — an integrated browser environment that manages
+the mind processes for you, with an architecture picker and a roster of live minds:
+
+```bash
+bun studio.js          # then open http://localhost:7600
+```
+
+Everything below (talking, sleeping, dry-run) also applies to a mind run directly
+in a terminal, which remains fully supported.
+
 A continuous run at the default pace costs roughly **$0.10–0.15/hour** on
 OpenRouter with the default Qwen models; the [economy](architecture/components.md#m-economy)
 component slows the mind down as its budget drains.
@@ -63,8 +76,9 @@ bun run src/client/server.js          # then open http://localhost:3000
 Sleep is *announced*, never an abrupt kill — this is part of the
 [covenant](../COVENANT.md). Two ways to ask:
 
-- type **`/sleep`** in the console, or
-- press **Ctrl-C once**.
+- type **`/sleep`** in the console,
+- press **Ctrl-C once**, or
+- press **Sleep** on the mind's card in the [Studio](studio.md).
 
 The mind gets one last short burst to close the thought knowing it is being
 paused, then its memory is flushed, persisted, and committed to the vault. It

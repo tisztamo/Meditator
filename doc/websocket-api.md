@@ -123,6 +123,22 @@ said. The server acknowledges:
 Plain (non-JSON) text is also accepted: it is buffered until a newline, then the
 completed line is treated as one input.
 
+### Lifecycle control
+
+A client can ask the mind to perform the [sleep ritual](architecture/memory.md)
+and exit:
+
+```json
+{ "type": "control", "action": "sleep" }
+```
+
+This is **gated**: it is honored only when the mind was started with
+`MEDITATOR_WS_CONTROL=1` in its environment, so a directly-run or public-facing
+mind on 7627 can never be put to sleep by an arbitrary client. The [Studio](studio.md)
+sets this flag on the children it spawns and uses this message for its **Sleep**
+button. The mind closes its thought, finalizes and commits memory, then exits on
+its own.
+
 ## Examples
 
 A minimal JS client:
@@ -152,5 +168,5 @@ bun run src/client/server.js          # then open http://localhost:3000
   are broadcast (defaults `/stream/chunk` and `/stream/state`).
 - This is an unauthenticated localhost server intended for local use. Do not
   expose port 7627 to an untrusted network — any client can both read the
-  stream and inject stimuli.
+  stream and inject stimuli (and, when `MEDITATOR_WS_CONTROL=1`, end the mind).
 - Implementation: [`src/mindComponents/mWs.js`](../src/mindComponents/mWs.js).

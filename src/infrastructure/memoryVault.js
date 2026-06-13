@@ -22,7 +22,11 @@ export const VAULT_ROOT = 'memory';
 /** Resolves a mind's home directory inside the vault: memory/<slug>[/sub].
  *  Dry-run minds are prefixed so tests can never touch a resident mind's memory. */
 export function mindHome(el, sub) {
-    const raw = el.closest('m-mind')?.getAttribute('name') || 'mind';
+    // Identity = the mind's name (the covenant's "one home per mind"); an explicit
+    // memory="slug" on <m-mind> is a deliberate override to point an architecture
+    // at a specific home. Falls back to name, then "mind".
+    const mind = el.closest('m-mind');
+    const raw = mind?.getAttribute('memory') || mind?.getAttribute('name') || 'mind';
     const slug = raw.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'mind';
     const home = path.join(VAULT_ROOT, (isDryRun() ? 'dry-' : '') + slug);
     return sub ? path.join(home, sub) : home;
