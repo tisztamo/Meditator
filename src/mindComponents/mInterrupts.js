@@ -42,10 +42,12 @@ export class MInterrupts extends MBaseComponent {
         if (!record.urgent) {
             if (record.salience < threshold) {
                 log.debug(`drop (salience ${record.salience} < ${threshold}): ${record}`)
+                this._publishDecision(record, false, `salience ${record.salience.toFixed(2)} < ${threshold}`)
                 return
             }
             if (now - this.lastAcceptedAt < rateLimitMs) {
                 log.debug(`drop (rate limit): ${record}`)
+                this._publishDecision(record, false, "rate-limited")
                 return
             }
         }
@@ -53,10 +55,25 @@ export class MInterrupts extends MBaseComponent {
         this.lastAcceptedAt = now
         this._enqueue(record)
         log.debug(`accepted${record.urgent ? " URGENT" : ""}: ${record}`)
+        this._publishDecision(record, true, record.urgent ? "urgent" : "accepted")
 
         if (record.urgent) {
             this.dispatchEvent(new CustomEvent("interrupt", { bubbles: true, detail: record }))
         }
+    }
+
+    /** Announces the accept/drop verdict for a stimulus, so an observer (e.g. the
+     *  websocket dashboard) can show why a bid did or didn't get through. */
+    _publishDecision(record, accepted, why) {
+        this.pub("decision", {
+            source: record.source,
+            type: record.type,
+            reason: record.reason,
+            salience: record.salience,
+            urgent: !!record.urgent,
+            accepted,
+            why,
+        })
     }
 
     _enqueue(record) {
@@ -65,7 +82,7 @@ export class MInterrupts extends MBaseComponent {
         if (this.pending.length > keep) {
             this.pending.sort((a, b) => (b.urgent - a.urgent) || (b.salience - a.salience))
             const dropped = this.pending.splice(keep)
-            dropped.forEach(r => log.debug(`crowded out: ${r}`))
+            dropped.forEach(r => { log.debug(`crowded out: ${r}`); this._publishDecision(r, false, "crowded out") })
         }
     }
 

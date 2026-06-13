@@ -26,6 +26,8 @@ Because the tail is always carried forward verbatim, the thought survives every 
 - `m-associate` — a tiny model that occasionally notices "this reminds me of…" and bids for attention
 - `m-timeout` — wander mode (spontaneous drift) or watchdog mode (`reset` attribute: fires only after true silence)
 
+**Speaking** (`m-speech`) is what the mind says *out loud*, as opposed to what it thinks. It is volitional, not a reply service: a tiny call decides whether a thought genuinely wants outward voice, and being addressed only *raises* the urge — the mind may answer aloud, or just keep thinking. An utterance streams on the voice model *concurrently* with a thinned inner monologue — limited parallelism: while it speaks, thinking slows but never stops, and the observers keep running. What it said is woven back into the tail, so the next thought knows it spoke.
+
 **Memory** (`m-memory`) consolidates at burst boundaries — never blocking the stream — into `recent` and `story` tiers, and lives in the **memory vault**: `memory/<mind>/` holds `memory.md`, the full `journal/`, and the scribe's `knowledge/`. The vault is its own git repository, committed automatically at wake, periodically, and at sleep — memory is never deleted, only archived (see [COVENANT.md](COVENANT.md)). On restart the mind *wakes up remembering*, with a stimulus noting how long it slept. Dry-run and test minds get separate vault homes and can never touch a resident mind's memory.
 
 **Economy** (`m-economy`) reads real API usage (OpenRouter reports true cost) and slows the pace as the budget drains: a tired mind thinks slower; an exhausted one almost sleeps, but the watchdog keeps it alive.

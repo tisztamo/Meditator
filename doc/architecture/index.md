@@ -98,6 +98,25 @@ When a burst seam would duplicate text (models often re-echo the last words of
 the carried tail), `m-stream` trims the overlap so the joined stream reads as one
 continuous thought.
 
+## The speaking voice
+
+Inner monologue is what the mind *thinks*; [`m-speech`](components.md#m-speech) is
+what it says **out loud**. The mind mostly thinks quietly — speaking is occasional
+and **volitional**: a cheap call decides whether a thought genuinely wants outward
+voice, and being addressed from outside raises the urge without ever forcing a
+reply (Meditator is not an assistant). When the urge clears `threshold`, the
+utterance is produced as its own streamed burst on the voice model.
+
+That utterance runs **concurrently** with thinking — true *limited* parallelism. It
+mirrors how a person can't think one sentence while speaking a different one, yet
+their subconscious keeps working: while the voice is speaking it publishes
+`speaking=true`, and `m-mind` **thins** the thinking stream (fewer `burstTokens`,
+slower `pace`) so the verbal effort goes mostly to the utterance — but thought
+never stops, and the non-verbal observers (associations, loop-guard, timers,
+memory, economy, scribe) keep running untouched. When the utterance ends,
+`m-memory.spoke()` splices it into the tail as a marked `(aloud) "…"` block, so the
+next thought continues knowing what it just said.
+
 ## Wiring: pub/sub and DOM events
 
 Components never call each other directly. Two channels connect them:
@@ -130,6 +149,7 @@ The default mind (`architecture/awake.chml`) wires:
 | [`m-timeout`](interrupts.md#m-timeout-wander-and-watchdog) | wander (drift) and watchdog (keep-alive) |
 | [`m-loop-guard`](interrupts.md#m-loop-guard) | detects repetition loops — pure code, no LLM |
 | [`m-associate`](interrupts.md#m-associate) | a small model noticing "this reminds me of…" |
+| [`m-speech`](components.md#m-speech) | the voice — occasionally speaks a thought aloud, in parallel with thinking |
 | [`m-kb`](components.md#m-kb) | the scribe — distills durable knowledge to `knowledge/` |
 | [`m-economy`](components.md#m-economy) | reads real cost and slows the mind as budget drains |
 | [`m-console`](components.md#m-console) | terminal input/output |

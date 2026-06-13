@@ -88,7 +88,10 @@ Rules: group related ideas into topic files (e.g. attention/interruption.md); ev
             else await fs.appendFile(safe, `\n\n${op.content}`)
             log.info(`Scribe ${op.kind}: ${path.join(dir, op.file)}`)
         }
-        if (ops.length) memory?.note?.(`The scribe filed thoughts into: ${ops.map(o => o.file).join(", ")}`)
+        if (ops.length) {
+            this.pub("filed", { files: ops.map(o => o.file) })
+            memory?.note?.(`The scribe filed thoughts into: ${ops.map(o => o.file).join(", ")}`)
+        }
     }
 
     _safePath(dir, file) {

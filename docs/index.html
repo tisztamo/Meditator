@@ -75,6 +75,10 @@
   .stream p{margin:0 0 1em}
   .stream .stim{font-family:var(--sans);font-size:.86rem;color:var(--cyan);margin:1.1em 0;
                 padding-left:14px;border-left:2px solid rgba(127,224,240,.45)}
+  .stream .say{font-family:var(--sans);font-size:.94rem;color:#f4e3c2;margin:1.1em 0;padding:11px 15px;
+               border-radius:10px;background:rgba(242,200,121,.08);border:1px solid rgba(242,200,121,.3)}
+  .stream .say b{display:block;font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;
+                 color:var(--amber);margin-bottom:3px;font-weight:600}
   .stream .meta{font-family:var(--sans);font-size:.78rem;color:var(--faint);font-style:italic;margin:1em 0}
   .caret{display:inline-block;width:9px;height:1.12em;vertical-align:-0.18em;background:var(--amber);
          margin-left:2px;animation:blink 1.06s steps(1) infinite;border-radius:1px}
@@ -456,6 +460,9 @@
 
   <m-associate name="associate" every="5" cooldown="60s"></m-associate>
 
+  <!-- the speaking voice: gives a thought outward voice, in parallel with thinking -->
+  <m-speech name="voice" every="6" threshold="0.6" cooldown="45s"></m-speech>
+
   <m-kb name="scribe" every="15" dir="knowledge"></m-kb>
 
   <m-economy name="economy" budget="1.00"></m-economy>
@@ -593,7 +600,7 @@ const REPLY = [
 ];
 
 let mode = "replay", ws = null, queue = SCRIPT.slice(), qi = 0, loopGen = 0;
-let nearBottom = true, currentP = null, caret = null;
+let nearBottom = true, currentP = null, caret = null, sayP = null, saySpan = null;
 
 streamEl.addEventListener("scroll", () => {
   nearBottom = streamEl.scrollHeight - streamEl.scrollTop - streamEl.clientHeight < 90;
@@ -689,7 +696,7 @@ function tryLive(announce){
   s.onopen = () => {
     opened = true; settled = true; connecting = false; announceLive = false; clearTimeout(timer);
     ws = s; mode = "live";
-    streamEl.textContent = ""; caret = null; currentP = null;
+    streamEl.textContent = ""; caret = null; currentP = null; sayP = null;
     dot.classList.add("live");
     title.textContent = "awake.chml — live · ws://localhost:7627";
     sub.innerHTML = "● live — this is a mind thinking on your machine, right now";
@@ -701,8 +708,19 @@ function tryLive(announce){
       if (!currentP) newP();
       caret.before(m.data.content);
       scrollDown();
+    } else if (m.type === "speech_fragment" && m.data?.content){
+      // the mind speaking aloud — shown distinctly, alongside the (thinned) thought
+      if (!sayP){
+        currentP = null;
+        sayP = document.createElement("div"); sayP.className = "say";
+        const b = document.createElement("b"); b.textContent = "spoken aloud"; sayP.appendChild(b);
+        saySpan = document.createElement("span"); sayP.appendChild(saySpan);
+        streamEl.appendChild(sayP);
+      }
+      saySpan.appendChild(document.createTextNode(m.data.content));
+      scrollDown();
     } else if (m.type === "status" && m.data?.state === "idle"){
-      currentP = null;
+      currentP = null; sayP = null;
     }
   };
   s.onclose = () => {

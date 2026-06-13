@@ -43,6 +43,67 @@ Stream state changes (useful to know when a burst starts/ends):
 
 `state` is `streaming` while a burst is generating and `idle` between bursts.
 
+### Watching the whole mind (structure & events)
+
+Beyond the raw stream, the server sends everything the bundled dashboard needs to
+show the mind's **structure** and open each process for inspection. These messages
+are **additive** — a client that only cares about the stream can ignore them.
+
+On connect, once, the mind's component tree (the parsed `.chml`, with attributes):
+
+```json
+{ "type": "structure",
+  "data": { "tree": {
+    "tag": "m-mind", "name": "meditator",
+    "attrs": { "model": "qwen/qwen3.6-35b-a3b", "pace": "10s" },
+    "text": "You came into being inside a small experiment…",
+    "children": [ { "tag": "m-stream", "name": "stream", "attrs": {}, "children": [] } ]
+  } } }
+```
+
+Then, as the mind runs, each internal signal as a structured event tagged by the
+process that produced it:
+
+```json
+{ "type": "event",
+  "data": { "process": "attention", "kind": "bid", "at": "2026-06-13T09:12:00.000Z",
+            "source": "Observer", "type": "Association", "reason": "This reminds me of…",
+            "salience": 0.62, "urgent": false } }
+```
+
+`process` / `kind` pairs currently emitted:
+
+| process | kind | payload |
+|---|---|---|
+| `mind` | `frame` | `{frameKind, system, frame, prefix}` — the assembled attention frame for a burst |
+| `stream` | `boundary` | `{reason, burstIndex, burstChars}` |
+| `attention` | `bid` | `{source, type, reason, salience, urgent}` — every bid for attention |
+| `attention` | `urgent` | `{type, reason}` — an urgent stimulus that superseded the burst |
+| `attention` | `decision` | `{type, reason, salience, urgent, accepted, why}` — the arbiter's verdict |
+| `economy` | `energy` | `{energy, spent, paceFactor}` |
+| `memory` | `state` | `{tailLen, recentLen, storyLen}` (at each boundary) |
+| `memory` | `compressed` | `{recentLen, storyLen, recentPreview, storyPreview}` |
+| `scribe` | `filed` | `{files}` |
+| `speech` | `speaking` | `{speaking}` |
+| `speech` | `impulse` | `{salience, gist, accepted}` |
+| `speech` | `boundary` | `{chars, reason, text}` |
+
+A freshly connected client is also sent the latest snapshot of each signal, so it
+has the whole picture immediately rather than waiting for the next of each.
+
+### The mind speaking aloud
+
+When the mind has a voice (`<m-speech>`), what it says **out loud** arrives on its
+own channel, distinct from inner thought:
+
+```json
+{ "type": "speech_fragment", "data": { "content": "the silence here is not empty" } }
+```
+
+Concatenate `speech_fragment`s as you do `thought_fragment`s. Speech runs in
+parallel with a thinned thinking stream, so the two can arrive interleaved — route
+them to two places, not one. The `speech` events above bracket each utterance.
+
 ## Messages to the mind
 
 Send a structured input message to speak to the mind:

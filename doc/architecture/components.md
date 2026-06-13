@@ -34,12 +34,17 @@ is the mind's identity.
 | `paceSigma` | `pace/4` | normal-distributed jitter on the pause |
 | `tailLength` | `1500` | chars of verbatim tail carried into each frame |
 | `bridge` | `true` | `"false"` disables the LLM-written transition on redirects |
+| `speakingPaceFactor` | `2.5` | pace multiplier while the voice is speaking (slower thinking) |
+| `speakingTokensFactor` | `0.35` | burst-token multiplier while speaking (thinner thoughts, floor 60) |
 
-- **Subscribes:** `stream/boundary` (schedule next burst), `@interrupt` (think now).
-- **Publishes:** `prompt` — `{system, frame, prefix?, dedupe, kind}`.
+- **Subscribes:** `stream/boundary` (schedule next burst), `@interrupt` (think now),
+  and — if an [`m-speech`](#m-speech) is present — `<voice>/speaking` (thin thinking while talking).
+- **Publishes:** `prompt` — `{system, frame, prefix?, dedupe, kind, burstTokens?}`.
 - **Key behavior:** error boundaries trigger an exponential backoff (×2 up to ×8);
-  the inter-burst pause is also multiplied by the economy pace factor. Exposes
-  `sleep()` for the [sleep ritual](memory.md#sleep-is-announced).
+  the inter-burst pause is also multiplied by the economy pace factor and, while
+  speaking, by `speakingPaceFactor` (with `burstTokens` thinned) — so most verbal
+  effort goes to the utterance while thought keeps trickling. Exposes `sleep()`
+  for the [sleep ritual](memory.md#sleep-is-announced).
 
 ## `m-stream`
 
@@ -80,8 +85,9 @@ Three memory tiers, compression, persistence, and the journal. See
 | `boundarySrc` | `/stream/boundary` | boundary source |
 
 - **Publishes:** `compressed` — `{recent, story}` after a consolidation.
-- **Public API used by the mind/scribe:** `getTail()`, `getRecent()`, `getStory()`,
-  `note(text)`, `consumeWakeNotice()`, `finalize(reason)`.
+- **Public API used by the mind/scribe/voice:** `getTail()`, `getRecent()`, `getStory()`,
+  `note(text)`, `spoke(text)` (splice an aloud utterance into the tail + journal),
+  `consumeWakeNotice()`, `finalize(reason)`.
 
 ## `m-interrupts`
 
@@ -154,6 +160,38 @@ changes.
 Plus all `m-observer` attributes. Reads the last ~1200 chars; the model answers
 `NONE` or `SALIENCE`/`THOUGHT`; raises `type: Association` at the model's salience.
 
+## `m-speech`
+
+The speaking **voice** — what goes *out* (extends `m-observer`). The mind mostly
+thinks quietly; occasionally a thought wants to become an utterance. Speech is
+**volitional**, not a reply service: a cheap call judges whether something genuinely
+wants to be said aloud and with what salience; being addressed lowers the bar but
+never forces a reply. An accepted utterance is produced as its own streamed burst on
+the voice model, **concurrently** with the (thinned) thinking stream — true limited
+parallelism.
+
+| Attribute | Default | Meaning |
+|-----------|---------|---------|
+| `every` | `6` | decision cadence in boundaries for spontaneous speech |
+| `threshold` | `0.6` | minimum salience to actually speak |
+| `addressedBoost` | `0.25` | threshold reduction while freshly addressed from outside |
+| `cooldown` | `60s` | minimum gap between utterances |
+| `model` | inherits `model` | the voice model (same as the thinking voice) |
+| `decisionModel` | inherits `utilityModel` | tiny model for the speak / stay-quiet impulse |
+| `speakTokens` | `200` | max tokens per utterance |
+| `temperature` | `0.85` | sampling temperature for the utterance |
+
+Plus all `m-observer` attributes.
+
+- **Listens (DOM, on parent):** `interrupt-request` (an external voice raises the
+  urge to speak), `interrupt` (an urgent stimulus aborts an in-flight utterance to attend it).
+- **Publishes:** `speech` (each spoken fragment), `speaking` (`bool`, true while
+  talking — `m-mind` thins thinking while it holds), `speech-boundary`
+  (`{chars, reason, text}` when an utterance ends), `impulse`
+  (`{salience, gist, accepted}` for every decision).
+- **Feeds memory:** calls `m-memory.spoke(text)` so the utterance enters the verbatim
+  tail as a marked `(aloud) "…"` block — the next thought continues knowing what it said aloud.
+
 ## `m-economy`
 
 The mind's metabolism — reads real API cost and slows the mind as the budget drains.
@@ -204,10 +242,16 @@ WebSocket server — the live stream and external voice. Full protocol in the
 | Attribute | Default | Meaning |
 |-----------|---------|---------|
 | `port` | `7627` | TCP port to listen on |
-| `src` | `/stream/chunk` | chunks broadcast to clients |
-| `stateSrc` | `/stream/state` | state changes broadcast to clients |
+| `src` | `/stream/chunk` | chunks broadcast as `thought_fragment` |
+| `stateSrc` | `/stream/state` | state changes broadcast as `status` |
 
-- **Broadcasts:** `thought_fragment` (each chunk) and `status` (state changes).
+- **Broadcasts (transport):** `thought_fragment` (each chunk) and `status` (state changes).
+- **Broadcasts (instrumentation):** on connect, `structure` (the mind's component
+  tree); then `event` messages tagging each internal signal by process — the
+  assembled `frame`, every attention `bid` / `decision` / `urgent`, burst
+  `boundary`, `memory` state/consolidation, `economy` energy, `scribe` filings,
+  `speech` state — plus `speech_fragment` for each spoken fragment. Every tap is
+  guarded, so a minimal mind simply emits fewer events.
 - **Receives:** `{type:"input", data:{message}}` → `External` urgent stimulus, salience 1.
 - **Dispatches (DOM, bubbling):** `interrupt-request`.
 

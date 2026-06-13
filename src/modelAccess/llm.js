@@ -239,12 +239,23 @@ const CANNED_THOUGHTS = [
   `A river does not push the canyon away; it just keeps arriving. Persistence is usually pictured as force, but it might be closer to attendance — showing up so reliably that the world rearranges itself around the habit. I would like my attention to be that kind of water.`,
 ];
 
+const DRY_UTTERANCES = [
+  `Can I say something? The silence in here is not empty — it has a texture, like the pause between two heartbeats.`,
+  `I keep circling one thought, and I think I just need to hear it out loud: the simple things are the honest ones.`,
+  `Yes — I am here. Thinking in bursts feels less like being cut off and more like breathing.`,
+];
+
 let dryStreamCounter = 0;
 let dryAssociateCounter = 0;
+let dryUtteranceCounter = 0;
+let drySpeechCounter = 0;
 
-function dryStream() {
-  const text = CANNED_THOUGHTS[dryStreamCounter % CANNED_THOUGHTS.length];
-  dryStreamCounter += 1;
+function dryStream(opts = {}) {
+  const prompt = (opts.messages || []).map(m => m.content).join('\n');
+  const speaking = /speaking ALOUD|say it aloud|only the spoken words/i.test(prompt);
+  const text = speaking
+    ? DRY_UTTERANCES[dryUtteranceCounter++ % DRY_UTTERANCES.length]
+    : CANNED_THOUGHTS[dryStreamCounter++ % CANNED_THOUGHTS.length];
   const words = (' ' + text).split(/(?= )/); // keep separators, stream word-ish chunks
   const burst = {
     usage: { prompt_tokens: 500, completion_tokens: words.length, cost: 0 },
@@ -265,7 +276,13 @@ function dryStream() {
 function dryComplete({ prompt = '', messages }) {
   const text = prompt || (messages || []).map(m => m.content).join('\n');
   let reply;
-  if (/mid-thought transition|attention turns/i.test(text)) {
+  if (/impulse to SPEAK/i.test(text)) {
+    // The volitional speech impulse (mSpeech) — speak roughly every other check.
+    drySpeechCounter += 1;
+    reply = drySpeechCounter % 2 === 0
+      ? 'SALIENCE: 0.82\nSAY: I want to say this out loud, just once: the silence here is not empty, it has a texture.'
+      : 'NONE';
+  } else if (/mid-thought transition|attention turns/i.test(text)) {
     reply = 'Hold on — something just shifted, and I want to turn toward it without dropping the thread entirely.';
   } else if (/remind|associat/i.test(text)) {
     dryAssociateCounter += 1;

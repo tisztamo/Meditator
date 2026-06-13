@@ -1,315 +1,443 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meditator WebSocket Client</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        #output {
-            background-color: #f9f9f9;
-            border: 1px solid #ddd;
-            padding: 15px;
-            height: 400px;
-            overflow-y: auto;
-            margin-bottom: 15px;
-            white-space: pre-wrap;
-        }
-        #input {
-            width: 100%;
-            padding: 8px;
-            margin-bottom: 10px;
-            box-sizing: border-box;
-        }
-        #status {
-            color: #666;
-            margin-bottom: 10px;
-        }
-        .thought-fragment {
-            color: #2a7ae2;
-        }
-        .status-message {
-            color: #888;
-            font-style: italic;
-        }
-        .user-input {
-            color: #2e8b57;
-            font-weight: bold;
-        }
-        .error-message {
-            color: #d43f3a;
-        }
-        .reconnect-message {
-            color: #f0ad4e;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meditator — live mind</title>
+<style>
+  :root{
+    --bg:#0a0d13; --bg2:#0d111a; --surface:#10141d; --surface2:#141926;
+    --line:rgba(235,235,245,.10); --ink:#e9e7e2; --dim:#99a1b4; --faint:#6b7387;
+    --cyan:#7fe0f0; --amber:#f2c879; --green:#7ee2a8; --red:#e87f7f; --violet:#b79cf0;
+    --serif:"Charter","Iowan Old Style",Cambria,Georgia,serif;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --mono:ui-monospace,"Cascadia Code",Consolas,Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);height:100vh;
+       display:flex;flex-direction:column;overflow:hidden}
+
+  /* ---------- header ---------- */
+  header{display:flex;align-items:center;gap:18px;padding:10px 18px;border-bottom:1px solid var(--line);
+         background:var(--bg2);flex:none;font-size:.86rem}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--faint);flex:none}
+  .dot.live{background:var(--green);box-shadow:0 0 8px rgba(126,226,168,.6)}
+  .dot.err{background:var(--red)}
+  .title{font-weight:600;letter-spacing:.01em}
+  .meta{color:var(--dim);font-family:var(--mono);font-size:.78rem}
+  .state{margin-left:auto;display:flex;align-items:center;gap:14px;color:var(--dim);font-family:var(--mono);font-size:.78rem}
+  .pill{padding:2px 9px;border:1px solid var(--line);border-radius:99px}
+  .pill.thinking{color:var(--cyan);border-color:rgba(127,224,240,.4)}
+  .pill.speaking{color:var(--amber);border-color:rgba(242,200,121,.5);background:rgba(242,200,121,.06)}
+  .gauge{display:flex;align-items:center;gap:7px}
+  .bar{width:84px;height:7px;border-radius:99px;background:var(--surface2);overflow:hidden}
+  .bar > i{display:block;height:100%;width:100%;background:linear-gradient(90deg,var(--amber),var(--green));transition:width .4s ease}
+  header button{background:var(--surface2);border:1px solid var(--line);color:var(--ink);border-radius:8px;
+                padding:6px 12px;cursor:pointer;font-size:.8rem}
+  header button:hover{background:rgba(255,255,255,.08)}
+  header button:disabled{opacity:.45;cursor:default}
+
+  /* ---------- layout ---------- */
+  main{flex:1;display:grid;grid-template-columns:minmax(0,1.55fr) minmax(320px,1fr);min-height:0}
+  .col{display:flex;flex-direction:column;min-height:0;min-width:0}
+  .col.left{border-right:1px solid var(--line)}
+  .colhead{padding:8px 16px;font-family:var(--mono);font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;
+           color:var(--faint);border-bottom:1px solid var(--line);flex:none;display:flex;justify-content:space-between}
+
+  /* ---------- stream ---------- */
+  #stream{flex:1;overflow-y:auto;padding:22px 26px;font-family:var(--serif);font-size:1.04rem;line-height:1.75;
+          color:#d9d6cf;scrollbar-width:thin;scrollbar-color:#2a3040 transparent}
+  #stream p{margin:0 0 .2em}
+  #stream p.thinned{color:#7d8496;font-size:.94rem}   /* inner monologue while speaking */
+  .say{font-family:var(--sans);margin:.8em 0;padding:11px 15px;border-radius:10px;
+       background:rgba(242,200,121,.07);border:1px solid rgba(242,200,121,.28);color:#f4e3c2}
+  .say::before{content:"🗣 ";opacity:.8}
+  .say .lbl{display:block;font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;color:var(--amber);margin-bottom:3px;opacity:.8}
+  .stim{font-family:var(--sans);font-size:.85rem;color:var(--cyan);margin:.9em 0;padding-left:13px;
+        border-left:2px solid rgba(127,224,240,.45)}
+  .stim.you{color:var(--green);border-color:rgba(126,226,168,.5)}
+  .bnd{font-family:var(--sans);font-size:.72rem;color:var(--faint);text-align:center;margin:1em 0;
+       display:flex;align-items:center;gap:10px}
+  .bnd::before,.bnd::after{content:"";flex:1;height:1px;background:var(--line)}
+  .caret{display:inline-block;width:8px;height:1.05em;vertical-align:-.16em;background:var(--amber);
+         margin-left:1px;animation:blink 1.06s steps(1) infinite;border-radius:1px}
+
+  /* ---------- structure tree ---------- */
+  #tree{flex:1;overflow-y:auto;padding:8px 10px 30px;scrollbar-width:thin;scrollbar-color:#2a3040 transparent}
+  details.node{border:1px solid var(--line);border-radius:9px;margin:6px 0;background:var(--surface)}
+  details.node[open]{background:var(--surface2)}
+  details.node > summary{list-style:none;cursor:pointer;padding:8px 11px;display:flex;align-items:center;gap:8px;
+                         border-radius:9px;outline:none}
+  details.node > summary::-webkit-details-marker{display:none}
+  .tw{color:var(--faint);font-family:var(--mono);font-size:.7rem;width:10px;flex:none;transition:transform .15s}
+  details.node[open] > summary .tw{transform:rotate(90deg)}
+  .ntag{font-family:var(--mono);font-size:.72rem;color:var(--violet)}
+  .nname{font-weight:600;font-size:.9rem}
+  .nstat{margin-left:auto;font-family:var(--mono);font-size:.72rem;color:var(--dim);text-align:right;
+         white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:48%}
+  .npulse{width:7px;height:7px;border-radius:50%;background:var(--cyan);flex:none;opacity:0;transition:opacity .1s}
+  .npulse.on{opacity:1;box-shadow:0 0 7px var(--cyan)}
+  .nbody{padding:2px 12px 11px 28px}
+  .kids{padding-left:13px}
+  .attrs{display:flex;flex-wrap:wrap;gap:5px 8px;margin:4px 0 8px}
+  .attr{font-family:var(--mono);font-size:.7rem;color:var(--dim);background:#0b0f16;border:1px solid var(--line);
+        border-radius:5px;padding:1px 6px}
+  .attr b{color:var(--amber);font-weight:500}
+  .ident{font-family:var(--serif);font-size:.84rem;color:var(--faint);font-style:italic;
+          border-left:2px solid var(--line);padding-left:9px;margin:2px 0 8px;white-space:pre-wrap}
+  .feed{display:flex;flex-direction:column;gap:3px;max-height:220px;overflow-y:auto;scrollbar-width:thin}
+  .ev{font-family:var(--mono);font-size:.72rem;color:var(--dim);line-height:1.45;border-top:1px dotted var(--line);padding-top:3px}
+  .ev .t{color:var(--faint)}
+  .ev.good{color:var(--green)} .ev.drop{color:var(--faint)} .ev.warn{color:var(--amber)} .ev.bad{color:var(--red)}
+  .ev .sal{color:var(--cyan)}
+  .framebox{font-family:var(--mono);font-size:.7rem;color:#aab2c5;background:#0b0f16;border:1px solid var(--line);
+            border-radius:7px;padding:9px;white-space:pre-wrap;max-height:300px;overflow:auto;margin-top:5px}
+  .framebox .sys{color:var(--faint)}
+
+  /* ---------- input ---------- */
+  .foot{display:flex;gap:9px;padding:11px 16px;border-top:1px solid var(--line);background:var(--bg2);flex:none}
+  .foot input{flex:1;background:var(--surface2);border:1px solid var(--line);border-radius:9px;color:var(--ink);
+              padding:9px 13px;font-size:.92rem;outline:none}
+  .foot input:focus{border-color:rgba(127,224,240,.45)}
+  .foot input:disabled{opacity:.5}
+  .foot button{background:rgba(127,224,240,.12);border:1px solid rgba(127,224,240,.3);color:var(--cyan);
+               border-radius:9px;padding:9px 16px;cursor:pointer}
+  .foot button:hover{background:rgba(127,224,240,.2)}
+
+  @keyframes blink{50%{opacity:0}}
+  @media (max-width:780px){ main{grid-template-columns:1fr;grid-template-rows:1fr 1fr} .col.left{border-right:none;border-bottom:1px solid var(--line)} }
+</style>
 </head>
 <body>
-    <h1>Meditator WebSocket Client</h1>
-    <div id="status">Disconnected</div>
-    <div id="output"></div>
-    <input type="text" id="input" placeholder="Type your message and press Enter" disabled>
-    <button id="connect">Connect</button>
-    <button id="disconnect" disabled>Disconnect</button>
-    <button id="toggle-auto-reconnect">Auto-Reconnect: On</button>
+  <header>
+    <span class="dot" id="dot"></span>
+    <span class="title" id="title">Meditator</span>
+    <span class="meta" id="metaLine">disconnected</span>
+    <div class="state">
+      <span class="gauge" title="energy / spend">⚡<span class="bar"><i id="energyBar"></i></span><span id="energyTxt">—</span></span>
+      <span class="pill" id="statePill">idle</span>
+      <button id="connectBtn">Connect</button>
+      <button id="disconnectBtn" disabled>Disconnect</button>
+    </div>
+  </header>
 
-    <script>
-        const outputElement = document.getElementById('output');
-        const inputElement = document.getElementById('input');
-        const statusElement = document.getElementById('status');
-        const connectButton = document.getElementById('connect');
-        const disconnectButton = document.getElementById('disconnect');
-        const toggleAutoReconnectButton = document.getElementById('toggle-auto-reconnect');
-        
-        let websocket = null;
-        let reconnectAttempts = 0;
-        let reconnectTimer = null;
-        let autoReconnect = true;
-        let manualDisconnect = false;
-        let connectionStartTime = null;
-        const MAX_RECONNECT_DELAY = 5000; // 5 seconds in ms
-        const MIN_RECONNECT_DELAY = 10;   // 10 ms
-        const MAX_RECONNECT_TIME = 60000; // 1 minute in ms
-        
-        // Initialize auto-reconnect toggle
-        toggleAutoReconnectButton.addEventListener('click', () => {
-            autoReconnect = !autoReconnect;
-            toggleAutoReconnectButton.textContent = `Auto-Reconnect: ${autoReconnect ? 'On' : 'Off'}`;
-            
-            if (!autoReconnect && reconnectTimer) {
-                clearTimeout(reconnectTimer);
-                reconnectTimer = null;
-            }
-        });
+  <main>
+    <div class="col left">
+      <div class="colhead"><span>stream of consciousness</span><span id="streamHint">thought · 🗣 speech · ⟂ stimulus</span></div>
+      <div id="stream" aria-live="polite"></div>
+      <div class="foot">
+        <input type="text" id="input" maxlength="400" placeholder="Speak to the mind — words arrive as experience, not instruction" disabled autocomplete="off">
+        <button id="sendBtn" disabled>Send</button>
+      </div>
+    </div>
+    <div class="col right">
+      <div class="colhead"><span>the mind</span><span id="treeHint">click a part to open it</span></div>
+      <div id="tree"></div>
+    </div>
+  </main>
 
-        // The block currently collecting streamed thought fragments, if any
-        let currentThought = null;
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const dot = $("dot"), title = $("title"), metaLine = $("metaLine"), statePill = $("statePill");
+const energyBar = $("energyBar"), energyTxt = $("energyTxt");
+const streamEl = $("stream"), treeEl = $("tree");
+const inputEl = $("input"), sendBtn = $("sendBtn");
+const connectBtn = $("connectBtn"), disconnectBtn = $("disconnectBtn");
 
-        // Add a discrete message (status, input, error) on its own line.
-        // This also ends any thought block in progress, so the next fragment
-        // starts a fresh block below it.
-        function addMessage(message, className) {
-            currentThought = null;
-            const messageElement = document.createElement('div');
-            messageElement.className = className;
-            messageElement.textContent = message;
-            outputElement.appendChild(messageElement);
-            outputElement.scrollTop = outputElement.scrollHeight;
-        }
+/* ============================ connection ============================ */
+let ws = null, manualClose = false, reconnectTimer = null, reconnectDelay = 250;
+const MAX_DELAY = 5000;
 
-        // Append a streamed thought fragment to the running thought block,
-        // creating one if needed. Fragments flow together as continuous text;
-        // only the model's own newlines break lines (not each chunk).
-        function addThoughtFragment(text) {
-            if (!currentThought) {
-                currentThought = document.createElement('div');
-                currentThought.className = 'thought-fragment';
-                outputElement.appendChild(currentThought);
-            }
-            currentThought.appendChild(document.createTextNode(text));
-            outputElement.scrollTop = outputElement.scrollHeight;
-        }
-        
-        // Calculate reconnection delay with exponential backoff
-        function getReconnectDelay() {
-            // Calculate how long we've been trying to reconnect
-            const elapsedTime = Date.now() - connectionStartTime;
-            
-            // If we've been trying longer than MAX_RECONNECT_TIME, use max delay
-            if (elapsedTime >= MAX_RECONNECT_TIME) {
-                return MAX_RECONNECT_DELAY;
-            }
-            
-            // Calculate progress as a value between 0 and 1
-            const progress = elapsedTime / MAX_RECONNECT_TIME;
-            
-            // Exponentially increase from MIN to MAX delay based on progress
-            // Use a base-2 exponential curve: min * 2^(log2(max/min) * progress)
-            const ratio = Math.log2(MAX_RECONNECT_DELAY / MIN_RECONNECT_DELAY);
-            const delay = MIN_RECONNECT_DELAY * Math.pow(2, ratio * progress);
-            
-            return Math.min(delay, MAX_RECONNECT_DELAY);
-        }
-        
-        // Attempt to reconnect with exponential backoff
-        function reconnect() {
-            if (!autoReconnect || manualDisconnect) return;
-            
-            const delay = getReconnectDelay();
-            reconnectAttempts++;
-            
-            addMessage(`Reconnecting in ${(delay/1000).toFixed(2)} seconds (attempt ${reconnectAttempts})...`, 'reconnect-message');
-            statusElement.textContent = `Reconnecting in ${(delay/1000).toFixed(2)}s...`;
-            
-            // Clear any existing timer
-            if (reconnectTimer) {
-                clearTimeout(reconnectTimer);
-            }
-            
-            // Set timer for reconnect
-            reconnectTimer = setTimeout(() => {
-                connect(true);
-            }, delay);
-        }
-        
-        // Connect to WebSocket server
-        function connect(isReconnect = false) {
-            try {
-                // Clear any existing timer
-                if (reconnectTimer) {
-                    clearTimeout(reconnectTimer);
-                    reconnectTimer = null;
-                }
-                
-                // Set or reset connection start time for reconnection calculations
-                if (!isReconnect || !connectionStartTime) {
-                    connectionStartTime = Date.now();
-                }
-                
-                manualDisconnect = false;
-                
-                const host = window.location.hostname || 'localhost';
-                websocket = new WebSocket(`ws://${host}:7627/stream`);
-                
-                if (isReconnect) {
-                    addMessage(`Reconnecting (attempt ${reconnectAttempts})...`, 'reconnect-message');
-                } else {
-                    addMessage('Connecting to Meditator stream...', 'status-message');
-                }
-                
-                websocket.onopen = () => {
-                    statusElement.textContent = 'Connected';
-                    inputElement.disabled = false;
-                    connectButton.disabled = true;
-                    disconnectButton.disabled = false;
-                    
-                    if (isReconnect) {
-                        addMessage('Reconnected to Meditator stream', 'status-message');
-                    } else {
-                        addMessage('Connected to Meditator stream', 'status-message');
-                    }
-                    
-                    // Reset reconnect attempts on successful connection
-                    reconnectAttempts = 0;
-                };
-                
-                websocket.onclose = (event) => {
-                    const wasConnected = !connectButton.disabled;
-                    
-                    statusElement.textContent = 'Disconnected';
-                    inputElement.disabled = true;
-                    connectButton.disabled = false;
-                    disconnectButton.disabled = true;
-                    
-                    if (wasConnected) {
-                        const reason = event.reason ? ` (${event.reason})` : '';
-                        addMessage(`Disconnected from Meditator stream${reason}`, 'status-message');
-                    }
-                    
-                    websocket = null;
-                    
-                    // Attempt to reconnect if not manually disconnected
-                    if (!manualDisconnect && wasConnected && autoReconnect) {
-                        reconnect();
-                    }
-                };
-                
-                websocket.onerror = (error) => {
-                    addMessage(`WebSocket error${error.message ? ': ' + error.message : ''}`, 'error-message');
-                    statusElement.textContent = 'Error';
-                    console.error('WebSocket error:', error);
-                    
-                    // Error will trigger onclose, which will handle reconnection
-                };
-                
-                websocket.onmessage = (event) => {
-                    try {
-                        const message = JSON.parse(event.data);
-                        
-                        if (message.type === 'thought_fragment') {
-                            addThoughtFragment(message.data.content);
-                        } else if (message.type === 'status') {
-                            addMessage(
-                                `Status: ${message.data.state || message.data.status || 'Update'} - ${message.data.message || ''}`,
-                                'status-message'
-                            );
-                        }
-                    } catch (error) {
-                        console.error('Error parsing message:', error);
-                        addMessage(`Error parsing message: ${event.data}`, 'status-message');
-                    }
-                };
-                
-                return true;
-            } catch (error) {
-                console.error('Connection error:', error);
-                addMessage(`Connection error: ${error.message}`, 'error-message');
-                
-                if (autoReconnect && !manualDisconnect) {
-                    reconnect();
-                }
-                
-                return false;
-            }
-        }
-        
-        // Disconnect from WebSocket server
-        function disconnect() {
-            manualDisconnect = true;
-            
-            // Clear any reconnect timer
-            if (reconnectTimer) {
-                clearTimeout(reconnectTimer);
-                reconnectTimer = null;
-            }
-            
-            if (websocket) {
-                websocket.close();
-                // onclose handler will update UI
-            } else {
-                statusElement.textContent = 'Disconnected';
-                addMessage('Disconnected from Meditator stream', 'status-message');
-            }
-            
-            // Reset reconnect attempts on manual disconnect
-            reconnectAttempts = 0;
-        }
-        
-        // Send a message to the server
-        function sendMessage(message) {
-            if (websocket && websocket.readyState === WebSocket.OPEN) {
-                addMessage(`You: ${message}`, 'user-input');
-                
-                // Send as structured message
-                const structuredMessage = {
-                    type: 'input',
-                    data: {
-                        message: message
-                    }
-                };
-                
-                websocket.send(JSON.stringify(structuredMessage));
-                inputElement.value = '';
-            }
-        }
-        
-        // Set up event listeners
-        connectButton.addEventListener('click', () => connect());
-        disconnectButton.addEventListener('click', disconnect);
-        
-        inputElement.addEventListener('keypress', (event) => {
-            if (event.key === 'Enter') {
-                const message = inputElement.value.trim();
-                if (message) {
-                    sendMessage(message);
-                }
-            }
-        });
-    </script>
+function setConnected(on, label){
+  dot.classList.toggle("live", on);
+  dot.classList.remove("err");
+  inputEl.disabled = !on; sendBtn.disabled = !on;
+  connectBtn.disabled = on; disconnectBtn.disabled = !on;
+  metaLine.textContent = label || (on ? "connected" : "disconnected");
+}
+
+function connect(){
+  if (ws) return;
+  manualClose = false;
+  const host = window.location.hostname || "localhost";
+  metaLine.textContent = "connecting…";
+  try { ws = new WebSocket(`ws://${host}:7627/stream`); }
+  catch (e){ dot.classList.add("err"); metaLine.textContent = "cannot open socket"; scheduleReconnect(); return; }
+
+  ws.onopen = () => { reconnectDelay = 250; setConnected(true, "live · ws://"+host+":7627"); };
+  ws.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch { return; } handleMessage(m); };
+  ws.onerror = () => { dot.classList.add("err"); };
+  ws.onclose = () => {
+    ws = null; setConnected(false, manualClose ? "disconnected" : "connection lost");
+    endThought(); setSpeaking(false);
+    if (!manualClose) scheduleReconnect();
+  };
+}
+function disconnect(){ manualClose = true; if (reconnectTimer) clearTimeout(reconnectTimer); if (ws) ws.close(); }
+function scheduleReconnect(){
+  if (manualClose) return;
+  if (reconnectTimer) clearTimeout(reconnectTimer);
+  reconnectTimer = setTimeout(connect, reconnectDelay);
+  reconnectDelay = Math.min(reconnectDelay * 1.8, MAX_DELAY);
+}
+connectBtn.onclick = connect;
+disconnectBtn.onclick = disconnect;
+
+/* ============================ message router ============================ */
+function handleMessage(m){
+  switch (m.type){
+    case "structure":      renderStructure(m.data.tree); break;
+    case "thought_fragment": addThought(m.data.content); break;
+    case "speech_fragment":  addSpeech(m.data.content); break;
+    case "status":         onStatus(m.data); break;
+    case "event":          onEvent(m.data); break;
+  }
+}
+
+function onStatus(d){
+  if (d.state){                                   // stream state: streaming | idle
+    if (d.state === "streaming"){ setStreamState("thinking"); }
+    else { setStreamState("idle"); endThought(); }
+  } else if (d.status === "connected"){
+    streamEl.innerHTML = ""; treeEl.innerHTML = ""; nodes = {byId:{},byName:{},byTag:{}}; lastFrame = null;
+  }
+  // input_received: no UI needed (we already echoed locally)
+}
+
+function onEvent(d){
+  const route = `${d.process}/${d.kind}`;
+  switch (route){
+    case "mind/frame":        onFrame(d); break;
+    case "stream/boundary":   addBoundary(d); pushNode(byTag("m-stream"), evLine(`burst #${d.burstIndex} · ${d.burstChars}c · ${d.reason}`, d.reason==="completed"?"good":d.reason==="error"?"bad":"")); setNodeStat(byTag("m-stream"), `#${d.burstIndex} ${d.reason}`); break;
+    case "attention/bid":     onBid(d); break;
+    case "attention/urgent":  onUrgent(d); break;
+    case "attention/decision":onDecision(d); break;
+    case "economy/energy":    onEnergy(d); break;
+    case "memory/state":      onMemoryState(d); break;
+    case "memory/compressed": onCompressed(d); break;
+    case "scribe/filed":      onFiled(d); break;
+    case "speech/speaking":   setSpeaking(d.speaking); pushNode(byTag("m-speech"), evLine(d.speaking?"started speaking":"stopped speaking", d.speaking?"warn":"")); break;
+    case "speech/impulse":    onImpulse(d); break;
+    case "speech/boundary":   pushNode(byTag("m-speech"), evLine(`said ${d.chars||0}c · ${d.reason||""}`, "good")); break;
+  }
+}
+
+/* ============================ stream pane ============================ */
+let curP = null, caret = null, speaking = false, streamState = "idle";
+let sayEl = null, saySpan = null;
+
+function nearBottom(){ return streamEl.scrollHeight - streamEl.scrollTop - streamEl.clientHeight < 120; }
+function scrollDown(){ streamEl.scrollTop = streamEl.scrollHeight; }
+function moveCaret(host){ if (caret) caret.remove(); caret = document.createElement("span"); caret.className="caret"; (host||streamEl).appendChild(caret); }
+
+function newPara(){ curP = document.createElement("p"); if (speaking) curP.className = "thinned"; streamEl.appendChild(curP); moveCaret(curP); }
+function addThought(text){
+  const stick = nearBottom();
+  if (!curP) newPara();
+  caret ? caret.before(text) : curP.appendChild(document.createTextNode(text));
+  if (stick) scrollDown();
+}
+function endThought(){ curP = null; if (caret){ caret.remove(); caret = null; } }
+
+function addSpeech(text){
+  const stick = nearBottom();
+  if (!sayEl){
+    endThought();
+    sayEl = document.createElement("div"); sayEl.className = "say";
+    const lbl = document.createElement("span"); lbl.className="lbl"; lbl.textContent="spoken aloud"; sayEl.appendChild(lbl);
+    saySpan = document.createElement("span"); sayEl.appendChild(saySpan);
+    streamEl.appendChild(sayEl);
+  }
+  saySpan.appendChild(document.createTextNode(text));
+  if (stick) scrollDown();
+}
+function endSpeech(){ sayEl = null; saySpan = null; }
+
+function addStim(text, cls){
+  const stick = nearBottom(); endThought();
+  const d = document.createElement("div"); d.className = "stim" + (cls?(" "+cls):""); d.textContent = "⟂ " + text;
+  streamEl.appendChild(d); if (stick) scrollDown();
+}
+function addBoundary(d){
+  const stick = nearBottom(); endThought();
+  const el = document.createElement("div"); el.className = "bnd";
+  el.textContent = d.reason === "completed" ? "burst" : d.reason;
+  streamEl.appendChild(el); if (stick) scrollDown();
+}
+function setSpeaking(on){
+  if (on === speaking) return;
+  speaking = on;
+  if (!on) endSpeech();
+  endThought();                       // next thought paragraph picks up the thinned style
+  updateStatePill();
+}
+function setStreamState(s){ streamState = s; updateStatePill(); }
+function updateStatePill(){
+  const speakingNow = speaking;
+  statePill.className = "pill " + (speakingNow ? "speaking" : streamState === "thinking" ? "thinking" : "");
+  statePill.textContent = speakingNow ? (streamState === "thinking" ? "speaking + thinking" : "speaking") : streamState;
+}
+
+/* ============================ structure tree ============================ */
+let nodes = { byId:{}, byName:{}, byTag:{} };
+let lastFrame = null;
+
+function renderStructure(tree){
+  treeEl.innerHTML = "";
+  nodes = { byId:{}, byName:{}, byTag:{} };
+  treeEl.appendChild(buildNode(tree, 0));
+  // header meta from the root mind
+  title.textContent = tree.name || tree.tag || "Meditator";
+  const a = tree.attrs || {};
+  metaLine.textContent = [a.model, a.pace ? ("pace "+a.pace) : null].filter(Boolean).join(" · ") || metaLine.textContent;
+}
+
+function buildNode(node, depth){
+  const det = document.createElement("details");
+  det.className = "node";
+  if (depth === 0 || node.tag === "m-stream" || node.tag === "m-speech") det.open = true;
+
+  const sum = document.createElement("summary");
+  sum.innerHTML = `<span class="tw">▶</span><span class="npulse"></span>`
+    + `<span class="nname"></span> <span class="ntag"></span><span class="nstat"></span>`;
+  sum.querySelector(".nname").textContent = node.name || node.tag;
+  sum.querySelector(".ntag").textContent = node.name ? node.tag : "";
+  det.appendChild(sum);
+
+  const body = document.createElement("div"); body.className = "nbody";
+  // config
+  const attrs = node.attrs || {};
+  const keys = Object.keys(attrs).filter(k => k !== "name");
+  if (keys.length){
+    const ab = document.createElement("div"); ab.className = "attrs";
+    for (const k of keys){ const s = document.createElement("span"); s.className="attr"; s.innerHTML = `<b>${k}</b> ${escapeHtml(attrs[k])}`; ab.appendChild(s); }
+    body.appendChild(ab);
+  }
+  if (node.text){ const t = document.createElement("div"); t.className="ident"; t.textContent = node.text; body.appendChild(t); }
+
+  // a place for this process's live detail (and, for the mind, the frame inspector)
+  const feed = document.createElement("div"); feed.className = "feed"; body.appendChild(feed);
+  det.appendChild(body);
+
+  // children
+  if (node.children && node.children.length){
+    const kids = document.createElement("div"); kids.className = "kids";
+    for (const c of node.children) kids.appendChild(buildNode(c, depth + 1));
+    det.appendChild(kids);
+  }
+
+  const rec = {
+    det, feed,
+    pulse: sum.querySelector(".npulse"),
+    stat: sum.querySelector(".nstat"),
+    tag: node.tag, name: node.name,
+  };
+  const id = node.name ? `name:${node.name}` : `tag:${node.tag}`;
+  nodes.byId[id] = rec;
+  if (node.name && !nodes.byName[node.name]) nodes.byName[node.name] = rec;
+  if (!nodes.byTag[node.tag]) nodes.byTag[node.tag] = rec;
+  return det;
+}
+
+function byTag(tag){ return nodes.byTag[tag] || null; }
+function byName(name){ return nodes.byName[name] || null; }
+
+function pulse(rec){ if (!rec) return; rec.pulse.classList.add("on"); setTimeout(() => rec.pulse.classList.remove("on"), 320); }
+function setNodeStat(rec, text){ if (rec) rec.stat.textContent = text; }
+function pushNode(rec, html){
+  if (!rec) return;
+  pulse(rec);
+  const stick = rec.feed.scrollHeight - rec.feed.scrollTop - rec.feed.clientHeight < 30;
+  const div = document.createElement("div"); div.className = "ev"; div.innerHTML = html;
+  rec.feed.appendChild(div);
+  while (rec.feed.children.length > 40) rec.feed.removeChild(rec.feed.firstChild);
+  if (stick) rec.feed.scrollTop = rec.feed.scrollHeight;
+}
+function evLine(text, cls){ return `<span class="t">${clock()}</span> <span class="${cls||""}">${escapeHtml(text)}</span>`; }
+function clock(){ const d = new Date(); return d.toTimeString().slice(0,8); }
+function escapeHtml(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+/* ----- map an interrupt type to the process that raised it ----- */
+function originNode(type){
+  if (!type) return null;
+  if (type.startsWith("Time-")) return byName(type.slice(5));
+  if (type.startsWith("Observer-")) return byName(type.slice(9));
+  if (type === "Association") return byTag("m-associate");
+  if (type === "LoopGuard") return byTag("m-loop-guard");
+  if (type === "UserInput") return byTag("m-ws");
+  if (type === "ConsoleInput") return byTag("m-console");
+  return null;
+}
+
+/* ============================ event handlers ============================ */
+function onFrame(d){
+  lastFrame = d;
+  const mind = nodes.byTag["m-mind"]; if (!mind) return;
+  pulse(mind);
+  setNodeStat(mind, `frame: ${d.frameKind}`);
+  // (re)render the frame inspector at the top of the mind feed
+  let box = mind.feed.querySelector(".framebox");
+  if (!box){ box = document.createElement("div"); box.className = "framebox"; mind.feed.prepend(box); }
+  const sys = d.system ? `<span class="sys">— system —\n${escapeHtml(d.system)}\n\n— frame (${d.frameKind}) —\n</span>` : "";
+  box.innerHTML = sys + escapeHtml(d.frame || "");
+}
+function onBid(d){
+  // full firehose into the arbiter node + the origin observer; a marker only when it matters
+  const sal = typeof d.salience === "number" ? d.salience.toFixed(2) : "?";
+  const line = `${d.urgent?"⚡":""}${escapeHtml(d.type||"?")} <span class="sal">${sal}</span> — ${escapeHtml(d.reason||"")}`;
+  pushNode(byTag("m-interrupts"), `<span class="t">${clock()}</span> ${line}`);
+  const origin = originNode(d.type); if (origin && origin !== byTag("m-interrupts")) pushNode(origin, evLine(`bid ${sal}: ${d.reason||""}`));
+}
+function onUrgent(d){ addStim((d.reason||"urgent stimulus")); pushNode(byTag("m-interrupts"), evLine(`URGENT ${d.type}: ${d.reason||""}`, "warn")); }
+function onDecision(d){
+  const sal = typeof d.salience === "number" ? d.salience.toFixed(2) : "?";
+  const cls = d.accepted ? "good" : "drop";
+  pushNode(byTag("m-interrupts"), evLine(`${d.accepted?"✓":"✕"} ${d.type} ${sal} — ${d.why}`, cls));
+  setNodeStat(byTag("m-interrupts"), d.accepted ? `✓ ${d.type}` : `✕ ${d.why}`);
+  if (d.accepted && !d.urgent) addStim(d.reason || d.type);   // non-urgent accepted stimuli enter experience here; urgent ones via onUrgent
+}
+function onEnergy(d){
+  const e = typeof d.energy === "number" ? d.energy : 1;
+  energyBar.style.width = Math.max(0, Math.min(1, e)) * 100 + "%";
+  const spent = typeof d.spent === "number" ? ` · $${d.spent.toFixed(3)}` : "";
+  energyTxt.textContent = e.toFixed(2) + (d.paceFactor>1?` ·x${d.paceFactor}`:"");
+  const econ = byTag("m-economy");
+  setNodeStat(econ, `${e.toFixed(2)}${spent} · pace x${d.paceFactor||1}`);
+  pushNode(econ, evLine(`energy ${e.toFixed(2)}${spent} · pace x${d.paceFactor||1}`));
+}
+function onMemoryState(d){
+  const mem = byTag("m-memory");
+  setNodeStat(mem, `tail ${fmt(d.tailLen)} · rec ${fmt(d.recentLen)} · sto ${fmt(d.storyLen)}`);
+}
+function onCompressed(d){
+  pushNode(byTag("m-memory"), evLine(`consolidated → recent ${fmt(d.recentLen)}c, story ${fmt(d.storyLen)}c`, "good"));
+  if (d.recentPreview) pushNode(byTag("m-memory"), `<span class="t">${clock()}</span> <span class="t">recent:</span> ${escapeHtml(d.recentPreview)}…`);
+}
+function onFiled(d){
+  pushNode(byTag("m-kb"), evLine(`filed: ${(d.files||[]).join(", ")}`, "good"));
+  setNodeStat(byTag("m-kb"), `filed ${(d.files||[]).length}`);
+}
+function onImpulse(d){
+  const sal = typeof d.salience === "number" ? d.salience.toFixed(2) : "?";
+  const cls = d.accepted ? "warn" : "drop";
+  pushNode(byTag("m-speech"), evLine(`impulse ${sal} ${d.accepted?"✓ speak":"— stay quiet"}${d.gist?": "+d.gist:""}`, cls));
+  setNodeStat(byTag("m-speech"), `impulse ${sal} ${d.accepted?"✓":"✕"}`);
+}
+function fmt(n){ return typeof n === "number" ? (n>=1000?(n/1000).toFixed(1)+"k":String(n)) : "—"; }
+
+/* ============================ speaking to the mind ============================ */
+function send(){
+  const text = inputEl.value.trim(); if (!text || !ws) return;
+  ws.send(JSON.stringify({ type:"input", data:{ message:text } }));
+  addStim(`You said: "${text}"`, "you");
+  inputEl.value = "";
+}
+sendBtn.onclick = send;
+inputEl.addEventListener("keydown", e => { if (e.key === "Enter") send(); });
+
+/* connect on load */
+connect();
+</script>
 </body>
-</html> 
+</html>

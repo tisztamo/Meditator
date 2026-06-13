@@ -1,0 +1,30 @@
+<!-- Fast smoke mind for the dashboard + speaking voice over websocket.
+     Run dry and probe it:
+       MEDITATOR_DRY_RUN=1 bun run meditator.js -a architecture/tests/dash-smoke.chml
+       bun architecture/tests/dash-probe.js
+     persist/journal are OFF so it touches no memory vault. Not for live models. -->
+<m-mind name="dash-smoke" pace="1.5s" paceSigma="0.3s" tailLength="600"
+        speakingPaceFactor="2.5" speakingTokensFactor="0.35">
+  A tiny mind for smoke-testing the live dashboard and the speaking voice.
+
+  <m-stream name="stream" burstTokens="120" temperature="0.9"></m-stream>
+
+  <m-memory name="memory" persist="off" journal="off"
+            tailLength="600" recentLength="400" storyLength="600"
+            blockMin="200" storyEvery="2"></m-memory>
+
+  <m-interrupts name="attention" threshold="0.3" rateLimit="2s" keep="2"></m-interrupts>
+
+  <m-timeout name="wander" timeout="6s" sigma="1s" salience="0.6"
+             prompt="My mind drifts toward something else."></m-timeout>
+
+  <m-loop-guard name="loop-guard" overlap="0.45" salience="0.85" cooldown="5s"></m-loop-guard>
+
+  <m-associate name="associate" every="3" cooldown="4s"></m-associate>
+
+  <m-speech name="voice" every="2" threshold="0.5" cooldown="2s"></m-speech>
+
+  <m-economy name="economy" budget="1.00"></m-economy>
+
+  <m-ws name="ws" port="7627"></m-ws>
+</m-mind>

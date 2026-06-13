@@ -77,14 +77,18 @@ export class MMemory extends MBaseComponent {
     _onChunk = chunk => {
         this.tail += chunk
         this._journalBuffer += chunk
-        if (this.tail.length > this.tailLength) {
-            const cut = this.tail.length - this.tailLength
-            // cut at a word edge so summaries do not see half words
-            const edge = this.tail.lastIndexOf(" ", cut + 40)
-            const cutAt = edge > 0 ? edge : cut
-            this._overflow += this.tail.slice(0, cutAt)
-            this.tail = this.tail.slice(cutAt)
-        }
+        this._trimTail()
+    }
+
+    // Keep the verbatim tail within budget, cutting at a word edge so summaries
+    // do not see half words; the overflow accumulates toward the next block.
+    _trimTail() {
+        if (this.tail.length <= this.tailLength) return
+        const cut = this.tail.length - this.tailLength
+        const edge = this.tail.lastIndexOf(" ", cut + 40)
+        const cutAt = edge > 0 ? edge : cut
+        this._overflow += this.tail.slice(0, cutAt)
+        this.tail = this.tail.slice(cutAt)
     }
 
     _onBoundary = () => {
@@ -170,6 +174,19 @@ Condense this into at most ${targetChars} characters of first-person memory ("I 
     note(text) {
         this._flushJournal()
         this._appendJournal(`\n> ⟂ ${text}\n\n`)
+    }
+
+    /**
+     * Records something the mind said ALOUD. The utterance enters the verbatim
+     * tail as a marked block — so the next thought continues knowing what it just
+     * said — and is journaled distinctly from inner speech.
+     */
+    spoke(text) {
+        if (this._finalized || !text) return
+        this.tail += `\n(aloud) "${text}"\n`
+        this._trimTail()
+        this._flushJournal()
+        this._appendJournal(`\n🗣 *${text}*\n\n`)
     }
 
     /** One-time wake stimulus after loading persisted memory. */

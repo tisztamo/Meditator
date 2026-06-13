@@ -52,9 +52,18 @@ export class MMind extends MBaseComponent {
     _timer = null
     _thinkingSince = null
     _sleeping = false
+    _speaking = false
 
     onConnect() {
-        // "stream/boundary" and "@interrupt" fields are auto-subscribed by Amanita
+        // "stream/boundary" and "@interrupt" fields are auto-subscribed by Amanita.
+        // If the mind has a speaking voice, follow its "speaking" flag so thinking
+        // can be thinned (fewer tokens, slower pace) while it talks — true limited
+        // parallelism: the verbal effort goes to speech, but thought never stops.
+        const voice = this.querySelector('m-speech')
+        if (voice) {
+            const name = voice.getAttribute('name') || 'voice'
+            this.sub(`/${name}/speaking`, speaking => { this._speaking = !!speaking })
+        }
         this._begin()
     }
 
@@ -154,7 +163,8 @@ export class MMind extends MBaseComponent {
         const normal = Math.sqrt(-2 * Math.log(Math.random() || 1e-9)) * Math.cos(2 * Math.PI * Math.random())
         const economy = this.querySelector('m-economy')
         const economyFactor = economy?.paceFactor ? economy.paceFactor() : 1
-        return Math.max(300, (base + normal * sigma) * this.backoff * economyFactor)
+        const speakingFactor = this._speaking ? Number(this.attr("speakingPaceFactor") || 2.5) : 1
+        return Math.max(300, (base + normal * sigma) * this.backoff * economyFactor * speakingFactor)
     }
 
     _parseTimeAttr(name, fallbackMs) {
@@ -234,13 +244,21 @@ export class MMind extends MBaseComponent {
         const frame = sections.join("\n\n") + (sections.length ? "\n\n" : "") + instruction
 
         log.debug("Attention frame:\n" + frame)
-        return {
+        const payload = {
             system,
             frame,
             prefix,
             dedupe: thoughtInProgress.slice(-100),
             kind: stimuli.length ? "redirect" : "continue",
         }
+        // While the voice is speaking, thin the thinking burst so most of the
+        // verbal effort goes to the utterance (m-stream honors payload.burstTokens).
+        if (this._speaking) {
+            const base = Number(stream?.getAttribute("burstTokens") || 350)
+            const factor = Number(this.attr("speakingTokensFactor") || 0.35)
+            payload.burstTokens = Math.max(60, Math.round(base * factor))
+        }
+        return payload
     }
 
     _identity() {

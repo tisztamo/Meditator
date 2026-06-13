@@ -30,6 +30,11 @@
 
   <m-associate name="associate" every="5" cooldown="60s"></m-associate>
 
+  <!-- the speaking voice: occasionally gives a thought outward voice, streamed in
+       parallel with (thinned) thinking; being addressed raises the urge to speak
+       but never forces a reply -->
+  <m-speech name="voice" every="6" threshold="0.6" cooldown="45s"></m-speech>
+
   <m-kb name="scribe" every="15"></m-kb>
 
   <m-economy name="economy" budget="1.00"></m-economy>
