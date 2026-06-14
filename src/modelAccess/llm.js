@@ -113,7 +113,7 @@ function clientFor(provider) {
       log.info(`local provider initialised: baseURL=${provider.baseURL}, default model="${provider.model}", `
         + `${process.env.LOCAL_LLM_API_KEY ? 'LOCAL_LLM_API_KEY set' : "no LOCAL_LLM_API_KEY — sending placeholder 'none'"}`
         + `, thinking ${provider.thinking ? 'ENABLED (LOCAL_LLM_THINKING=1)' : 'disabled (chat_template_kwargs.enable_thinking=false)'}`
-        + `, keep-alive off (Connection: close)`);
+        + `, fresh connection per request (keepalive off)`);
     } else {
       log.info(`openrouter provider initialised${process.env.OPENROUTER_API_KEY ? '' : ' (WARNING: no OPENROUTER_API_KEY set)'}`);
     }
@@ -121,13 +121,21 @@ function clientFor(provider) {
       baseURL: provider.baseURL,
       apiKey: provider.apiKey,
       dangerouslyAllowBrowser: true,
-      // Local: force a fresh connection per request. A keep-alive socket left
-      // over from a completed stream (or the interleaved utility call) hangs the
-      // next stream's open under Bun — the "every other open times out" symptom.
-      // OpenRouter is fine over HTTPS keep-alive.
+      // Local: a fresh connection per request. Bun reuses idle keep-alive sockets
+      // that the server (uvicorn defaults to ~5s keep-alive) has already closed;
+      // a streaming open on a dead socket then hangs until the timeout fires —
+      // the "every other burst times out" symptom, since the mind's pace exceeds
+      // 5s. keepalive:false avoids the stale-socket reuse (verified with a
+      // connection probe) while keeping server-side parallelism — concurrent
+      // requests still each get their own socket. NB the Connection: close request
+      // header did NOT help; Bun ignores it for pooling. OpenRouter is fine on
+      // HTTPS keep-alive (TLS reuse matters there, and it doesn't drop idle).
+      fetch: provider.key === 'local'
+        ? (url, init = {}) => fetch(url, { ...init, keepalive: false })
+        : undefined,
       defaultHeaders: provider.key === 'openrouter'
         ? { 'HTTP-Referer': 'https://github.com/meditator', 'X-Title': 'Meditator' }
-        : { 'Connection': 'close' },
+        : undefined,
     });
     clients.set(provider.key, client);
   }
