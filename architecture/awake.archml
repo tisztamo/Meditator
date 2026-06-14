@@ -37,7 +37,7 @@
 
   <m-kb name="scribe" every="15"></m-kb>
 
-  <m-economy name="economy" budget="1.00"></m-economy>
+  <m-economy name="economy" budget="1.00" estInPrice="0" estOutPrice="0"></m-economy>
 
   <m-console name="console"></m-console>
   <m-ws name="ws" port="7627"></m-ws>
