@@ -63,7 +63,6 @@ A model id prefixed `local/` routes to an OpenAI-compatible server at `LOCAL_LLM
 - `architecture/awake.archml` — the canonical living mind (default)
 - `architecture/tests/dry-fast.archml` — fast-cycle test mind for dry runs
 - `architecture/tests/compress-test.archml` — offline compression harness
-- `architecture/meditator.archml`, `survivor.archml`, `cat.archml`, `complex.archml`, `tools-*.archml` — earlier sketches and capability demos, kept for history
 
 ## Documentation
 

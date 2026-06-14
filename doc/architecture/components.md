@@ -284,9 +284,9 @@ Not components, but the pieces components lean on (`src/infrastructure/`,
 
 ## Legacy and demo components
 
-These exist for older example architectures (`architecture/tools-*.archml`,
-`token-monitor.archml`, `compress-test.archml`) and are **not** part of the default
-mind. Tools and shell execution are explicitly deprioritized in the current
+These exist only for older example and demo architectures — the tool demos now
+live under `architecture/legacy/` — and are **not** part of the default mind.
+Tools and shell execution are explicitly deprioritized in the current
 direction — the focus is the stream, attention, memory, and observers, not an
 agent that calls tools.
 

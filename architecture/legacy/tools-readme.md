@@ -1,6 +1,8 @@
 # Meditator Tools Architecture Examples
 
-This directory contains architecture markup language (`.archml`) configuration examples for using the tools system in the Meditator architecture.
+> **Historical / deprecated.** Tools and shell execution are explicitly deprioritized — no working mind uses them. These examples and the components they exercise (`m-tools`, `m-shell`) are kept under `architecture/legacy/` for reference only; they are not part of the current system. See [`../../doc/architecture/components.md`](../../doc/architecture/components.md) for component status.
+
+These are archml (`.archml`) configuration examples for the now-deprecated tools system.
 
 ## Overview
 
@@ -47,4 +49,4 @@ Use tool: shell
 ls -la
 ```
 
-The result from the tool execution will be returned to the agent as an interrupt, allowing it to process the output and determine next steps. 
+The result from the tool execution will be returned to the agent as an interrupt, allowing it to process the output and determine next steps. 
