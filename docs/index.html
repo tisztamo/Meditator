@@ -249,7 +249,7 @@
       <div class="panel">
         <div class="panel-head">
           <span class="dot" id="dot"></span>
-          <span class="title" id="panelTitle">awake.chml — replay of the first session · 2026-06-12</span>
+          <span class="title" id="panelTitle">awake.archml — replay of the first session · 2026-06-12</span>
         </div>
         <div class="stream" id="stream" aria-live="polite"></div>
         <div class="panel-foot">
@@ -393,7 +393,7 @@
       <div class="card flipcard" data-snip="body" tabindex="0" role="button" aria-label="A body of HTML — flip for the code">
         <div class="card-inner">
           <div class="card-face card-front"><span class="ic">📄</span><h3>A body of HTML</h3>
-            <p>The whole mind is one declarative file. Read <code>awake.chml</code>; that’s all of it. Change a
+            <p>The whole mind is one declarative file. Read <code>awake.archml</code>; that’s all of it. Change a
               timeout, change a temperament. Swap a model, swap a voice. Built on the
               <a href="https://www.npmjs.com/package/amanita" style="color:var(--amber)">Amanita</a> component framework.</p>
             <span class="flip-hint">&lt;/&gt;</span></div>
@@ -415,8 +415,8 @@
 
     <div class="codepanel">
       <div class="tabs" role="tablist">
-        <button class="tab active" data-target="view-awake" aria-pressed="true">awake.chml · the default mind</button>
-        <button class="tab" data-target="view-owl" aria-pressed="false">owl.chml · same parts, another animal</button>
+        <button class="tab active" data-target="view-awake" aria-pressed="true">awake.archml · the default mind</button>
+        <button class="tab" data-target="view-owl" aria-pressed="false">owl.archml · same parts, another animal</button>
       </div>
       <div class="codeview" id="view-awake"><pre></pre></div>
       <div class="codeview" id="view-owl" style="display:none"><pre></pre></div>
@@ -569,7 +569,7 @@
 <script>
 /* ============================================================
    The hero window: replays a real, unedited session transcript
-   (June 12, 2026, qwen/qwen3.6-35b-a3b inside awake.chml) —
+   (June 12, 2026, qwen/qwen3.6-35b-a3b inside awake.archml) —
    and connects to ws://localhost:7627 if a Meditator is running.
    ============================================================ */
 const $ = id => document.getElementById(id);
@@ -698,7 +698,7 @@ function tryLive(announce){
     ws = s; mode = "live";
     streamEl.textContent = ""; caret = null; currentP = null; sayP = null;
     dot.classList.add("live");
-    title.textContent = "awake.chml — live · ws://localhost:7627";
+    title.textContent = "awake.archml — live · ws://localhost:7627";
     sub.innerHTML = "● live — this is a mind thinking on your machine, right now";
     addMeta("connected — the stream below is live");
   };
@@ -728,7 +728,7 @@ function tryLive(announce){
     if (!opened){ fail("no mind found on ws://localhost:7627"); return; }
     ws = null; mode = "replay"; connecting = false;
     dot.classList.remove("live");
-    title.textContent = "awake.chml — replay of the first session · 2026-06-12";
+    title.textContent = "awake.archml — replay of the first session · 2026-06-12";
     setSub("● connection closed — replaying. <a id='connectBtn2'>reconnect</a>");
     addMeta("(the mind went away — replay resumes)");
     queue = SCRIPT.slice(); qi = 0; replayLoop();

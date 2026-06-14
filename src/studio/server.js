@@ -42,7 +42,7 @@ const SLEEP_GRACE_MS = 60000;                        // how long a graceful slee
 const log = (...a) => console.log("[studio]", ...a);
 const slugify = s => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "mind";
 
-/** Tolerant parse of a .chml: the first <m-mind> attributes, whether it has an
+/** Tolerant parse of a .archml: the first <m-mind> attributes, whether it has an
  *  m-ws live window, and a leading <!-- … --> comment used as a description. */
 function parseArchitecture(content) {
   const mindTag = (content.match(/<m-mind\b[^>]*>/i) || [""])[0];
@@ -74,7 +74,7 @@ function homeInfo(slug) {
   return { exists, files };
 }
 
-/** The architecture catalog: every .chml under architecture/ (tests/ flagged),
+/** The architecture catalog: every .archml under architecture/ (tests/ flagged),
  *  each resolved to its mind name and memory home, with collision flags. */
 function listArchitectures() {
   const out = [];
@@ -82,7 +82,7 @@ function listArchitectures() {
     let entries = [];
     try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
     for (const e of entries) {
-      if (e.isFile() && e.name.endsWith(".chml")) {
+      if (e.isFile() && e.name.endsWith(".archml")) {
         const full = path.join(dir, e.name);
         const rel = path.relative(ARCH_DIR, full).split(path.sep).join("/");
         let meta;

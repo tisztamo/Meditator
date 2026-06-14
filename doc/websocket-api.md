@@ -49,7 +49,7 @@ Beyond the raw stream, the server sends everything the bundled dashboard needs t
 show the mind's **structure** and open each process for inspection. These messages
 are **additive** — a client that only cares about the stream can ignore them.
 
-On connect, once, the mind's component tree (the parsed `.chml`, with attributes):
+On connect, once, the mind's component tree (the parsed `.archml`, with attributes):
 
 ```json
 { "type": "structure",

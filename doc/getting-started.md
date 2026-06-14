@@ -1,6 +1,6 @@
 # Getting started
 
-Meditator runs under [Bun](https://bun.sh). A mind is one `.chml` file; running
+Meditator runs under [Bun](https://bun.sh). A mind is one `.archml` file; running
 it starts a continuous stream of thought you can watch in the terminal, speak to,
 and put to sleep.
 
@@ -24,11 +24,11 @@ bun install
 ## Run a mind
 
 ```bash
-# the default mind: architecture/awake.chml
+# the default mind: architecture/awake.archml
 bun run meditator.js
 
 # any other architecture
-bun run meditator.js -a architecture/tests/dry-fast.chml
+bun run meditator.js -a architecture/tests/dry-fast.archml
 ```
 
 The entry point is `meditator.js`, which loads `src/startup/start.js`. That reads
@@ -89,7 +89,7 @@ timeout so it can never hang).
 ## Dry run (no network, no cost)
 
 ```bash
-MEDITATOR_DRY_RUN=1 bun run meditator.js -a architecture/tests/dry-fast.chml
+MEDITATOR_DRY_RUN=1 bun run meditator.js -a architecture/tests/dry-fast.archml
 ```
 
 This runs the entire loop offline against a deterministic stub in

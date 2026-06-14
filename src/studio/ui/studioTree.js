@@ -3,7 +3,7 @@ import { esc, clock, fmt } from "./helpers.js";
 
 /**
  * studio-tree — the focused mind's component structure (id="tree", inheriting
- * the existing #tree CSS). It renders the parsed .chml as a collapsible tree and
+ * the existing #tree CSS). It renders the parsed .archml as a collapsible tree and
  * opens each process for inspection: a per-node event feed, live pulse, status
  * line, and (for m-mind) the assembled attention-frame inspector.
  *

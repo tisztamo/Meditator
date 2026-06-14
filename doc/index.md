@@ -2,7 +2,7 @@
 
 Meditator is an experiment in non-chat cognition: a continuous stream of machine
 thought that the world can only *interrupt* — never command. A mind is declared
-in a single HTML-subset file (`architecture/*.chml`), runs as a sequence of short
+in a single HTML-subset file (`architecture/*.archml`), runs as a sequence of short
 thinking **bursts**, and remembers across runs in a git-versioned memory vault.
 
 If you have not yet, start with the [README](../README.md) for the one-page
@@ -17,7 +17,7 @@ picture and the motivation. This `doc/` tree is the deeper reference.
 
 - **[Getting started](getting-started.md)** — install Bun, set a key, run a mind
   on your desk, talk to it, put it to sleep. Includes the offline dry-run.
-- **[Configuration](configuration.md)** — how to write and tune a `.chml` mind:
+- **[Configuration](configuration.md)** — how to write and tune a `.archml` mind:
   models, pace, memory budgets, observers, budget/economy, debug flags.
 
 ## How it works

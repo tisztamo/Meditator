@@ -40,8 +40,8 @@ check('caret exists', !!dom.window.document.querySelector('#stream .caret'));
 
 const doc = dom.window.document;
 const awakeCode = doc.querySelector('#view-awake pre').textContent;
-check('awake.chml rendered in code tab', awakeCode.includes('<m-mind') && awakeCode.includes('m-loop-guard'));
-check('owl.chml source present', doc.querySelector('#view-owl pre').textContent.includes('night-owl'));
+check('awake.archml rendered in code tab', awakeCode.includes('<m-mind') && awakeCode.includes('m-loop-guard'));
+check('owl.archml source present', doc.querySelector('#view-owl pre').textContent.includes('night-owl'));
 const card = doc.querySelector('.flipcard');
 const cardCode = card.querySelector('.card-back pre').textContent;
 check('card back carries code', cardCode.includes('<m-'));

@@ -1,6 +1,6 @@
 # Meditator Tools Architecture Examples
 
-This directory contains CHML (Component HTML) configuration examples for using the tools system in the Meditator architecture.
+This directory contains architecture markup language (`.archml`) configuration examples for using the tools system in the Meditator architecture.
 
 ## Overview
 
@@ -11,15 +11,15 @@ The tools system in Meditator allows the AI agent to execute operations in the h
 
 ## Examples
 
-### Basic Configuration (`tools-basic.chml`)
+### Basic Configuration (`tools-basic.archml`)
 
 A simple example showing how to set up a basic tools system with a shell command executor. This is the minimum configuration needed to give an agent shell access.
 
-### Advanced Configuration (`tools-advanced.chml`)
+### Advanced Configuration (`tools-advanced.archml`)
 
 A more sophisticated setup with custom tool prefix, specific shell configuration, and integration with WebSocket and token monitoring components.
 
-### Integration Example (`tools-integration.chml`)
+### Integration Example (`tools-integration.archml`)
 
 Demonstrates how tools integrate with other Meditator components like knowledge bases, token monitors, and interrupt systems to create a complete research assistant agent.
 
@@ -27,7 +27,7 @@ Demonstrates how tools integrate with other Meditator components like knowledge 
 
 To use these configurations:
 
-1. Copy the desired CHML example to your project
+1. Copy the desired `.archml` example to your project
 2. Adjust parameters as needed (working directories, timeout values, etc.)
 3. Include in your Meditator setup
 

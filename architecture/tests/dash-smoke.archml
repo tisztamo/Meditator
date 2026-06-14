@@ -1,6 +1,6 @@
 <!-- Fast smoke mind for the dashboard + speaking voice over websocket.
      Run dry and probe it:
-       MEDITATOR_DRY_RUN=1 bun run meditator.js -a architecture/tests/dash-smoke.chml
+       MEDITATOR_DRY_RUN=1 bun run meditator.js -a architecture/tests/dash-smoke.archml
        bun architecture/tests/dash-probe.js
      persist/journal are OFF so it touches no memory vault. Not for live models. -->
 <m-mind name="dash-smoke" pace="1.5s" paceSigma="0.3s" tailLength="600"

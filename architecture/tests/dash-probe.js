@@ -1,6 +1,6 @@
 // Probes a running Meditator's websocket for the dashboard protocol:
 // structure, per-process events, the thinking stream, and the speaking voice.
-//   (start a mind with m-ws on :7627, ideally dash-smoke.chml under DRY_RUN, then)
+//   (start a mind with m-ws on :7627, ideally dash-smoke.archml under DRY_RUN, then)
 //   bun architecture/tests/dash-probe.js
 // Exits 0 if the essentials were observed, 1 otherwise.
 import WebSocket from "ws";

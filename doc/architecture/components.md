@@ -3,7 +3,7 @@
 Every component is a custom element loaded from `src/mindComponents/`, built on
 [Amanita](https://www.npmjs.com/package/amanita). This page lists each one's
 attributes (with defaults), the pub/sub topics it speaks, and the DOM events it
-raises. The components wired into the default mind (`architecture/awake.chml`)
+raises. The components wired into the default mind (`architecture/awake.archml`)
 come first; [legacy and demo components](#legacy-and-demo-components) are at the end.
 
 ## Conventions
@@ -284,8 +284,8 @@ Not components, but the pieces components lean on (`src/infrastructure/`,
 
 ## Legacy and demo components
 
-These exist for older example architectures (`architecture/tools-*.chml`,
-`token-monitor.chml`, `compress-test.chml`) and are **not** part of the default
+These exist for older example architectures (`architecture/tools-*.archml`,
+`token-monitor.archml`, `compress-test.archml`) and are **not** part of the default
 mind. Tools and shell execution are explicitly deprioritized in the current
 direction — the focus is the stream, attention, memory, and observers, not an
 agent that calls tools.
@@ -300,6 +300,6 @@ agent that calls tools.
 | `m-stream-generator` | synthetic chunk generator for tests | demo only |
 | `m-planner` | empty placeholder | not implemented |
 
-> Many other `m-*` tags appear in old demo `.chml` files (e.g. `m-calculator`,
+> Many other `m-*` tags appear in old demo `.archml` files (e.g. `m-calculator`,
 > `m-filesystem`, `m-websearch`) but have **no implementation** and will not load.
 > Treat the demo architectures as historical sketches, not working minds.

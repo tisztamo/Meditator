@@ -3,7 +3,7 @@
 Meditator is a small, readable codebase: plain modern **JavaScript** (ES modules),
 run with **Bun**, wired together by [Amanita](https://www.npmjs.com/package/amanita)
 custom elements. There is no TypeScript, no build step, no bundler. The whole
-mind is declarative — a `.chml` file — and each component is meant to be readable
+mind is declarative — a `.archml` file — and each component is meant to be readable
 in a few minutes.
 
 ## Setup
@@ -18,7 +18,7 @@ Develop against the **offline dry run** so you never spend money or wait on the
 network while iterating:
 
 ```bash
-MEDITATOR_DRY_RUN=1 bun run meditator.js -a architecture/tests/dry-fast.chml --debug
+MEDITATOR_DRY_RUN=1 bun run meditator.js -a architecture/tests/dry-fast.archml --debug
 ```
 
 The stub in `src/modelAccess/llm.js` answers deterministically and routes
@@ -49,7 +49,7 @@ dry-run memory to `memory/dry-*/`, so it can never disturb a real mind.
    }
    ```
 
-2. Use it in a `.chml` mind as `<m-your-thing>`. The loader maps the kebab-case
+2. Use it in a `.archml` mind as `<m-your-thing>`. The loader maps the kebab-case
    tag to the camelCase module file automatically
    (`m-your-thing` → `mYourThing.js`), so no manual registration is needed.
 
@@ -83,8 +83,8 @@ To **raise an interrupt**, dispatch a bubbling `interrupt-request` carrying an
 
 ## Tests
 
-Ad-hoc and component tests live in `architecture/tests/` — small `.chml` minds
-(e.g. `dry-fast.chml`, `compress-test.chml`, `live-scribe.chml`) and scripts
+Ad-hoc and component tests live in `architecture/tests/` — small `.archml` minds
+(e.g. `dry-fast.archml`, `compress-test.archml`, `live-scribe.archml`) and scripts
 (`poke-ws.js`, `test-loopguard.js`, `test-scribe-prompt.js`). Run them with Bun,
 under `MEDITATOR_DRY_RUN=1` where they don't need a real model.
 

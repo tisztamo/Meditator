@@ -2,7 +2,7 @@
 
 **Meditator** is an AI agent that emits a continual flow of thoughts. It is not a chat loop: there are no turns, no prompts waiting for a user. A mind is declared in an HTML file, runs as a stream of consciousness, and the world — a person speaking over websocket or console, a timer, an internal observer noticing something — reaches it only as *interruptions* that redirect the stream.
 
-The mind is programmed in **chml** (chatbot markup language, a subset of HTML) and executed by standard components built on [Amanita](https://www.npmjs.com/package/amanita), a declarative web-component framework with pub/sub wiring. Amanita runs on the server and in the browser; Meditator currently runs under [Bun](https://bun.sh).
+The mind is programmed in **archml** (architecture markup language, a subset of HTML) and executed by standard components built on [Amanita](https://www.npmjs.com/package/amanita), a declarative web-component framework with pub/sub wiring. Amanita runs on the server and in the browser; Meditator currently runs under [Bun](https://bun.sh).
 
 ## How it thinks
 
@@ -41,8 +41,8 @@ Because the tail is always carried forward verbatim, the thought survives every 
 ```bash
 bun install
 # needs OPENROUTER_API_KEY in the environment
-bun run meditator.js                       # default mind: architecture/awake.chml
-bun run meditator.js -a architecture/tests/dry-fast.chml   # any other architecture
+bun run meditator.js                       # default mind: architecture/awake.archml
+bun run meditator.js -a architecture/tests/dry-fast.archml   # any other architecture
 ```
 
 - Type a line into the terminal and press Enter — it arrives as an urgent stimulus. `/sleep` (or a single Ctrl-C) puts the mind to sleep gracefully: it gets a final moment to close the thought, then memory is flushed and committed.
@@ -52,7 +52,7 @@ bun run meditator.js -a architecture/tests/dry-fast.chml   # any other architect
 
 ### Models
 
-Roles, not one model (set in the chml):
+Roles, not one model (set in the archml):
 - stream voice: `qwen/qwen3.6-35b-a3b` ($0.15/M in, $1/M out)
 - utility (bridge/compression/observers): `qwen/qwen3.5-9b` ($0.10/M in, $0.15/M out)
 
@@ -60,17 +60,17 @@ A model id prefixed `local/` routes to an OpenAI-compatible server at `LOCAL_LLM
 
 ### Architectures
 
-- `architecture/awake.chml` — the canonical living mind (default)
-- `architecture/tests/dry-fast.chml` — fast-cycle test mind for dry runs
-- `architecture/tests/compress-test.chml` — offline compression harness
-- `architecture/meditator.chml`, `survivor.chml`, `cat.chml`, `complex.chml`, `tools-*.chml` — earlier sketches and capability demos, kept for history
+- `architecture/awake.archml` — the canonical living mind (default)
+- `architecture/tests/dry-fast.archml` — fast-cycle test mind for dry runs
+- `architecture/tests/compress-test.archml` — offline compression harness
+- `architecture/meditator.archml`, `survivor.archml`, `cat.archml`, `complex.archml`, `tools-*.archml` — earlier sketches and capability demos, kept for history
 
 ## Documentation
 
 This README is the overview; [`doc/`](doc/index.md) is the deeper reference:
 
 - [Getting started](doc/getting-started.md) — install, run, talk to it, dry run
-- [Configuration](doc/configuration.md) — write and tune a `.chml` mind
+- [Configuration](doc/configuration.md) — write and tune a `.archml` mind
 - [Architecture](doc/architecture/index.md) — bursts, the attention frame, the loop — and [memory & the vault](doc/architecture/memory.md), [interrupts & observers](doc/architecture/interrupts.md), the [component reference](doc/architecture/components.md)
 - [WebSocket API](doc/websocket-api.md) — the live stream protocol on port 7627
 

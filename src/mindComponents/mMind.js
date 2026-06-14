@@ -11,7 +11,7 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
  * The orchestrator. Owns the rhythm of thinking and the ATTENTION FRAME — the
  * assembled prompt of every burst:
  *
- *   [identity]   standing self-description: the mind's own text in the .chml file
+ *   [identity]   standing self-description: the mind's own text in the .archml file
  *   [story]      slow compressed autobiography            (from m-memory)
  *   [recently]   faster rolling summary                   (from m-memory)
  *   [stimulus]   what just happened, if anything          (from the m-interrupts arbiter)

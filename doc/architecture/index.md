@@ -5,7 +5,7 @@ A **mind** thinks in a continuous stream that the world can only *interrupt* —
 and the whole organization of the system exists to make that stream coherent,
 bounded, and persistent.
 
-A mind is declared in an HTML-subset file (`architecture/*.chml`) and executed by
+A mind is declared in an HTML-subset file (`architecture/*.archml`) and executed by
 standard components built on [Amanita](https://www.npmjs.com/package/amanita), a
 declarative web-component framework with pub/sub wiring that runs on the server
 under Bun. Each component is a custom element (`<m-stream>`, `<m-memory>`, …)
@@ -138,7 +138,7 @@ start with `@`), which is why you see handlers like `"stream/boundary"` and
 
 ## The component map
 
-The default mind (`architecture/awake.chml`) wires:
+The default mind (`architecture/awake.archml`) wires:
 
 | Component | Role |
 |-----------|------|

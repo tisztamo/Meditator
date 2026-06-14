@@ -1,7 +1,7 @@
 # Configuration
 
-A mind is configured by **writing its `.chml` file** — there is no separate
-config format. A `.chml` ("chatbot markup language") file is a small subset of
+A mind is configured by **writing its `.archml` file** — there is no separate
+config format. A `.archml` ("architecture markup language") file is a small subset of
 HTML: a root `<m-mind>` element whose text is the mind's standing self-image, and
 whose children are the components that give it a voice, memory, attention, and
 senses. Attributes on those elements are the knobs.
@@ -38,7 +38,7 @@ every attribute on every component, see the [component reference](architecture/c
 </m-mind>
 ```
 
-`architecture/awake.chml` is the default mind and the best worked example. Copy
+`architecture/awake.archml` is the default mind and the best worked example. Copy
 it and edit.
 
 ## Identity — the text of `<m-mind>`
@@ -147,7 +147,7 @@ mind as the budget drains: fresh → tiring → tired → exhausted → resting,
 band multiplying the pace (×1, ×2, ×4, ×10, ×30). The mind never dies — the
 watchdog keeps it ticking even when resting.
 
-> **Overnight recipe:** `awake.chml` with `budget="3.00"` lasts a full night at
+> **Overnight recipe:** `awake.archml` with `budget="3.00"` lasts a full night at
 > the default pace; the economy throttles toward sleep as the budget drains, and
 > the watchdog keeps it alive.
 
@@ -166,7 +166,7 @@ operations per run; `dir` overrides the location. See
 ## Debugging a configuration
 
 ```bash
-bun run meditator.js -a architecture/yourmind.chml --debug=mMind.js
+bun run meditator.js -a architecture/yourmind.archml --debug=mMind.js
 ```
 
 Per-source debug logs are the fastest way to see whether your knobs do what you
