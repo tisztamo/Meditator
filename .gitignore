@@ -10,6 +10,7 @@ node_modules
 interrupt-state/
 state/
 journal/
+*.log
 
 # the memory vault is its own git repository (see COVENANT.md)
 memory/
