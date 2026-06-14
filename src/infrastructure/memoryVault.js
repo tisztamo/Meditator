@@ -108,8 +108,13 @@ export function commitVault(message) {
             log.debug(`vault commit: ${message}`);
         } catch (error) {
             const out = `${error.stdout || ''}${error.stderr || ''}`;
-            if (!/nothing to commit|nothing added/.test(out)) {
-                log.warn(`Vault commit failed: ${(error.stderr || error.message || '').trim()}`);
+            if (/nothing to commit|nothing added/.test(out)) return; // not a failure
+            const detail = (out || error.message || '').trim();
+            log.warn(`Vault commit failed (git exit ${error.code ?? '?'}): ${detail}`);
+            // A killed previous run can leave .git/index.lock behind; every later
+            // commit then fails until it is removed. Call it out explicitly.
+            if (/index\.lock|unable to create.*lock|another git process/i.test(detail)) {
+                log.warn(`  → looks like a stale lock from a previous run. Remove ./${VAULT_ROOT}/.git/index.lock and it will commit again.`);
             }
         }
     });

@@ -47,6 +47,21 @@ function addUsage(usage) {
   if (typeof usage.cost === 'number') totals.cost += usage.cost;
 }
 
+// Extracts a readable detail string from an OpenAI-SDK / fetch error: HTTP
+// status, the provider's error body, and the message. The bare error.message
+// (e.g. "401 Missing Authentication header") often hides the real payload that
+// a proxy like LiteLLM returns, which is what we actually need when debugging.
+function errorDetail(error) {
+  const status = error?.status ?? error?.code;
+  let body = '';
+  try {
+    if (error?.error) body = JSON.stringify(error.error);
+    else if (error?.response?.data) body = JSON.stringify(error.response.data);
+  } catch { /* unserialisable — skip */ }
+  return [status != null ? `status=${status}` : '', error?.message || '', body && `body=${body}`]
+    .filter(Boolean).join(' ');
+}
+
 export function isDryRun() {
   return process.env.MEDITATOR_DRY_RUN === '1' || process.env.MEDITATOR_DRY_RUN === 'true';
 }
@@ -57,14 +72,22 @@ function resolveProvider(model) {
   if (model && model.startsWith('local/')) {
     const baseURL = process.env.LOCAL_LLM_BASE_URL;
     if (!baseURL) throw new Error(`Model "${model}" needs LOCAL_LLM_BASE_URL to be set`);
+    // Reasoning models (Qwen3 etc.) otherwise spend the whole burst budget on
+    // hidden reasoning_content and return finish=length with no visible text —
+    // the mind then has nothing to think. Suppress thinking by default; set
+    // LOCAL_LLM_THINKING=1 to allow it. vLLM reads chat_template_kwargs.enable_thinking
+    // (an unknown key is harmlessly ignored by a template that doesn't use it).
+    const allowThinking = /^(1|true)$/i.test(process.env.LOCAL_LLM_THINKING || '');
+    const noThink = allowThinking ? {} : { chat_template_kwargs: { enable_thinking: false } };
     return {
       key: 'local',
       baseURL,
       apiKey: process.env.LOCAL_LLM_API_KEY || 'none',
       model: model.slice('local/'.length),
-      // vLLM-style usage reporting for streams
-      streamExtra: { stream_options: { include_usage: true } },
-      extra: {},
+      thinking: allowThinking,
+      // vLLM-style usage reporting for streams; reasoning suppressed unless opted in
+      streamExtra: { stream_options: { include_usage: true }, ...noThink },
+      extra: { ...noThink },
     };
   }
   return {
@@ -83,13 +106,28 @@ function resolveProvider(model) {
 function clientFor(provider) {
   let client = clients.get(provider.key);
   if (!client) {
+    // One-time, always-visible line per provider: which endpoint we talk to and
+    // whether auth is actually configured (the placeholder 'none' is the usual
+    // cause of a 401 from a local proxy).
+    if (provider.key === 'local') {
+      log.info(`local provider initialised: baseURL=${provider.baseURL}, default model="${provider.model}", `
+        + `${process.env.LOCAL_LLM_API_KEY ? 'LOCAL_LLM_API_KEY set' : "no LOCAL_LLM_API_KEY — sending placeholder 'none'"}`
+        + `, thinking ${provider.thinking ? 'ENABLED (LOCAL_LLM_THINKING=1)' : 'disabled (chat_template_kwargs.enable_thinking=false)'}`
+        + `, keep-alive off (Connection: close)`);
+    } else {
+      log.info(`openrouter provider initialised${process.env.OPENROUTER_API_KEY ? '' : ' (WARNING: no OPENROUTER_API_KEY set)'}`);
+    }
     client = new OpenAI({
       baseURL: provider.baseURL,
       apiKey: provider.apiKey,
       dangerouslyAllowBrowser: true,
+      // Local: force a fresh connection per request. A keep-alive socket left
+      // over from a completed stream (or the interleaved utility call) hangs the
+      // next stream's open under Bun — the "every other open times out" symptom.
+      // OpenRouter is fine over HTTPS keep-alive.
       defaultHeaders: provider.key === 'openrouter'
         ? { 'HTTP-Referer': 'https://github.com/meditator', 'X-Title': 'Meditator' }
-        : undefined,
+        : { 'Connection': 'close' },
     });
     clients.set(provider.key, client);
   }
@@ -154,6 +192,7 @@ export async function complete(opts) {
     temperature: opts.temperature ?? 0.3,
     ...provider.extra,
   };
+  log.debug(`complete → ${provider.key} model="${provider.model}" maxTokens=${request.max_tokens} temp=${request.temperature}`);
 
   let lastError = null;
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -161,13 +200,28 @@ export async function complete(opts) {
       return await withSlot(async () => {
         const response = await client.chat.completions.create(request);
         addUsage(response.usage);
-        return { text: response.choices[0]?.message?.content || '', usage: response.usage || null };
+        const choice = response.choices?.[0];
+        const text = choice?.message?.content || '';
+        const finish = choice?.finish_reason;
+        log.debug(`complete ← ${text.length} chars, finish=${finish}, usage=${response.usage ? JSON.stringify(response.usage) : 'none'}`);
+        // A 200 with empty content is the silent failure mode for local models:
+        // the text usually went to message.reasoning_content instead.
+        if (!text) {
+          const reasoning = choice?.message?.reasoning_content || choice?.message?.reasoning;
+          log.warn(`complete returned EMPTY text (${provider.key} model="${provider.model}", finish=${finish}) — `
+            + (reasoning ? `output went to reasoning_content (${reasoning.length} chars); disable reasoning for this model.`
+                         : 'the model returned no content at all.'));
+        }
+        return { text, usage: response.usage || null };
       });
     } catch (error) {
       lastError = error;
       const status = error?.status;
-      if (status && status !== 429 && status < 500) break; // no point retrying 4xx (except 429)
-      log.warn(`completion attempt ${attempt + 1} failed (${status || error.message}), retrying`);
+      if (status && status !== 429 && status < 500) {
+        log.warn(`completion failed (${provider.key} model="${provider.model}"): ${errorDetail(error)} — not retrying (4xx)`);
+        break; // no point retrying 4xx (except 429)
+      }
+      log.warn(`completion attempt ${attempt + 1} failed: ${errorDetail(error)}, retrying`);
       await delay(750 * Math.pow(3, attempt));
     }
   }
@@ -189,37 +243,107 @@ export async function chatStream(opts) {
 
   const provider = resolveProvider(model);
   const client = clientFor(provider);
-  const stream = await client.chat.completions.create({
+  const request = {
     model: provider.model,
     messages: asMessages(opts),
     max_tokens: opts.maxTokens || 350,
     temperature: opts.temperature ?? 0.9,
     stream: true,
     ...provider.streamExtra,
-  });
+  };
+  log.debug(`stream → ${provider.key} model="${provider.model}" maxTokens=${request.max_tokens} temp=${request.temperature}`);
+
+  // If the endpoint opens a 200 stream then stops sending tokens mid-burst, a
+  // hung stream would freeze the entire loop: m-mind only schedules the next
+  // burst when one ends with a boundary, so no boundary → no reschedule, and
+  // the mind goes silent until an interrupt revives it. Abort after this much
+  // inactivity so the burst fails cleanly and m-mind reschedules. 0 disables.
+  const stallMs = Number(process.env.LLM_STREAM_STALL_MS ?? 30000);
+  // One controller drives the whole burst: the open-phase timeout here, the
+  // mid-stream inactivity watchdog below, and an explicit burst.abort() all
+  // trip it. The open timeout matters most — m-mind cannot supersede a burst
+  // whose open() is hung (the abortable handle is only set once open returns),
+  // so without it a single stalled open freezes the idle loop entirely.
+  const controller = new AbortController();
+
+  let stream, openTimedOut = false;
+  const openTimer = stallMs ? setTimeout(() => { openTimedOut = true; controller.abort(); }, stallMs) : null;
+  try {
+    stream = await client.chat.completions.create(request, { signal: controller.signal });
+  } catch (error) {
+    totals.errors += 1;
+    if (openTimedOut) {
+      log.warn(`stream OPEN timed out after ${stallMs}ms (${provider.key} model="${provider.model}") — request accepted but no response began. Aborted so the mind reschedules instead of freezing.`);
+      throw new Error(`stream open timed out after ${stallMs}ms`);
+    }
+    log.warn(`stream open failed (${provider.key} model="${provider.model}"): ${errorDetail(error)}`);
+    throw error;
+  } finally {
+    if (openTimer) clearTimeout(openTimer);
+  }
+  log.debug(`stream opened (${provider.key} model="${provider.model}") — awaiting first token`);
 
   const burst = {
     usage: null,
     aborted: false,
     abort() {
       this.aborted = true;
-      try { stream.controller.abort(); } catch { /* already closed */ }
+      try { controller.abort(); } catch { /* already closed */ }
     },
     async *[Symbol.asyncIterator]() {
+      // Per-stream counters so we can see whether a 200 stream actually produced
+      // anything thinkable, and where the text went if it didn't.
+      let chunks = 0, contentChars = 0, reasoningChars = 0, finish = null;
+      // Inactivity watchdog: aborts the stream if no chunk arrives within stallMs.
+      // Re-armed on every chunk, so it measures silence, not total duration.
+      let stalled = false, watchdog = null;
+      const armWatchdog = () => {
+        if (!stallMs) return;
+        if (watchdog) clearTimeout(watchdog);
+        watchdog = setTimeout(() => {
+          stalled = true;
+          try { controller.abort(); } catch { /* already closed */ }
+        }, stallMs);
+      };
       try {
+        armWatchdog();
         for await (const chunk of stream) {
+          armWatchdog();
+          chunks += 1;
           if (chunk.usage) burst.usage = chunk.usage;
-          const content = chunk.choices?.[0]?.delta?.content;
-          if (content) yield content;
+          const choice = chunk.choices?.[0];
+          if (choice?.finish_reason) finish = choice.finish_reason;
+          const reasoning = choice?.delta?.reasoning_content ?? choice?.delta?.reasoning;
+          if (reasoning) reasoningChars += reasoning.length;
+          const content = choice?.delta?.content;
+          if (content) { contentChars += content.length; yield content; }
         }
       } catch (error) {
+        // A stall-abort masquerades as an AbortError, so check stalled first.
+        if (stalled) {
+          totals.errors += 1;
+          log.warn(`stream STALLED — no token for ${stallMs}ms (${provider.key} model="${provider.model}", ${chunks} chunks, ${contentChars} content chars). Aborted so the mind can reschedule instead of freezing.`);
+          throw new Error(`stream stalled: no token for ${stallMs}ms`);
+        }
         if (burst.aborted || error?.name === 'AbortError' || error?.name === 'APIUserAbortError') {
+          log.debug(`stream aborted after ${chunks} chunks, ${contentChars} content chars`);
           return; // cancelled on purpose — end quietly
         }
         totals.errors += 1;
+        log.warn(`stream error after ${chunks} chunks, ${contentChars} content chars (${provider.key} model="${provider.model}"): ${errorDetail(error)}`);
         throw error;
       } finally {
+        if (watchdog) clearTimeout(watchdog);
         addUsage(burst.usage);
+      }
+      log.debug(`stream done: ${chunks} chunks, ${contentChars} content chars, ${reasoningChars} reasoning chars, finish=${finish}, usage=${burst.usage ? JSON.stringify(burst.usage) : 'none'}`);
+      // The silent failure that makes the mind "do nothing": a clean 200 stream
+      // that yields no visible content. Always warn — this is never normal.
+      if (contentChars === 0 && !burst.aborted) {
+        log.warn(`stream produced 0 visible content (${provider.key} model="${provider.model}", ${chunks} chunks, finish=${finish}) — the mind had nothing to think. `
+          + (reasoningChars > 0
+              ? `Output arrived as reasoning_content (${reasoningChars} chars): disable reasoning for this model, or have the stream surface reasoning.`
+              : `The model streamed an empty completion${chunks <= 1 ? ' (and ~no chunks — the server may not be streaming this model)' : ''}.`));
       }
     },
   };
