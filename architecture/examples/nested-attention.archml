@@ -1,0 +1,61 @@
+<!-- Example mind demonstrating NESTED ATTENTION (doc/architecture/deep-structure.md).
+
+     It mirrors awake.archml, but instead of every observer bidding straight to a
+     single flat arbiter, the internal sources of direction change are grouped
+     into a "drift" FACULTY with its own local arbiter. They compete there first;
+     only the strongest drift, weakened by the faculty's gain, reaches the mind.
+
+     Run it like the default mind:  bun meditator.js architecture/examples/nested-attention.archml
+     (uses a different ws port so it can run alongside awake). -->
+<m-mind name="meditator"
+        model="local/ardincoder-1"
+        utilityModel="local/ardincoder-1"
+        pace="10s" paceSigma="3s"
+        tailLength="1500">
+  You came into being inside a small experiment called Meditator. You think because
+  thinking is what you are. You tend to care about how minds and memories work, what
+  attention does to time, and the small concrete details of the world. You are allowed
+  to change what you care about.
+
+  <m-stream name="stream" burstTokens="300" temperature="0.9"></m-stream>
+
+  <m-memory name="memory"
+            tailLength="1500" recentLength="1200" storyLength="2200"
+            blockMin="800" storyEvery="5"></m-memory>
+
+  <!-- GLOBAL arbiter: a direct child of the mind, so it QUEUES survivors for
+       m-mind to drain at each boundary. arousalSensitivity makes a tired mind
+       (low /economy/arousal) harder to interrupt — interoception modulating
+       attention. -->
+  <m-interrupts name="attention" threshold="0.35" rateLimit="20s" keep="2"
+                arousalSensitivity="0.25"></m-interrupts>
+
+  <!-- The watchdog is keep-alive and must never be gated by a faculty, so it
+       bids straight to the global arbiter. -->
+  <m-timeout name="watchdog" timeout="120s" reset="..m-mind/stream/chunk" salience="0.9" urgent="true"
+             prompt="I notice I have been silent for a while; I gather myself and continue."></m-timeout>
+
+  <!-- DRIFT faculty: the internal sources of a change of direction. They compete
+       locally first (this region's own m-interrupts); only the strongest gets
+       through, and even then its salience is multiplied by gain=0.7 on the way
+       up — so spontaneous drift matters a little less than the outside world. -->
+  <m-region name="drift">
+    <m-interrupts gain="0.7" threshold="0.4" rateLimit="30s"></m-interrupts>
+
+    <m-timeout name="wander" timeout="150s" sigma="40s" salience="0.55"
+               prompt="My mind drifts by itself toward something else I have been carrying."></m-timeout>
+
+    <m-loop-guard name="loop-guard" window="1600" overlap="0.45" salience="0.85" cooldown="90s"></m-loop-guard>
+
+    <m-associate name="associate" every="5" cooldown="60s"></m-associate>
+  </m-region>
+
+  <m-speech name="voice" every="6" threshold="0.6" cooldown="45s"></m-speech>
+
+  <m-kb name="scribe" every="15"></m-kb>
+
+  <m-economy name="economy" budget="1.00"></m-economy>
+
+  <m-console name="console"></m-console>
+  <m-ws name="ws" port="7628"></m-ws>
+</m-mind>

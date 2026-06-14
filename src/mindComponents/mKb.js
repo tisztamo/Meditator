@@ -27,7 +27,7 @@ export class MKb extends MBaseComponent {
     _busy = false
 
     onConnect() {
-        this.sub(this.attr("boundarySrc") || "/stream/boundary", this._onBoundary)
+        this.sub(this.attr("boundarySrc") || "..m-mind/stream/boundary", this._onBoundary)
     }
 
     _onBoundary = async boundary => {

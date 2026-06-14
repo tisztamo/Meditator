@@ -31,7 +31,8 @@ const log = logger('mMemory.js');
  *   - persist (default "state"): directory for memory.md; "off" disables
  *   - journal (default "journal"): directory for session journals; "off" disables
  *   - model: compression model (defaults to ancestor utilityModel, then utility default)
- *   - src (default "/stream/chunk"), boundarySrc (default "/stream/boundary")
+ *   - src (default "..m-mind/stream/chunk"), boundarySrc (default "..m-mind/stream/boundary"):
+ *     mind-relative so memory binds to its own mind's stream (see m-observer).
  */
 export class MMemory extends MBaseComponent {
     tail = ""
@@ -55,8 +56,8 @@ export class MMemory extends MBaseComponent {
         this.blockMin = Number(this.attr("blockMin") || 800)
         this.storyEvery = Number(this.attr("storyEvery") || 5)
 
-        this.sub(this.attr("src") || "/stream/chunk", this._onChunk)
-        this.sub(this.attr("boundarySrc") || "/stream/boundary", this._onBoundary)
+        this.sub(this.attr("src") || "..m-mind/stream/chunk", this._onChunk)
+        this.sub(this.attr("boundarySrc") || "..m-mind/stream/boundary", this._onBoundary)
 
         const dir = this._persistDir()
         this._vaulted = !!dir && inVault(dir)

@@ -18,17 +18,32 @@
   <!-- memory persists to the git-versioned vault: memory/meditator/ -->
 
 
-  <m-interrupts name="attention" threshold="0.35" rateLimit="20s" keep="2"></m-interrupts>
+  <!-- GLOBAL arbiter: a direct child of the mind, so it QUEUES survivors for
+       m-mind to drain each boundary. arousalSensitivity makes a tired mind
+       (low /economy/arousal) harder to interrupt. -->
+  <m-interrupts name="attention" threshold="0.35" rateLimit="20s" keep="2"
+                arousalSensitivity="0.25"></m-interrupts>
 
-  <m-timeout name="wander" timeout="150s" sigma="40s" salience="0.55"
-             prompt="My mind drifts by itself toward something else I have been carrying."></m-timeout>
-
-  <m-timeout name="watchdog" timeout="120s" reset="/stream/chunk" salience="0.9" urgent="true"
+  <!-- The watchdog is keep-alive and must never be gated by a faculty, so it
+       bids straight to the global arbiter. -->
+  <m-timeout name="watchdog" timeout="120s" reset="..m-mind/stream/chunk" salience="0.9" urgent="true"
              prompt="I notice I have been silent for a while; I gather myself and continue."></m-timeout>
 
-  <m-loop-guard name="loop-guard" window="1600" overlap="0.45" salience="0.85" cooldown="90s"></m-loop-guard>
+  <!-- DRIFT faculty: the internal sources of a change of direction compete here
+       first (this region's own m-interrupts); only the strongest gets through,
+       and its salience is multiplied by gain=0.7 on the way up — so spontaneous
+       drift weighs a little less than the world outside. See
+       doc/architecture/deep-structure.md → "Nested attention". -->
+  <m-region name="drift">
+    <m-interrupts gain="0.7" threshold="0.4" rateLimit="30s"></m-interrupts>
 
-  <m-associate name="associate" every="5" cooldown="60s"></m-associate>
+    <m-timeout name="wander" timeout="150s" sigma="40s" salience="0.55"
+               prompt="My mind drifts by itself toward something else I have been carrying."></m-timeout>
+
+    <m-loop-guard name="loop-guard" window="1600" overlap="0.45" salience="0.85" cooldown="90s"></m-loop-guard>
+
+    <m-associate name="associate" every="5" cooldown="60s"></m-associate>
+  </m-region>
 
   <!-- the speaking voice: occasionally gives a thought outward voice, streamed in
        parallel with (thinned) thinking; being addressed raises the urge to speak

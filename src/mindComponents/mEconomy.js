@@ -17,15 +17,23 @@ const log = logger('mEconomy.js');
  *   - estInPrice / estOutPrice: USD per million tokens used only when the
  *     provider does not report cost (defaults 0.15 / 1.00)
  *
- * Topics published: "energy" (0..1), "spent" (USD)
+ * Topics published:
+ *   - "energy" (0..1) — budget head-room, the metabolic reading
+ *   - "spent" (USD)
+ *   - "arousal" (0..1) — the mind's standing READINESS, published as a retained
+ *     value other faculties can subscribe to and modulate themselves by (e.g. a
+ *     tired mind raises its interrupt threshold). It currently tracks energy;
+ *     it is the seam where future interoceptive signals (novelty, recent load)
+ *     will combine. See doc/architecture/deep-structure.md → "A state bus".
  */
 export class MEconomy extends MBaseComponent {
     energy = 1
     spent = 0
+    arousal = 1
     _boundaries = 0
 
     onConnect() {
-        this.sub(this.attr("boundarySrc") || "/stream/boundary", this._onBoundary)
+        this.sub(this.attr("boundarySrc") || "..m-mind/stream/boundary", this._onBoundary)
     }
 
     _onBoundary = () => {
@@ -39,8 +47,10 @@ export class MEconomy extends MBaseComponent {
         const crossed = this._band(newEnergy) !== this._band(this.energy)
         this.energy = newEnergy
 
+        this.arousal = this.energy
         this.pub("energy", this.energy)
         this.pub("spent", this.spent)
+        this.pub("arousal", this.arousal)
 
         this._boundaries += 1
         if (this._boundaries % 10 === 0 || crossed) {

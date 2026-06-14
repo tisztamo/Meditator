@@ -10,9 +10,15 @@ const log = logger('mObserver.js');
  * consciousness and occasionally bid for attention by raising salience-scored
  * interrupt requests. Subclasses override onStreamChunk() and/or onBoundary().
  *
+ * The default stream source is MIND-RELATIVE ("..m-mind/stream/chunk"), not the
+ * global "/stream/chunk". In a flat mind these resolve to the same element, but
+ * the relative form binds to *this* observer's enclosing mind — so an observer
+ * keeps working when it lives inside an m-region, or inside a nested submind,
+ * without grabbing some other mind's stream. (See doc/architecture/deep-structure.md.)
+ *
  * @interface
  * Attributes:
- *   - src (default "/stream/chunk"), boundarySrc (default "/stream/boundary")
+ *   - src (default "..m-mind/stream/chunk"), boundarySrc (default "..m-mind/stream/boundary")
  *   - window: chars of stream kept in this.window (default 1600)
  *   - cooldown: minimum time between two raises by this observer (default "60s")
  *   - salience: default salience for raise() (default 0.6)
@@ -23,11 +29,11 @@ export class MObserver extends MBaseComponent {
 
     onConnect() {
         this.windowSize = Number(this.attr("window") || 1600)
-        this.sub(this.attr("src") || "/stream/chunk", chunk => {
+        this.sub(this.attr("src") || "..m-mind/stream/chunk", chunk => {
             this.window = (this.window + chunk).slice(-this.windowSize)
             this.onStreamChunk(chunk)
         })
-        this.sub(this.attr("boundarySrc") || "/stream/boundary", boundary => this.onBoundary(boundary))
+        this.sub(this.attr("boundarySrc") || "..m-mind/stream/boundary", boundary => this.onBoundary(boundary))
         this.onObserverConnect()
     }
 

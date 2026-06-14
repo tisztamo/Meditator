@@ -176,11 +176,21 @@ export class MMind extends MBaseComponent {
         return parseFloat(match[1]) * factor
     }
 
+    /** The mind's GLOBAL attention arbiter: the m-interrupts not enclosed in an
+     *  m-region. Faculty-local arbiters live inside regions and promote their
+     *  survivors up to this one, which is the only queue m-mind drains. */
+    _arbiter() {
+        for (const candidate of this.querySelectorAll('m-interrupts')) {
+            if (!candidate.closest('m-region')) return candidate
+        }
+        return this.querySelector('m-interrupts')
+    }
+
     async continueThinking() {
         if (this._sleeping) return
         if (this._timer) { clearTimeout(this._timer); this._timer = null }
 
-        const arbiter = this.querySelector('m-interrupts')
+        const arbiter = this._arbiter()
         const memory = this.querySelector('m-memory')
 
         const stimuli = arbiter?.takePending ? arbiter.takePending() : []
