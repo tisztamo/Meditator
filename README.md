@@ -41,8 +41,8 @@ Because the tail is always carried forward verbatim, the thought survives every 
 ```bash
 bun install
 # needs OPENROUTER_API_KEY in the environment
-bun run meditator.js                       # default mind: architecture/awake.archml
-bun run meditator.js -a architecture/tests/dry-fast.archml   # any other architecture
+bun run meditator.js -a architecture/seedling.archml         # choose a mind to run
+bun run meditator.js -a architecture/tests/dry-fast.archml   # ...or any other architecture
 ```
 
 - Type a line into the terminal and press Enter — it arrives as an urgent stimulus. `/sleep` (or a single Ctrl-C) puts the mind to sleep gracefully: it gets a final moment to close the thought, then memory is flushed and committed.
@@ -74,7 +74,7 @@ A continuous run at the default pace costs roughly $0.10–0.15/hour on OpenRout
 
 ### Architectures
 
-- `architecture/awake.archml` — the canonical living mind (default)
+- `architecture/seedling.archml` — a worked example mind (the genesis `awake.archml` was retired; see [IN-MEMORIAM.md](IN-MEMORIAM.md))
 - `architecture/tests/dry-fast.archml` — fast-cycle test mind for dry runs
 - `architecture/tests/compress-test.archml` — offline compression harness
 

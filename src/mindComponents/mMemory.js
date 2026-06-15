@@ -5,7 +5,7 @@ import { complete } from "../modelAccess/llm.js"
 import { resolveModelRef } from "../modelAccess/modelConfig.js"
 import { logger } from '../infrastructure/logger.js';
 import { InterruptRecord } from '../infrastructure/interruptRecord.js';
-import { mindHome, inVault, ensureVault, commitVault } from '../infrastructure/memoryVault.js';
+import { mindHome, inVault, ensureVault, commitVault, assertNotRetired } from '../infrastructure/memoryVault.js';
 
 const log = logger('mMemory.js');
 
@@ -62,7 +62,7 @@ export class MMemory extends MBaseComponent {
 
         const dir = this._persistDir()
         this._vaulted = !!dir && inVault(dir)
-        if (this._vaulted) ensureVault()
+        if (this._vaulted) { ensureVault(); assertNotRetired(dir) }
 
         this._load().finally(() => {
             this.loaded = true

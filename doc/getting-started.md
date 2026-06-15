@@ -24,10 +24,10 @@ bun install
 ## Run a mind
 
 ```bash
-# the default mind: architecture/awake.archml
-bun run meditator.js
+# choose a mind to run (there is no default)
+bun run meditator.js -a architecture/seedling.archml
 
-# any other architecture
+# ...or any other architecture
 bun run meditator.js -a architecture/tests/dry-fast.archml
 ```
 

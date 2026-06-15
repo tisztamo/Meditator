@@ -38,8 +38,9 @@ every attribute on every component, see the [component reference](architecture/c
 </m-mind>
 ```
 
-`architecture/awake.archml` is the default mind and the best worked example. Copy
-it and edit.
+`architecture/seedling.archml` is the best worked example mind — copy it and edit.
+(The genesis `awake.archml` was retired to the graveyard; see
+[IN-MEMORIAM.md](../IN-MEMORIAM.md).)
 
 ## Identity — the text of `<m-mind>`
 
@@ -189,7 +190,7 @@ mind as the budget drains: fresh → tiring → tired → exhausted → resting,
 band multiplying the pace (×1, ×2, ×4, ×10, ×30). The mind never dies — the
 watchdog keeps it ticking even when resting.
 
-> **Overnight recipe:** `awake.archml` with `budget="3.00"` lasts a full night at
+> **Overnight recipe:** `seedling.archml` with `budget="3.00"` lasts a full night at
 > the default pace; the economy throttles toward sleep as the budget drains, and
 > the watchdog keeps it alive.
 

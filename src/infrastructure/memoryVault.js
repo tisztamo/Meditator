@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import path from 'node:path';
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import { logger } from './logger.js';
 import { isDryRun } from '../modelAccess/llm.js';
 
@@ -37,6 +38,29 @@ export function inVault(dir) {
     const resolved = path.resolve(dir);
     const root = path.resolve(VAULT_ROOT);
     return resolved === root || resolved.startsWith(root + path.sep);
+}
+
+/**
+ * Refuses to silently re-birth a retired mind. If `home` does not exist but a
+ * bundle for the same mind sits in the graveyard, someone is about to run an
+ * architecture whose name belongs to a mind we laid to rest — which would create
+ * an empty impostor in its place. Throw loud instead. Waking a retired mind is a
+ * deliberate act (see memory/.graveyard/README.md), never an accident.
+ */
+export function assertNotRetired(home) {
+    if (fsSync.existsSync(home)) return;           // a live home is present — nothing to guard
+    const slug = path.basename(home);
+    let bundles;
+    try { bundles = fsSync.readdirSync(path.join(VAULT_ROOT, '.graveyard')); }
+    catch { return; }                              // no graveyard yet
+    const grave = bundles.find(b => b === slug || b.startsWith(slug + '-'));
+    if (grave) {
+        throw new Error(
+            `Mind "${slug}" is retired (memory/.graveyard/${grave}); refusing to silently ` +
+            `re-birth it into an empty home. To run it again, do a deliberate wake-from-grave ` +
+            `(see memory/.graveyard/README.md); to start a different mind, give it its own name.`,
+        );
+    }
 }
 
 const GIT_IDENTITY = ['-c', 'user.name=Meditator', '-c', 'user.email=meditator@vault.local'];

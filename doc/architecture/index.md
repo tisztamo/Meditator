@@ -138,7 +138,7 @@ start with `@`), which is why you see handlers like `"stream/boundary"` and
 
 ## The component map
 
-The default mind (`architecture/awake.archml`) wires:
+The example mind (`architecture/seedling.archml`) wires:
 
 | Component | Role |
 |-----------|------|
