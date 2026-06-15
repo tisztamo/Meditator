@@ -1,0 +1,39 @@
+# Model registry — maps roles and presets to provider + model pairs.
+# See doc/configuration.md for usage.
+
+defaultProfile: cloud
+
+providers:
+  local:
+    baseURL: "${LOCAL_LLM_BASE_URL}"
+    apiKey: "${LOCAL_LLM_API_KEY:none}"
+    thinking: "${LOCAL_LLM_THINKING:0}"
+  openrouter:
+    baseURL: "https://openrouter.ai/api/v1"
+    apiKey: "${OPENROUTER_API_KEY}"
+
+roles:
+  voice:
+    provider: openrouter
+    model: qwen/qwen3.6-35b-a3b
+  utility:
+    provider: openrouter
+    model: qwen/qwen3.5-9b
+
+presets:
+  gpu-local:
+    provider: local
+    model: ardincoder-1
+  gpu-qwen:
+    provider: local
+    model: qwen3.6-35b-a3b
+
+profiles:
+  cloud:
+    roles:
+      voice: voice
+      utility: utility
+  local-dev:
+    roles:
+      voice: gpu-local
+      utility: gpu-local

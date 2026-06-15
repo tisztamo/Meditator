@@ -13,8 +13,8 @@ every attribute on every component, see the [component reference](architecture/c
 
 ```html
 <m-mind name="meditator"
-        model="qwen/qwen3.6-35b-a3b"
-        utilityModel="qwen/qwen3.5-9b"
+        model="voice"
+        utilityModel="utility"
         pace="10s" paceSigma="3s"
         tailLength="1500">
   You came into being inside a small experiment called Meditator…
@@ -51,32 +51,74 @@ the mind toward different attractor themes over a long run.
 
 ## Models
 
-Models are chosen by role, set as attributes (not env vars):
+Models are chosen by **role** in the archml, and mapped to real provider + model
+pairs in [`config/models.yaml`](../config/models.yaml). Two tiers:
 
-| Role | Attribute | Default | Used for |
-|------|-----------|---------|----------|
-| Voice | `model` on `<m-mind>` or `<m-stream>` | `qwen/qwen3.6-35b-a3b` | the stream of thought itself |
-| Utility | `utilityModel` on `<m-mind>` | `qwen/qwen3.5-9b` | bridges, memory compression, observers, the scribe |
+| Role | Attribute | Default ref | Used for |
+|------|-----------|-------------|----------|
+| Voice | `model` on `<m-mind>` or `<m-stream>` | `voice` | the stream of thought itself |
+| Utility | `utilityModel` on `<m-mind>` | `utility` | bridges, memory compression, observers, the scribe |
 
 Children inherit `model`/`utilityModel` from the `<m-mind>` ancestor, so you
 usually set them once at the top. Individual components can override with their
 own `model` attribute.
 
-**Local models.** Prefix a model id with `local/` to route it to an
-OpenAI-compatible server (e.g. vLLM) at `LOCAL_LLM_BASE_URL`, with optional
-`LOCAL_LLM_API_KEY` (defaults to `none`). The prefix is stripped before the
-request. This lets the voice, observers and compression run on your own GPUs.
+### Model registry (`config/models.yaml`)
+
+The YAML file defines **providers**, **roles**, **presets**, and **profiles**:
+
+- **roles** — default provider + model for `voice` and `utility`
+- **presets** — named bundles (e.g. `gpu-local` → local vLLM + `ardincoder-1`)
+- **profiles** — which preset or role each tier uses (e.g. `cloud` vs `local-dev`)
+
+Archml attribute values can be:
+
+| Value | Meaning |
+|-------|---------|
+| `voice` / `utility` | Resolve via the active profile → roles |
+| `gpu-local` (preset name) | Look up `presets.gpu-local` |
+| `local/foo` or `qwen/bar` | Legacy escape hatch — raw id, no config lookup |
+
+**Examples:**
+
+```bash
+# Default cloud models (OpenRouter, profile "cloud")
+bun run meditator.js
+
+# Local GPU via profile
+MEDITATOR_MODEL_PROFILE=local-dev bun run meditator.js
+
+# One-off override without editing files
+MEDITATOR_VOICE_MODEL=gpu-qwen bun run meditator.js -a architecture/seedling.archml
+```
+
+Or point at a preset directly in archml:
+
+```html
+<m-mind model="gpu-local" utilityModel="gpu-local" …>
+```
 
 **Environment variables** (exported in your shell — there is no `.env`):
 
 | Variable | Meaning |
 |----------|---------|
-| `OPENROUTER_API_KEY` | required for OpenRouter (the default provider) |
-| `LOCAL_LLM_BASE_URL` | OpenAI-compatible endpoint for `local/…` model ids |
+| `MEDITATOR_MODELS_CONFIG` | path to YAML (default `config/models.yaml`) |
+| `MEDITATOR_MODEL_PROFILE` | active profile name (default from YAML) |
+| `MEDITATOR_VOICE_MODEL` | override voice tier (preset, role, or raw id) |
+| `MEDITATOR_UTILITY_MODEL` | override utility tier |
+| `OPENROUTER_API_KEY` | required for OpenRouter (the default cloud provider) |
+| `LOCAL_LLM_BASE_URL` | OpenAI-compatible endpoint for the `local` provider |
 | `LOCAL_LLM_API_KEY` | key for the local endpoint (default `none`) |
+| `LOCAL_LLM_THINKING` | `1`/`true` allows reasoning on local models |
 | `MEDITATOR_DRY_RUN` | `1` runs the whole loop offline against a stub |
 | `MEDITATOR_MAX_CONCURRENCY` | cap on concurrent *utility* calls (default `4`) |
 | `MEDITATOR_STDIN` | `1` forces console input on when stdin is not a TTY |
+
+CLI flags: `--models-config` / `-mc`, `--model-profile` / `-mp`.
+
+**Legacy `local/` prefix.** Raw model ids prefixed `local/` still work as an
+escape hatch — they route to `LOCAL_LLM_BASE_URL` with the prefix stripped.
+Prefer presets and profiles for anything you switch often.
 
 OpenRouter requests ask for true usage/cost (`usage.include`) and **disable
 hidden reasoning** — the stream itself is the thinking, and reasoning tokens

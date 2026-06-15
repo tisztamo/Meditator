@@ -28,8 +28,8 @@ is the mind's identity.
 
 | Attribute | Default | Meaning |
 |-----------|---------|---------|
-| `model` | `qwen/qwen3.6-35b-a3b` | default voice model for the whole mind (inherited by children) |
-| `utilityModel` | `qwen/qwen3.5-9b` | default model for bridge / compression / observers |
+| `model` | `voice` | default voice model for the whole mind (inherited by children) |
+| `utilityModel` | `utility` | default model for bridge / compression / observers |
 | `pace` | `8s` | pause between bursts |
 | `paceSigma` | `pace/4` | normal-distributed jitter on the pause |
 | `tailLength` | `1500` | chars of verbatim tail carried into each frame |
@@ -54,7 +54,7 @@ supersedes the current burst (the in-flight stream is aborted).
 
 | Attribute | Default | Meaning |
 |-----------|---------|---------|
-| `model` | inherits `model`, then `qwen/qwen3.6-35b-a3b` | the voice model |
+| `model` | inherits `model`, then `voice` | the voice model |
 | `burstTokens` | `350` | max tokens per burst |
 | `temperature` | `0.9` | sampling temperature |
 

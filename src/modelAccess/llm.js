@@ -1,15 +1,14 @@
 import OpenAI from 'openai';
 import { logger } from '../infrastructure/logger.js';
+import { modelForRole, resolveModelRef } from './modelConfig.js';
 
 const log = logger('llm.js');
 
 /**
  * Central model access layer.
  *
- * Providers are selected by model id prefix:
- *   - "local/<model>"  → an OpenAI-compatible server at LOCAL_LLM_BASE_URL (e.g. vLLM
- *     on the GPU box). The "local/" prefix is stripped before the request.
- *   - anything else    → OpenRouter.
+ * Models are resolved from config/models.yaml (roles, presets, profiles) via
+ * modelConfig.js. Legacy raw ids ("local/<model>", "provider/model") still work.
  *
  * Set MEDITATOR_DRY_RUN=1 to replace all calls with a deterministic offline stub,
  * so the whole mind loop can be exercised without network or cost.
@@ -19,12 +18,25 @@ const log = logger('llm.js');
  */
 
 export const DEFAULT_MODELS = {
-  stream: 'qwen/qwen3.6-35b-a3b',  // the thinking voice
-  utility: 'qwen/qwen3.5-9b',      // bridges, compression, observers
+  voice: 'voice',
+  stream: 'voice',   // back-compat alias
+  utility: 'utility',
 };
 
+function specLabel(spec) {
+  return spec.provider === 'local' ? `local/${spec.model}` : spec.model;
+}
+
 export function defaultModel(role) {
-  return DEFAULT_MODELS[role] || DEFAULT_MODELS.utility;
+  const normalized = role === 'stream' ? 'voice' : role;
+  return specLabel(modelForRole(normalized || 'utility'));
+}
+
+function asSpec(model, role) {
+  if (!model) return modelForRole(role);
+  if (typeof model === 'object' && model.provider) return model;
+  if (typeof model === 'string') return resolveModelRef(model, role);
+  return modelForRole(role);
 }
 
 const totals = {
@@ -68,36 +80,33 @@ export function isDryRun() {
 
 const clients = new Map();
 
-function resolveProvider(model) {
-  if (model && model.startsWith('local/')) {
-    const baseURL = process.env.LOCAL_LLM_BASE_URL;
-    if (!baseURL) throw new Error(`Model "${model}" needs LOCAL_LLM_BASE_URL to be set`);
+function resolveProvider(spec) {
+  const key = spec.provider;
+  if (key === 'local') {
+    const baseURL = spec.baseURL;
+    if (!baseURL) throw new Error(`local provider needs LOCAL_LLM_BASE_URL (model "${spec.model}")`);
     // Reasoning models (Qwen3 etc.) otherwise spend the whole burst budget on
     // hidden reasoning_content and return finish=length with no visible text —
     // the mind then has nothing to think. Suppress thinking by default; set
     // LOCAL_LLM_THINKING=1 to allow it. vLLM reads chat_template_kwargs.enable_thinking
     // (an unknown key is harmlessly ignored by a template that doesn't use it).
-    const allowThinking = /^(1|true)$/i.test(process.env.LOCAL_LLM_THINKING || '');
+    const allowThinking = spec.thinking === true;
     const noThink = allowThinking ? {} : { chat_template_kwargs: { enable_thinking: false } };
     return {
       key: 'local',
       baseURL,
-      apiKey: process.env.LOCAL_LLM_API_KEY || 'none',
-      model: model.slice('local/'.length),
+      apiKey: spec.apiKey || 'none',
+      model: spec.model,
       thinking: allowThinking,
-      // vLLM-style usage reporting for streams; reasoning suppressed unless opted in
       streamExtra: { stream_options: { include_usage: true }, ...noThink },
       extra: { ...noThink },
     };
   }
   return {
     key: 'openrouter',
-    baseURL: 'https://openrouter.ai/api/v1',
-    apiKey: process.env.OPENROUTER_API_KEY,
-    model,
-    // OpenRouter extras: usage accounting (token counts and true cost in the
-    // response) and reasoning disabled — the stream IS the thinking out loud;
-    // hidden reasoning tokens would silently eat the burst budget.
+    baseURL: spec.baseURL || 'https://openrouter.ai/api/v1',
+    apiKey: spec.apiKey,
+    model: spec.model,
     streamExtra: { usage: { include: true }, reasoning: { enabled: false } },
     extra: { usage: { include: true }, reasoning: { enabled: false } },
   };
@@ -188,10 +197,10 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
  * @returns {Promise<{text: string, usage: Object|null}>}
  */
 export async function complete(opts) {
-  const model = opts.model || defaultModel('utility');
+  const spec = asSpec(opts.model, 'utility');
   if (isDryRun()) return dryComplete(opts);
 
-  const provider = resolveProvider(model);
+  const provider = resolveProvider(spec);
   const client = clientFor(provider);
   const request = {
     model: provider.model,
@@ -246,10 +255,10 @@ export async function complete(opts) {
  *   burst.abort()      // cancel mid-stream; the iterator ends quietly
  */
 export async function chatStream(opts) {
-  const model = opts.model || defaultModel('stream');
+  const spec = asSpec(opts.model, 'voice');
   if (isDryRun()) return dryStream(opts);
 
-  const provider = resolveProvider(model);
+  const provider = resolveProvider(spec);
   const client = clientFor(provider);
   const request = {
     model: provider.model,

@@ -52,11 +52,25 @@ bun run meditator.js -a architecture/tests/dry-fast.archml   # any other archite
 
 ### Models
 
-Roles, not one model (set in the archml):
-- stream voice: `qwen/qwen3.6-35b-a3b` ($0.15/M in, $1/M out)
-- utility (bridge/compression/observers): `qwen/qwen3.5-9b` ($0.10/M in, $0.15/M out)
+Two tiers, configured in [`config/models.yaml`](../config/models.yaml) and
+referenced by role in the archml:
 
-A model id prefixed `local/` routes to an OpenAI-compatible server at `LOCAL_LLM_BASE_URL` (e.g. vLLM on your own GPUs) — observers, compression and the voice can run concurrently and batch well there. A continuous run at the default pace costs roughly $0.10–0.15/hour on OpenRouter; the economy component enforces whatever budget you give it.
+- **voice** (`model` attribute) — the thinking stream and speech output
+- **utility** (`utilityModel` attribute) — bridges, compression, observers, scribe
+
+```html
+<m-mind model="voice" utilityModel="utility" …>
+```
+
+Switch providers with a profile or env override:
+
+```bash
+MEDITATOR_MODEL_PROFILE=local-dev bun run meditator.js   # GPU via config/models.yaml
+```
+
+See [Configuration](doc/configuration.md#models) for presets, profiles, and env vars.
+A continuous run at the default pace costs roughly $0.10–0.15/hour on OpenRouter
+(cloud profile); the economy component enforces whatever budget you give it.
 
 ### Architectures
 

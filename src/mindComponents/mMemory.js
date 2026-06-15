@@ -1,7 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { MBaseComponent } from "./mBaseComponent.js"
-import { complete, defaultModel } from "../modelAccess/llm.js"
+import { complete } from "../modelAccess/llm.js"
+import { resolveModelRef } from "../modelAccess/modelConfig.js"
 import { logger } from '../infrastructure/logger.js';
 import { InterruptRecord } from '../infrastructure/interruptRecord.js';
 import { mindHome, inVault, ensureVault, commitVault } from '../infrastructure/memoryVault.js';
@@ -151,7 +152,7 @@ export class MMemory extends MBaseComponent {
         const input = text.trim()
         if (input.length <= targetChars) return input
         const result = await complete({
-            model: this.attr("model") || this.env("utilityModel") || defaultModel('utility'),
+            model: resolveModelRef(this.attr("model") || this.env("utilityModel"), "utility"),
             maxTokens: Math.ceil(targetChars / 3),
             temperature: 0.3,
             prompt: `You maintain the ${tier} memory of a mind's inner monologue, written in its own voice.

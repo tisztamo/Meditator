@@ -1,5 +1,6 @@
 import { MObserver } from "./mObserver.js"
-import { complete, defaultModel } from "../modelAccess/llm.js"
+import { complete } from "../modelAccess/llm.js"
+import { resolveModelRef } from "../modelAccess/modelConfig.js"
 import { logger } from '../infrastructure/logger.js';
 
 const log = logger('mAssociate.js');
@@ -30,7 +31,7 @@ export class MAssociate extends MObserver {
         this._busy = true
         try {
             const result = await complete({
-                model: this.attr("model") || this.env("utilityModel") || defaultModel('utility'),
+                model: resolveModelRef(this.attr("model") || this.env("utilityModel"), "utility"),
                 maxTokens: 120,
                 temperature: 0.9,
                 prompt: `You are the associative undercurrent of a mind. Below is its current stream of thought:

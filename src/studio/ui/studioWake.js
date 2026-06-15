@@ -64,7 +64,14 @@ export class StudioWake extends A(HTMLElement) {
     const home = dry ? `memory/dry-${a.homeSlug}` : a.home;
     const hi = a.homeInfo || {};
     const parts = [];
-    parts.push(`${a.model ? `<span>${esc(a.model)}</span>` : `<span class="warn">no model set</span>`}${a.pace ? ` · pace ${esc(a.pace)}` : ""}`);
+    const voiceRef = a.model || "voice";
+    const utilRef = a.utilityModel || "utility";
+    const voice = a.resolvedVoice || voiceRef;
+    const util = a.resolvedUtility || utilRef;
+    parts.push(`<span>voice: ${esc(voiceRef)}${voice !== voiceRef ? ` → ${esc(voice)}` : ""}</span>`
+      + ` · <span>utility: ${esc(utilRef)}${util !== utilRef ? ` → ${esc(util)}` : ""}</span>`
+      + `${a.pace ? ` · pace ${esc(a.pace)}` : ""}`
+      + `${a.modelProfile ? ` · profile <span>${esc(a.modelProfile)}</span>` : ""}`);
     parts.push(`→ <span class="home">${esc(home)}</span> ${dry ? `<span class="ok">(fresh dry-run home)</span>` : (hi.exists ? `<span class="ok">(existing memory · ${hi.files} entr${hi.files === 1 ? "y" : "ies"})</span>` : `<span>(new memory)</span>`)}`);
     if (a.description) parts.push(`<span style="color:var(--faint);font-style:italic">${esc(a.description)}</span>`);
     if (!a.hasWs) parts.push(`<span class="warn">⚠ no &lt;m-ws&gt; — it will run, but has no live window to watch</span>`);

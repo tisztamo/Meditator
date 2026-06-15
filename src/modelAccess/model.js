@@ -1,4 +1,5 @@
-import { complete, defaultModel } from './llm.js';
+import { complete } from './llm.js';
+import { resolveModelRef } from './modelConfig.js';
 
 /**
  * Back-compat wrapper kept for older components (m-compress, m-recent-history,
@@ -7,7 +8,7 @@ import { complete, defaultModel } from './llm.js';
 export async function createCompletion(prompt, model) {
   const result = await complete({
     prompt,
-    model: model || defaultModel('utility'),
+    model: model ? resolveModelRef(model, 'utility') : resolveModelRef(null, 'utility'),
     maxTokens: 400,
   });
   return result.text;

@@ -1,5 +1,6 @@
 import { MBaseComponent } from "./mBaseComponent.js"
-import { chatStream, defaultModel } from "../modelAccess/llm.js"
+import { chatStream } from "../modelAccess/llm.js"
+import { resolveModelRef } from "../modelAccess/modelConfig.js"
 import { logger } from '../infrastructure/logger.js';
 
 const log = logger('mStream.js');
@@ -90,7 +91,7 @@ export class MStream extends MBaseComponent {
         let context = null
         try {
             const burst = await chatStream({
-                model: this.attr("model") || this.env("model") || defaultModel('stream'),
+                model: resolveModelRef(this.attr("model") || this.env("model"), "voice"),
                 messages,
                 maxTokens: Number(burstTokens || this.attr("burstTokens") || 350),
                 temperature: Number(this.attr("temperature") || 0.9),

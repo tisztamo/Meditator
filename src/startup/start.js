@@ -2,9 +2,11 @@ import "amanita/stdlib"
 import {readArchitectureFile} from "./architecture.js"
 import { loadMindComponents } from "./loadMindComponents.js"
 import { initializeDebugMode } from "../config/debug.js";
+import { loadModelConfig } from "../modelAccess/modelConfig.js";
 import { logger } from '../infrastructure/logger';
 
 initializeDebugMode();
+await loadModelConfig();
 
 const log = logger('start.js');
 

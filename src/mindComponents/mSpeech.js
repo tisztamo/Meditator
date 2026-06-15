@@ -1,5 +1,6 @@
 import { MObserver } from "./mObserver.js"
-import { chatStream, complete, defaultModel } from "../modelAccess/llm.js"
+import { chatStream, complete } from "../modelAccess/llm.js"
+import { resolveModelRef } from "../modelAccess/modelConfig.js"
 import { parseTime } from '../config/timeParser.js';
 import { logger } from '../infrastructure/logger.js';
 
@@ -175,8 +176,8 @@ export class MSpeech extends MObserver {
         // what to reply — the tiny utility model is far too eager to answer NONE
         // for a real social moment. Spontaneous checks stay on the cheap model.
         const model = addressed
-            ? (this.attr("model") || this.env("model") || defaultModel('stream'))
-            : (this.attr("decisionModel") || this.env("utilityModel") || defaultModel('utility'))
+            ? resolveModelRef(this.attr("model") || this.env("model"), "voice")
+            : resolveModelRef(this.attr("decisionModel") || this.env("utilityModel"), "utility")
         const result = await complete({
             model,
             maxTokens: 120,
@@ -212,7 +213,7 @@ export class MSpeech extends MObserver {
         this._lastSpokeAt = Date.now()
         this.pub("speaking", true)
 
-        const model = this.attr("model") || this.env("model") || defaultModel('stream')
+        const model = resolveModelRef(this.attr("model") || this.env("model"), "voice")
         const messages = [
             { role: 'system', content: this._speechSystem() },
             { role: 'user', content: this._speechFrame(decision, addressed) },

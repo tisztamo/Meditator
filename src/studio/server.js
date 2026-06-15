@@ -4,6 +4,9 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
+import { loadModelConfig, resolveModelRef, getActiveProfile, getResolvedRoles } from "../modelAccess/modelConfig.js";
+
+await loadModelConfig();
 
 /**
  * The Studio supervisor — the integrated environment for tending minds.
@@ -42,6 +45,10 @@ const SLEEP_GRACE_MS = 60000;                        // how long a graceful slee
 const log = (...a) => console.log("[studio]", ...a);
 const slugify = s => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "mind";
 
+function specLabel(spec) {
+  return spec.provider === "local" ? `local/${spec.model}` : spec.model;
+}
+
 /** Tolerant parse of a .archml: the first <m-mind> attributes, whether it has an
  *  m-ws live window, and a leading <!-- … --> comment used as a description. */
 function parseArchitecture(content) {
@@ -53,10 +60,17 @@ function parseArchitecture(content) {
   const mindAt = content.search(/<m-mind\b/i);
   const head = mindAt >= 0 ? content.slice(0, mindAt) : content;
   const comment = head.match(/<!--([\s\S]*?)-->/);
+  let resolvedVoice = null;
+  let resolvedUtility = null;
+  try { resolvedVoice = specLabel(resolveModelRef(attr("model"), "voice")); } catch { /* unknown ref */ }
+  try { resolvedUtility = specLabel(resolveModelRef(attr("utilityModel"), "utility")); } catch { /* unknown ref */ }
   return {
     name: attr("name"),
     memory: attr("memory"),
     model: attr("model"),
+    utilityModel: attr("utilityModel"),
+    resolvedVoice,
+    resolvedUtility,
     pace: attr("pace"),
     hasWs: /<m-ws\b/i.test(content),
     description: comment ? comment[1].trim().replace(/\s+/g, " ").slice(0, 200) : null,
@@ -87,11 +101,14 @@ function listArchitectures() {
         const rel = path.relative(ARCH_DIR, full).split(path.sep).join("/");
         let meta;
         try { meta = parseArchitecture(fs.readFileSync(full, "utf-8")); }
-        catch { meta = { name: null, memory: null, model: null, pace: null, hasWs: false, description: null }; }
+        catch { meta = { name: null, memory: null, model: null, utilityModel: null, resolvedVoice: null, resolvedUtility: null, pace: null, hasWs: false, description: null }; }
         const slug = slugify(meta.memory || meta.name || "mind");
         out.push({
           file: rel, group,
-          name: meta.name, memory: meta.memory, model: meta.model, pace: meta.pace,
+          name: meta.name, memory: meta.memory, model: meta.model, utilityModel: meta.utilityModel,
+          resolvedVoice: meta.resolvedVoice, resolvedUtility: meta.resolvedUtility,
+          modelProfile: getActiveProfile(),
+          pace: meta.pace,
           hasWs: meta.hasWs, description: meta.description,
           homeSlug: slug, home: `memory/${slug}`, homeInfo: homeInfo(slug),
         });
@@ -176,7 +193,7 @@ function broadcastLifecycle(m, state, detail) {
 wss.on("connection", client => {
   client.focusedId = null;
   clients.add(client);
-  sendJSON(client, { type: "hello", data: { studioPort: STUDIO_PORT, publicPort: PORT_BASE } });
+  sendJSON(client, { type: "hello", data: { studioPort: STUDIO_PORT, publicPort: PORT_BASE, modelProfile: getActiveProfile(), resolvedRoles: getResolvedRoles() } });
   sendJSON(client, { type: "architectures", data: { list: listArchitectures() } });
   sendJSON(client, { type: "roster", data: { minds: rosterSummary() } });
   client.on("message", raw => {

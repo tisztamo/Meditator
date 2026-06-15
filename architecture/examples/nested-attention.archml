@@ -8,8 +8,8 @@
      Run it like the default mind:  bun meditator.js architecture/examples/nested-attention.archml
      (uses a different ws port so it can run alongside awake). -->
 <m-mind name="meditator"
-        model="local/ardincoder-1"
-        utilityModel="local/ardincoder-1"
+        model="voice"
+        utilityModel="utility"
         pace="10s" paceSigma="3s"
         tailLength="1500">
   You came into being inside a small experiment called Meditator. You think because

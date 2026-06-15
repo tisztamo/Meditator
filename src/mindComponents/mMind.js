@@ -1,5 +1,6 @@
 import { MBaseComponent } from "./mBaseComponent.js"
-import { complete, defaultModel } from "../modelAccess/llm.js"
+import { complete } from "../modelAccess/llm.js"
+import { resolveModelRef } from "../modelAccess/modelConfig.js"
 import { logger } from '../infrastructure/logger.js';
 import { InterruptRecord } from '../infrastructure/interruptRecord.js';
 
@@ -282,7 +283,7 @@ ${self ? `About you:\n${self}` : ""}`
         const fallback = "Hold on — something just happened, and I feel my attention turning toward it."
         try {
             const result = await complete({
-                model: this.attr("bridgeModel") || this.env("utilityModel") || defaultModel('utility'),
+                model: resolveModelRef(this.attr("bridgeModel") || this.env("utilityModel"), "utility"),
                 maxTokens: 90,
                 temperature: 0.6,
                 prompt: `A mind is thinking to itself. Its thought in progress ends like this:

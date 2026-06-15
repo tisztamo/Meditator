@@ -1,7 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { MBaseComponent } from "./mBaseComponent.js"
-import { complete, defaultModel } from "../modelAccess/llm.js"
+import { complete } from "../modelAccess/llm.js"
+import { resolveModelRef } from "../modelAccess/modelConfig.js"
 import { logger } from '../infrastructure/logger.js';
 import { mindHome } from '../infrastructure/memoryVault.js';
 
@@ -54,7 +55,7 @@ export class MKb extends MBaseComponent {
 
         const tree = await this._tree(dir)
         const result = await complete({
-            model: this.attr("model") || this.env("utilityModel") || defaultModel('utility'),
+            model: resolveModelRef(this.attr("model") || this.env("utilityModel"), "utility"),
             maxTokens: 900,
             temperature: 0.3,
             prompt: `You are the librarian of a thinking mind. Distill durable knowledge from its recent thoughts into a markdown knowledge base. Durable means: ideas, conclusions, questions and themes worth keeping — not the moment-to-moment narration.
