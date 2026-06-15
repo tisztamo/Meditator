@@ -160,3 +160,5 @@ Read on:
 - [Memory & the vault](memory.md) — how thought is compressed and persisted.
 - [Interrupts & observers](interrupts.md) — how attention is won and redirected.
 - [Component reference](components.md) — every attribute, default, and topic.
+- [Mind lifecycle & the graveyard](lifecycle.md) — proposed plan for ephemeral vs
+  resident minds, honest retention, versioning, and how a mind is laid to rest.
