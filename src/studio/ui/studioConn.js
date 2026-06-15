@@ -51,6 +51,9 @@ export class StudioConn extends A(HTMLElement) {
       this.reconnectDelay = 250;
       this.pub("connState", true);
       this.pub("connMeta", "studio · " + location.host);
+      // Restore the view after a drop: the supervisor forgets a reconnecting
+      // client's focus, so re-arm it and ask it to reconstitute the last mind.
+      if (this.focusedId) this.refocus(this.focusedId);
     };
     ws.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch { return; } this.onMsg(m); };
     ws.onerror = () => { this.pub("connState", false); };
@@ -120,6 +123,12 @@ export class StudioConn extends A(HTMLElement) {
 
   focus(id) {
     if (this.focusedId === id) return;
+    this.refocus(id);
+  }
+
+  /** (Re)assert focus on a mind even if it is already the focused one — used on
+   *  reconnect, where the supervisor has dropped our focus and must replay. */
+  refocus(id) {
     this.focusedId = id;
     this.pub("focused", id);
     this.pub("focusReset", id);          // immediate local clear; the server then replays its cache as mind/log

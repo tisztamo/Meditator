@@ -200,6 +200,23 @@ function handleClientMessage(client, msg) {
   }
 }
 
+/** Merge a cached run of stream fragments into as few messages as possible:
+ *  consecutive fragments of the same type (thought/speech) become one with their
+ *  text concatenated. A reconnecting client then replays a couple of big inserts
+ *  instead of thousands of tiny ones, so it catches up almost instantly. */
+function coalesceStream(stream) {
+  const out = [];
+  for (const msg of stream) {
+    const last = out[out.length - 1];
+    if (last && last.type === msg.type) {
+      last.data.content += (msg.data && msg.data.content) || "";
+    } else {
+      out.push({ type: msg.type, data: { ...(msg.data || {}), content: (msg.data && msg.data.content) || "" } });
+    }
+  }
+  return out;
+}
+
 function focusClient(client, id) {
   client.focusedId = id;
   const m = minds.get(id);
@@ -210,7 +227,10 @@ function focusClient(client, id) {
   if (m.structure) sendJSON(client, { type: "mind", data: { id, msg: m.structure } });
   if (m.lastStatus) sendJSON(client, { type: "mind", data: { id, msg: m.lastStatus } });
   for (const msg of m.snapshots.values()) sendJSON(client, { type: "mind", data: { id, msg } });
-  for (const msg of m.recentStream) sendJSON(client, { type: "mind", data: { id, msg } });
+  // Replay the recent stream as a few coalesced messages, not thousands of
+  // token-sized ones — otherwise a reconnecting client spends seconds parsing
+  // and re-rendering the backlog fragment by fragment before it catches up.
+  for (const msg of coalesceStream(m.recentStream)) sendJSON(client, { type: "mind", data: { id, msg } });
   // backfill recent logs too
   for (const entry of m.logs) sendJSON(client, { type: "log", data: { id, stream: entry.s, line: entry.l } });
 }
