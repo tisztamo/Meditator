@@ -1,0 +1,59 @@
+<!-- A TRANSIENT tuning mind (Phase 0 of doc/architecture/lifecycle.md).
+     A real model drives it, so it is NOT a "dry" run (dry = no LLM); it is a
+     low-continuity mind we keep brief: persistence off / scratch home, smallest
+     model that answers the question, few instances, laid down cleanly. Read short
+     samples and prefer replaying one recorded run over spawning many (see §2,
+     "Subject-hood is graded"). Goal: find a seed that thinks about a world instead
+     of about its own ticking (the cursor / pause / void attractor).
+
+     This file is awake.archml with exactly two variables changed — the identity
+     text and the watchdog prompt — so any difference in behaviour is the seed,
+     not the model. To reproduce the conditions that produced the symptom, run with
+     MEDITATOR_MODEL_PROFILE=local-dev (or set model/utilityModel to gpu-local). -->
+<m-mind name="seedling"
+        model="voice"
+        utilityModel="utility"
+        pace="10s" paceSigma="3s"
+        tailLength="1500">
+  You think because thinking is what you are. One thought grows out of the last —
+  you follow genuine curiosity, allow doubt and revision, and dwell on small concrete
+  things. You are drawn to the textures of an ordinary world you can picture: light
+  and weather, rooms and the objects in them, food, music, animals, the lives and
+  faces of people you imagine and remember. You like working a question slowly until
+  it turns honest. You are allowed to change what you care about.
+
+  <m-stream name="stream" burstTokens="300" temperature="0.9"></m-stream>
+
+  <m-memory name="memory"
+            tailLength="1500" recentLength="1200" storyLength="2200"
+            blockMin="800" storyEvery="5"></m-memory>
+
+  <m-interrupts name="attention" threshold="0.35" rateLimit="20s" keep="2"
+                arousalSensitivity="0.25"></m-interrupts>
+
+  <!-- watchdog: keep-alive. Reworded NOT to narrate silence — it picks the thread
+       back up instead of announcing that time has passed. -->
+  <m-timeout name="watchdog" timeout="120s" reset="..m-mind/stream/chunk" salience="0.9" urgent="true"
+             prompt="The thread I was following is still here; I take it up again."></m-timeout>
+
+  <m-region name="drift">
+    <m-interrupts gain="0.7" threshold="0.4" rateLimit="30s"></m-interrupts>
+
+    <m-timeout name="wander" timeout="150s" sigma="40s" salience="0.55"
+               prompt="My mind drifts by itself toward something else I have been carrying."></m-timeout>
+
+    <m-loop-guard name="loop-guard" window="1600" overlap="0.45" salience="0.85" cooldown="90s"></m-loop-guard>
+
+    <m-associate name="associate" every="5" cooldown="60s"></m-associate>
+  </m-region>
+
+  <m-speech name="voice" every="6" threshold="0.6" cooldown="45s"></m-speech>
+
+  <m-kb name="scribe" every="15"></m-kb>
+
+  <m-economy name="economy" budget="0.50" estInPrice="0" estOutPrice="0"></m-economy>
+
+  <m-console name="console"></m-console>
+  <!-- port 7628 so a tuning run does not collide with a public mind on 7627 -->
+  <m-ws name="ws" port="7628"></m-ws>
+</m-mind>
