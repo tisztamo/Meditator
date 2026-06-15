@@ -5,6 +5,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { loadModelConfig, resolveModelRef, getActiveProfile, getResolvedRoles } from "../modelAccess/modelConfig.js";
+import { tierOf } from "../infrastructure/manifest.js";
 
 await loadModelConfig();
 
@@ -77,7 +78,16 @@ function parseArchitecture(content) {
   };
 }
 
-/** What memory home a base slug maps to, and whether it exists on disk. */
+/** Does the graveyard hold a bundle for this slug? (a retired mind, §3) */
+function graveyardHas(slug) {
+  try {
+    return fs.readdirSync(path.join(VAULT_ROOT, ".graveyard"))
+      .some(b => b === slug || b.startsWith(slug + "-"));
+  } catch { return false; }
+}
+
+/** What memory home a base slug maps to, whether it exists on disk, and the
+ *  lifecycle tier it presents — resident / transient / retired / none (§2). */
 function homeInfo(slug) {
   const dir = path.join(VAULT_ROOT, slug);
   let exists = false, files = 0;
@@ -85,7 +95,7 @@ function homeInfo(slug) {
     const st = fs.statSync(dir);
     if (st.isDirectory()) { exists = true; files = fs.readdirSync(dir).length; }
   } catch { /* no home yet */ }
-  return { exists, files };
+  return { exists, files, tier: tierOf(dir, graveyardHas) };
 }
 
 /** The architecture catalog: every .archml under architecture/ (tests/ flagged),

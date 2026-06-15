@@ -88,6 +88,10 @@ Three memory tiers, compression, persistence, and the journal. See
 - **Public API used by the mind/scribe/voice:** `getTail()`, `getRecent()`, `getStory()`,
   `note(text)`, `spoke(text)` (splice an aloud utterance into the tail + journal),
   `consumeWakeNotice()`, `finalize(reason)`.
+- **Versioning:** stamps `formatVersion` into `memory.md`'s meta and, for a resident
+  (a home with a `manifest.json`), records the `runtimeSHA`/`formatVersion`/`lastWokenAt`
+  at wake via [`manifest.js`](memory.md#versioning-the-manifest-and-tiers). Warns on
+  load if a self was saved by a newer format than this runtime can read (the wake rule).
 
 ## `m-interrupts`
 

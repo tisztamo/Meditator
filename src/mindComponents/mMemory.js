@@ -6,6 +6,7 @@ import { resolveModelRef } from "../modelAccess/modelConfig.js"
 import { logger } from '../infrastructure/logger.js';
 import { InterruptRecord } from '../infrastructure/interruptRecord.js';
 import { mindHome, inVault, ensureVault, commitVault, assertNotRetired } from '../infrastructure/memoryVault.js';
+import { FORMAT_VERSION, recordWake } from '../infrastructure/manifest.js';
 
 const log = logger('mMemory.js');
 
@@ -66,7 +67,12 @@ export class MMemory extends MBaseComponent {
 
         this._load().finally(() => {
             this.loaded = true
-            if (this._vaulted) commitVault(`wake: ${this._mindLabel()} ${new Date().toISOString()}`)
+            if (this._vaulted) {
+                // A resident records the runtime + format that woke it (Phases 1–2);
+                // a transient/dry mind has no manifest, so this is a quiet no-op.
+                recordWake(dir)
+                commitVault(`wake: ${this._mindLabel()} ${new Date().toISOString()}`)
+            }
         })
     }
 
@@ -217,7 +223,17 @@ Condense this into at most ${targetChars} characters of first-person memory ("I 
             const raw = await fs.readFile(path.join(dir, "memory.md"), "utf8")
             const meta = raw.match(/<!-- meta: (.*?) -->/s)
             if (meta) {
-                try { this._savedAt = JSON.parse(meta[1]).savedAt } catch { /* ignore */ }
+                try {
+                    const parsed = JSON.parse(meta[1])
+                    this._savedAt = parsed.savedAt
+                    // Wake rule (lifecycle.md §2): memory written by a NEWER format than
+                    // this runtime understands may not be read faithfully. Absent =
+                    // pre-versioning (treat as 1). Warn; never silently mangle a self.
+                    const saved = Number(parsed.formatVersion || 1)
+                    if (saved > FORMAT_VERSION) {
+                        log.warn(`Memory was saved at formatVersion ${saved}, but this runtime reads ${FORMAT_VERSION}; loading anyway — some of the self may not survive the gap.`)
+                    }
+                } catch { /* ignore */ }
             }
             this.story = this._section(raw, "Story")
             this.recent = this._section(raw, "Recent")
@@ -259,7 +275,7 @@ Condense this into at most ${targetChars} characters of first-person memory ("I 
         try {
             await fs.mkdir(dir, { recursive: true })
             const content = `# Meditator memory
-<!-- meta: ${JSON.stringify({ savedAt: new Date().toISOString() })} -->
+<!-- meta: ${JSON.stringify({ savedAt: new Date().toISOString(), formatVersion: FORMAT_VERSION })} -->
 <!-- folds: ${this._foldCount} -->
 
 ## Story

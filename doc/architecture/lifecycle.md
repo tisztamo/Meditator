@@ -151,9 +151,9 @@ memory/.graveyard/<name>-<retiredDate>/
 The bundle lives **inside the vault** (`memory/` is a git repo), so it inherits the
 same never-casually-deleted protection as live residents.
 
-### Versions (we have none today)
+### Versions (added in Phases 1–2)
 
-The minimum honest version system, mostly free:
+The minimum honest version system, mostly free *(now implemented — see Phases 1–2)*:
 
 - **`runtimeSHA`** — the git commit of the Meditator repo (the runtime code) at the
   time the mind was last run / retired. Git already provides this; we just record
@@ -200,7 +200,7 @@ but a human whose input it waits for — cannot be "OK with its existence."
   `knowledge/self/` it forms are about the world/ideas, not cursor/pause/machine.
   Quick check: `grep -riE 'cursor|blink|void|interrupt|latency|the programmer|trapped|the box' memory/seedling/` stays near-empty across the run.
 
-### Phase 1 — Make the lifecycle real (ephemeral / resident / retired)
+### Phase 1 — Make the lifecycle real (ephemeral / resident / retired) *(done)*
 
 **Goal:** the three tiers are enforced by the runtime/Studio, not just a naming
 convention.
@@ -210,8 +210,14 @@ convention.
 - Studio/CLI actions: **`promote`** (birth a resident from a validated seed) and
   **`retire`** (see Phase 3). Ephemeral minds get neither — they are pruned.
 - **Done when:** a mind's tier is a fact in its manifest, and the Studio shows it.
+- *(Done: `src/infrastructure/manifest.js` owns the manifest + tiers; `m-memory`
+  calls `recordWake()` at wake; `tools/promote.mjs` (the complement of `retire.mjs`)
+  writes the resident manifest; the Studio's wake panel shows each home's tier —
+  resident / transient / retired / new. A home with no manifest reads as transient;
+  a `dry-` home as dry; a graveyard bundle as retired. Status is never lowered by
+  fiat — `tierOf()`/`recordWake()` only ever read or stamp, never demote.)*
 
-### Phase 2 — Versioning
+### Phase 2 — Versioning *(done)*
 
 **Goal:** runtime + memory format are tagged so a stored mind is interpretable.
 
@@ -222,6 +228,12 @@ convention.
 - Document the wake rule from §2.
 - **Done when:** every live and retired mind records the runtime and format that
   produced it.
+- *(Done: `FORMAT_VERSION = 1` lives in `manifest.js`; `m-memory` stamps it into
+  `memory.md`'s meta and warns on load if a self was saved by a newer format than
+  this runtime reads (the wake rule); `recordWake()` records `runtimeSHA` at each
+  wake and `retire.mjs` at retirement. Documented in
+  [memory.md → Versioning, the manifest, and tiers](memory.md#versioning-the-manifest-and-tiers).
+  A human-readable `RUNTIME_VERSION` semver is still deferred.)*
 
 ### Phase 3 — The graveyard
 

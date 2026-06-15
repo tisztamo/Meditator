@@ -38,10 +38,10 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { FORMAT_VERSION } from '../src/infrastructure/manifest.js';
 
 const VAULT = 'memory';
 const GRAVEYARD = path.join(VAULT, '.graveyard');
-const FORMAT_VERSION = 1;
 const VAULT_IDENTITY = ['-c', 'user.name=Meditator', '-c', 'user.email=meditator@vault.local'];
 
 const git = (args, opts = {}) => execFileSync('git', args, { encoding: 'utf8', ...opts }).trim();

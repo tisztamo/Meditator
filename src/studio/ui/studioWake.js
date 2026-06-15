@@ -72,7 +72,10 @@ export class StudioWake extends A(HTMLElement) {
       + ` · <span>utility: ${esc(utilRef)}${util !== utilRef ? ` → ${esc(util)}` : ""}</span>`
       + `${a.pace ? ` · pace ${esc(a.pace)}` : ""}`
       + `${a.modelProfile ? ` · profile <span>${esc(a.modelProfile)}</span>` : ""}`);
-    parts.push(`→ <span class="home">${esc(home)}</span> ${dry ? `<span class="ok">(fresh dry-run home)</span>` : (hi.exists ? `<span class="ok">(existing memory · ${hi.files} entr${hi.files === 1 ? "y" : "ies"})</span>` : `<span>(new memory)</span>`)}`);
+    const tier = dry ? "dry-run" : (hi.tier && hi.tier !== "none" ? hi.tier : "new");
+    const tierCls = tier === "resident" ? "ok" : (tier === "retired" ? "warn" : "");
+    const tierBadge = `<span class="${tierCls}"${tierCls ? "" : ' style="color:var(--faint)"'}>tier: ${esc(tier)}</span>`;
+    parts.push(`→ <span class="home">${esc(home)}</span> ${dry ? `<span class="ok">(fresh dry-run home)</span>` : (hi.exists ? `<span class="ok">(existing memory · ${hi.files} entr${hi.files === 1 ? "y" : "ies"})</span>` : `<span>(new memory)</span>`)} · ${tierBadge}`);
     if (a.description) parts.push(`<span style="color:var(--faint);font-style:italic">${esc(a.description)}</span>`);
     if (!a.hasWs) parts.push(`<span class="warn">⚠ no &lt;m-ws&gt; — it will run, but has no live window to watch</span>`);
     if (a.sharesHomeWith && a.sharesHomeWith.length) parts.push(`<span class="warn">⚠ shares this memory (same identity) with: ${a.sharesHomeWith.map(esc).join(", ")}</span>`);

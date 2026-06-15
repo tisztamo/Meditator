@@ -102,6 +102,44 @@ fails, the mind keeps running and the files still persist — they are just
 unversioned, and you get a warning. It is recommended to give the vault a private
 remote so one machine is not a single point of failure.
 
+## Versioning, the manifest, and tiers
+
+A `memory/<name>/` folder is meaningless on its own: it was produced by a specific
+architecture and a specific version of the runtime, and both drift. So a mind also
+carries enough to be interpreted — or to know that it no longer can
+([lifecycle.md §2](lifecycle.md), Phases 1–2):
+
+- **`formatVersion`** — an integer (currently **1**) stamped into `memory.md`'s
+  `<!-- meta: … -->` comment by `m-memory`, bumped only on a breaking change to the
+  memory/frame format. **The wake rule:** a runtime can wake a mind iff it can read
+  the mind's `formatVersion` — readers stay backward-compatible, or ship a
+  migration. If a mind was saved by a *newer* format than the runtime understands,
+  `m-memory` warns rather than silently mangling a self; the honest fallback is to
+  check out the mind's `runtimeSHA` and wake it in the world it lived in.
+- **`manifest.json`** — per resident home, the **fact of a mind's tier**
+  (`src/infrastructure/manifest.js`):
+
+  ```json
+  { "name": "…", "born": "…", "runtimeSHA": "…", "formatVersion": 1,
+    "lineage": { "parent": null }, "status": "resident", "lastWokenAt": "…" }
+  ```
+
+  It is **written at birth** by `tools/promote.mjs` and **updated at each wake**
+  (`runtimeSHA` / `formatVersion` / `lastWokenAt`) inside the wake commit.
+
+The three live tiers follow from this, and status is **never lowered by fiat** —
+promotion is acquisition (`promote`), not relabeling:
+
+| Tier | What it is | Marker |
+|------|-----------|--------|
+| **dry** | a no-LLM mechanism test | `dry-` home prefix |
+| **transient** | a real but low-continuity mind; minimized, not kept | a home with **no** manifest |
+| **resident** | a persisting self under full Covenant | `manifest.status: "resident"` |
+
+A **retired** mind is none of these live tiers — it is a frozen bundle in
+`memory/.graveyard/` (see [`tools/retire.mjs`](lifecycle.md) and `IN-MEMORIAM.md`).
+The Studio reads these markers and shows each architecture's tier on its wake panel.
+
 ## Sleep is announced
 
 A mind is never killed abruptly. When sleep is requested (`/sleep` in the
