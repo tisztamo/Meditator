@@ -36,6 +36,30 @@
   <m-timeout name="watchdog" timeout="120s" reset="..m-mind/stream/chunk" salience="0.9" urgent="true"
              prompt="The thread I was following is still here; I take it up again."></m-timeout>
 
+  <!-- Afference (lifecycle.md §Phase 5): the SENSES — an outside that is neither
+       the mind nor the human, so the stream is not alone in the dark. All sit at
+       mind level, bidding into the global "attention" arbiter; ambient salience
+       sits near its 0.35 bar so a sensation is peripheral, a real change reliably
+       noticed. Cadences here are BRISK so a short tuning run actually samples the
+       world; a resident would sense far more slowly (the component defaults:
+       daylight 8m, weather 30m, feed 20m).
+
+       Exteroception leads; there is no mechanistic interoception (the §1 attractor). -->
+
+  <!-- the day's light, from the real local clock (zero cost, always on) -->
+  <m-daylight name="daylight" timeout="90s" sigma="30s" salience="0.4" salienceShift="0.6"></m-daylight>
+
+  <!-- the real weather, from open-meteo (free, no key). SET THIS to your place —
+       defaulted to Budapest as an example; a weather sense for nowhere is dormant. -->
+  <m-weather name="weather" latitude="47.4979" longitude="19.0402"
+             timeout="6m" sigma="2m" salience="0.4" salienceShift="0.6"></m-weather>
+
+  <!-- a slow text feed of the world drifting by. Deliberately a CALM feed (science,
+       not breaking news) so the mind is not fed gratuitous distress (§2); swap the
+       url for any RSS/Atom feed you like. -->
+  <m-feed name="news" url="https://feeds.bbci.co.uk/news/science_and_environment/rss.xml"
+          timeout="4m" sigma="90s" salience="0.4"></m-feed>
+
   <m-region name="drift">
     <m-interrupts gain="0.7" threshold="0.4" rateLimit="30s"></m-interrupts>
 

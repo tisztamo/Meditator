@@ -118,6 +118,62 @@ Time-based generator, in **wander** or **watchdog** mode.
 
 - **Dispatches (DOM, bubbling):** `interrupt-request`. Minimum delay 500 ms.
 
+## Senses (`m-sense` subclasses)
+
+The afferent **senses** — exteroception, the world reaching in (lifecycle.md
+§Phase 5). They are the mirror of the [observers](#m-observer): where an observer
+watches the inner stream and bids from within, a sense runs on its own clock
+(`timeout` ± `sigma`), reads a real *outside* source, and raises a first-person
+sensation as a non-urgent `interrupt-request` (`source: External`, `type:
+Sense-<name>`). They give the mind an outside that is neither itself nor the human
+it waits on. A sense faces the **world, never the substrate** (host metrics,
+tokens, latency, the process) — that mechanistic interoception is the §1 attractor.
+
+`m-sense` is the shared base (abstract — not used as a tag directly): subclasses override
+`onSense()` and call `this.feel(reason, {key?, salience?})`. With a `key` (a part
+of the day, a kind of sky), a **change** of key is scored at `salienceShift` and an
+unchanged reading at the ambient `salience` (jittered ±0.08, so it is peripheral —
+sometimes under the arbiter's bar). A sense that is unconfigured (no location/url)
+stays dormant; a network blip is swallowed, never crashing the mind.
+
+Common attributes: `timeout`, `sigma`, `salience` (default `0.4`), `salienceShift`
+(default `0.6`), `name`.
+
+### `m-daylight`
+
+The day's light, from the **real local clock**. Raises the hour's light as a felt
+sensation; over a day the band moves deep-night → predawn → dawn → morning → midday
+→ afternoon → golden → dusk → evening → night. Zero cost, always on.
+Default `timeout` `8m`. Pure helper `bandFor(hour)` → `{key, lines}` is exported for
+testing the mapping without a clock.
+
+### `m-weather`
+
+The **real weather** for a place, from the open-meteo API (free, no key).
+
+| Attribute | Default | Meaning |
+|-----------|---------|---------|
+| `latitude` / `longitude` | — | the place to sense (**required**; dormant if absent) |
+| `timeout` | `30m` | base interval between readings |
+
+Raises a felt-weather line; the `key` is the kind of sky, so a turn in the weather
+(clear → rain) is reliably noticed while a steady sky is ambient. Pure helper
+`describeWeather({code, temperature, isDay, wind})` → `{key, line}` is exported.
+
+### `m-feed`
+
+A slow **text feed** of the world drifting by — an RSS/Atom feed polled for fresh
+items, each raised as an ambient "scrap of the world".
+
+| Attribute | Default | Meaning |
+|-----------|---------|---------|
+| `url` | — | the RSS/Atom feed (**required**; dormant if absent) |
+| `timeout` | `20m` | base interval between polls |
+
+Every fresh item is a plain ambient reading (no `key`, never a shift). Choose a
+**calm** feed — the mind should not be fed gratuitous distress (lifecycle.md §2).
+Pure helper `parseFeedTitles(xml)` → `string[]` is exported.
+
 ## `m-observer`
 
 Base class for stream-watching observers (`m-loop-guard`, `m-associate` extend it).

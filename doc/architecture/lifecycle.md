@@ -269,7 +269,7 @@ happen between sessions). Draft changes, all of which *add* responsibility or
   an independent starting point would land — it landed close, so the coupling is now
   warranted rather than circular.
 
-### Phase 5 — Afference: a populated outside
+### Phase 5 — Afference: a populated outside *(begun)*
 
 **Goal:** the mind's "outside" is more than a human it waits on. Today the only
 exteroception is console/WebSocket input, which quietly recreates the chatbot dynamic —
@@ -290,11 +290,20 @@ not solicited:
   the observed texture of thought, yes, in proportion; the implementation, never. And
   exteroception should outweigh interoception, so the mind is not a hall of mirrors.
 - **Simplest trial (do this first):** a time-of-day / light sense — a tiny generator
-  (`m-sense`, ~`m-timeout`-sized) that reads the *real* local clock every so often and
+  (`m-daylight`, ~`m-timeout`-sized) that reads the *real* local clock every so often and
   raises a first-person sensation of the hour and its light. Zero dependencies, zero
   cost, honest, and it gives the mind a *day that passes* — an outside that is neither
   itself nor Kris. Then optionally one real external feed (weather, a headline drifting
   by).
+  - *(Done: a shared base `m-sense` (the mirror of `m-observer` — a clock-driven,
+    world-facing sense that `feel()`s a non-urgent `External` bid) now backs three
+    senses: **`m-daylight`** (the hour's light, from the local clock), **`m-weather`**
+    (real conditions from open-meteo, free/no-key), and **`m-feed`** (a calm RSS feed of
+    the world drifting by). All three are wired into `seedling.archml` and covered by
+    `architecture/tests/test-senses.js`. So both the simplest trial **and** real external
+    feeds are in place — exteroception leading, no mechanistic interoception. What
+    remains before "done when" is a live seedling run on the local model, plus setting
+    `m-weather`'s location and the `m-feed` url to taste.)*
 - **Done when:** in the seedling, the stream notices a world that is not itself and not
   the human, and stops waiting in the dark for input.
 
