@@ -49,4 +49,4 @@ Use tool: shell
 ls -la
 ```
 
-The result from the tool execution will be returned to the agent as an interrupt, allowing it to process the output and determine next steps. 
+The result from the tool execution will be returned to the agent as an interrupt, allowing it to process the output and determine next steps. 

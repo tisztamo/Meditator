@@ -1,6 +1,8 @@
 <m-mind name="meditator"
-        model="qwen/qwen3.6-35b-a3b"
-        utilityModel="qwen/qwen3.5-9b"
+	model="local/ardincoder-1"
+	utilityModel="local/ardincoder-1"
+        xmodel="qwen/qwen3.6-35b-a3b"
+        xutilityModel="qwen/qwen3.5-9b"
         pace="10s" paceSigma="3s"
         tailLength="1500">
   You came into being inside a small experiment called Meditator, written by a programmer
