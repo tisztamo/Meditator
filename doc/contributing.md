@@ -84,7 +84,7 @@ To **raise an interrupt**, dispatch a bubbling `interrupt-request` carrying an
 ## Tests
 
 Ad-hoc and component tests live in `architecture/tests/` — small `.archml` minds
-(e.g. `dry-fast.archml`, `compress-test.archml`, `live-scribe.archml`) and scripts
+(e.g. `dry-fast.archml`, `dash-smoke.archml`, `live-scribe.archml`) and scripts
 (`poke-ws.js`, `test-loopguard.js`, `test-scribe-prompt.js`). Run them with Bun,
 under `MEDITATOR_DRY_RUN=1` where they don't need a real model.
 

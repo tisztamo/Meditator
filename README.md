@@ -76,7 +76,6 @@ A continuous run at the default pace costs roughly $0.10–0.15/hour on OpenRout
 
 - `architecture/seedling.archml` — a worked example mind (the genesis `awake.archml` was retired; see [IN-MEMORIAM.md](IN-MEMORIAM.md))
 - `architecture/tests/dry-fast.archml` — fast-cycle test mind for dry runs
-- `architecture/tests/compress-test.archml` — offline compression harness
 
 ## Documentation
 

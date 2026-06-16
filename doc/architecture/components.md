@@ -355,8 +355,8 @@ agent that calls tools.
 | `m-tools` | detects and dispatches tool calls in the stream | demo only |
 | `m-shell` | a tool that runs shell commands on the host | demo only |
 | `m-token-monitor` | older rule/LLM token-pattern interrupt generator | superseded by observers |
-| `m-compress` | standalone compression demo | superseded by `m-memory` |
-| `m-recent-history` | block-based history compression demo | superseded by `m-memory` |
+| `m-compress` | standalone compression demo | removed — use `m-memory` |
+| `m-recent-history` | block-based history compression demo | removed — use `m-memory` |
 | `m-stream-generator` | synthetic chunk generator for tests | demo only |
 | `m-planner` | empty placeholder | not implemented |
 
