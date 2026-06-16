@@ -6,7 +6,7 @@ the browser, you can **wake** any architecture, watch a **roster** of live minds
 **sleep** with the proper ritual — without ever opening a terminal for a mind.
 
 ```bash
-bun studio.js          # then open http://localhost:7600
+bun run studio.js          # then open http://localhost:7600
 ```
 
 It is a *supervisor*, not a mind: it runs `meditator.js` as a child process per

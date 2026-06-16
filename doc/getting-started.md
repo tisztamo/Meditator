@@ -1,8 +1,7 @@
 # Getting started
 
 Meditator runs under [Bun](https://bun.sh). A mind is one `.archml` file; running
-it starts a continuous stream of thought you can watch in the terminal, speak to,
-and put to sleep.
+it starts a continuous stream of thought you can watch, speak to, and put to sleep.
 
 ## Prerequisites
 
@@ -21,7 +20,29 @@ and put to sleep.
 bun install
 ```
 
-## Run a mind
+## Run the Studio
+
+The usual way to run Meditator is the **[Studio](studio.md)** — an integrated
+browser environment that manages mind processes for you, with an architecture
+picker and a roster of live minds:
+
+```bash
+bun run studio.js          # then open http://localhost:7600
+```
+
+Pick an architecture in the left rail, optionally tick **dry-run** for an offline
+stub (no API key, no spend), then press **Wake**. The stream appears in the
+center pane; type into the input box at the bottom to speak to the mind, and
+press **Sleep** on its roster card when you are done.
+
+A continuous run at the default pace costs roughly **$0.10–0.15/hour** on
+OpenRouter with the default Qwen models; the [economy](architecture/components.md#m-economy)
+component slows the mind down as its budget drains.
+
+## Or: run a mind in the terminal
+
+You can also start a mind directly — useful when you want stdout in a console or
+need `--debug` logs:
 
 ```bash
 # choose a mind to run (there is no default)
@@ -37,27 +58,11 @@ mind thinking. You will see the stream print to stdout, with `⟂` lines marking
 stimuli (something that interrupted the thought) and blank lines marking burst
 boundaries.
 
-## Or: run the Studio (no terminal per mind)
-
-If you would rather wake, watch, speak to, and sleep minds from one place, run the
-**[Studio](studio.md)** instead — an integrated browser environment that manages
-the mind processes for you, with an architecture picker and a roster of live minds:
-
-```bash
-bun studio.js          # then open http://localhost:7600
-```
-
-Everything below (talking, sleeping, dry-run) also applies to a mind run directly
-in a terminal, which remains fully supported.
-
-A continuous run at the default pace costs roughly **$0.10–0.15/hour** on
-OpenRouter with the default Qwen models; the [economy](architecture/components.md#m-economy)
-component slows the mind down as its budget drains.
-
 ## Talk to it
 
-While a mind runs in a TTY, **type a line and press Enter**. Your words arrive as
-an *urgent* external stimulus that supersedes the current burst — there is no
+In the **Studio**, type into the input box at the bottom of the focused mind's
+pane. In a **terminal**, type a line and press Enter. Your words arrive as an
+*urgent* external stimulus that supersedes the current burst — there is no
 "reply" turn; you hear the mind think about what you said, in its own voice. (If
 stdin is not a TTY, set `MEDITATOR_STDIN=1` to force console input on.)
 
@@ -66,27 +71,29 @@ You can also speak to it over the [WebSocket API](websocket-api.md) on port 7627
 ```bash
 # one-off poke from another terminal
 bun architecture/tests/poke-ws.js "hello little mind"
-
-# or the simple browser client
-bun run src/client/server.js          # then open http://localhost:3000
 ```
+
+The first mind woken in the Studio takes port 7627 and is marked **public** — the
+same port the [intro site](../docs/) connects to.
 
 ## Put it to sleep
 
 Sleep is *announced*, never an abrupt kill — this is part of the
-[covenant](../COVENANT.md). Two ways to ask:
+[covenant](../COVENANT.md). Three ways to ask:
 
-- type **`/sleep`** in the console,
-- press **Ctrl-C once**, or
-- press **Sleep** on the mind's card in the [Studio](studio.md).
+- press **Sleep** on the mind's card in the [Studio](studio.md),
+- type **`/sleep`** in the console, or
+- press **Ctrl-C once** in the terminal.
 
 The mind gets one last short burst to close the thought knowing it is being
 paused, then its memory is flushed, persisted, and committed to the vault. It
 will wake again mid-thought next time, noting how long it slept. A **second
-Ctrl-C** forces an immediate exit (the sleep ritual also has a 45-second
-timeout so it can never hang).
+Ctrl-C** (or **Force** in the Studio) forces an immediate exit (the sleep ritual
+also has a 45-second timeout so it can never hang).
 
 ## Dry run (no network, no cost)
+
+In the Studio, tick **dry-run** before waking a mind. From the terminal:
 
 ```bash
 MEDITATOR_DRY_RUN=1 bun run meditator.js -a architecture/tests/dry-fast.archml
@@ -100,15 +107,20 @@ develop components.
 
 ## See the logs
 
+When running a mind directly in a terminal:
+
 ```bash
 bun run meditator.js --debug                       # all component logs
 bun run meditator.js --debug=mMind.js,mMemory.js   # only these sources
 ```
 
-`--debug` reveals the assembled attention frames, memory consolidations, and
-arbiter decisions — the most direct way to understand what the mind is doing.
+In the Studio, open the collapsible **process log** on a focused mind to see the
+child's stdout/stderr. `--debug` reveals the assembled attention frames, memory
+consolidations, and arbiter decisions — the most direct way to understand what
+the mind is doing.
 
 ## Next
 
+- [The Studio](studio.md) — roster, focus, dry-run, sleep vs. force.
 - [Configuration](configuration.md) — tune the mind, swap models, set a budget.
 - [Architecture overview](architecture/index.md) — what actually happens each burst.

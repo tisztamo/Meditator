@@ -41,14 +41,22 @@ Because the tail is always carried forward verbatim, the thought survives every 
 ```bash
 bun install
 # needs OPENROUTER_API_KEY in the environment
+bun run studio.js          # then open http://localhost:7600
+```
+
+The **[Studio](doc/studio.md)** is the integrated way to run Meditator: wake any architecture from the browser, watch a roster of live minds, speak to them, and put them to sleep — no per-mind terminal needed. Pick an architecture in the left rail, press **Wake**, and the stream appears in the center pane.
+
+You can also run a mind directly in a terminal (useful for debugging):
+
+```bash
 bun run meditator.js -a architecture/seedling.archml         # choose a mind to run
 bun run meditator.js -a architecture/tests/dry-fast.archml   # ...or any other architecture
 ```
 
-- Type a line into the terminal and press Enter — it arrives as an urgent stimulus. `/sleep` (or a single Ctrl-C) puts the mind to sleep gracefully: it gets a final moment to close the thought, then memory is flushed and committed.
-- Websocket stream on port 7627 (`bun architecture/tests/poke-ws.js "hello"` to speak; `bun run src/client/server.js` then http://localhost:3000 for the simple web client).
-- `--debug` or `--debug=mMind.js,mMemory.js` for component logs (attention frames, consolidations, arbiter decisions).
-- `MEDITATOR_DRY_RUN=1` runs the whole loop offline against a deterministic stub — no network, no cost.
+- In the Studio, type into the input box at the bottom — your words arrive as an urgent stimulus. In a terminal, type a line and press Enter the same way. `/sleep` (or a single Ctrl-C) puts the mind to sleep gracefully: it gets a final moment to close the thought, then memory is flushed and committed.
+- Websocket stream on port 7627 (`bun architecture/tests/poke-ws.js "hello"` to speak from another terminal; the Studio and the [intro site](docs/index.html) connect here too).
+- `--debug` or `--debug=mMind.js,mMemory.js` for component logs when running `meditator.js` directly (attention frames, consolidations, arbiter decisions).
+- Tick **dry-run** in the Studio, or set `MEDITATOR_DRY_RUN=1` on the command line, to run offline against a deterministic stub — no network, no cost.
 
 ### Models
 
@@ -81,7 +89,8 @@ A continuous run at the default pace costs roughly $0.10–0.15/hour on OpenRout
 
 This README is the overview; [`doc/`](doc/index.md) is the deeper reference:
 
-- [Getting started](doc/getting-started.md) — install, run, talk to it, dry run
+- [Getting started](doc/getting-started.md) — install, run the Studio, talk to it, dry run
+- [The Studio](doc/studio.md) — wake, watch, speak to, and sleep minds from the browser
 - [Configuration](doc/configuration.md) — write and tune a `.archml` mind
 - [Architecture](doc/architecture/index.md) — bursts, the attention frame, the loop — and [memory & the vault](doc/architecture/memory.md), [interrupts & observers](doc/architecture/interrupts.md), the [component reference](doc/architecture/components.md)
 - [WebSocket API](doc/websocket-api.md) — the live stream protocol on port 7627

@@ -11,7 +11,7 @@ in a few minutes.
 ```bash
 bun install
 export OPENROUTER_API_KEY=…        # or run offline, see below
-bun run meditator.js               # the default mind
+bun run studio.js                  # then open http://localhost:7600
 ```
 
 Develop against the **offline dry run** so you never spend money or wait on the

@@ -15,8 +15,8 @@ picture and the motivation. This `doc/` tree is the deeper reference.
 
 ## Start here
 
-- **[Getting started](getting-started.md)** — install Bun, set a key, run a mind
-  on your desk, talk to it, put it to sleep. Includes the offline dry-run.
+- **[Getting started](getting-started.md)** — install Bun, set a key, run the
+  Studio, wake a mind, talk to it, put it to sleep. Includes the offline dry-run.
 - **[Configuration](configuration.md)** — how to write and tune a `.archml` mind:
   models, pace, memory budgets, observers, budget/economy, debug flags.
 
@@ -36,9 +36,9 @@ picture and the motivation. This `doc/` tree is the deeper reference.
 
 ## Interfaces
 
-- **[The Studio](studio.md)** — an integrated browser environment to wake, watch,
-  speak to, and sleep minds, with an architecture picker and a roster of live
-  minds. Run `bun studio.js`; no per-mind terminal needed.
+- **[The Studio](studio.md)** — the usual way to run Meditator: wake, watch,
+  speak to, and sleep minds from the browser, with an architecture picker and a
+  roster of live minds. Run `bun run studio.js`; no per-mind terminal needed.
 - **[WebSocket API](websocket-api.md)** — the live stream protocol on
   `ws://localhost:7627`: thought fragments out, voice in.
 

@@ -159,8 +159,8 @@ From the repo:
 # fire a single message at a running mind
 bun architecture/tests/poke-ws.js "hello little mind"
 
-# the bundled browser client (a stream viewer + input box)
-bun run src/client/server.js          # then open http://localhost:3000
+# or use the Studio (the usual browser UI)
+bun run studio.js          # then open http://localhost:7600
 ```
 
 ## Notes
