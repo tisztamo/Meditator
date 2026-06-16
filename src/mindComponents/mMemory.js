@@ -6,7 +6,7 @@ import { resolveModelRef } from "../modelAccess/modelConfig.js"
 import { logger } from '../infrastructure/logger.js';
 import { InterruptRecord } from '../infrastructure/interruptRecord.js';
 import { mindHome, inVault, ensureVault, commitVault, assertNotRetired } from '../infrastructure/memoryVault.js';
-import { FORMAT_VERSION, recordWake } from '../infrastructure/manifest.js';
+import { FORMAT_VERSION, recordWake, tierOf } from '../infrastructure/manifest.js';
 
 const log = logger('mMemory.js');
 
@@ -62,16 +62,21 @@ export class MMemory extends MBaseComponent {
         this.sub(this.attr("boundarySrc") || "..m-mind/stream/boundary", this._onBoundary)
 
         const dir = this._persistDir()
+        this._home = dir
         this._vaulted = !!dir && inVault(dir)
         if (this._vaulted) { ensureVault(); assertNotRetired(dir) }
+        // Only a resident persists to history (lifecycle.md §2). A dry or transient
+        // mind still loads/writes its home, but never commits — its home has no
+        // resident manifest, so tierOf is "transient"/"none", and `commitVault`
+        // additionally hard-stops on a dry run.
+        this._persists = this._vaulted && tierOf(dir) === 'resident'
 
         this._load().finally(() => {
             this.loaded = true
-            if (this._vaulted) {
-                // A resident records the runtime + format that woke it (Phases 1–2);
-                // a transient/dry mind has no manifest, so this is a quiet no-op.
-                recordWake(dir)
-                commitVault(`wake: ${this._mindLabel()} ${new Date().toISOString()}`)
+            if (this._persists) {
+                // A resident records the runtime + format that woke it (Phases 1–2).
+                recordWake(this._home)
+                commitVault(`wake: ${this._mindLabel()} ${new Date().toISOString()}`, this._home)
             }
         })
     }
@@ -107,8 +112,8 @@ export class MMemory extends MBaseComponent {
         }
         this._persist()
         this._boundaryCount += 1
-        if (this._vaulted && this._boundaryCount % 25 === 0) {
-            commitVault(`heartbeat: ${this._mindLabel()} after ${this._boundaryCount} boundaries`)
+        if (this._persists && this._boundaryCount % 25 === 0) {
+            commitVault(`heartbeat: ${this._mindLabel()} after ${this._boundaryCount} boundaries`, this._home)
         }
     }
 
@@ -123,7 +128,7 @@ export class MMemory extends MBaseComponent {
         this._appendJournal(`\n\n*${reason} at ${new Date().toISOString()}*\n`)
         await this._journalQueue
         await this._persist()
-        if (this._vaulted) await commitVault(`${reason}: ${this._mindLabel()} ${new Date().toISOString()}`)
+        if (this._persists) await commitVault(`${reason}: ${this._mindLabel()} ${new Date().toISOString()}`, this._home)
     }
 
     async _consolidate() {

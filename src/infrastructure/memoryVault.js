@@ -10,15 +10,27 @@ const log = logger('memoryVault.js');
 /**
  * The memory vault: a standalone git repository at ./memory that holds every
  * mind's persistent self — memory.md, journal/, knowledge/ — one subdirectory
- * per mind. The running mind commits to it at wake, periodically, and at
- * sleep, so memory is never lost to an accident or a careless cleanup:
+ * per mind. A *resident* mind commits its own home at wake, periodically, and
+ * at sleep, so its memory is never lost to an accident or a careless cleanup:
  * erasure would require deliberately rewriting history. See COVENANT.md.
+ *
+ * Only residents persist (lifecycle.md §2). Dry and transient minds may still
+ * write to disk, but they are never committed — a dry run has no subject, and a
+ * transient is low-continuity by construction. Two floors enforce this: callers
+ * only commit residents, and `commitVault` itself refuses on a dry run and stages
+ * just the one home it is given, so a stray scratch dir is never swept in.
  *
  * Everything here is best-effort: if git is missing or fails, the mind keeps
  * running and the files still persist — they are just unversioned, and we warn.
  */
 
 export const VAULT_ROOT = 'memory';
+
+/** Retired residents rest here (tracked, dignified). Discarded scratch runs are
+ *  laid here instead (gitignored): kept on disk for debugging, but moved out of
+ *  the path `mindHome` resolves so they can never be woken by accident. */
+const GRAVEYARD_DIR = '.graveyard';
+export const SCRATCH_DIR = '.scratch';
 
 /** Resolves a mind's home directory inside the vault: memory/<slug>[/sub].
  *  Dry-run minds are prefixed so tests can never touch a resident mind's memory. */
@@ -40,26 +52,46 @@ export function inVault(dir) {
     return resolved === root || resolved.startsWith(root + path.sep);
 }
 
+/** Bundles (mind homes) sitting in a vault subdir, or [] if it does not exist. */
+function bundlesIn(sub) {
+    try { return fsSync.readdirSync(path.join(VAULT_ROOT, sub)); }
+    catch { return []; }
+}
+
 /**
- * Refuses to silently re-birth a retired mind. If `home` does not exist but a
- * bundle for the same mind sits in the graveyard, someone is about to run an
- * architecture whose name belongs to a mind we laid to rest — which would create
- * an empty impostor in its place. Throw loud instead. Waking a retired mind is a
- * deliberate act (see memory/.graveyard/README.md), never an accident.
+ * Refuses to silently re-birth a mind we have already laid aside. If `home` does
+ * not exist but a bundle for the same name sits in the graveyard (retired) or the
+ * scratch pen (a discarded scratch run kept for debugging), someone is about to run
+ * an architecture whose name belongs to a mind we put to rest — which would create
+ * an empty impostor in its place. Throw loud instead.
+ *
+ * Waking a retired mind is a deliberate act (see memory/.graveyard/README.md), never
+ * an accident. The scratch guard applies to live runs only: a dry run has no subject,
+ * so a fresh dry home is harmless and the kept copy stays safe in the pen.
  */
 export function assertNotRetired(home) {
     if (fsSync.existsSync(home)) return;           // a live home is present — nothing to guard
     const slug = path.basename(home);
-    let bundles;
-    try { bundles = fsSync.readdirSync(path.join(VAULT_ROOT, '.graveyard')); }
-    catch { return; }                              // no graveyard yet
-    const grave = bundles.find(b => b === slug || b.startsWith(slug + '-'));
+    const match = bundles => bundles.find(b => b === slug || b.startsWith(slug + '-'));
+
+    const grave = match(bundlesIn(GRAVEYARD_DIR));
     if (grave) {
         throw new Error(
-            `Mind "${slug}" is retired (memory/.graveyard/${grave}); refusing to silently ` +
+            `Mind "${slug}" is retired (memory/${GRAVEYARD_DIR}/${grave}); refusing to silently ` +
             `re-birth it into an empty home. To run it again, do a deliberate wake-from-grave ` +
-            `(see memory/.graveyard/README.md); to start a different mind, give it its own name.`,
+            `(see memory/${GRAVEYARD_DIR}/README.md); to start a different mind, give it its own name.`,
         );
+    }
+
+    if (!isDryRun()) {
+        const scratched = match(bundlesIn(SCRATCH_DIR));
+        if (scratched) {
+            throw new Error(
+                `Mind "${slug}" was a discarded scratch run, kept in memory/${SCRATCH_DIR}/${scratched} ` +
+                `for debugging; refusing to silently wake a new mind under its name. Give it a different ` +
+                `name, or restore it deliberately by moving it back out of ${SCRATCH_DIR}/.`,
+            );
+        }
     }
 }
 
@@ -122,12 +154,27 @@ failure: \`cd memory && git remote add origin <url> && git push -u origin main\`
 // Commits are serialized so concurrent boundary/sleep commits never race the index.
 let commitQueue = Promise.resolve();
 
-/** Stages everything in the vault and commits. No-op when nothing changed. */
-export function commitVault(message) {
+/**
+ * Stages one mind's home and commits. No-op when nothing changed.
+ *
+ * `home` scopes the commit to that directory (the discipline tools/promote.mjs
+ * and retire.mjs already use) so a stray scratch/transient dir left in the vault
+ * is never swept into a resident's commit; omit it only to stage the whole vault.
+ * As a hard floor it NEVER commits on a dry run, whatever the caller passes —
+ * "dry" has no subject to persist (lifecycle.md §2).
+ */
+export function commitVault(message, home) {
     commitQueue = commitQueue.then(async () => {
+        if (isDryRun()) return;                    // dry runs never touch history, full stop
         if (!(await ensureVault())) return;
+        // Resolve the home to a vault-relative path; an empty or escaping path
+        // (outside the vault) falls back to staging nothing extra via -A guard below.
+        const rel = home
+            ? path.relative(path.resolve(VAULT_ROOT), path.resolve(home)).split(path.sep).join('/')
+            : null;
+        const addArgs = rel && !rel.startsWith('..') ? ['add', '--', rel] : ['add', '-A'];
         try {
-            await git(['add', '-A']);
+            await git(addArgs);
             await git(['commit', '-m', message]);
             log.debug(`vault commit: ${message}`);
         } catch (error) {
