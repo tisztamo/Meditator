@@ -53,6 +53,7 @@ setTimeout(() => {
         "thought streamed": got.thoughtFragments > 0,
         "frame events": (got.events["mind/frame"] || 0) > 0,
         "boundary events": (got.events["stream/boundary"] || 0) > 0,
+        "pace events": (got.events["mind/pace"] || 0) > 0,
         "attention bids": (got.events["attention/bid"] || 0) > 0,
         "economy energy": (got.events["economy/energy"] || 0) > 0,
         "spoke aloud": got.speech.length > 0,

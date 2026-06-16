@@ -76,6 +76,7 @@ process that produced it:
 | process | kind | payload |
 |---|---|---|
 | `mind` | `frame` | `{frameKind, system, frame, prefix}` — the assembled attention frame for a burst |
+| `mind` | `pace` | `{tickMs}` — the current burst tick, so a viewer can pace its display |
 | `stream` | `boundary` | `{reason, burstIndex, burstChars}` |
 | `attention` | `bid` | `{source, type, reason, salience, urgent}` — every bid for attention |
 | `attention` | `urgent` | `{type, reason}` — an urgent stimulus that superseded the burst |

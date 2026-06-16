@@ -19,18 +19,32 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
  *   [bridge]     1-2 transition sentences, the only LLM-written part, redirects only
  *   [tail]       verbatim end of the stream — "what I was just saying" — always last
  *
- * The cycle: stream finishes a burst -> boundary -> wait one pace interval ->
- * collect pending stimuli from the arbiter -> assemble frame -> publish "prompt".
- * Urgent stimuli (the arbiter dispatches an "interrupt" DOM event) skip the wait
- * and supersede the running burst immediately.
+ * The rhythm is a FIXED TICK: bursts are scheduled `pace` apart measured from
+ * one burst's START to the next, NOT `pace` after the previous one finishes. The
+ * cadence is therefore decoupled from how long the model takes — a fast burst is
+ * followed by quiet slack until the next tick (a viewer can fill that slack by
+ * slowing its display so the burst itself is barely visible), while a burst that
+ * OVERRUNS the tick is followed immediately by the next, with nothing queued
+ * behind it. Urgent stimuli (the arbiter dispatches an "interrupt" DOM event)
+ * skip the schedule and supersede the running burst immediately.
  *
  * Attributes:
  *   - model: default model for the whole mind (children inherit via env())
  *   - utilityModel: default for bridge/compression/observer calls
- *   - pace: pause between bursts (default "8s"), paceSigma: jitter (default "2s")
+ *   - pace: the burst-to-burst tick (default "8s"), paceSigma: jitter (default "2s")
  *   - tailLength: verbatim carryover size in chars (default 1500)
  *   - bridge: "true"|"false" — whether redirects get an LLM-written bridge (default true)
+ *
+ * Topics published:
+ *   - "prompt": the assembled attention frame for each burst (consumed by m-stream)
+ *   - "pace": {tickMs} — the current effective tick, so a viewer can pace its display
  */
+/** Delay until the next burst given the target tick and how long the cycle that
+ *  just finished took from its start. Zero means "now": the model was slower
+ *  than the tick, so the next burst fires immediately and nothing is queued. */
+export function tickDelay(tickMs, sinceStartMs) {
+    return Math.max(0, tickMs - sinceStartMs)
+}
 /** Resolves on the first boundary AFTER the given burst index (the property
  *  subscription replays the previous boundary, which must be ignored). */
 function onceBoundary(stream, afterIndex, timeoutMs) {
@@ -52,6 +66,7 @@ export class MMind extends MBaseComponent {
     backoff = 1
     _timer = null
     _thinkingSince = null
+    _burstStartedAt = null   // when the in-flight burst's cycle began (tick anchor)
     _sleeping = false
     _speaking = false
 
@@ -81,6 +96,9 @@ export class MMind extends MBaseComponent {
         }
         this._thinkingSince = Date.now()
         log.info(`"${this.attr("name") || "mind"}" starts thinking.`)
+        // Publish an initial tick estimate so a viewer can pace its display from
+        // the very first burst (the next one is published per-schedule).
+        this.pub("pace", { tickMs: Math.round(this._tickMs()) })
         this.continueThinking()
     }
 
@@ -157,14 +175,32 @@ export class MMind extends MBaseComponent {
         }
     }
 
+    /**
+     * Schedule the next burst on the fixed tick. The next burst starts one tick
+     * after THIS burst started, not one pace after it finished — so the cadence
+     * is steady regardless of model speed. If the burst already overran the tick,
+     * the next fires now (a single immediate call; the boundary that drives this
+     * runs once per burst, so nothing stacks up behind a slow model).
+     */
     _scheduleNext() {
-        if (this._timer) clearTimeout(this._timer)
-        const pace = this._paceMs()
-        log.debug(`Next burst in ${Math.round(pace)}ms`)
-        this._timer = setTimeout(() => this.continueThinking(), pace)
+        if (this._timer) { clearTimeout(this._timer); this._timer = null }
+        if (this._sleeping) return
+        const tick = this._tickMs()
+        this.pub("pace", { tickMs: Math.round(tick) })
+        const since = this._burstStartedAt ? (Date.now() - this._burstStartedAt) : tick
+        const wait = tickDelay(tick, since)
+        if (wait <= 0) {
+            log.debug(`Burst overran tick (${Math.round(since)}ms ≥ ${Math.round(tick)}ms) — next now`)
+            this.continueThinking()
+        } else {
+            log.debug(`Next burst in ${Math.round(wait)}ms (tick ${Math.round(tick)}ms)`)
+            this._timer = setTimeout(() => this.continueThinking(), wait)
+        }
     }
 
-    _paceMs() {
+    /** The target burst-to-burst tick in ms (jitter, backoff, metabolism and the
+     *  speaking thinning all fold into it). */
+    _tickMs() {
         const base = this._parseTimeAttr("pace", 8000)
         const sigma = this._parseTimeAttr("paceSigma", base / 4)
         const normal = Math.sqrt(-2 * Math.log(Math.random() || 1e-9)) * Math.cos(2 * Math.PI * Math.random())
@@ -196,6 +232,7 @@ export class MMind extends MBaseComponent {
     async continueThinking() {
         if (this._sleeping) return
         if (this._timer) { clearTimeout(this._timer); this._timer = null }
+        this._burstStartedAt = Date.now()   // anchor the tick for the next schedule
 
         const arbiter = this._arbiter()
         const memory = this.querySelector('m-memory')

@@ -14,14 +14,22 @@ loaded from `src/mindComponents/`.
 ## Bursts and boundaries
 
 The "continuous" stream is implemented as a sequence of short **bursts**. Each
-burst is exactly one streamed LLM call. Between bursts is a **boundary** and a
-configurable pause (`pace`) — inhale, think, exhale.
+burst is exactly one streamed LLM call. Between bursts is a **boundary** — inhale,
+think, exhale.
+
+The rhythm is a **fixed tick** (`pace`): the next burst is scheduled one tick
+after the current one *started*, not one pause after it *finished*. A burst faster
+than the tick is followed by quiet slack; a burst that overruns the tick is
+followed immediately by the next, with nothing queued behind it. (A viewer can
+fill the slack by slowing its display — see the Studio's *flow* mode — so the
+discrete burst is barely visible.)
 
 ```
-… burst ──boundary── pause ── burst ──boundary── pause ── burst …
-            │                          │
-            memory consolidates        interrupts land here
-            economy reads cost         the next frame is assembled
+│←── tick ──→│←── tick ──→│
+… burst ───boundary─ slack ─ burst ──boundary─ slack ─ burst …
+            │                         │
+            memory consolidates       interrupts land here
+            economy reads cost        the next frame is assembled
 ```
 
 Boundaries are where everything that is not thinking happens: pending stimuli are
@@ -113,9 +121,10 @@ their subconscious keeps working: while the voice is speaking it publishes
 `speaking=true`, and `m-mind` **thins** the thinking stream (fewer `burstTokens`,
 slower `pace`) so the verbal effort goes mostly to the utterance — but thought
 never stops, and the non-verbal observers (associations, loop-guard, timers,
-memory, economy, scribe) keep running untouched. When the utterance ends,
-`m-memory.spoke()` splices it into the tail as a marked `(aloud) "…"` block, so the
-next thought continues knowing what it just said.
+memory, economy, scribe) keep running untouched. When the utterance ends, the voice
+publishes it on its `spoken` topic; a memory subscribes (via `spokenSrc`) and splices
+it into the tail as a marked `(aloud) "…"` block, so the next thought continues
+knowing what it just said — the voice itself never names memory.
 
 ## Wiring: pub/sub and DOM events
 
