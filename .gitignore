@@ -11,6 +11,7 @@ interrupt-state/
 state/
 journal/
 *.log
+.run/
 
 # the memory vault is its own git repository (see COVENANT.md)
 memory/
