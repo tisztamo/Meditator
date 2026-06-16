@@ -54,7 +54,7 @@ export class StudioRoster extends A(HTMLElement) {
       if (!alive) acts.push(`<button action="dismiss">Dismiss</button>`);
       card.innerHTML =
         `<div class="top"><span class="nm">${esc(m.name || m.file)}</span><span class="badge ${m.state}">${m.state}</span></div>` +
-        `<div class="sub">${esc(m.file)} · :${m.port}${m.public ? ` <span class="pub">public</span>` : ""}${m.dryRun ? ` · dry` : ""}</div>` +
+        `<div class="sub">${esc(m.file)} · :${m.port}${m.public ? ` <span class="pub">public</span>` : ""}${m.dryRun ? ` · dry` : ""}${m.modelProfile ? ` · ${esc(m.modelProfile)}` : ""}</div>` +
         `<div class="sub">→ <span class="home">${esc(m.home)}</span></div>` +
         (m.detail ? `<div class="det">${esc(m.detail)}</div>` : "") +
         (e !== null ? `<div class="meter"><i style="width:${(e * 100).toFixed(0)}%"></i></div>` : "") +

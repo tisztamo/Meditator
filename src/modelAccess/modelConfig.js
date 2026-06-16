@@ -67,16 +67,16 @@ function roleSpec(name) {
   return { provider: role.provider, model: role.model };
 }
 
-function profileRoleRef(role) {
-  const profile = config?.profiles?.[activeProfile];
+function profileRoleRef(role, profileName = activeProfile) {
+  const profile = config?.profiles?.[profileName];
   return profile?.roles?.[role] ?? role;
 }
 
-function resolveRef(ref, roleHint) {
+function resolveRef(ref, roleHint, profileName = activeProfile) {
   if (!ref) {
     if (roleHint && ROLES.includes(roleHint)) {
-      const mapped = profileRoleRef(roleHint);
-      if (mapped !== roleHint) return resolveRef(mapped, roleHint);
+      const mapped = profileRoleRef(roleHint, profileName);
+      if (mapped !== roleHint) return resolveRef(mapped, roleHint, profileName);
       return roleSpec(roleHint);
     }
     throw new Error("Model reference is empty");
@@ -87,12 +87,28 @@ function resolveRef(ref, roleHint) {
   if (config?.presets?.[ref]) return presetSpec(ref);
 
   if (config?.roles?.[ref]) {
-    const mapped = profileRoleRef(ref);
-    if (mapped !== ref) return resolveRef(mapped, ref);
+    const mapped = profileRoleRef(ref, profileName);
+    if (mapped !== ref) return resolveRef(mapped, ref, profileName);
     return roleSpec(ref);
   }
 
   throw new Error(`Unknown model reference "${ref}"`);
+}
+
+function resolveModelSpec(ref, role, profileName = activeProfile) {
+  const envOverride = role && ROLE_ENV[role] ? process.env[ROLE_ENV[role]] : null;
+  const effectiveRef = envOverride || ref || null;
+
+  try {
+    const spec = resolveRef(effectiveRef, role, profileName);
+    return mergeProviderOptions(spec);
+  } catch (error) {
+    if (role && HARDCODED_FALLBACKS[role] && !effectiveRef) {
+      log.warn(`model resolve failed for role "${role}": ${error.message} — using hardcoded fallback`);
+      return mergeProviderOptions(HARDCODED_FALLBACKS[role]);
+    }
+    throw error;
+  }
 }
 
 function mergeProviderOptions(spec) {
@@ -141,19 +157,19 @@ export async function loadModelConfig() {
  * @returns {{ provider: string, model: string, baseURL?: string, apiKey?: string, thinking?: boolean }}
  */
 export function resolveModelRef(ref, role) {
-  const envOverride = role && ROLE_ENV[role] ? process.env[ROLE_ENV[role]] : null;
-  const effectiveRef = envOverride || ref || null;
+  return resolveModelSpec(ref, role, activeProfile);
+}
 
-  try {
-    const spec = resolveRef(effectiveRef, role);
-    return mergeProviderOptions(spec);
-  } catch (error) {
-    if (role && HARDCODED_FALLBACKS[role] && !effectiveRef) {
-      log.warn(`model resolve failed for role "${role}": ${error.message} — using hardcoded fallback`);
-      return mergeProviderOptions(HARDCODED_FALLBACKS[role]);
-    }
-    throw error;
+/** Resolve a model ref under a specific profile (for per-wake studio overrides). */
+export function resolveModelRefForProfile(ref, role, profileName) {
+  if (!config?.profiles?.[profileName]) {
+    throw new Error(`Unknown model profile "${profileName}"`);
   }
+  return resolveModelSpec(ref, role, profileName);
+}
+
+export function listProfiles() {
+  return config?.profiles ? Object.keys(config.profiles) : [];
 }
 
 /** Resolved spec for a role with no archml override (profile defaults + env). */
@@ -162,18 +178,22 @@ export function modelForRole(role) {
   return resolveModelRef(null, normalized);
 }
 
-/** For studio/logging — what each role resolves to under the active profile. */
-export function getResolvedRoles() {
+function resolvedRolesForProfile(profileName) {
   const out = {};
   for (const role of ROLES) {
-    const spec = resolveModelRef(null, role);
+    const spec = resolveModelSpec(null, role, profileName);
     out[role] = {
       provider: spec.provider,
       model: spec.model,
       label: spec.provider === "local" ? `local/${spec.model}` : spec.model,
     };
   }
-  return { profile: activeProfile, roles: out };
+  return { profile: profileName, roles: out };
+}
+
+/** For studio/logging — what each role resolves to under the active profile. */
+export function getResolvedRoles() {
+  return resolvedRolesForProfile(activeProfile);
 }
 
 export function getActiveProfile() {

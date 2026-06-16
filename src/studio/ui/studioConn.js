@@ -79,7 +79,12 @@ export class StudioConn extends A(HTMLElement) {
   // --------------------------------------- inbound supervisor message router
   onMsg(m) {
     switch (m.type) {
-      case "hello":         this.publicPort = (m.data && m.data.publicPort) || 7627; this.pub("publicPort", this.publicPort); break;
+      case "hello":
+        this.publicPort = (m.data && m.data.publicPort) || 7627;
+        this.pub("publicPort", this.publicPort);
+        this.pub("profiles", (m.data && m.data.profiles) || []);
+        this.pub("defaultProfile", (m.data && m.data.modelProfile) || null);
+        break;
       case "architectures": this.pub("architectures", (m.data && m.data.list) || []); break;
       case "roster":        this.pub("roster", (m.data && m.data.minds) || []); break;
       case "woke":          if (m.data && m.data.id) this.focus(m.data.id); break;
@@ -104,7 +109,9 @@ export class StudioConn extends A(HTMLElement) {
   }
 
   // ------------------------------------- outbound commands (called via el())
-  wake(file, dryRun) { if (file) this.send({ type: "wake", data: { file, dryRun: !!dryRun } }); }
+  wake(file, dryRun, modelProfile) {
+    if (file) this.send({ type: "wake", data: { file, dryRun: !!dryRun, modelProfile: modelProfile || null } });
+  }
   refresh() { this.send({ type: "refresh" }); }
   sleep(id) { this.send({ type: "sleep", data: { id } }); }
   force(id) { this.send({ type: "force", data: { id } }); }

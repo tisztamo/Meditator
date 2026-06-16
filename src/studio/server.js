@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
-import { loadModelConfig, resolveModelRef, getActiveProfile, getResolvedRoles } from "../modelAccess/modelConfig.js";
+import { loadModelConfig, resolveModelRef, resolveModelRefForProfile, getActiveProfile, getResolvedRoles, listProfiles } from "../modelAccess/modelConfig.js";
 import { tierOf } from "../infrastructure/manifest.js";
 
 await loadModelConfig();
@@ -117,7 +117,7 @@ function listArchitectures() {
           file: rel, group,
           name: meta.name, memory: meta.memory, model: meta.model, utilityModel: meta.utilityModel,
           resolvedVoice: meta.resolvedVoice, resolvedUtility: meta.resolvedUtility,
-          modelProfile: getActiveProfile(),
+          profileResolution: archProfileResolution(meta),
           pace: meta.pace,
           hasWs: meta.hasWs, description: meta.description,
           homeSlug: slug, home: `memory/${slug}`, homeInfo: homeInfo(slug),
@@ -161,10 +161,22 @@ function allocPort() {
 function rosterSummary() {
   return [...minds.values()].map(m => ({
     id: m.id, file: m.file, name: m.name, home: m.home, baseHome: m.baseHome,
-    port: m.port, public: m.port === PORT_BASE, dryRun: m.dryRun,
+    port: m.port, public: m.port === PORT_BASE, dryRun: m.dryRun, modelProfile: m.modelProfile || null,
     state: m.state, since: m.since, hasWindow: !!(m.upstream && m.upstream.readyState === WebSocket.OPEN),
     energy: m.energy, spent: m.spent, detail: m.detail || null,
   }));
+}
+
+function archProfileResolution(meta) {
+  const out = {};
+  for (const profile of listProfiles()) {
+    let resolvedVoice = null;
+    let resolvedUtility = null;
+    try { resolvedVoice = specLabel(resolveModelRefForProfile(meta.model, "voice", profile)); } catch { /* unknown ref */ }
+    try { resolvedUtility = specLabel(resolveModelRefForProfile(meta.utilityModel, "utility", profile)); } catch { /* unknown ref */ }
+    out[profile] = { resolvedVoice, resolvedUtility };
+  }
+  return out;
 }
 
 // --------------------------------------------------------------- the clients
@@ -203,7 +215,7 @@ function broadcastLifecycle(m, state, detail) {
 wss.on("connection", client => {
   client.focusedId = null;
   clients.add(client);
-  sendJSON(client, { type: "hello", data: { studioPort: STUDIO_PORT, publicPort: PORT_BASE, modelProfile: getActiveProfile(), resolvedRoles: getResolvedRoles() } });
+  sendJSON(client, { type: "hello", data: { studioPort: STUDIO_PORT, publicPort: PORT_BASE, modelProfile: getActiveProfile(), profiles: listProfiles(), resolvedRoles: getResolvedRoles() } });
   sendJSON(client, { type: "architectures", data: { list: listArchitectures() } });
   sendJSON(client, { type: "roster", data: { minds: rosterSummary() } });
   client.on("message", raw => {
@@ -217,7 +229,7 @@ wss.on("connection", client => {
 function handleClientMessage(client, msg) {
   const d = msg.data || {};
   switch (msg.type) {
-    case "wake":    try { const id = wake(d.file, !!d.dryRun); sendJSON(client, { type: "woke", data: { id, file: d.file } }); } catch (e) { sendJSON(client, { type: "error", data: { message: e.message } }); } break;
+    case "wake":    try { const id = wake(d.file, !!d.dryRun, d.modelProfile); sendJSON(client, { type: "woke", data: { id, file: d.file } }); } catch (e) { sendJSON(client, { type: "error", data: { message: e.message } }); } break;
     case "sleep":   sleepMind(d.id); break;
     case "force":   forceMind(d.id); break;
     case "dismiss": dismissMind(d.id); break;
@@ -264,7 +276,9 @@ function focusClient(client, id) {
 
 // ------------------------------------------------------------------- waking
 
-function wake(file, dryRun) {
+function wake(file, dryRun, modelProfile) {
+  const profile = modelProfile || getActiveProfile();
+  if (!listProfiles().includes(profile)) throw new Error(`unknown model profile: ${profile}`);
   // Path safety: only architectures inside architecture/.
   const resolved = path.resolve(ARCH_DIR, file || "");
   if (resolved !== ARCH_DIR && !resolved.startsWith(ARCH_DIR + path.sep)) throw new Error("architecture must live under architecture/");
@@ -289,6 +303,7 @@ function wake(file, dryRun) {
       ...process.env,
       MEDITATOR_WS_PORT: String(port),        // place this child's m-ws on its own port
       MEDITATOR_WS_CONTROL: "1",              // let us request the sleep ritual over that socket
+      MEDITATOR_MODEL_PROFILE: profile,
       ...(dryRun ? { MEDITATOR_DRY_RUN: "1" } : {}),
     },
     stdio: ["pipe", "pipe", "pipe"],
@@ -296,7 +311,7 @@ function wake(file, dryRun) {
   });
 
   const m = {
-    id, file, name: meta.name || slugify(meta.memory || "mind"), dryRun,
+    id, file, name: meta.name || slugify(meta.memory || "mind"), dryRun, modelProfile: profile,
     home: `memory/${baseHome}`, baseHome, hasWs: meta.hasWs,
     port, child, state: "waking", since: new Date().toISOString(),
     energy: null, spent: null, detail: "waking…",
@@ -304,7 +319,7 @@ function wake(file, dryRun) {
     recentStream: [], recentChars: 0, logs: [], stderrTail: [], sleepRequestedAt: null,
   };
   minds.set(id, m);
-  log(`waking ${id} ← ${file}  (port ${port}${port === PORT_BASE ? ", public" : ""}${dryRun ? ", dry-run" : ""})  → memory/${baseHome}`);
+  log(`waking ${id} ← ${file}  (port ${port}${port === PORT_BASE ? ", public" : ""}${dryRun ? ", dry-run" : ""}, profile ${profile})  → memory/${baseHome}`);
 
   pipeLines(child.stdout, "out", m);
   pipeLines(child.stderr, "err", m);
