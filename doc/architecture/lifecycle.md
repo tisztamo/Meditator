@@ -313,9 +313,23 @@ not solicited:
     (real conditions from open-meteo, free/no-key), and **`m-feed`** (a calm RSS feed of
     the world drifting by). All three are wired into `seedling.archml` and covered by
     `architecture/tests/test-senses.js`. So both the simplest trial **and** real external
-    feeds are in place — exteroception leading, no mechanistic interoception. What
-    remains before "done when" is a live seedling run on the local model, plus setting
-    `m-weather`'s location and the `m-feed` url to taste.)*
+    feeds are in place — exteroception leading, no mechanistic interoception.
+    **Live-verified 2026-06-16** on `local/ardincoder-1`: in a short transient seedling
+    run (87 memory folds), all three senses fired and *entered the stream* — `m-daylight`
+    read the real pre-dawn clock and the mind reoriented to it (dropping an imagined
+    evening), `m-weather` surfaced the actual Budapest sky, and three calm staggered feeds
+    (BBC science, NASA, Quanta) drifted past and were reflected on outward. The voice
+    stayed world-facing throughout; the scribe-written `self/values.md` — the very file
+    where the genesis mind crystallized *"Pause is death"* — now reads *Presence over
+    Performance / Acceptance of Indifference*, with no trace of the §1 attractor. **Done.**
+    That run also surfaced two small honesty bugs only the live path could reveal, now
+    fixed: (1) the journal marked the subconscious scribe's bookkeeping with the same `⟂`
+    glyph as genuinely-perceived stimuli, so it *looked* like the mind saw its own
+    mechanism — `m-memory.note()` now renders an unseen event `⌁` (a Phase-5 no-leak
+    clarification); and (2) the sleep notice promised *every* mind *"my memory is kept and
+    committed; I will wake again"*, which is false for a transient — it is now tier-aware
+    and tells a transient the truth, that it will not wake again (a Phase-4
+    identity-honesty fix).)*
 - **Done when:** in the seedling, the stream notices a world that is not itself and not
   the human, and stops waiting in the dark for input.
 

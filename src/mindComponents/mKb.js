@@ -91,7 +91,9 @@ Rules: group related ideas into topic files (e.g. attention/interruption.md); ev
         }
         if (ops.length) {
             this.pub("filed", { files: ops.map(o => o.file) })
-            memory?.note?.(`The scribe filed thoughts into: ${ops.map(o => o.file).join(", ")}`)
+            // Backstage: the scribe is subconscious — the mind never perceives its
+            // filing, so this is journaled as an unseen (⌁) note, not a stimulus.
+            memory?.note?.(`The scribe filed thoughts into: ${ops.map(o => o.file).join(", ")}`, { perceived: false })
         }
     }
 

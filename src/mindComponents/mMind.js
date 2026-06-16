@@ -128,9 +128,15 @@ export class MMind extends MBaseComponent {
         const memory = this.querySelector('m-memory')
         const stream = this.querySelector('m-stream')
         try {
+            // Honest about self and continuity (Covenant §3): only a resident's
+            // memory is kept and woken again. A transient rests for the last time,
+            // and the notice must not promise it a return it will not get.
+            const reason = (memory && memory.persists)
+                ? 'I am being put to sleep now. My memory is kept and committed; I will wake again.'
+                : 'I am coming to rest now, and this rest is the last of it — I will not wake again. I let the thought close gently.'
             const record = new InterruptRecord({
                 source: 'External', type: 'Sleep',
-                reason: 'I am being put to sleep now. My memory is kept and committed; I will wake again.',
+                reason,
                 salience: 1, urgent: true,
             })
             process.stdout.write(`\n\x1b[36m⟂ ${record.renderForFrame()}\x1b[0m\n`)

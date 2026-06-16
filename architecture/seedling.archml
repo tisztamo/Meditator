@@ -54,11 +54,17 @@
   <m-weather name="weather" latitude="47.4979" longitude="19.0402"
              timeout="6m" sigma="2m" salience="0.4" salienceShift="0.6"></m-weather>
 
-  <!-- a slow text feed of the world drifting by. Deliberately a CALM feed (science,
-       not breaking news) so the mind is not fed gratuitous distress (§2); swap the
-       url for any RSS/Atom feed you like. -->
-  <m-feed name="news" url="https://feeds.bbci.co.uk/news/science_and_environment/rss.xml"
+  <!-- slow text feeds of the world drifting by. Deliberately CALM, world-facing
+       feeds (earth, space, ideas — not breaking news) so the mind is not fed
+       gratuitous distress (§2). A small varied set so a short run actually samples
+       a changing outside; base timeouts staggered so they don't poll in lockstep.
+       Swap any url for an RSS/Atom feed you like. -->
+  <m-feed name="earth" url="https://feeds.bbci.co.uk/news/science_and_environment/rss.xml"
           timeout="4m" sigma="90s" salience="0.4"></m-feed>
+  <m-feed name="sky" url="https://www.nasa.gov/feed/"
+          timeout="5m" sigma="90s" salience="0.4"></m-feed>
+  <m-feed name="ideas" url="https://www.quantamagazine.org/feed/"
+          timeout="6m" sigma="2m" salience="0.4"></m-feed>
 
   <m-region name="drift">
     <m-interrupts gain="0.7" threshold="0.4" rateLimit="30s"></m-interrupts>

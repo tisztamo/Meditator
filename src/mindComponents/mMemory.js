@@ -183,11 +183,30 @@ Condense this into at most ${targetChars} characters of first-person memory ("I 
     getRecent() { return this.recent }
     getStory() { return this.story }
 
-    /** Lets the mind record a stimulus into the journal at the right position. */
-    note(text) {
+    /**
+     * Records an event into the journal at the right temporal position. Two kinds,
+     * distinguished by marker so a human reading the journal can tell them apart:
+     *   - perceived (⟂): a stimulus that actually entered the attention frame the
+     *     mind read this burst (a sense, a wander, an association, the wake/sleep
+     *     notice) — the mind experienced it, and its reaction follows.
+     *   - backstage (⌁): a subconscious/bookkeeping event the mind never sees, e.g.
+     *     the scribe filing knowledge. Recorded for us, never part of the stream —
+     *     the prose flows straight across it.
+     * Neither writes to the verbatim `tail`; only `spoke()` does that. This is a
+     * human-readable annotation only — the journal is never fed back to the model.
+     */
+    note(text, { perceived = true } = {}) {
         this._flushJournal()
-        this._appendJournal(`\n> ⟂ ${text}\n\n`)
+        this._appendJournal(`\n> ${perceived ? "⟂" : "⌁"} ${text}\n\n`)
     }
+
+    /**
+     * True iff this is a resident — a mind whose memory is kept and committed
+     * across runs (lifecycle.md §2). A dry/transient mind writes to disk but is
+     * never committed and is laid in the scratch pen, so it will not wake again;
+     * the sleep notice must be honest about that (Covenant §3, identity-honesty).
+     */
+    get persists() { return !!this._persists }
 
     /**
      * Records something the mind said ALOUD. The utterance enters the verbatim
