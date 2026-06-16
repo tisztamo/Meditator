@@ -81,13 +81,21 @@ Three memory tiers, compression, persistence, and the journal. See
 | `persist` | vault home (`memory/<mind>/`) | `"off"` keeps memory in RAM only |
 | `journal` | vault `journal/` | `"off"` disables transcripts |
 | `model` | inherits `utilityModel` | compression model |
-| `src` | `/stream/chunk` | stream source |
-| `boundarySrc` | `/stream/boundary` | boundary source |
+| `src` | `..m-mind/stream/chunk` | stream source (mind-relative) |
+| `boundarySrc` | `..m-mind/stream/boundary` | boundary source |
+| `spokenSrc` | the voice's `<name>/spoken` (auto-discovered) | aloud utterances to record; `"off"` disables |
+| `filedSrc` | the scribe's `<name>/filed` (auto-discovered) | scribe filings to journal as a backstage note; `"off"` disables |
 
 - **Publishes:** `compressed` — `{recent, story}` after a consolidation.
-- **Public API used by the mind/scribe/voice:** `getTail()`, `getRecent()`, `getStory()`,
-  `note(text)`, `spoke(text)` (splice an aloud utterance into the tail + journal),
-  `consumeWakeNotice()`, `finalize(reason)`.
+- **Subscribes:** the stream (`src`/`boundarySrc`), the voice's `spoken` topic
+  (`spokenSrc`), and the scribe's `filed` topic (`filedSrc`) — utterances are recorded
+  and filings journaled by *subscription*, not by those components calling in, so
+  memory is swappable and several memories can listen to one voice/scribe.
+- **Public API used by the mind:** `getTail()`, `getRecent()`, `getStory()`,
+  `note(text)`, `consumeWakeNotice()`, `finalize(reason)`. (`spoke(text)` still exists
+  but is now driven by the `spoken` subscription; the scribe no longer pulls
+  `getRecent()`/`getTail()` — it reads context from topics. Both are next to fall to
+  the m-mind frame-assembly slice.)
 - **Versioning:** stamps `formatVersion` into `memory.md`'s meta and, for a resident
   (a home with a `manifest.json`), records the `runtimeSHA`/`formatVersion`/`lastWokenAt`
   at wake via [`manifest.js`](memory.md#versioning-the-manifest-and-tiers). Warns on
@@ -247,10 +255,38 @@ Plus all `m-observer` attributes.
   urge to speak), `interrupt` (an urgent stimulus aborts an in-flight utterance to attend it).
 - **Publishes:** `speech` (each spoken fragment), `speaking` (`bool`, true while
   talking — `m-mind` thins thinking while it holds), `speech-boundary`
-  (`{chars, reason, text}` when an utterance ends), `impulse`
+  (`{chars, reason, text}` when an utterance ends), `spoken` (`{text, at}` for a
+  completed non-error utterance, for a memory to record), `impulse`
   (`{salience, gist, accepted}` for every decision).
-- **Feeds memory:** calls `m-memory.spoke(text)` so the utterance enters the verbatim
-  tail as a marked `(aloud) "…"` block — the next thought continues knowing what it said aloud.
+- **Feeds memory (decoupled):** publishes `spoken` and is otherwise ignorant of
+  memory; a memory subscribes via its own `spokenSrc` and splices the utterance into
+  the verbatim tail as a marked `(aloud) "…"` block — so the next thought continues
+  knowing what it said aloud. The voice never names memory, and any number may listen.
+
+## `m-image`
+
+The visual imagination — an observer that occasionally turns recent thought into
+an image prompt, generates an image through OpenAI, and publishes the prompt/image
+as Amanita topics. Memory listens to the published `generated` topic and records
+compact prompt/reference metadata; the image component never calls memory directly.
+
+| Attribute | Default | Meaning |
+|-----------|---------|---------|
+| `every` | `8` | decision cadence in completed stream boundaries |
+| `threshold` | `0.68` | minimum salience to generate |
+| `cooldown` | `5m` | minimum gap between images |
+| `decisionModel` | inherits `utilityModel` | model for the image / stay-quiet impulse |
+| `model` | `OPENAI_IMAGE_MODEL` or `gpt-image-1` | OpenAI image model |
+| `size` | `OPENAI_IMAGE_SIZE` or `1024x1024` | image size |
+| `style` | empty | optional style suffix appended to the generated prompt |
+
+Plus all `m-observer` attributes.
+
+- **Publishes:** `impulse` (`{salience, prompt, accepted}`), `generating`
+  (`bool`), `generated` (`{prompt, revisedPrompt, dataUrl, url, mimeType, model, size}`),
+  and `error` (`{message, prompt}`).
+- **Feeds memory:** `m-memory` subscribes to the image component's `generated`
+  topic and records the prompt/reference in its tail and journal.
 
 ## `m-economy`
 
@@ -278,12 +314,21 @@ See [Memory & the vault](memory.md).
 | `dir` | vault `knowledge/` | knowledge-base root |
 | `model` | inherits `utilityModel` | the librarian model |
 | `maxOps` | `4` | max file operations per run |
-| `boundarySrc` | `/stream/boundary` | trigger |
+| `src` | `..m-mind/stream/chunk` | stream kept in a rolling `window` (verbatim recent thought) |
+| `boundarySrc` | `..m-mind/stream/boundary` | trigger |
+| `window` | `2000` | chars of verbatim recent thought kept for distillation |
+| `compressedSrc` | the memory's `<name>/compressed` (auto-discovered) | the "recently" summary folded into the prompt; `"off"` disables |
 
 - **How:** one model call proposes `WRITE`/`APPEND`/`NONE` operations in a
   constrained format, applied strictly inside `dir` (no shell — the mind's free
   text cannot inject commands). Maintains `index.md` (a map of the tree) and
   `self/values.md` (a living statement of what the mind cares about).
+- **Reads context from topics, not from memory:** the verbatim recent thought is the
+  scribe's own rolling stream `window`; the compressed summary arrives on the memory's
+  `compressed` topic (`compressedSrc`). The scribe never names memory.
+- **Publishes:** `filed` — `{files}` after a successful distillation. A memory
+  subscribes (via its `filedSrc`) and journals it as a backstage (⌁) note; the scribe
+  no longer calls `m-memory.note()` itself.
 
 ## `m-console`
 

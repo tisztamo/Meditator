@@ -16,19 +16,50 @@ const log = logger('mKb.js');
  * the knowledge directory — no shell, so the mind's own free text cannot
  * inject commands.
  *
+ * The scribe reaches into no other component: its context comes from topics it
+ * subscribes to (its own rolling stream window for the verbatim recent thought,
+ * and memory's `compressed` topic for the summary), and it announces its work by
+ * publishing `filed` — a memory journals that itself. So the scribe never names
+ * memory, and memory can be replaced or doubled without touching the scribe.
+ *
  * @interface
  * Attributes:
  *   - every: run at every Nth completed burst boundary (default 15)
  *   - dir: knowledge base directory (default "knowledge")
  *   - model: librarian model (default ancestor utilityModel)
  *   - maxOps: max file operations per run (default 4)
+ *   - src (default "..m-mind/stream/chunk"), boundarySrc (default "..m-mind/stream/boundary")
+ *   - window: chars of verbatim recent thought kept for distillation (default 2000)
+ *   - compressedSrc (default: the mind's m-memory `<name>/compressed`, auto-discovered;
+ *     "off" disables): the compressed "recently" summary folded into the distill prompt
+ *
+ * Topics published:
+ *   - "filed": {files} after a successful distillation (a memory journals it)
  */
 export class MKb extends MBaseComponent {
     _count = 0
     _busy = false
+    window = ""
+    _recent = ""
 
     onConnect() {
         this.sub(this.attr("boundarySrc") || "..m-mind/stream/boundary", this._onBoundary)
+
+        // The verbatim "recent thoughts" come from the scribe's OWN rolling stream
+        // window (like an observer), not by reaching into m-memory for its tail.
+        this.windowSize = Number(this.attr("window") || 2000)
+        this.sub(this.attr("src") || "..m-mind/stream/chunk", chunk => {
+            this.window = (this.window + chunk).slice(-this.windowSize)
+        })
+
+        // The compressed "recently" summary arrives on memory's `compressed` topic
+        // (auto-discovered, explicit, or "off"), so the scribe never names memory.
+        const explicitCompressedSrc = this.attr("compressedSrc")
+        const mem = this.closest("m-mind")?.querySelector("m-memory[name]")
+        const compressedSrc = explicitCompressedSrc || (mem ? `..m-mind/${mem.getAttribute("name")}/compressed` : null)
+        if (compressedSrc && compressedSrc !== "off") {
+            this.sub(compressedSrc, c => { if (c) this._recent = c.recent || "" }, 12)
+        }
     }
 
     _onBoundary = async boundary => {
@@ -46,11 +77,10 @@ export class MKb extends MBaseComponent {
     }
 
     async distill() {
-        const memory = this.closest('m-mind')?.querySelector('m-memory')
         const dir = this.attr("dir") || mindHome(this, "knowledge")
-        const recentThought = memory
-            ? `${memory.getRecent()}\n${memory.getTail()}`.trim()
-            : ""
+        // The compressed summary (from the `compressed` topic) plus the verbatim
+        // recent thought (this scribe's own stream window) — no reach into memory.
+        const recentThought = `${this._recent}\n${this.window}`.trim()
         if (recentThought.length < 400) return
 
         const tree = await this._tree(dir)
@@ -90,10 +120,11 @@ Rules: group related ideas into topic files (e.g. attention/interruption.md); ev
             log.info(`Scribe ${op.kind}: ${path.join(dir, op.file)}`)
         }
         if (ops.length) {
+            // Announce the filing on the `filed` topic and stop there. The scribe
+            // is subconscious — the mind never perceives its filing — so a memory
+            // subscribes and journals it as an unseen (⌁) backstage note itself,
+            // rather than the scribe reaching in to write that note.
             this.pub("filed", { files: ops.map(o => o.file) })
-            // Backstage: the scribe is subconscious — the mind never perceives its
-            // filing, so this is journaled as an unseen (⌁) note, not a stimulus.
-            memory?.note?.(`The scribe filed thoughts into: ${ops.map(o => o.file).join(", ")}`, { perceived: false })
         }
     }
 

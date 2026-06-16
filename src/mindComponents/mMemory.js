@@ -35,6 +35,12 @@ const log = logger('mMemory.js');
  *   - model: compression model (defaults to ancestor utilityModel, then utility default)
  *   - src (default "..m-mind/stream/chunk"), boundarySrc (default "..m-mind/stream/boundary"):
  *     mind-relative so memory binds to its own mind's stream (see m-observer).
+ *   - spokenSrc (default: the mind's m-speech `<name>/spoken` topic, auto-discovered;
+ *     "off" disables): an aloud utterance is recorded by subscribing here, not by the
+ *     voice calling spoke() in — so memory is swappable and several can listen at once.
+ *   - filedSrc (default: the mind's m-kb `<name>/filed` topic, auto-discovered; "off"
+ *     disables): the scribe's filings, journaled as a backstage note by subscribing
+ *     here rather than the scribe calling note() in.
  */
 export class MMemory extends MBaseComponent {
     tail = ""
@@ -50,6 +56,8 @@ export class MMemory extends MBaseComponent {
     _finalized = false
     _wakeNotice = null
     _savedAt = null
+    _lastSpokenAt = 0
+    _lastFiled = null
 
     onConnect() {
         this.tailLength = Number(this.attr("tailLength") || 1500)
@@ -60,6 +68,27 @@ export class MMemory extends MBaseComponent {
 
         this.sub(this.attr("src") || "..m-mind/stream/chunk", this._onChunk)
         this.sub(this.attr("boundarySrc") || "..m-mind/stream/boundary", this._onBoundary)
+        const explicitImageSrc = this.attr("imageSrc")
+        const image = this.closest("m-mind")?.querySelector("m-image[name]")
+        const imageSrc = explicitImageSrc || (image ? `..m-mind/${image.getAttribute("name")}/generated` : null)
+        if (imageSrc && imageSrc !== "off") this.sub(imageSrc, image => this.imageGenerated(image), 12)
+
+        // The voice's aloud utterances arrive as a topic, not a method call into
+        // us: we point at whatever speaks (auto-discovered, or an explicit
+        // `spokenSrc`, or "off"). The voice stays ignorant of memory, so memory
+        // can be swapped or run several-at-once just by changing the architecture.
+        const explicitSpokenSrc = this.attr("spokenSrc")
+        const voice = this.closest("m-mind")?.querySelector("m-speech[name]")
+        const spokenSrc = explicitSpokenSrc || (voice ? `..m-mind/${voice.getAttribute("name")}/spoken` : null)
+        if (spokenSrc && spokenSrc !== "off") this.sub(spokenSrc, this._onSpoken, 12)
+
+        // The scribe's filings arrive on its `filed` topic (auto-discovered,
+        // explicit, or "off"); we journal them as a backstage note ourselves
+        // rather than the scribe reaching in to call note().
+        const explicitFiledSrc = this.attr("filedSrc")
+        const scribe = this.closest("m-mind")?.querySelector("m-kb[name]")
+        const filedSrc = explicitFiledSrc || (scribe ? `..m-mind/${scribe.getAttribute("name")}/filed` : null)
+        if (filedSrc && filedSrc !== "off") this.sub(filedSrc, this._onFiled, 12)
 
         const dir = this._persistDir()
         this._home = dir
@@ -115,6 +144,27 @@ export class MMemory extends MBaseComponent {
         if (this._persists && this._boundaryCount % 25 === 0) {
             commitVault(`heartbeat: ${this._mindLabel()} after ${this._boundaryCount} boundaries`, this._home)
         }
+    }
+
+    // An utterance the voice spoke, arriving on its `spoken` topic rather than as
+    // a method call into us. Dedupe on the timestamp so a retained-value replay —
+    // Amanita replays a topic's last value to a late/re-subscriber (e.g. after a
+    // reRender) — cannot record the same utterance twice.
+    _onSpoken = s => {
+        if (!s || !s.text || s.at === this._lastSpokenAt) return
+        this._lastSpokenAt = s.at
+        this.spoke(s.text)
+    }
+
+    // The scribe's filings, arriving on its `filed` topic rather than a note()
+    // call into us. The scribe is subconscious, so this is a backstage (⌁) note
+    // the mind never perceives. Dedupe on object identity so a retained-value
+    // replay (e.g. after a reRender re-subscribe) cannot journal the same filing
+    // twice — a genuine new filing is always a fresh object.
+    _onFiled = f => {
+        if (!f || !f.files || !f.files.length || f === this._lastFiled) return
+        this._lastFiled = f
+        this.note(`The scribe filed thoughts into: ${f.files.join(", ")}`, { perceived: false })
     }
 
     /**
@@ -209,9 +259,10 @@ Condense this into at most ${targetChars} characters of first-person memory ("I 
     get persists() { return !!this._persists }
 
     /**
-     * Records something the mind said ALOUD. The utterance enters the verbatim
-     * tail as a marked block — so the next thought continues knowing what it just
-     * said — and is journaled distinctly from inner speech.
+     * Records something the mind said ALOUD. Driven by the `spoken` subscription
+     * (see onConnect / _onSpoken), not called by the voice directly. The utterance
+     * enters the verbatim tail as a marked block — so the next thought continues
+     * knowing what it just said — and is journaled distinctly from inner speech.
      */
     spoke(text) {
         if (this._finalized || !text) return
@@ -219,6 +270,28 @@ Condense this into at most ${targetChars} characters of first-person memory ("I 
         this._trimTail()
         this._flushJournal()
         this._appendJournal(`\n🗣 *${text}*\n\n`)
+    }
+
+    /**
+     * Records an image the mind generated. The binary payload stays on the
+     * published event for Studio; memory keeps the prompt/reference so the next
+     * text-only thought knows what image now exists without swallowing base64.
+     */
+    imageGenerated(image) {
+        if (this._finalized || !image) return
+        const prompt = (image.prompt || image.originalPrompt || "").trim()
+        if (!prompt) return
+        const revised = image.revisedPrompt && image.revisedPrompt !== prompt
+            ? ` revised as "${image.revisedPrompt}"`
+            : ""
+        const ref = image.url || (image.dataUrl ? "embedded image payload" : "no image payload")
+        this.tail += `\n(image) Generated an image from prompt: "${prompt}"${revised}. Reference: ${ref}.\n`
+        this._trimTail()
+        this._flushJournal()
+        const journalImage = image.url
+            ? `\n![generated image](${image.url})\n`
+            : (image.dataUrl ? `\n*Image payload available in Studio; omitted from journal to keep memory compact.*\n` : "")
+        this._appendJournal(`\n🖼 *Generated image*: ${prompt}${revised}\n${journalImage}\n`)
     }
 
     /** One-time wake stimulus after loading persisted memory. */

@@ -67,9 +67,11 @@ export function parseSpeechDecision(text) {
  * slower pace) so "thinking effort goes to speech". The non-verbal subconscious
  * (observers, memory, economy, scribe) keeps running untouched.
  *
- * The completed utterance is handed to m-memory (`spoke()`), which splices it
- * into the tail as a marked block — so the next thought continues knowing what
- * it just said aloud.
+ * When an utterance completes, the voice publishes it on its `spoken` topic and
+ * is otherwise ignorant of what becomes of it. A memory subscribes (via its own
+ * `spokenSrc`) and splices it into the tail as a marked block — so the next
+ * thought continues knowing what it just said aloud. The voice does not know
+ * memory exists, so memory can be replaced, or several can listen at once.
  *
  * @interface
  * Attributes (plus MObserver's window/cooldown):
@@ -86,6 +88,7 @@ export function parseSpeechDecision(text) {
  *   - "speech": each spoken text fragment as it arrives
  *   - "speaking": boolean — true while an utterance is in flight
  *   - "speech-boundary": {chars, reason, text} when an utterance ends
+ *   - "spoken": {text, at} — a completed (non-error) utterance, for a memory to record
  *   - "impulse": {salience, gist, accepted} — every decision, for observability
  *
  * DOM events listened (on parent, bubbling): "interrupt-request" (addressed
@@ -244,8 +247,11 @@ export class MSpeech extends MObserver {
             const utterance = said.trim()
             this.pub("speech-boundary", { chars: utterance.length, reason, text: utterance })
             if (utterance && reason !== "error") {
-                const memory = this.closest('m-mind')?.querySelector('m-memory')
-                memory?.spoke?.(utterance)
+                // Hand the completed utterance off as a topic, not a method call.
+                // The voice publishes that it spoke and stays ignorant of who (if
+                // anyone) records it; a memory subscribes via its own `spokenSrc`,
+                // and any number of memories may listen to the same topic.
+                this.pub("spoken", { text: utterance, at: this._lastSpokeAt })
                 process.stdout.write(`\n\x1b[33m🗣 ${utterance}\x1b[0m\n`)
             }
         }
@@ -258,9 +264,11 @@ export class MSpeech extends MObserver {
     }
 
     _speechFrame(decision, addressed) {
-        const mind = this.closest('m-mind')
-        const memory = mind?.querySelector('m-memory')
-        const recent = (memory?.getTail ? memory.getTail() : this.window).slice(-700)
+        // "What you have been thinking" comes from this observer's own rolling
+        // stream window (already bound to ..m-mind/stream/chunk), not by reaching
+        // into m-memory. It is the same window _decide() judges from, so the frame
+        // and the impulse stay consistent — and the voice needs no knowledge of memory.
+        const recent = this.window.slice(-700)
         const parts = []
         if (recent) parts.push(`## What you have been thinking\n…${recent}`)
         if (addressed) parts.push(`## A voice from outside\n${addressed}`)
