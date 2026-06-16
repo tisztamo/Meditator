@@ -33,7 +33,7 @@ export class StudioTree extends A(HTMLElement) {
 
   buildNode(node, depth) {
     const det = document.createElement("details"); det.className = "node";
-    if (depth === 0 || node.tag === "m-stream" || node.tag === "m-speech") det.open = true;
+    if (depth === 0 || node.tag === "m-stream" || node.tag === "m-speech" || node.tag === "m-image") det.open = true;
     const sum = document.createElement("summary");
     sum.innerHTML = `<span class="tw">▶</span><span class="npulse"></span><span class="nname"></span> <span class="ntag"></span><span class="nstat"></span>`;
     sum.querySelector(".nname").textContent = node.name || node.tag;
@@ -101,6 +101,10 @@ export class StudioTree extends A(HTMLElement) {
       case "speech/speaking":    this.pushNode(this.byTag("m-speech"), this.evLine(d.speaking ? "started speaking" : "stopped speaking", d.speaking ? "warn" : "")); break;
       case "speech/impulse":     this.onImpulse(d); break;
       case "speech/boundary":    this.pushNode(this.byTag("m-speech"), this.evLine(`said ${d.chars || 0}c · ${d.reason || ""}`, "good")); break;
+      case "image/generating":   this.pushNode(this.byTag("m-image"), this.evLine(d.generating ? "started image generation" : "finished image generation", d.generating ? "warn" : "")); break;
+      case "image/impulse":      this.onImageImpulse(d); break;
+      case "image/generated":    this.pushNode(this.byTag("m-image"), this.evLine(`generated ${d.size || "image"} · ${d.model || ""}`, "good")); this.setNodeStat(this.byTag("m-image"), d.size || "generated"); break;
+      case "image/error":        this.pushNode(this.byTag("m-image"), this.evLine(`error: ${d.message || "image generation failed"}`, "bad")); break;
     }
   }
 
@@ -147,6 +151,13 @@ export class StudioTree extends A(HTMLElement) {
     const why = d.accepted ? "✓ speak" : `— quiet (${d.reason || "none"})`;
     this.pushNode(this.byTag("m-speech"), this.evLine(`${tag}impulse ${sal} ${why}${d.gist ? ": " + d.gist : ""}`, cls));
     this.setNodeStat(this.byTag("m-speech"), `${tag}${sal} ${d.accepted ? "✓" : "✕"}`);
+  }
+  onImageImpulse(d) {
+    const sal = typeof d.salience === "number" ? d.salience.toFixed(2) : "?";
+    const cls = d.accepted ? "warn" : "drop";
+    const why = d.accepted ? "✓ image" : `— quiet (${d.reason || "none"})`;
+    this.pushNode(this.byTag("m-image"), this.evLine(`impulse ${sal} ${why}${d.prompt ? ": " + d.prompt : ""}`, cls));
+    this.setNodeStat(this.byTag("m-image"), `${sal} ${d.accepted ? "✓" : "✕"}`);
   }
 }
 A.define("studio-tree", StudioTree);

@@ -85,6 +85,10 @@
 
   <m-speech name="voice" every="6" threshold="0.6" cooldown="45s"></m-speech>
 
+  <m-image name="image" every="8" threshold="0.68" cooldown="5m"
+           size="1024x1024"
+           style="quiet, painterly, concrete, no visible text"></m-image>
+
   <m-kb name="scribe" every="15"></m-kb>
 
   <m-economy name="economy" budget="3.00" estInPrice="0" estOutPrice="0"></m-economy>
