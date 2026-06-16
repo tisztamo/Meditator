@@ -265,11 +265,15 @@ function focusClient(client, id) {
   sendJSON(client, { type: "focus-reset", data: { id } });
   if (m.structure) sendJSON(client, { type: "mind", data: { id, msg: m.structure } });
   if (m.lastStatus) sendJSON(client, { type: "mind", data: { id, msg: m.lastStatus } });
-  for (const msg of m.snapshots.values()) sendJSON(client, { type: "mind", data: { id, msg } });
+  for (const msg of m.snapshots.values()) {
+    if (msg.type === "event" && msg.data?.process === "image" && msg.data?.kind === "generated") continue;
+    sendJSON(client, { type: "mind", data: { id, msg } });
+  }
   // Replay the recent stream as a few coalesced messages, not thousands of
   // token-sized ones — otherwise a reconnecting client spends seconds parsing
   // and re-rendering the backlog fragment by fragment before it catches up.
   for (const msg of coalesceStream(m.recentStream)) sendJSON(client, { type: "mind", data: { id, msg } });
+  for (const msg of m.recentImages) sendJSON(client, { type: "mind", data: { id, msg } });
   // backfill recent logs too
   for (const entry of m.logs) sendJSON(client, { type: "log", data: { id, stream: entry.s, line: entry.l } });
 }
@@ -316,7 +320,7 @@ function wake(file, dryRun, modelProfile) {
     port, child, state: "waking", since: new Date().toISOString(),
     energy: null, spent: null, detail: "waking…",
     upstream: null, structure: null, lastStatus: null, snapshots: new Map(),
-    recentStream: [], recentChars: 0, logs: [], stderrTail: [], sleepRequestedAt: null,
+    recentStream: [], recentChars: 0, recentImages: [], logs: [], stderrTail: [], sleepRequestedAt: null,
   };
   minds.set(id, m);
   log(`waking ${id} ← ${file}  (port ${port}${port === PORT_BASE ? ", public" : ""}${dryRun ? ", dry-run" : ""}, profile ${profile})  → memory/${baseHome}`);
@@ -405,6 +409,9 @@ function onUpstreamMessage(m, data) {
       const dropped = m.recentStream.shift();
       m.recentChars -= ((dropped.data && dropped.data.content) || "").length;
     }
+  } else if (msg.type === "event" && msg.data?.process === "image" && msg.data?.kind === "generated") {
+    m.recentImages.push(msg);
+    while (m.recentImages.length > 12) m.recentImages.shift();
   }
 
   // Live-forward to clients focused on this mind.

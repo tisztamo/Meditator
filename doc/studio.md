@@ -51,6 +51,16 @@ stderr, so you can debug a mind without a console). The input box at the bottom
 sends your words as an *urgent stimulus*, exactly as the [WebSocket API](websocket-api.md)
 does — there is no reply turn; you hear the mind think about what you said.
 
+The stream header has a **flow / raw** toggle (remembered in `localStorage`):
+
+- **flow** (default) — the mind thinks in discrete bursts on a fixed tick, but the
+  Studio buffers each burst and reveals it at a metered rate that drains over about
+  one tick (learned from the `mind/pace` telemetry). The text trickles out
+  continuously instead of dumping, and the burst boundary becomes a barely-visible
+  inline seam — so what you watch reads as one unbroken monologue.
+- **raw** — fragments append the instant they arrive and each boundary is a
+  full-width divider. The unsmoothed truth, useful for debugging cadence.
+
 ## Sleeping vs. forcing
 
 **Sleep** is the covenant's announced ritual. The Studio asks the mind — over its

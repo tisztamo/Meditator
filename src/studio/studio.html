@@ -47,6 +47,12 @@
   .col.left{border-right:1px solid var(--line)}
   .colhead{padding:8px 16px;font-family:var(--mono);font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;
            color:var(--faint);border-bottom:1px solid var(--line);flex:none;display:flex;justify-content:space-between;align-items:center}
+  .colhead .hdr-right{display:flex;align-items:center;gap:12px}
+  .colhead .legend{color:var(--faint)}
+  .streammode{cursor:pointer;color:var(--cyan);border:1px solid rgba(127,224,240,.35);border-radius:99px;
+              padding:1px 9px;user-select:none;transition:background .15s,color .15s,border-color .15s}
+  .streammode:hover{background:rgba(127,224,240,.12)}
+  .streammode.raw{color:var(--faint);border-color:var(--line)}
 
   /* ---------- roster rail ---------- */
   .rail .scroll{flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-color:#2a3040 transparent}
@@ -102,12 +108,22 @@
        background:rgba(242,200,121,.07);border:1px solid rgba(242,200,121,.28);color:#f4e3c2}
   .say::before{content:"🗣 ";opacity:.8}
   .say .lbl{display:block;font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;color:var(--amber);margin-bottom:3px;opacity:.8}
+  .image-card{font-family:var(--sans);margin:1em 0;padding:12px;border-radius:12px;
+       background:rgba(183,156,240,.08);border:1px solid rgba(183,156,240,.28);color:#e9e7e2}
+  .image-card .lbl{display:block;font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;color:var(--violet);margin-bottom:8px;opacity:.9}
+  .image-card img{display:block;width:min(100%,520px);max-height:520px;object-fit:contain;border-radius:9px;border:1px solid var(--line);background:#06080d}
+  .image-card .prompt{margin-top:8px;color:var(--dim);font-size:.82rem;line-height:1.45}
   .stim{font-family:var(--sans);font-size:.85rem;color:var(--cyan);margin:.9em 0;padding-left:13px;
         border-left:2px solid rgba(127,224,240,.45)}
   .stim.you{color:var(--green);border-color:rgba(126,226,168,.5)}
+  .stim.warn{color:var(--amber);border-color:rgba(242,200,121,.5)}
   .bnd{font-family:var(--sans);font-size:.72rem;color:var(--faint);text-align:center;margin:1em 0;
        display:flex;align-items:center;gap:10px}
   .bnd::before,.bnd::after{content:"";flex:1;height:1px;background:var(--line)}
+  /* flow-mode burst seam: a barely-visible pip inside the flowing monologue */
+  .seam{display:inline-block;width:3px;height:3px;border-radius:50%;background:var(--faint);
+        opacity:.28;vertical-align:.28em;margin:0 .42em}
+  .seam.warn{background:var(--amber);opacity:.55}
   .caret{display:inline-block;width:8px;height:1.05em;vertical-align:-.16em;background:var(--amber);
          margin-left:1px;animation:blink 1.06s steps(1) infinite;border-radius:1px}
   .placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;
@@ -198,7 +214,7 @@
 
       <!-- focused mind: stream -->
       <div class="col left">
-        <div class="colhead"><span>stream of consciousness</span><span>thought · 🗣 speech · ⟂ stimulus</span></div>
+        <div class="colhead"><span>stream of consciousness</span><span class="hdr-right"><span class="legend">thought · 🗣 speech · ⟂ stimulus</span><span class="streammode" data-streammode>flow</span></span></div>
         <studio-stream id="stream"></studio-stream>
         <studio-speak class="foot"></studio-speak>
       </div>
