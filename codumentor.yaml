@@ -1,0 +1,87 @@
+repos:
+- name: Meditator
+  path: .
+repos_dir: .
+include_patterns:
+- '**/*.py'
+- '**/*.java'
+- '**/*.js'
+- '**/*.mjs'
+- '**/*.ts'
+- '**/*.cs'
+- '**/*.md'
+- '**/*.txt'
+- '**/*.docx'
+- '**/*.pdf'
+exclude_patterns:
+- '**/tests/**'
+- '**/__pycache__/**'
+- '**/node_modules/**'
+- '**/bin/**'
+- '**/obj/**'
+- '**/.git/**'
+- '**/dist/**'
+- '**/build/**'
+- '**/.env/**'
+- '**/venv/**'
+- '**/.idea/**'
+- '**/.vscode/**'
+models:
+  agent: ardincoder-1
+  agent_base_url: http://codumentor.mecset.local:1248/v1/
+  agent_api_key: none
+  embedding: ardinembedder-2
+  embedding_base_url: http://codumentor.mecset.local:1248/v1/
+  embedding_api_key: none
+logging:
+  level: WARNING
+tools:
+  disable_vector_search: true
+scheduler:
+  enabled: true
+  idle_poll_interval: 30.0
+  disable_after_failures: 5
+  max_catchup_age: 86400.0
+  max_schedules_per_user: 1000
+  default_timezone: UTC
+session_report: true
+auth:
+  provider: none
+plugins:
+- module: codumentor.plugins.slashcmds
+  class: SlashCommandsPlugin
+  priority: 5
+  args:
+    enabled: true
+- module: codumentor.plugins.ripgrep
+  class: RipgrepPlugin
+  args:
+    enabled: true
+- module: codumentor.plugins.explore
+  class: ExplorePlugin
+  args:
+    enabled: true
+- module: codumentor.plugins.token_report
+  class: TokenReportPlugin
+- module: codumentor.plugins.telemetry
+  class: TelemetryPlugin
+- module: codumentor.plugins.inference_metrics
+  class: InferenceMetricsPlugin
+- module: codumentor.plugins.context_visualizer
+  class: ContextVisualizerPlugin
+- module: codumentor.plugins.user_feedback
+  class: UserFeedbackPlugin
+- module: codumentor.plugins.read_aloud
+  class: ReadAloudPlugin
+- module: codumentor.plugins.console_report
+  class: ConsoleReportPlugin
+- module: codumentor.plugins.context_summarization
+  class: ContextSummarizationPlugin
+  priority: 10
+  args:
+    enabled: true
+- module: codumentor.plugins.skills
+  class: SkillsPlugin
+  priority: 8
+  args:
+    enabled: true
