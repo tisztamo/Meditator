@@ -82,8 +82,8 @@ arbiter connects). This is **Global Workspace Theory in miniature**: parallel
 local competition, a single global broadcast.
 
 See [`architecture/examples/nested-attention.archml`](../../architecture/examples/nested-attention.archml)
-and the wiring tests `architecture/tests/test-nested-attention.js` /
-`test-relative-refs.js`.
+and the wiring tests `architecture/tests/wiring/nested-attention.test.js` /
+`relative-refs.test.js`.
 
 ---
 

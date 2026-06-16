@@ -1,1 +1,2 @@
-preload = "./src/startup/jsdom.js"
+[test]
+preload = ["./architecture/tests/preload.js"]

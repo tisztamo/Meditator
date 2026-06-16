@@ -1,7 +1,13 @@
 {
   "scripts": {
     "studio": "bun studio.js",
-    "start": "bun meditator.js"
+    "start": "bun meditator.js",
+    "test": "bun run test:unit && bun run test:wiring",
+    "test:unit": "bun test architecture/tests/unit",
+    "test:wiring": "bun test architecture/tests/wiring --max-concurrency 1",
+    "test:smoke": "bun tools/smoke-run.mjs",
+    "test:all": "bun run test && bun run test:smoke",
+    "test:live": "bun architecture/tests/live/run-live.mjs"
   },
   "dependencies": {
     "amanita": "^0.1.1",

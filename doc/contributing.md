@@ -83,10 +83,27 @@ To **raise an interrupt**, dispatch a bubbling `interrupt-request` carrying an
 
 ## Tests
 
-Ad-hoc and component tests live in `architecture/tests/` — small `.archml` minds
-(e.g. `dry-fast.archml`, `dash-smoke.archml`, `live-scribe.archml`) and scripts
-(`poke-ws.js`, `test-loopguard.js`, `test-scribe-prompt.js`). Run them with Bun,
-under `MEDITATOR_DRY_RUN=1` where they don't need a real model.
+Three automated layers plus opt-in live checks:
+
+| Layer | Runner | Command | CI |
+|-------|--------|---------|-----|
+| Unit | Bun test | `bun run test:unit` | always |
+| Wiring | Bun test | `bun run test:wiring` | always |
+| Smoke | orchestrator | `bun run test:smoke` | main / pre-release |
+| Live | manual / gated | `bun run test:live` | never by default |
+
+```bash
+bun run test          # unit + wiring (fast, no LLM)
+bun run test:all      # above + dry-run smoke
+bun run test:live     # needs OPENROUTER_API_KEY and/or MEDITATOR_LIVE_SITE=1
+```
+
+- **Unit** — `architecture/tests/unit/*.test.js`: parsers, math, mappers, manifest round-trips.
+- **Wiring** — `architecture/tests/wiring/*.test.js`: jsdom + Amanita components, interrupt bus, site replay.
+- **Smoke** — `tools/smoke-run.mjs` starts `dash-smoke.archml` and `dry-fast.archml` under `MEDITATOR_DRY_RUN=1`, then runs `dash-probe.js`.
+- **Live** — `architecture/tests/live/`: real-model scribe check; site live-mode with a mind already on `:7627`.
+
+Fixtures and manual tools stay in `architecture/tests/` (`.archml` minds, `poke-ws.js`, `dash-probe.js`).
 
 ## Pull requests
 

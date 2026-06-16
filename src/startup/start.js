@@ -1,3 +1,4 @@
+import "./jsdom.js"
 import "amanita/stdlib"
 import {readArchitectureFile} from "./architecture.js"
 import { loadMindComponents } from "./loadMindComponents.js"

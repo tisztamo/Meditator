@@ -312,7 +312,8 @@ not solicited:
     senses: **`m-daylight`** (the hour's light, from the local clock), **`m-weather`**
     (real conditions from open-meteo, free/no-key), and **`m-feed`** (a calm RSS feed of
     the world drifting by). All three are wired into `seedling.archml` and covered by
-    `architecture/tests/test-senses.js`. So both the simplest trial **and** real external
+    `architecture/tests/unit/senses-mappers.test.js` and
+    `architecture/tests/wiring/senses.test.js`. So both the simplest trial **and** real external
     feeds are in place — exteroception leading, no mechanistic interoception.
     **Live-verified 2026-06-16** on `local/ardincoder-1`: in a short transient seedling
     run (87 memory folds), all three senses fired and *entered the stream* — `m-daylight`
