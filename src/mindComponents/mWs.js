@@ -33,7 +33,7 @@ const log = logger("mWs.js");
  *   "../@interrupt-request", "../@interrupt", "/<arbiter>/decision",
  *   "/<economy>/energy", "/<memory>/compressed", "/<scribe>/filed",
  *   "/<voice>/speech", "/<voice>/speaking", "/<voice>/impulse",
- *   "/<voice>/speech-boundary"
+ *   "/<voice>/speech-boundary", "/<image>/generated"
  *
  * Topics published to: "interrupt-request" (when client input is received)
  */
@@ -364,6 +364,10 @@ export class MWs extends MBaseComponent {
       }
     });
 
+    // The burst cadence (the fixed tick), so a viewer can pace its display —
+    // slowing the reveal to fill the slack between bursts.
+    this.sub("../pace", pace => pace && this._emit("mind", "pace", { tickMs: pace.tickMs }));
+
     // Every bid for attention (observers, timers, console, ws) and every urgent win.
     this.sub("../@interrupt-request", e => {
       const r = (e && e.detail) || {};
@@ -411,6 +415,13 @@ export class MWs extends MBaseComponent {
     this._subProp(speech, "speech-boundary", b => b && this._emit("speech", "boundary", {
       chars: b.chars, reason: b.reason, text: (b.text || "").slice(0, 2000),
     }));
+
+    // Visual generation (present only when <m-image> is in the mind).
+    const image = mind.querySelector("m-image");
+    this._subProp(image, "generating", generating => this._emit("image", "generating", { generating: !!generating }));
+    this._subProp(image, "impulse", imp => imp && this._emit("image", "impulse", imp));
+    this._subProp(image, "generated", img => img && this._emit("image", "generated", img));
+    this._subProp(image, "error", err => err && this._emit("image", "error", err));
   }
 
   /** Subscribe to a property of a (possibly absent) named sibling component. */

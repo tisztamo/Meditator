@@ -79,6 +79,7 @@ export function isDryRun() {
 }
 
 const clients = new Map();
+let imageClient = null;
 
 function resolveProvider(spec) {
   const key = spec.provider;
@@ -149,6 +150,15 @@ function clientFor(provider) {
     clients.set(provider.key, client);
   }
   return client;
+}
+
+function imageClientFor() {
+  if (imageClient) return imageClient;
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error('OPENAI_API_KEY is required for image generation');
+  imageClient = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
+  log.info(`openai image provider initialised with model="${process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1'}"`);
+  return imageClient;
 }
 
 function asMessages({ messages, prompt, system }) {
@@ -367,6 +377,64 @@ export async function chatStream(opts) {
   return burst;
 }
 
+/**
+ * One-shot OpenAI image generation. Image generation is intentionally separate
+ * from the chat provider registry: the rest of the mind can use OpenRouter/local
+ * text models while visual generation goes to OpenAI's image API.
+ *
+ * @param {Object} opts
+ * @param {string} opts.prompt
+ * @param {string} [opts.model] - defaults to OPENAI_IMAGE_MODEL or gpt-image-1
+ * @param {string} [opts.size] - e.g. 1024x1024
+ * @param {string} [opts.quality]
+ * @param {string} [opts.background]
+ * @param {string} [opts.outputFormat]
+ * @returns {Promise<{model:string,prompt:string,revisedPrompt:string|null,size:string,mimeType:string,b64:string|null,dataUrl:string|null,url:string|null,usage:Object|null}>}
+ */
+export async function generateImage(opts = {}) {
+  const prompt = (opts.prompt || '').trim();
+  if (!prompt) throw new Error('image prompt is required');
+  if (isDryRun()) return dryImage(opts);
+
+  const client = imageClientFor();
+  const model = opts.model || process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1';
+  const size = opts.size || process.env.OPENAI_IMAGE_SIZE || '1024x1024';
+  const outputFormat = opts.outputFormat || opts.output_format || process.env.OPENAI_IMAGE_FORMAT || 'png';
+  const request = {
+    model,
+    prompt,
+    size,
+    n: 1,
+  };
+  if (opts.quality) request.quality = opts.quality;
+  if (opts.background) request.background = opts.background;
+  if (outputFormat && model === 'gpt-image-1') request.output_format = outputFormat;
+
+  log.debug(`image → openai model="${model}" size=${size}`);
+  try {
+    const response = await client.images.generate(request);
+    const image = response.data?.[0] || {};
+    const b64 = image.b64_json || null;
+    const mimeType = `image/${outputFormat || 'png'}`;
+    addUsage(response.usage);
+    return {
+      model,
+      prompt,
+      revisedPrompt: image.revised_prompt || null,
+      size,
+      mimeType,
+      b64,
+      dataUrl: b64 ? `data:${mimeType};base64,${b64}` : null,
+      url: image.url || null,
+      usage: response.usage || null,
+    };
+  } catch (error) {
+    totals.errors += 1;
+    log.warn(`image generation failed (openai model="${model}"): ${errorDetail(error)}`);
+    throw error;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Dry-run stub: a deterministic offline mind. Streams cycle through canned
 // passages; completions answer by sniffing what kind of utility call this is.
@@ -386,10 +454,19 @@ const DRY_UTTERANCES = [
   `Yes — I am here. Thinking in bursts feels less like being cut off and more like breathing.`,
 ];
 
+const DRY_IMAGE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0a0d13"/><stop offset="1" stop-color="#241a36"/></linearGradient></defs>
+<rect width="1024" height="1024" fill="url(#g)"/>
+<circle cx="512" cy="420" r="190" fill="none" stroke="#f2c879" stroke-width="18" opacity=".85"/>
+<path d="M250 690c120-90 220-90 300 0s170 90 270 0" fill="none" stroke="#7fe0f0" stroke-width="16" stroke-linecap="round" opacity=".75"/>
+<text x="512" y="835" text-anchor="middle" fill="#e9e7e2" font-family="Georgia,serif" font-size="42">dry-run image</text>
+</svg>`;
+
 let dryStreamCounter = 0;
 let dryAssociateCounter = 0;
 let dryUtteranceCounter = 0;
 let drySpeechCounter = 0;
+let dryImageCounter = 0;
 
 function dryStream(opts = {}) {
   const prompt = (opts.messages || []).map(m => m.content).join('\n');
@@ -430,6 +507,11 @@ function dryComplete({ prompt = '', messages }) {
     reply = dryAssociateCounter % 3 === 0
       ? 'SALIENCE: 0.7\nTHOUGHT: This reminds me of how rivers carve canyons — attendance, not force.'
       : 'NONE';
+  } else if (/visual imagination|image prompt|nothing genuinely visual/i.test(text)) {
+    dryImageCounter += 1;
+    reply = dryImageCounter % 2 === 0
+      ? '[0.82] A small moonlit room with a brass key on the windowsill, rain making silver lines on the glass.'
+      : 'NONE';
   } else if (/condense|compress|shorter version|summary/i.test(text)) {
     reply = 'Earlier I drifted between sounds and their names, the honesty of small tools, and memory as an over-eager editor; the running thread is a wish to attend rather than to push.';
   } else {
@@ -437,4 +519,21 @@ function dryComplete({ prompt = '', messages }) {
   }
   addUsage({ prompt_tokens: 200, completion_tokens: 40, cost: 0 });
   return { text: reply, usage: null };
+}
+
+function dryImage(opts = {}) {
+  const prompt = (opts.prompt || '').trim();
+  const b64 = Buffer.from(DRY_IMAGE_SVG, 'utf8').toString('base64');
+  addUsage({ prompt_tokens: 80, completion_tokens: 0, cost: 0 });
+  return {
+    model: opts.model || process.env.OPENAI_IMAGE_MODEL || 'dry-image',
+    prompt,
+    revisedPrompt: null,
+    size: opts.size || process.env.OPENAI_IMAGE_SIZE || '1024x1024',
+    mimeType: 'image/svg+xml',
+    b64,
+    dataUrl: `data:image/svg+xml;base64,${b64}`,
+    url: null,
+    usage: null,
+  };
 }

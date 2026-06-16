@@ -146,6 +146,34 @@ export async function loadModelConfig() {
     throw new Error(`Unknown model profile "${activeProfile}" in ${path}`);
   }
 
+  // Pre-flight: resolve every role under the active profile and verify that
+  // required provider fields are present. Fail fast with a clear message
+  // instead of dying inside the first burst.
+  for (const role of ROLES) {
+    try {
+      const spec = resolveModelSpec(null, role, activeProfile);
+      if (spec.provider === 'local' && !spec.baseURL) {
+        throw new Error(
+          `Profile "${activeProfile}" uses the local provider for role "${role}", ` +
+          `but LOCAL_LLM_BASE_URL is not set and no default was found. ` +
+          `Set it (e.g. export LOCAL_LLM_BASE_URL=http://localhost:8000/v1) ` +
+          `or add a default in models.yaml (e.g. baseURL: "\${LOCAL_LLM_BASE_URL:http://localhost:8000/v1}"). ` +
+          `Alternatively, switch profiles (e.g. MEDITATOR_MODEL_PROFILE=cloud).`
+        );
+      }
+      if (spec.provider === 'openrouter' && !spec.apiKey) {
+        log.warn(
+          `Profile "${activeProfile}" uses OpenRouter for role "${role}", ` +
+          `but OPENROUTER_API_KEY is not set — requests will fail with 401.`
+        );
+      }
+    } catch (error) {
+      // Re-throw our own validation errors; any other resolution error
+      // (unknown preset, unknown role) is a real config bug too.
+      throw error;
+    }
+  }
+
   log.info(`model config loaded: ${path}, profile="${activeProfile}"`);
   return config;
 }
