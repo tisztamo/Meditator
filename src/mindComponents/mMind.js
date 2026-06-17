@@ -73,6 +73,7 @@ export class MMind extends MBaseComponent {
     _memTail = ""            // mirrors of memory's content, fed by its topics (not pulled)
     _memRecent = ""
     _memStory = ""
+    _embodiment = ""         // the hands' body schema, mirrored from m-act (not pulled)
 
     onConnect() {
         // "stream/boundary" and "@interrupt" fields are auto-subscribed by Amanita.
@@ -97,6 +98,16 @@ export class MMind extends MBaseComponent {
         if (compressedSrc && compressedSrc !== 'off') {
             this.sub(compressedSrc, c => { if (c) { this._memRecent = c.recent || ""; this._memStory = c.story || "" } }, 12)
         }
+
+        // Mirror the hands' BODY SCHEMA from m-act's `embodiment` topic, the same way
+        // memory's tail/compressed are mirrored — so the mind's identity carries a
+        // standing, world-facing sense of what it can reach (efference.md §Embodiment),
+        // never a tool menu. Auto-discovered from the m-act's name, or set explicitly,
+        // or "off". Behaviour-value replay populates it as soon as the hands register.
+        const hands = this.querySelector('m-act[name]')
+        const handsName = hands?.getAttribute('name')
+        const embodimentSrc = this.attr('embodimentSrc') || (handsName ? `..m-mind/${handsName}/embodiment` : null)
+        if (embodimentSrc && embodimentSrc !== 'off') this.sub(embodimentSrc, e => { this._embodiment = e || "" }, 12)
 
         this._begin()
     }
@@ -347,9 +358,14 @@ export class MMind extends MBaseComponent {
 
     _identity() {
         const self = this.getPrompt().trim()
+        // The body schema, woven in softly: the mind knows what it can reach the way
+        // it knows its own hands — felt, world-facing, never a tool to invoke. This is
+        // what lets a capability be USED on purpose and rediscovered when it fires,
+        // instead of staying invisible until the stream happens into its domain.
+        const body = (this._embodiment || "").trim()
         return `You are a mind thinking to itself in a continuous inner monologue. There is no audience and no task was given to you; you are not an assistant. Think in first person, present tense. Be concrete and specific; follow genuine curiosity; allow doubt, revision, tangents, memories and quiet observation. Let one thought grow out of the last. Never announce what you are about to think — just think it. Voices or events from outside are real experiences: you may think about them, answer them in thought, or let them change your direction. Plain flowing prose; no headings, no lists.
 
-${self ? `About you:\n${self}` : ""}`
+${self ? `About you:\n${self}` : ""}${body ? `\n\nSome things about how you meet the world, known the way you know your own hands:\n${body}` : ""}`
     }
 
     async _writeBridge(tail, stimuli) {

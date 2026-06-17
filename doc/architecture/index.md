@@ -164,7 +164,7 @@ The example mind (`architecture/seedling.archml`) wires:
 | [`m-loop-guard`](interrupts.md#m-loop-guard) | detects repetition loops — pure code, no LLM |
 | [`m-associate`](interrupts.md#m-associate) | a small model noticing "this reminds me of…" |
 | [`m-speech`](components.md#m-speech) | the voice — occasionally speaks a thought aloud, in parallel with thinking |
-| [`m-act` / `m-look`](components.md#the-hands-m-act--m-look) | the hands — reaches out (tool-blind) to look at the world when the mind wonders |
+| [`m-act` (+ `m-look`/`m-note`/`m-recall`)](components.md#the-hands-m-act--m-look) | the hands — reaches out (tool-blind) to look at the world, keep a note, or recall one; the mind carries a felt body schema of what it can reach |
 | [`m-kb`](components.md#m-kb) | the scribe — distills durable knowledge to `knowledge/` |
 | [`m-economy`](components.md#m-economy) | reads real cost and slows the mind as budget drains |
 | [`m-console`](components.md#m-console) | terminal input/output |

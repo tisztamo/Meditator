@@ -59,6 +59,9 @@ export class MLook extends MBaseComponent {
             description: "Look at some part of the real world right now — the weather where the mind is, "
                 + "the day's light outside, or a headline drifting by — when the mind genuinely wonders about it. "
                 + "Read-only: it observes the world, it does not change anything.",
+            felt: "When something about the world outside tugs at you — the weather, the turn of the "
+                + "day's light, a piece of news drifting somewhere out there — you can let your attention "
+                + "go to it, and a little while later you simply find that you know.",
             parameters: {
                 type: "object",
                 properties: {
@@ -105,22 +108,36 @@ export class MLook extends MBaseComponent {
      * Realize one look. Returns { experience, salience, data } — an EXPERIENCE, never
      * data; the optional `data` is for the backstage note/Studio only. Throws on a
      * network blip or an unsupported/unconfigured subject; m-act swallows it.
+     *
+     * The experience is phrased SELF-CAUSED (efference.md §Efference copy): "I turn to
+     * look… and find…", not the spontaneous "out there it is…" of a push-sense. That
+     * faint sense of having-reached is what lets the mind learn it can do this on
+     * purpose — and it carries no mechanism, so the One Rule holds.
      */
     async _look({ subject } = {}) {
         const salience = Number(this.attr("salience") || 0.55)
         switch (subject) {
-            case "daylight": return { ...await this._lookDaylight(), salience }
-            case "weather":  return { ...await this._lookWeather(), salience }
-            case "news":     return { ...await this._lookNews(), salience }
+            case "daylight": return { ...this._selfCaused("daylight", await this._lookDaylight()), salience }
+            case "weather":  return { ...this._selfCaused("weather", await this._lookWeather()), salience }
+            case "news":     return { ...this._selfCaused("news", await this._lookNews()), salience }
             default: throw new Error(`unknown subject "${subject}"`)
         }
+    }
+
+    /** Wrap a perception in a first-person sense of having turned toward it, rotating
+     *  the opening so repeated looks don't read mechanically. The lead is the efference
+     *  copy; the perception (from the shared sense fetchers) is what the mind finds. */
+    _selfCaused(subject, { perception, data }) {
+        const leads = LOOK_LEADS[subject] || LOOK_LEADS.daylight
+        this._leadIdx = (this._leadIdx + 1) % leads.length
+        return { experience: `${leads[this._leadIdx]} ${perception}`, data }
     }
 
     async _lookDaylight() {
         // The real local clock — offline and deterministic, so it needs no dry-run path.
         const band = bandFor(new Date().getHours())
         this._lineIdx = (this._lineIdx + 1) % band.lines.length
-        return { experience: band.lines[this._lineIdx], data: { band: band.key } }
+        return { perception: band.lines[this._lineIdx], data: { band: band.key } }
     }
 
     async _lookWeather() {
@@ -128,7 +145,7 @@ export class MLook extends MBaseComponent {
         const lon = this.attr("longitude") ?? this.attr("lon")
         if (!lat || !lon) throw new Error("no latitude/longitude for a weather look")
         if (isDryRun()) {
-            return { experience: "Out there it is a flat grey overcast, with a cool edge to the air.", data: { dry: true } }
+            return { perception: "Out there it is a flat grey overcast, with a cool edge to the air.", data: { dry: true } }
         }
         const url = `https://api.open-meteo.com/v1/forecast`
             + `?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}`
@@ -142,14 +159,14 @@ export class MLook extends MBaseComponent {
             isDay: c.is_day !== 0,
             wind: c.wind_speed_10m,
         })
-        return { experience: line, data: { sky: key, tempC: c.apparent_temperature ?? c.temperature_2m } }
+        return { perception: line, data: { sky: key, tempC: c.apparent_temperature ?? c.temperature_2m } }
     }
 
     async _lookNews() {
         const url = this.attr("newsUrl")
         if (!url) throw new Error("no newsUrl for a news look")
         if (isDryRun()) {
-            return { experience: `A scrap of the outside world drifts past — “a quiet study of how rivers find their oldest paths”.`, data: { dry: true } }
+            return { perception: `a scrap of it drifts past — “a quiet study of how rivers find their oldest paths”.`, data: { dry: true } }
         }
         const res = await fetch(url, {
             signal: AbortSignal.timeout(8000),
@@ -164,8 +181,31 @@ export class MLook extends MBaseComponent {
         this._seenHeadlines.add(fresh)
         if (this._seenHeadlines.size > 200) this._seenHeadlines = new Set([...this._seenHeadlines].slice(-100))
 
-        return { experience: `A scrap of the outside world drifts past — “${fresh}”.`, data: { headline: fresh } }
+        return { perception: `a scrap of it drifts past — “${fresh}”.`, data: { headline: fresh } }
     }
+
+    _leadIdx = -1
+}
+
+// First-person openings for a look — the efference copy that frames the perception
+// as something the mind turned toward, not weather that happened to it. Plain inner
+// speech; no mechanism. The news leads end mid-sentence so the perception ("a scrap
+// of it drifts past…") completes them naturally.
+const LOOK_LEADS = {
+    daylight: [
+        "I let my attention drift out to the day itself.",
+        "I turn, for a moment, to see what the day is doing.",
+        "Something pulls my notice up and outward, to the hour and its light.",
+    ],
+    weather: [
+        "I turn to feel what the weather is doing.",
+        "I send my attention past the walls, up to the sky.",
+        "I pause and reach out toward the weather.",
+    ],
+    news: [
+        "I turn, for a moment, toward the wider world beyond my own thoughts, and",
+        "I let my attention go out past these rooms to the world at large, and",
+    ],
 }
 
 if (!customElements.get('m-look')) customElements.define('m-look', MLook);

@@ -82,18 +82,24 @@
 
   <!-- Efference (lifecycle.md §Phase 6 / efference.md): the HANDS. The conscious
        stream is never given tools; m-act reads a realizable intention, a realizer
-       maps it to a wired capability via tool-calls under the hood, and the
-       consequence returns through the afferent bus as a plain sensation (deed
-       backstage ⌁, consequence perceived ⟂). The seedling gets ONE read-only hand —
-       m-look, the PULL that complements the senses' push: it looks at the weather,
-       the day's light, or a headline BECAUSE the mind wondered, not because a timer
-       fired. BRISK tuning cadences (small every, short cooldowns) so acts happen
-       often enough to observe in a short recorded run. World-changing hands come
-       later, deliberately and sandboxed (efference.md §6). -->
+       maps it to a wired capability via tool-calls under the hood, and the consequence
+       returns through the afferent bus as a plain, SELF-CAUSED sensation ("I turned to
+       look, and…") — the efference copy that lets the mind learn it can act. Deed
+       backstage ⌁, consequence perceived ⟂. Each hand also contributes a first-person
+       `felt` line to the mind's BODY SCHEMA (woven into its identity), so it knows what
+       it can reach the way it knows its own hands — never a tool menu.
+
+       Three hands, BRISK tuning cadences so acts happen often enough to observe:
+         - m-look  : read-only PULL — look at weather/day/news because it wondered;
+         - m-note  : WORLD-CHANGING — set a thought down to keep (guardrailed: one
+                     notebook in the mind's own notes dir, the realizer never names a path);
+         - m-recall: read-only — come upon a kept note again, closing the write→meet loop. -->
   <m-act name="hands" every="4" threshold="0.6" cooldown="45s" intentCooldown="4m">
     <m-look name="look"
             latitude="47.4979" longitude="19.0402"
             newsUrl="https://feeds.bbci.co.uk/news/science_and_environment/rss.xml"></m-look>
+    <m-note name="note"></m-note>
+    <m-recall name="recall"></m-recall>
   </m-act>
 
   <m-speech name="voice" every="6" threshold="0.6" cooldown="45s"></m-speech>

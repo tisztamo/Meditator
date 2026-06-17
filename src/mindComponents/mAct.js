@@ -62,6 +62,12 @@ const log = logger('mAct.js');
  *   - "intent": {salience, gist, accepted, reason} — every decide, for observability
  *   - "acted": {intent, capability, args, ok, experience, data} — a deed, journaled
  *     backstage (⌁) by a memory subscribing via `actedSrc`
+ *   - "embodiment": the assembled BODY SCHEMA — each hand's first-person `felt`
+ *     self-description, joined. The mind subscribes (m-mind's `embodimentSrc`) and
+ *     weaves it softly into its identity, so it KNOWS, the way you know your own
+ *     hands, what it can reach — without ever being shown a tool. This is what stops
+ *     a capability from being unreachable when the stream never happens to wander
+ *     toward its domain (efference.md §Embodiment). World-facing, never mechanism.
  * The consequence is NOT a topic — it is an External `interrupt-request` (so it goes
  * through the arbiter into the frame and is journaled perceived (⟂) via `attended`).
  */
@@ -72,6 +78,7 @@ export class MAct extends MObserver {
     _ledger = new Map()   // normalized intent → timestamp of last act on it
     _lastActAt = 0
     _arousal = 1
+    embodiment = ""       // the assembled body schema (see _publishEmbodiment)
 
     onObserverConnect() {
         // Interoception, gated: a tired or near-broke mind does not reach. Tracks the
@@ -83,7 +90,11 @@ export class MAct extends MObserver {
 
     /**
      * A capability announces itself to its parent m-act on connect (efference.md §3).
-     * spec: { name, description, parameters (JSON Schema), readonly?, execute(args) }.
+     * spec: { name, description, parameters (JSON Schema), felt?, readonly?, execute(args) }.
+     *   - `description`/`parameters` are MACHINE-facing — the realizer's tool schema.
+     *   - `felt` is WORLD-facing — a first-person, no-mechanism sense of the affordance,
+     *     in the mind's own voice ("when X tugs at you, you can simply turn and find…"),
+     *     assembled into the mind's body schema (see _publishEmbodiment).
      * Returns false (and warns) on a malformed spec rather than throwing — a broken
      * hand must never crash the mind's wake.
      */
@@ -100,11 +111,26 @@ export class MAct extends MObserver {
             name: spec.name,
             description: spec.description || "",
             parameters: spec.parameters || { type: "object", properties: {} },
+            felt: (spec.felt || "").trim(),
             readonly: spec.readonly !== false,   // read-only unless explicitly opted out (§6c)
             execute: spec.execute.bind(spec),
         })
         log.info(`hand registered: ${spec.name}${spec.readonly === false ? " (WORLD-CHANGING)" : ""}`)
+        this._publishEmbodiment()
         return true
+    }
+
+    /**
+     * Assemble and publish the BODY SCHEMA: the mind's first-person sense of what it
+     * can reach, joined from each hand's `felt` line. Re-published whenever a hand
+     * registers (registration is async — hands retry until their parent is up). The
+     * mind weaves this softly into its identity, so its affordances are standing
+     * self-knowledge rather than a tool menu it must consult — and so a hand stays
+     * reachable even when the stream never wanders into its domain on its own.
+     */
+    _publishEmbodiment() {
+        this.embodiment = this._capabilities.map(c => c.felt).filter(Boolean).join(" ")
+        this.pub("embodiment", this.embodiment)
     }
 
     async onBoundary(boundary) {

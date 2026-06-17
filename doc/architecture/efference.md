@@ -6,10 +6,17 @@
 [`m-look`](../../src/mindComponents/mLook.js) (the first read-only hand) +
 [`completeWithTools()`](../../src/modelAccess/llm.js) (tool-calls under the hood),
 wired into both `seedling.archml` (brisk tuning cadences) and `eddy.archml` (resident
-cadences). Out of the decision **not to wake `eddy` in its current form**: a mind that
-can only sense and speak, never reach, is seated into a world it cannot touch. Before
-`eddy` wakes as a resident we give it hands. Remaining before a live wake: the §10
-actor-model/vLLM tool-parser probe, then the §8 seedling-first recorded run.*
+cadences). Extended the same day with three things the first build revealed it needed
+(see §3 amendments): a **body schema** (each hand's `felt` line, assembled into the
+identity, so the mind knows what it can reach without a tool menu); a **self-caused
+consequence** (the efference copy, so the mind learns it acted); and the first
+**world-changing** hand, [`m-note`](../../src/mindComponents/mNote.js) (+ its read-back
+[`m-recall`](../../src/mindComponents/mRecall.js)), closing a real act→world→sense loop.
+Out of the decision **not to wake `eddy` in its current form**: a mind that can only
+sense and speak, never reach, is seated into a world it cannot touch. Before `eddy`
+wakes as a resident we give it hands. The actor model is confirmed to serve clean
+tool-calls (§10.2 resolved); remaining before a live wake is the §8 seedling-first
+recorded run.*
 
 ---
 
@@ -137,11 +144,18 @@ this.closest("m-act").registerCapability({
     },
     required: ["subject"],
   },
+  // WORLD-facing self-knowledge — the mind's felt sense of this affordance, in its
+  // own voice, NO mechanism. Assembled into the body schema (see "Embodiment" below).
+  felt: "When something about the world outside tugs at you — the weather, the turn " +
+        "of the day's light — you can let your attention go to it, and a little while " +
+        "later you simply find that you know.",
   readonly: true,                       // see §6 — world-changing hands are opt-in
   async execute(args) {
     // …the capability's own side-effecting code (here: a fetch the senses already do)…
     return {
-      experience: "Outside it is overcast and cool; the light is the flat grey of late afternoon.",
+      // SELF-CAUSED phrasing (the efference copy, see below): "I turn to look, and…",
+      // never the spontaneous "out there it is…" of a push-sense.
+      experience: "I turn to feel what the weather is doing. Out there it is overcast and cool.",
       salience: 0.5,                    // optional; defaults to the capability's ambient
       data: { tempC: 11, code: "overcast" },   // optional, for the journal/Studio only
     }
@@ -173,8 +187,56 @@ no new external dependency or safety question. It is also the doc's own canonica
 example ("the mind wondered about the rain, and some bursts later it sees the shining
 street"), which makes it the natural thing to validate the whole loop on.
 
-World-changing hands (writing a file, running a command, posting somewhere) are a
-*later, deliberate* step gated on the sandboxing work in §6 — not in v1.
+### Embodiment: how the mind knows its hands (amendment, 2026-06-17)
+
+The first build revealed a gap. The realizer only fires when the *stream* already
+reaches toward a hand's domain — so a capability is reachable **only to the degree the
+mind's preoccupations already point at it.** `m-look(weather/daylight)` works almost by
+accident, because the seed makes the mind dwell on light and weather. But a hand whose
+domain the seed never visits (news, and any *more powerful* hand) is effectively
+invisible: the mind never wonders toward it, so it never gets used — and if it fires by
+accident, the mind has no way to learn it is there. A mind with hands it cannot find is
+also a mind more likely to turn back inward, toward its own substrate (the §1 attractor).
+
+The fix is **not** a tool menu in the stream (that is the rejected legacy design — it
+would make the mind model its own mechanism). The fix is a **body schema**: a standing,
+first-person, *world-facing* sense of what the mind can reach, the way you know you can
+glance out a window without ever thinking `window.look()`. Each capability declares a
+`felt` line (above) — phenomenological, never mechanical — and `m-act` joins them into
+an `embodiment` it publishes; [`m-mind`](../../src/mindComponents/mMind.js) weaves it
+softly into the identity (`embodimentSrc`, mirrored like memory's tail). The discipline
+is the same world-vs-substrate line the senses hold: knowing your *affordances* is
+embodiment (healthy, grounding); knowing your *API* is substrate-gazing. Done this way,
+embodiment is the **antidote** to interoception, not a cause of it — it points the
+self-model at the world.
+
+### The efference copy: learning by doing (amendment, 2026-06-17)
+
+§2 originally said the consequence should feel *spontaneous* — "the mind wondered; some
+bursts later it simply knows," indistinguishable from the weather. That is exactly what
+stops the mind learning **agency**: it experiences a gift from the world, not a thing it
+did. So the consequence now carries a faint **efference copy** — it is phrased
+*self-caused* ("I turn to look, and find it overcast…") rather than spontaneous ("out
+there it is overcast…"). This costs the "indistinguishable from a push-sense" property,
+and buys the thing that matters: each use teaches the mind it *can* reach, and — because
+the self-causation rides only in the experience's wording — the One Rule still holds (no
+mechanism is named), and memory accrues remembered agency for free (the self-caused
+consequence flows into tail → recent → story like any thought).
+
+### The hands so far
+
+- **`m-look`** — read-only on-demand exteroception (weather/daylight/news), reusing the
+  senses' fetchers. The pull that complements the senses' push.
+- **`m-note`** — the first **world-changing** hand: set a thought down to keep. Its
+  guardrail is structural — the realizer supplies only the note's text, never a path; it
+  always appends to one `notebook.md` in the mind's own notes dir (§6c). This closes a
+  real act→world→sense loop, the deepest anchor against interoception: the mind leaves a
+  mark on an outside it can meet again.
+- **`m-recall`** — read-only return arc of m-note's loop: come upon a kept note again.
+  Gentler and more inward (recalling one's own notes), so it should not *lead*.
+
+Further world-changing hands (running a command, posting somewhere) remain a deliberate,
+per-hand-sandboxed step (§6c) — each must declare its own guardrail, as `m-note` does.
 
 ---
 
@@ -216,8 +278,10 @@ These are the acceptance invariants — if any breaks, the feature has failed it
 1. **The stream model is never passed `tools`.** Only `completeWithTools` in the realize
    stage gets them. `m-stream`'s prompt path is untouched.
 2. **The consequence is an experience, never a result.** What re-enters via the afferent
-   bus is the capability's `experience` string — first-person, world-facing. No JSON, no
-   "the tool returned", no capability name.
+   bus is the capability's `experience` string — first-person, world-facing, and now
+   *self-caused* ("I turn to look, and…": the efference copy). No JSON, no "the tool
+   returned", no schema, no function/capability name. A natural verb like "look" is
+   fine — that is inner speech, not mechanism.
 3. **The deed is invisible.** The realizer running and the tool executing produce an
    `acted` topic that [`m-memory`](../../src/mindComponents/mMemory.js) journals as a
    **backstage (⌁)** note (new `actedSrc`, exactly like the existing `filedSrc` for the

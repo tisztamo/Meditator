@@ -68,6 +68,13 @@ test("the look hand registered itself with m-act (the closed menu)", () => {
     expect(act._capabilities[0].readonly).toBe(true);
 });
 
+test("the hand contributes a felt line to the mind's body schema (embodiment)", () => {
+    // m-act assembles each hand's first-person `felt` into an `embodiment` it publishes;
+    // the mind weaves it into its identity so it knows what it can reach (no tool menu).
+    expect(act.embodiment).toMatch(/you can let your attention go to it/);
+    expect(act.embodiment.toLowerCase()).not.toMatch(/\btool\b|function|schema|argument|subject/);
+});
+
 test("a reach becomes a deed and a perceived consequence — never a tool result", async () => {
     // Give the observer enough recent thought to judge a reach from (m-act needs a
     // window of at least 200 chars before it will consider a reach at all).
@@ -93,9 +100,14 @@ test("a reach becomes a deed and a perceived consequence — never a tool result
     expect(c.urgent).toBe(false);
     expect((c.reason || "").length).toBeGreaterThan(20);
 
-    // INVARIANT (§5.2): the consequence is an experience, never a result — no JSON,
-    // no capability/tool name, no "the tool returned" leaking into the mind's prose.
-    expect(c.reason.toLowerCase()).not.toMatch(/\btool\b|\bfunction\b|capability|tool_call|"subject"|\blook\b/);
+    // INVARIANT (§5.2): the consequence is an experience, never a result — no JSON, no
+    // "the tool returned", no schema/mechanism leaking into the mind's prose. (Natural
+    // verbs like "look"/"turn"/"see" are fine — that is the self-caused efference copy,
+    // not mechanism.)
+    expect(c.reason.toLowerCase()).not.toMatch(/\btool\b|tool_call|capability|function call|"subject"|\bschema\b|\bargument/);
+    // INVARIANT (§Efference copy): the consequence is SELF-CAUSED, not spontaneous —
+    // the mind feels it turned toward the world, so it can learn it acted.
+    expect(c.reason.toLowerCase()).toMatch(/\bi\b/);
 
     // INVARIANT (§5.4): the arbiter receives it like any other stimulus, so it would
     // be journaled perceived (⟂) via the ordinary `attended` path.

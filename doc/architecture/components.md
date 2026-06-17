@@ -37,11 +37,14 @@ is the mind's identity.
 | `speakingPaceFactor` | `2.5` | pace multiplier while the voice is speaking (slower thinking) |
 | `speakingTokensFactor` | `0.35` | burst-token multiplier while speaking (thinner thoughts, floor 60) |
 | `tailSrc` / `compressedSrc` | the memory's `<name>/tail` and `<name>/compressed` (auto-discovered) | the narrative content mirrored into the frame; `"off"` disables |
+| `embodimentSrc` | the hands' `<name>/embodiment` (auto-discovered) | the body schema woven into the identity (efference); `"off"` disables |
 
 - **Subscribes:** `stream/boundary` (schedule next burst), `@interrupt` (think now);
   if an [`m-speech`](#m-speech) is present, `<voice>/speaking` (thin thinking while
-  talking); and memory's `tail` / `compressed` topics — the frame's narrative content
-  is *mirrored* from those, never pulled (see [decoupling.md](decoupling.md)).
+  talking); memory's `tail` / `compressed` topics — the frame's narrative content
+  is *mirrored* from those, never pulled (see [decoupling.md](decoupling.md)); and, if
+  an [`m-act`](#the-hands-m-act--m-look) is present, its `embodiment` topic — the body
+  schema woven into the identity so the mind knows what it can reach.
 - **Publishes:** `prompt` — `{system, frame, prefix?, dedupe, kind, burstTokens?}`; and
   `attended` — the rendered stimuli entering a frame, which a memory journals as
   perceived (⟂) notes.
@@ -245,18 +248,28 @@ exactly like `m-speech`: a cheap **decide** gate keeps the expensive tool-callin
 Plus all `m-observer` attributes.
 
 - **Capabilities register, the menu is closed:** each child capability calls
-  `registerCapability({name, description, parameters, readonly?, execute})` on
-  connect. The realizer can only ever call a *registered* hand with *schema-validated*
-  args — it cannot invent one. A mind has exactly the hands its `.archml` wires in,
-  the way a body plan does; the blast radius is auditable by reading the file.
+  `registerCapability({name, description, parameters, felt?, readonly?, execute})` on
+  connect. `description`/`parameters` are *machine-facing* (the realizer's tool schema);
+  `felt` is *world-facing* — a first-person, no-mechanism sense of the affordance, in
+  the mind's own voice. The realizer can only ever call a *registered* hand with
+  *schema-validated* args — it cannot invent one. A mind has exactly the hands its
+  `.archml` wires in, the way a body plan does; the blast radius is auditable by reading the file.
+- **The body schema (embodiment):** m-act joins every hand's `felt` line into an
+  `embodiment` it publishes; the mind weaves it softly into its identity
+  ([`m-mind`](#m-mind)'s `embodimentSrc`). So the mind *knows what it can reach the way
+  it knows its own hands* — standing self-knowledge, never a tool menu. This is what
+  keeps a capability reachable (and re-discoverable when it fires) even when the stream
+  never wanders into its domain on its own (efference.md §Embodiment).
 - **Publishes:** `intent` — `{salience, gist, accepted, reason}` for every decide
   (observability, like speech's `impulse`); `acted` — `{intent, capability, args, ok,
   experience, data}` for each deed, which a memory journals as a backstage (⌁) note
-  via its `actedSrc`.
+  via its `actedSrc`; `embodiment` — the assembled body schema (above).
 - **Dispatches (DOM, bubbling):** the **consequence** as an `External`,
   non-urgent `interrupt-request` (`type: Sense-<capability>`) — so it flows through
   the arbiter into the frame and is journaled perceived (⟂) via `attended`, exactly
-  like a sense. The consequence is *never* a topic.
+  like a sense. The consequence reads as **self-caused** ("I turn to look, and…") — a
+  faint efference copy so the mind learns it acted — but still names no mechanism. It
+  is *never* a topic.
 - **Subscribes:** the stream window (`m-observer`), and `..m-mind/economy/arousal`
   (interoception — a tired or near-broke mind does not reach).
 
@@ -278,10 +291,52 @@ observes the world, it changes nothing.
 
 The realizer fills a `{subject: "daylight"|"weather"|"news", about?}` argument;
 `daylight` (the local clock) is always available, `weather`/`news` only when
-configured. Wire it inside `m-act`:
-`<m-act name="hands"><m-look name="look" latitude=… longitude=… newsUrl=…/></m-act>`.
-World-changing hands (`readonly:false`) are a later, deliberate, sandboxed step
-(efference.md §6) — not in v1.
+configured. Its consequences read self-caused ("I turn to feel what the weather is
+doing. …"). `felt`: *"When something about the world outside tugs at you … you can let
+your attention go to it, and a little while later you simply find that you know."*
+
+### `m-note` — the first world-changing hand (leave a mark)
+
+The mind can **set a thought down** somewhere outside itself, to be found again later.
+This is the deepest answer to the interoception worry: the mind doesn't only *look* at
+a world it can't touch — it leaves a residue on one, closing a real act→world→sense
+loop (with [`m-recall`](#m-recall-read-a-kept-note-back)).
+
+Because it changes the world it is `readonly:false`, and its guardrail is **structural**
+(efference.md §6c): the realizer supplies only the note's `text` (and optional `title`)
+— it **never names a path**. m-note always appends to one `notebook.md` inside its own
+notes dir, so there is no path-traversal vector and the blast radius is one append-only
+file in one allow-listed directory.
+
+| Attribute | Default | Meaning |
+|-----------|---------|---------|
+| `name` | `note` | the tool-call function name |
+| `dir` | vault `notes/` | the notes directory (the only place it writes) |
+| `maxChars` | `1200` | cap on a single note's length |
+| `salience` | `0.45` | salience of the quiet "I set this down" consequence |
+
+`felt`: *"When a thought matters enough to keep, you can set it down somewhere outside
+yourself — and trust that it will still be there … when you come back for it."* Pure
+helper `parseNotebook(md)` → `{stamp, title, text}[]` is exported (used by m-recall).
+
+### `m-recall` — read a kept note back
+
+The read-only return arc of m-note's loop: the mind can **come upon a thought it set
+down before**, in its own words. With an `about` hint it prefers a note that touches it,
+else the freshest not surfaced recently. It is the gentler, more inward-facing of the
+pair — recalling one's own notes is closer to interoception than looking at the weather,
+so it should not *lead* — but the notes are real external residue, so it is a genuine
+small encounter, not mere rumination.
+
+| Attribute | Default | Meaning |
+|-----------|---------|---------|
+| `name` | `recall` | the tool-call function name |
+| `dir` | vault `notes/` | the notes directory (share m-note's) |
+| `salience` | `0.5` | salience of the "I find again…" consequence |
+
+`felt`: *"And the things you've set down are not lost: when one of them stirs in you
+again, you can turn back and find it, just as you left it."* Pair it with m-note:
+`<m-act ...><m-note name="note"/><m-recall name="recall"/></m-act>`.
 
 ## `m-observer`
 
