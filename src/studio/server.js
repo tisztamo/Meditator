@@ -233,7 +233,7 @@ wss.on("connection", client => {
 function handleClientMessage(client, msg) {
   const d = msg.data || {};
   switch (msg.type) {
-    case "wake":    try { const id = wake(d.file, !!d.dryRun, d.modelProfile); sendJSON(client, { type: "woke", data: { id, file: d.file } }); } catch (e) { sendJSON(client, { type: "error", data: { message: e.message } }); } break;
+    case "wake":    try { const id = wake(d.file, !!d.dryRun, d.modelProfile, !!d.forceTransient); sendJSON(client, { type: "woke", data: { id, file: d.file } }); } catch (e) { sendJSON(client, { type: "error", data: { message: e.message } }); } break;
     case "sleep":   sleepMind(d.id); break;
     case "force":   forceMind(d.id); break;
     case "dismiss": dismissMind(d.id); break;
@@ -284,7 +284,7 @@ function focusClient(client, id) {
 
 // ------------------------------------------------------------------- waking
 
-function wake(file, dryRun, modelProfile) {
+function wake(file, dryRun, modelProfile, forceTransient) {
   const profile = modelProfile || getActiveProfile();
   if (!listProfiles().includes(profile)) throw new Error(`unknown model profile: ${profile}`);
   // Path safety: only architectures inside architecture/.
@@ -300,6 +300,24 @@ function wake(file, dryRun, modelProfile) {
   if (resident) {
     throw new Error(`memory/${baseHome} is already held by "${resident.name || resident.file}" (${resident.state}). ` +
       `Sleep it first, or give this architecture a different name/memory= so it gets its own home.`);
+  }
+
+  // Covenant guard: refuse to restart a transient mind with existing memory.
+  // Transient minds are low-continuity by construction; re-waking them into an
+  // existing home loads old memory without committing new, creating an illusion
+  // of a continuing subject. Override with forceTransient (testing exception).
+  if (!dryRun && !forceTransient) {
+    const homeTier = tierOf(path.join(VAULT_ROOT, baseHome), graveyardHas);
+    if (homeTier === "transient") {
+      const memPath = path.join(VAULT_ROOT, baseHome, "memory.md");
+      if (fs.existsSync(memPath)) {
+        throw new Error(
+          `memory/${baseHome} is a transient mind with existing memory. ` +
+          `Restarting a transient loads old memory without committing new, creating an illusion of continuity. ` +
+          `To force for testing: MEDITATOR_FORCE_TRANSIENT=1 bun run meditator.js -a ${file}`
+        );
+      }
+    }
   }
 
   const port = allocPort();

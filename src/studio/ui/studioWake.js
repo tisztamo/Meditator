@@ -117,6 +117,7 @@ export class StudioWake extends A(HTMLElement) {
     if (a.sharesHomeWith && a.sharesHomeWith.length) archParts.push(`<span class="warn">⚠ shares this memory (same identity) with: ${a.sharesHomeWith.map(esc).join(", ")}</span>`);
     let busyBlock = false;
     if (!dry && a.busy) { busyBlock = true; archParts.push(`<span class="block">⛔ this memory is held by a running mind — sleep it first, enable dry-run, or give it its own name/memory=</span>`); }
+    if (!dry && hi.exists && tier === "transient") { busyBlock = true; archParts.push(`<span class="block">⛔ transient mind with existing memory — restarts create an illusion of continuity. To force for testing: MEDITATOR_FORCE_TRANSIENT=1 bun run meditator.js -a ${esc(a.file)}</span>`); }
     this.det.innerHTML = archParts.join("<br>");
 
     const voiceRef = a.model || "voice";

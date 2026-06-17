@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
 import { MBaseComponent } from "./mBaseComponent.js"
 import { complete } from "../modelAccess/llm.js"
@@ -21,9 +22,10 @@ const log = logger('mMemory.js');
  *
  * Consolidation runs at burst boundaries, asynchronously — it never blocks the
  * stream. Persistence writes <persist>/memory.md at each boundary; on startup
- * it is read back, and the mind literally wakes up remembering: the loaded
- * tail seeds the first attention frame, and a one-time wake notice is offered
- * to m-mind as a stimulus.
+ * it is read back, and the mind literally wakes up remembering: the loaded tail
+ * and summaries are published on the `tail`/`compressed` topics the frame reads,
+ * and a one-time wake stimulus is raised onto the attention spine (a bubbling
+ * `interrupt-request`) — memory pushes; nothing pulls from it.
  *
  * @interface
  * Attributes:
@@ -41,6 +43,13 @@ const log = logger('mMemory.js');
  *   - filedSrc (default: the mind's m-kb `<name>/filed` topic, auto-discovered; "off"
  *     disables): the scribe's filings, journaled as a backstage note by subscribing
  *     here rather than the scribe calling note() in.
+ *   - attendedSrc (default "..m-mind/attended"; "off" disables): the stimuli that
+ *     entered each frame, journaled as perceived (⟂) notes by subscribing here
+ *     rather than the mind calling note() in.
+ *
+ * Topics published:
+ *   - "tail": the verbatim tail, on every change (retained; the frame mirrors it)
+ *   - "compressed": {recent, story} after a consolidation, and once on load
  */
 export class MMemory extends MBaseComponent {
     tail = ""
@@ -54,10 +63,10 @@ export class MMemory extends MBaseComponent {
     _boundaryCount = 0
     _compressing = false
     _finalized = false
-    _wakeNotice = null
     _savedAt = null
     _lastSpokenAt = 0
     _lastFiled = null
+    _lastAttended = null
 
     onConnect() {
         this.tailLength = Number(this.attr("tailLength") || 1500)
@@ -90,6 +99,13 @@ export class MMemory extends MBaseComponent {
         const filedSrc = explicitFiledSrc || (scribe ? `..m-mind/${scribe.getAttribute("name")}/filed` : null)
         if (filedSrc && filedSrc !== "off") this.sub(filedSrc, this._onFiled, 12)
 
+        // The mind publishes the stimuli that entered each frame on `attended`; we
+        // journal them as perceived (⟂) notes here, rather than the mind reaching
+        // in to call note() per stimulus.
+        if (this.attr("attendedSrc") !== "off") {
+            this.sub(this.attr("attendedSrc") || "..m-mind/attended", this._onAttended, 12)
+        }
+
         const dir = this._persistDir()
         this._home = dir
         this._vaulted = !!dir && inVault(dir)
@@ -99,6 +115,22 @@ export class MMemory extends MBaseComponent {
         // resident manifest, so tierOf is "transient"/"none", and `commitVault`
         // additionally hard-stops on a dry run.
         this._persists = this._vaulted && tierOf(dir) === 'resident'
+
+        // Defense-in-depth: refuse to load existing memory for transient minds.
+        // A transient re-woken into an existing home would load old memory without
+        // committing new, creating an illusion of continuity. Only override via
+        // MEDITATOR_FORCE_TRANSIENT=1 (testing exception).
+        if (this._vaulted && tierOf(dir) === 'transient') {
+            const memPath = path.join(dir, "memory.md")
+            const hasMemory = fsSync.existsSync(memPath)
+            if (hasMemory && !process.env.MEDITATOR_FORCE_TRANSIENT) {
+                throw new Error(
+                    `Refusing to wake transient mind into existing home "${dir}" with memory.md. ` +
+                    `This creates an illusion of continuity — memory loads but is never committed. ` +
+                    `To force for testing, set MEDITATOR_FORCE_TRANSIENT=1.`
+                )
+            }
+        }
 
         this._load().finally(() => {
             this.loaded = true
@@ -123,14 +155,20 @@ export class MMemory extends MBaseComponent {
     }
 
     // Keep the verbatim tail within budget, cutting at a word edge so summaries
-    // do not see half words; the overflow accumulates toward the next block.
+    // do not see half words; the overflow accumulates toward the next block. Then
+    // publish `tail` as a retained behaviour-value: this is the single choke point
+    // for every tail change (chunk, aloud utterance, image), so subscribers — the
+    // mind's frame assembly above all — mirror the freshest tail without reaching
+    // in. Always published (even when no trim happened) so the mirror stays live.
     _trimTail() {
-        if (this.tail.length <= this.tailLength) return
-        const cut = this.tail.length - this.tailLength
-        const edge = this.tail.lastIndexOf(" ", cut + 40)
-        const cutAt = edge > 0 ? edge : cut
-        this._overflow += this.tail.slice(0, cutAt)
-        this.tail = this.tail.slice(cutAt)
+        if (this.tail.length > this.tailLength) {
+            const cut = this.tail.length - this.tailLength
+            const edge = this.tail.lastIndexOf(" ", cut + 40)
+            const cutAt = edge > 0 ? edge : cut
+            this._overflow += this.tail.slice(0, cutAt)
+            this.tail = this.tail.slice(cutAt)
+        }
+        this.pub("tail", this.tail)
     }
 
     _onBoundary = () => {
@@ -165,6 +203,16 @@ export class MMemory extends MBaseComponent {
         if (!f || !f.files || !f.files.length || f === this._lastFiled) return
         this._lastFiled = f
         this.note(`The scribe filed thoughts into: ${f.files.join(", ")}`, { perceived: false })
+    }
+
+    // The stimuli that entered a frame, arriving on the mind's `attended` topic
+    // rather than a note() call per stimulus. Each is a perceived (⟂) note. Dedupe
+    // on object identity against a retained-value replay (the mind publishes a
+    // fresh array per frame).
+    _onAttended = lines => {
+        if (!Array.isArray(lines) || !lines.length || lines === this._lastAttended) return
+        this._lastAttended = lines
+        for (const line of lines) this.note(line)
     }
 
     /**
@@ -294,13 +342,6 @@ Condense this into at most ${targetChars} characters of first-person memory ("I 
         this._appendJournal(`\n🖼 *Generated image*: ${prompt}${revised}\n${journalImage}\n`)
     }
 
-    /** One-time wake stimulus after loading persisted memory. */
-    consumeWakeNotice() {
-        const notice = this._wakeNotice
-        this._wakeNotice = null
-        return notice
-    }
-
     // ---------------------------------------------------------- persistence
 
     _persistDir() {
@@ -337,16 +378,29 @@ Condense this into at most ${targetChars} characters of first-person memory ("I 
             this.tail = this._section(raw, "Tail")
             this._foldCount = Number((raw.match(/<!-- folds: (\d+) -->/) || [])[1] || 0)
 
+            // Make the loaded self visible on the topics the frame reads, so the
+            // first burst wakes up remembering without anyone pulling from us.
+            this.pub("tail", this.tail)
+            this.pub("compressed", { recent: this.recent, story: this.story })
+
             if (this.tail || this.recent || this.story) {
+                // Waking is a stimulus like any other, so raise it onto the
+                // attention spine rather than parking it for the mind to pull. The
+                // arbiter is a child of m-mind and connected before this async load
+                // resolves, so the bubbling request lands; the mind drains it (with
+                // takePending) on its first burst, which it gates on `loaded`.
                 const ago = this._savedAt ? this._describeGap(Date.now() - new Date(this._savedAt).getTime()) : null
-                this._wakeNotice = new InterruptRecord({
-                    source: 'Internal',
-                    type: 'Waking',
-                    reason: ago
-                        ? `I am waking up; about ${ago} has passed since my last thought.`
-                        : `I am waking up again after a gap I cannot measure.`,
-                    salience: 1,
-                })
+                this.dispatchEvent(new CustomEvent("interrupt-request", {
+                    bubbles: true,
+                    detail: new InterruptRecord({
+                        source: 'Internal',
+                        type: 'Waking',
+                        reason: ago
+                            ? `I am waking up; about ${ago} has passed since my last thought.`
+                            : `I am waking up again after a gap I cannot measure.`,
+                        salience: 1,
+                    }),
+                }))
                 log.info(`Memory loaded (story ${this.story.length}, recent ${this.recent.length}, tail ${this.tail.length} chars).`)
             }
         } catch (error) {
