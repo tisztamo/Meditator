@@ -1,12 +1,10 @@
 package-lock.json
 node_modules/
 
-/prompt.yaml
-/prompt.md
-/change.sh
-node_modules
+node_modules/
 data/
 log/
+audit.db
 
 # runtime artifacts of a living mind
 interrupt-state/
