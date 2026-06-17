@@ -8,6 +8,7 @@ import { logger } from '../infrastructure/logger.js';
 import { InterruptRecord } from '../infrastructure/interruptRecord.js';
 import { mindHome, inVault, ensureVault, commitVault, assertNotRetired } from '../infrastructure/memoryVault.js';
 import { FORMAT_VERSION, recordWake, tierOf } from '../infrastructure/manifest.js';
+import { getLoadedArchitecture } from '../startup/architecture.js';
 
 const log = logger('mMemory.js');
 
@@ -143,6 +144,14 @@ export class MMemory extends MBaseComponent {
             }
         }
 
+        // Snapshot the architecture that is waking this mind into its home, so the
+        // home always carries the architecture that ran it (lifecycle.md §2 — the
+        // twin of runtimeSHA). Written before the commit below so a resident's wake
+        // commit includes it; for a transient it simply sits in the home, ready for
+        // retire.mjs. Done here, not at retirement, because the architecture is a
+        // fact known only while the mind runs.
+        this._snapshotArchitecture()
+
         this._load().finally(() => {
             this.loaded = true
             if (this._persists) {
@@ -151,6 +160,21 @@ export class MMemory extends MBaseComponent {
                 commitVault(`wake: ${this._mindLabel()} ${new Date().toISOString()}`, this._home)
             }
         })
+    }
+
+    /** Writes the running architecture's source into the home as architecture.archml.
+     *  No-op when the mind has no persistent home or no architecture source was read
+     *  (e.g. a wiring test that builds the DOM directly). Best-effort — a failure
+     *  never blocks the wake. */
+    _snapshotArchitecture() {
+        const arch = getLoadedArchitecture()
+        if (!this._home || !arch?.content) return
+        try {
+            fsSync.mkdirSync(this._home, { recursive: true })
+            fsSync.writeFileSync(path.join(this._home, "architecture.archml"), arch.content)
+        } catch (error) {
+            log.warn(`Could not snapshot architecture into "${this._home}": ${error.message}`)
+        }
     }
 
     _mindLabel() {

@@ -142,7 +142,7 @@ runtime*, it could in principle be woken again:
 memory/.graveyard/<name>-<retiredDate>/
   memory.md            # snapshot of story / recent / tail at rest
   journal/  knowledge/ # the full self, frozen
-  architecture.archml  # copy of the mind's .archml at retirement
+  architecture.archml  # the architecture the home carried (snapshotted at each wake)
   manifest.json        # name, born, retired, runtimeSHA, formatVersion,
                        #   lineage (parent, if forked), cause, ritualCompleted
   EULOGY.md            # the final frame / last words + an optional human note
@@ -150,6 +150,12 @@ memory/.graveyard/<name>-<retiredDate>/
 
 The bundle lives **inside the vault** (`memory/` is a git repo), so it inherits the
 same never-casually-deleted protection as live residents.
+
+The `architecture.archml` is not assembled at retirement — the runtime writes it
+into the home at **each wake** (`m-memory`, the twin of `runtimeSHA`), because the
+architecture that ran a mind is a fact known only while it runs, not something to
+re-supply later. So a *live* home is already a re-executable bundle, and `retire`
+is a clean move; `tools/retire.mjs` therefore takes no `--archml` flag.
 
 ### Versions (added in Phases 1–2)
 
