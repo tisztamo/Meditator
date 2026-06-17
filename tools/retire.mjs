@@ -190,8 +190,27 @@ fs.mkdirSync(GRAVEYARD, { recursive: true });
 // it. Either way the result is one clean retirement commit.
 let tracked = false;
 try { vgit(['ls-files', '--error-unmatch', args.name]); tracked = true; } catch { /* untracked transient */ }
-if (tracked) vgit(['mv', args.name, relDest]);                     // stages the rename
-else fs.renameSync(home, dest);
+if (tracked) {
+    vgit(['mv', args.name, relDest]);                             // stages the rename
+} else {
+    // Untracked transient: move it on disk. Prefer an atomic rename, but on Windows
+    // a directory rename is refused (EPERM/EACCES) if any process — an editor, the
+    // search indexer, antivirus — holds a handle anywhere in the tree, even when the
+    // files themselves stay copyable and deletable. Fall back to copy-then-remove,
+    // which works per-file and so sidesteps the directory-handle restriction.
+    try {
+        fs.renameSync(home, dest);
+    } catch (error) {
+        if (!['EPERM', 'EACCES', 'EBUSY', 'EXDEV'].includes(error.code)) throw error;
+        fs.cpSync(home, dest, { recursive: true });
+        try {
+            fs.rmSync(home, { recursive: true, force: true });
+        } catch (rmError) {
+            console.error(`  ⚠  Bundle copied, but the source ${fwd(home)} could not be removed (${rmError.code}).`);
+            console.error(`     Something still holds it open; delete it by hand once nothing does.`);
+        }
+    }
+}
 // The home's architecture.archml rides along with the move; ensure it landed.
 const destArchml = path.join(dest, 'architecture.archml');
 if (!fs.existsSync(destArchml)) fs.writeFileSync(destArchml, homeArchml);
