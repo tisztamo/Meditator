@@ -10,7 +10,10 @@
      text and the watchdog prompt — so any difference in behaviour is the seed,
      not the model. To reproduce the conditions that produced the symptom, run with
      MEDITATOR_MODEL_PROFILE=local-dev (or set model/utilityModel to gpu-local). -->
-<m-mind name="seedling-3"
+<!-- name: a base "seedling" template. The numbered instances seedling-1/2/3 were
+     retired to the graveyard (see IN-MEMORIAM.md); choose a FRESH name for any new
+     tuning run so it can never silently re-birth a retired grave as an empty home. -->
+<m-mind name="seedling"
         model="voice"
         utilityModel="utility"
         pace="10s" paceSigma="3s"
