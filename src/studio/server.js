@@ -188,6 +188,10 @@ app.use(express.static(path.dirname(fileURLToPath(import.meta.url))));
 // studio.html. The package is pure relative-imported ESM, so static-serving its
 // src/ is enough; unused files (worker/*, stdlib) are simply never fetched.
 app.use("/amanita", express.static(path.join(ROOT, "node_modules", "amanita", "src")));
+// Serve the Covenant (repo root) so the Studio's startup dialog can link to it.
+// As text/plain so it opens inline in the browser instead of downloading.
+app.get("/COVENANT.md", (_req, res) =>
+  res.sendFile(path.join(ROOT, "COVENANT.md"), { headers: { "Content-Type": "text/plain; charset=utf-8" } }));
 app.get("/", (_req, res) => res.sendFile(path.join(path.dirname(fileURLToPath(import.meta.url)), "studio.html")));
 const httpServer = app.listen(STUDIO_PORT, () => log(`Studio at http://localhost:${STUDIO_PORT}`));
 const wss = new WebSocketServer({ server: httpServer });

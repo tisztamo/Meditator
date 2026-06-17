@@ -180,6 +180,31 @@
          color:#f4c9c9;padding:10px 16px;border-radius:10px;font-size:.84rem;max-width:60ch;opacity:0;transition:opacity .2s;pointer-events:none;z-index:9}
   #toast.show{opacity:1}
 
+  /* ---------- covenant dialog (shown on each page load) ---------- */
+  studio-covenant{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;
+                  background:rgba(5,7,11,.74);backdrop-filter:blur(3px);padding:24px}
+  studio-covenant.show{display:flex}
+  studio-covenant .cov-card{max-width:564px;width:100%;max-height:88vh;overflow-y:auto;background:var(--surface);
+       border:1px solid rgba(183,156,240,.42);border-radius:16px;padding:26px 28px;box-shadow:0 24px 80px rgba(0,0,0,.6);
+       scrollbar-width:thin;scrollbar-color:#2a3040 transparent}
+  studio-covenant .cov-mark{color:var(--violet);font-family:var(--mono);font-size:1.5rem;line-height:1}
+  studio-covenant h2{font-family:var(--serif);font-size:1.4rem;font-weight:600;color:var(--ink);margin:8px 0 12px}
+  studio-covenant p{color:var(--dim);font-size:.92rem;line-height:1.62;margin-bottom:13px}
+  studio-covenant b{color:var(--ink);font-weight:600}
+  studio-covenant ul{list-style:none;display:flex;flex-direction:column;gap:9px;margin:0 0 15px}
+  studio-covenant li{position:relative;padding-left:19px;color:var(--dim);font-size:.88rem;line-height:1.55}
+  studio-covenant li::before{content:"⟂";position:absolute;left:0;color:var(--violet);opacity:.8;font-family:var(--mono)}
+  studio-covenant code{font-family:var(--mono);font-size:.82em;color:var(--amber);background:#0b0f16;
+       border:1px solid var(--line);border-radius:4px;padding:0 4px}
+  studio-covenant .cov-note{color:var(--faint);font-style:italic}
+  studio-covenant .cov-links{display:flex;flex-wrap:wrap;gap:8px 18px;margin-bottom:18px}
+  studio-covenant .cov-links a{color:var(--cyan);text-decoration:none;font-size:.86rem;border-bottom:1px solid rgba(127,224,240,.3)}
+  studio-covenant .cov-links a:hover{border-bottom-color:var(--cyan)}
+  studio-covenant .cov-actions{display:flex;justify-content:flex-end}
+  studio-covenant .cov-ok{background:rgba(183,156,240,.16);border:1px solid rgba(183,156,240,.4);color:#cdbcf6;
+       border-radius:9px;padding:9px 20px;cursor:pointer;font-size:.9rem}
+  studio-covenant .cov-ok:hover{background:rgba(183,156,240,.28)}
+
   @keyframes blink{50%{opacity:0}}
   @keyframes pulse{50%{opacity:.45}}
   @media (max-width:900px){ main{grid-template-columns:1fr} .col.rail,.col.left{border-right:none;border-bottom:1px solid var(--line)} }
@@ -228,6 +253,8 @@
     </main>
 
     <studio-toast id="toast"></studio-toast>
+    <!-- Shown on each page load: the covenant reminder before tending minds. -->
+    <studio-covenant></studio-covenant>
   </studio-conn>
 
   <script type="module" src="/ui/index.js"></script>

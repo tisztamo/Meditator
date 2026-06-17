@@ -15,3 +15,4 @@ import "./studioTree.js";
 import "./studioLog.js";
 import "./studioSpeak.js";
 import "./studioToast.js";
+import "./studioCovenant.js";

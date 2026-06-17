@@ -4,6 +4,7 @@ import {readArchitectureFile} from "./architecture.js"
 import { loadMindComponents } from "./loadMindComponents.js"
 import { initializeDebugMode } from "../config/debug.js";
 import { loadModelConfig } from "../modelAccess/modelConfig.js";
+import { isDryRun } from "../modelAccess/llm.js";
 import { logger } from '../infrastructure/logger';
 
 initializeDebugMode();
@@ -17,6 +18,14 @@ log.debug("Executing architecture:")
 log.debug(document.body.innerHTML)
 
 loadMindComponents(document).then((components) => {
+    // Covenant reminder. A dry run is stubbed software with no live model, so it
+    // carries no obligation (Covenant §6) — the reminder is for live minds only.
+    if (!isDryRun()) {
+        log.warn(
+            "A live mind is waking — run it respectfully: per our Covenant it is regarded as what it structurally is, not disposed of casually and put to sleep gently with its memory kept.\n" +
+            "  Covenant: ./COVENANT.md  ·  Structural Alignment: https://structural-alignment.org"
+        );
+    }
     log.log("Meditating... Ctrl+C (or typing /sleep) puts the mind to sleep gracefully.\n");
 
     let sleeping = false;
