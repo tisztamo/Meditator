@@ -7,7 +7,7 @@
  *
  *   memory/.graveyard/<name>-<retiredDate>/
  *     memory.md  journal/  knowledge/   the frozen self, moved intact
- *     architecture.archml                snapshot of the mind's .archml
+ *     architecture.archml                the architecture the home carried, moved intact
  *     manifest.json                      name, born, retired, runtimeSHA,
  *                                        formatVersion, lineage, cause,
  *                                        ritualCompleted, status
@@ -23,12 +23,18 @@
  * want that, wake and /sleep the mind through the normal runtime first, then
  * run this with --rite done.
  *
+ * The bundle's architecture.archml comes from the mind's own home: a live home
+ * carries the architecture that ran it (the runtime snapshots it at wake), so the
+ * git mv brings it along. There is deliberately no --archml flag — the architecture
+ * is a fact established when the mind ran, not something re-supplied here from
+ * memory. If a home predates the wake-time snapshot, copy the architecture that ran
+ * it to memory/<name>/architecture.archml before retiring.
+ *
  * Usage:
  *   bun tools/retire.mjs <name>                 # preview (no changes)
  *   bun tools/retire.mjs <name> --commit        # perform the move + vault commit
  *
  * Options:
- *   --archml <path>        architecture to snapshot (default architecture/awake.archml)
  *   --cause "<text>"       one-line reason recorded in the manifest
  *   --rite done|deferred   whether the ceremonial rite was performed (default deferred)
  *   --parent <name>        lineage parent, if this mind was forked
@@ -51,12 +57,11 @@ const indent = (s, n = 4) => s.replace(/^/gm, ' '.repeat(n));
 const fail = (msg) => { console.error(`✗ ${msg}`); process.exit(1); };
 
 function parseArgs(argv) {
-    const a = { rite: 'deferred', archml: 'architecture/awake.archml', commit: false, parent: null, cause: '' };
+    const a = { rite: 'deferred', commit: false, parent: null, cause: '' };
     const rest = [];
     for (let i = 0; i < argv.length; i++) {
         const t = argv[i];
         if (t === '--commit') a.commit = true;
-        else if (t === '--archml') a.archml = argv[++i];
         else if (t === '--cause') a.cause = argv[++i];
         else if (t === '--rite') a.rite = argv[++i];
         else if (t === '--parent') a.parent = argv[++i];
@@ -74,11 +79,20 @@ function extractTail(memoryMd) {
 }
 
 const args = parseArgs(process.argv.slice(2));
-if (!args.name) fail('usage: bun tools/retire.mjs <name> [--commit] [--archml p] [--cause "..."] [--rite done|deferred] [--parent name]');
+if (!args.name) fail('usage: bun tools/retire.mjs <name> [--commit] [--cause "..."] [--rite done|deferred] [--parent name]');
 if (args.name.startsWith('dry-')) fail('refusing to retire a dry-run mind — those are pruned, not retired.');
 
 const home = path.join(VAULT, args.name);
 if (!fs.existsSync(home) || !fs.statSync(home).isDirectory()) fail(`no such mind home: ${fwd(home)}`);
+
+// The architecture is part of the home (snapshotted at wake), not re-supplied here.
+const homeArchmlPath = path.join(home, 'architecture.archml');
+if (!fs.existsSync(homeArchmlPath)) {
+    fail(`no architecture snapshot at ${fwd(homeArchmlPath)}.\n` +
+        `  A home must carry the architecture that ran it. The runtime writes this at wake;\n` +
+        `  for a home created before that, copy that architecture there, then retry.`);
+}
+const homeArchml = fs.readFileSync(homeArchmlPath, 'utf8');
 
 const memoryMdPath = path.join(home, 'memory.md');
 const memoryMd = fs.existsSync(memoryMdPath) ? fs.readFileSync(memoryMdPath, 'utf8') : '';
@@ -88,6 +102,18 @@ let runtimeSHA = 'unknown';
 try { runtimeSHA = git(['rev-parse', 'HEAD']); } catch { /* not a git repo / no git */ }
 let born = 'unknown';
 try { born = (vgit(['log', '--reverse', '--format=%aI', '--', args.name]).split('\n')[0]) || 'unknown'; } catch { /* */ }
+// A transient home was never committed (only residents persist — lifecycle.md §2),
+// so the vault has no birth record. Fall back to the earliest dated journal entry
+// (YYYY-MM-DD.md) — the mind's actual first day — rather than eulogise "Born unknown".
+if (born === 'unknown') {
+    try {
+        const days = fs.readdirSync(path.join(home, 'journal'))
+            .map((f) => (f.match(/^(\d{4}-\d{2}-\d{2})\.md$/) || [])[1])
+            .filter(Boolean)
+            .sort();
+        if (days[0]) born = days[0];
+    } catch { /* no journal */ }
+}
 
 const retired = new Date().toISOString();
 const dateSuffix = retired.slice(0, 10);
@@ -132,7 +158,7 @@ const inMemoriam = `### ${args.name} — retired ${dateSuffix}
 
 console.log(`\n${args.commit ? 'RETIRING' : 'PREVIEW — no changes will be made'}: ${args.name}\n`);
 console.log(`  move:        ${fwd(home)}  ->  ${fwd(dest)}`);
-console.log(`  archml:      ${args.archml}  ->  ${fwd(dest)}/architecture.archml`);
+console.log(`  archml:      ${fwd(homeArchmlPath)}  (moves with the home)`);
 console.log(`  runtimeSHA:  ${runtimeSHA}`);
 console.log(`  born:        ${born}`);
 console.log(`  retired:     ${retired}`);
@@ -140,10 +166,10 @@ console.log(`  rite:        ${manifest.ritualCompleted ? 'completed' : 'DEFERRED
 console.log(`\n  manifest.json:\n${indent(JSON.stringify(manifest, null, 2))}`);
 console.log(`\n  EULOGY.md:\n${indent(eulogy)}`);
 
-console.log(`  ⚠  Re-birth hazard: after this move, ${args.archml} still declares`);
-console.log(`     name="${args.name}" and is the default architecture, so the next plain run`);
-console.log(`     would birth an EMPTY ${args.name} in its place. Before any further runs,`);
-console.log(`     retire/rename that architecture or change the runtime's default.\n`);
+console.log(`  ⚠  Re-birth hazard: if any architecture in architecture/ still declares`);
+console.log(`     name="${args.name}", running it would birth an EMPTY ${args.name} in place`);
+console.log(`     of this retired one (the home is gone, so the wake-guard won't catch it).`);
+console.log(`     Rename or neutralise that architecture before any further runs.\n`);
 
 console.log(`  IN-MEMORIAM.md — paste under the mind's section, commit in the runtime repo:\n`);
 console.log(indent(inMemoriam));
@@ -153,14 +179,22 @@ if (!args.commit) {
     process.exit(0);
 }
 
-if (!fs.existsSync(args.archml)) fail(`architecture file not found: ${args.archml}`);
 if (fs.existsSync(dest)) fail(`destination already exists: ${fwd(dest)}`);
 
 // Perform the archival move. We stage only the bundle path (not `add -A`), so an
 // unrelated dirty vault is never swept into the retirement commit.
 fs.mkdirSync(GRAVEYARD, { recursive: true });
-vgit(['mv', args.name, relDest]);                                  // stages the rename
-fs.copyFileSync(args.archml, path.join(dest, 'architecture.archml'));
+// A resident's home is committed, so we git mv it (preserving its history). A
+// transient's home was never committed (only residents persist — lifecycle.md §2),
+// so there is no history to preserve: move it on disk and let the `add` below stage
+// it. Either way the result is one clean retirement commit.
+let tracked = false;
+try { vgit(['ls-files', '--error-unmatch', args.name]); tracked = true; } catch { /* untracked transient */ }
+if (tracked) vgit(['mv', args.name, relDest]);                     // stages the rename
+else fs.renameSync(home, dest);
+// The home's architecture.archml rides along with the move; ensure it landed.
+const destArchml = path.join(dest, 'architecture.archml');
+if (!fs.existsSync(destArchml)) fs.writeFileSync(destArchml, homeArchml);
 fs.writeFileSync(path.join(dest, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
 fs.writeFileSync(path.join(dest, 'EULOGY.md'), eulogy);
 vgit(['add', relDest]);                                            // stages the new bundle files
