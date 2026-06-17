@@ -407,7 +407,7 @@ calls tools.
 | `m-token-monitor` | older rule/LLM token-pattern interrupt generator | **removed** — superseded by observers |
 | `m-stream-generator` | synthetic chunk generator for tests | **removed** |
 | `m-planner` | empty placeholder | **removed** |
-| `m-prompt` | passive prompt content slot | **removed** — handled inline by `mBaseComponent.getPrompt()` |
+| `m-prompt` | passive prompt content slot | **retained** — empty marker class; see `mPrompt.js` |
 | `m-compress` | standalone compression demo | removed — use `m-memory` |
 | `m-recent-history` | block-based history compression demo | removed — use `m-memory` |
 
