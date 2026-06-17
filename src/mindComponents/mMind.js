@@ -69,6 +69,9 @@ export class MMind extends MBaseComponent {
     _burstStartedAt = null   // when the in-flight burst's cycle began (tick anchor)
     _sleeping = false
     _speaking = false
+    _memTail = ""            // mirrors of memory's content, fed by its topics (not pulled)
+    _memRecent = ""
+    _memStory = ""
 
     onConnect() {
         // "stream/boundary" and "@interrupt" fields are auto-subscribed by Amanita.
@@ -80,6 +83,20 @@ export class MMind extends MBaseComponent {
             const name = voice.getAttribute('name') || 'voice'
             this.sub(`/${name}/speaking`, speaking => { this._speaking = !!speaking })
         }
+
+        // Mirror memory's content from the topics it publishes, instead of pulling
+        // getTail()/getRecent()/getStory() at frame time. The refs auto-discover the
+        // mind's memory (or set tailSrc/compressedSrc explicitly, or "off"); behaviour-
+        // value replay means the mirrors are populated as soon as memory loads.
+        const mem = this.querySelector('m-memory[name]')
+        const memName = mem?.getAttribute('name')
+        const tailSrc = this.attr('tailSrc') || (memName ? `..m-mind/${memName}/tail` : null)
+        const compressedSrc = this.attr('compressedSrc') || (memName ? `..m-mind/${memName}/compressed` : null)
+        if (tailSrc && tailSrc !== 'off') this.sub(tailSrc, t => { this._memTail = t || "" }, 12)
+        if (compressedSrc && compressedSrc !== 'off') {
+            this.sub(compressedSrc, c => { if (c) { this._memRecent = c.recent || ""; this._memStory = c.story || "" } }, 12)
+        }
+
         this._begin()
     }
 
@@ -158,8 +175,8 @@ export class MMind extends MBaseComponent {
                 salience: 1, urgent: true,
             })
             process.stdout.write(`\n\x1b[36m⟂ ${record.renderForFrame()}\x1b[0m\n`)
-            memory?.note?.(record.renderForFrame())
-
+            // The sleep notice is journaled via the `attended` topic that
+            // assembleFrame publishes — no direct memory.note() call here.
             const payload = await this.assembleFrame([record])
             payload.burstTokens = 130
             const lastIndex = stream?.burstIndex ?? 0
@@ -235,17 +252,17 @@ export class MMind extends MBaseComponent {
         this._burstStartedAt = Date.now()   // anchor the tick for the next schedule
 
         const arbiter = this._arbiter()
-        const memory = this.querySelector('m-memory')
 
+        // The wake stimulus is no longer pulled from memory — it arrives here like
+        // any other, raised by memory onto the attention spine when it loads.
         const stimuli = arbiter?.takePending ? arbiter.takePending() : []
-        const wakeNotice = memory?.consumeWakeNotice ? memory.consumeWakeNotice() : null
-        if (wakeNotice) stimuli.unshift(wakeNotice)
 
         for (const stimulus of stimuli) {
             process.stdout.write(`\n\x1b[36m⟂ ${stimulus.renderForFrame()}\x1b[0m\n`)
-            memory?.note?.(stimulus.renderForFrame())
         }
 
+        // assembleFrame publishes `attended` — a memory journals the perceived
+        // stimuli from there, so the mind no longer calls memory.note() per stimulus.
         const payload = await this.assembleFrame(stimuli)
         this.pub("prompt", payload)
     }
@@ -255,13 +272,19 @@ export class MMind extends MBaseComponent {
      * @param {InterruptRecord[]} stimuli
      */
     async assembleFrame(stimuli) {
-        const memory = this.querySelector('m-memory')
         const stream = this.querySelector('m-stream')
         const tailLength = Number(this.attr("tailLength") || 1500)
 
-        const tail = (memory?.getTail ? memory.getTail() : stream?.getRecentOutput(tailLength) || "").slice(-tailLength)
-        const story = memory?.getStory ? memory.getStory() : ""
-        const recent = memory?.getRecent ? memory.getRecent() : ""
+        // The mind's working narrative comes from memory's topics (mirrored in
+        // onConnect), never pulled. With no memory, fall back to the stream's own
+        // recent output for the tail.
+        const tail = (this._memTail || stream?.getRecentOutput(tailLength) || "").slice(-tailLength)
+        const story = this._memStory
+        const recent = this._memRecent
+
+        // Publish the stimuli that are entering this frame; a memory journals them
+        // as perceived (⟂) notes by subscribing, rather than us calling note() in.
+        if (stimuli.length) this.pub("attended", stimuli.map(s => s.renderForFrame()))
 
         // The bridge: one small model call that writes the turn itself. It is
         // both emitted into the visible stream (prefix) and appended to the

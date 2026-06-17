@@ -36,10 +36,15 @@ is the mind's identity.
 | `bridge` | `true` | `"false"` disables the LLM-written transition on redirects |
 | `speakingPaceFactor` | `2.5` | pace multiplier while the voice is speaking (slower thinking) |
 | `speakingTokensFactor` | `0.35` | burst-token multiplier while speaking (thinner thoughts, floor 60) |
+| `tailSrc` / `compressedSrc` | the memory's `<name>/tail` and `<name>/compressed` (auto-discovered) | the narrative content mirrored into the frame; `"off"` disables |
 
-- **Subscribes:** `stream/boundary` (schedule next burst), `@interrupt` (think now),
-  and — if an [`m-speech`](#m-speech) is present — `<voice>/speaking` (thin thinking while talking).
-- **Publishes:** `prompt` — `{system, frame, prefix?, dedupe, kind, burstTokens?}`.
+- **Subscribes:** `stream/boundary` (schedule next burst), `@interrupt` (think now);
+  if an [`m-speech`](#m-speech) is present, `<voice>/speaking` (thin thinking while
+  talking); and memory's `tail` / `compressed` topics — the frame's narrative content
+  is *mirrored* from those, never pulled (see [decoupling.md](decoupling.md)).
+- **Publishes:** `prompt` — `{system, frame, prefix?, dedupe, kind, burstTokens?}`; and
+  `attended` — the rendered stimuli entering a frame, which a memory journals as
+  perceived (⟂) notes.
 - **Key behavior:** error boundaries trigger an exponential backoff (×2 up to ×8);
   the inter-burst pause is also multiplied by the economy pace factor and, while
   speaking, by `speakingPaceFactor` (with `burstTokens` thinned) — so most verbal
@@ -85,17 +90,22 @@ Three memory tiers, compression, persistence, and the journal. See
 | `boundarySrc` | `..m-mind/stream/boundary` | boundary source |
 | `spokenSrc` | the voice's `<name>/spoken` (auto-discovered) | aloud utterances to record; `"off"` disables |
 | `filedSrc` | the scribe's `<name>/filed` (auto-discovered) | scribe filings to journal as a backstage note; `"off"` disables |
+| `attendedSrc` | `..m-mind/attended` | the stimuli that entered each frame, journaled as perceived (⟂) notes; `"off"` disables |
 
-- **Publishes:** `compressed` — `{recent, story}` after a consolidation.
+- **Publishes:** `compressed` — `{recent, story}` after a consolidation and once on
+  load; `tail` — the verbatim tail on every change (retained, so the mind's frame
+  mirrors it). The mind reads both by subscription — it never pulls.
 - **Subscribes:** the stream (`src`/`boundarySrc`), the voice's `spoken` topic
-  (`spokenSrc`), and the scribe's `filed` topic (`filedSrc`) — utterances are recorded
-  and filings journaled by *subscription*, not by those components calling in, so
-  memory is swappable and several memories can listen to one voice/scribe.
-- **Public API used by the mind:** `getTail()`, `getRecent()`, `getStory()`,
-  `note(text)`, `consumeWakeNotice()`, `finalize(reason)`. (`spoke(text)` still exists
-  but is now driven by the `spoken` subscription; the scribe no longer pulls
-  `getRecent()`/`getTail()` — it reads context from topics. Both are next to fall to
-  the m-mind frame-assembly slice.)
+  (`spokenSrc`), the scribe's `filed` topic (`filedSrc`), and the mind's `attended`
+  topic (`attendedSrc`) — utterances recorded, filings and perceived stimuli
+  journaled by *subscription*, not by those components calling in. Memory is swappable
+  and several can listen to one voice/scribe.
+- **Raises:** a one-time `Waking` `interrupt-request` (bubbling) on load — the wake
+  stimulus enters via the attention spine, not a pull.
+- **Lifecycle API (orchestrator contract, see [decoupling.md](decoupling.md)):**
+  `finalize(reason)` (awaited at sleep), `persists` (honest sleep wording). `getTail()`/
+  `getRecent()`/`getStory()` remain for the `m-ws` transport's telemetry. `note(text)`
+  is now self-driven by the subscriptions above.
 - **Versioning:** stamps `formatVersion` into `memory.md`'s meta and, for a resident
   (a home with a `manifest.json`), records the `runtimeSHA`/`formatVersion`/`lastWokenAt`
   at wake via [`manifest.js`](memory.md#versioning-the-manifest-and-tiers). Warns on
