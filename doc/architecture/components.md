@@ -370,11 +370,6 @@ WebSocket server — the live stream and external voice. Full protocol in the
 - **Receives:** `{type:"input", data:{message}}` → `External` urgent stimulus, salience 1.
 - **Dispatches (DOM, bubbling):** `interrupt-request`.
 
-## `m-prompt`
-
-A passive content slot used *inside* other components to supply prompt text. Not
-an autonomous component; no behavior of its own.
-
 ---
 
 ## Shared infrastructure
@@ -399,21 +394,22 @@ Not components, but the pieces components lean on (`src/infrastructure/`,
 
 ## Legacy and demo components
 
-These exist only for older example and demo architectures — the tool demos now
-live under `architecture/legacy/` — and are **not** part of the default mind.
-Tools and shell execution are explicitly deprioritized in the current
-direction — the focus is the stream, attention, memory, and observers, not an
-agent that calls tools.
+These existed only for older example and demo architectures — the tool demos
+now live under `architecture/legacy/` — and have been removed from the codebase.
+Tools and shell execution are explicitly deprioritized in the current direction
+— the focus is the stream, attention, memory, and observers, not an agent that
+calls tools.
 
 | Component | What it was | Status |
 |-----------|-------------|--------|
-| `m-tools` | detects and dispatches tool calls in the stream | demo only |
-| `m-shell` | a tool that runs shell commands on the host | demo only |
-| `m-token-monitor` | older rule/LLM token-pattern interrupt generator | superseded by observers |
+| `m-tools` | detects and dispatches tool calls in the stream | **removed** |
+| `m-shell` | a tool that runs shell commands on the host | **removed** |
+| `m-token-monitor` | older rule/LLM token-pattern interrupt generator | **removed** — superseded by observers |
+| `m-stream-generator` | synthetic chunk generator for tests | **removed** |
+| `m-planner` | empty placeholder | **removed** |
+| `m-prompt` | passive prompt content slot | **removed** — handled inline by `mBaseComponent.getPrompt()` |
 | `m-compress` | standalone compression demo | removed — use `m-memory` |
 | `m-recent-history` | block-based history compression demo | removed — use `m-memory` |
-| `m-stream-generator` | synthetic chunk generator for tests | demo only |
-| `m-planner` | empty placeholder | not implemented |
 
 > Many other `m-*` tags appear in old demo `.archml` files (e.g. `m-calculator`,
 > `m-filesystem`, `m-websearch`) but have **no implementation** and will not load.
