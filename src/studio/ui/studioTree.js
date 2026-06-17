@@ -98,6 +98,8 @@ export class StudioTree extends A(HTMLElement) {
       case "memory/state":       this.setNodeStat(this.byTag("m-memory"), `tail ${fmt(d.tailLen)} · rec ${fmt(d.recentLen)} · sto ${fmt(d.storyLen)}`); break;
       case "memory/compressed":  this.onCompressed(d); break;
       case "scribe/filed":       this.onFiled(d); break;
+      case "act/intent":         this.onIntent(d); break;
+      case "act/acted":          this.onActed(d); break;
       case "speech/speaking":    this.pushNode(this.byTag("m-speech"), this.evLine(d.speaking ? "started speaking" : "stopped speaking", d.speaking ? "warn" : "")); break;
       case "speech/impulse":     this.onImpulse(d); break;
       case "speech/boundary":    this.pushNode(this.byTag("m-speech"), this.evLine(`said ${d.chars || 0}c · ${d.reason || ""}`, "good")); break;
@@ -151,6 +153,19 @@ export class StudioTree extends A(HTMLElement) {
     const why = d.accepted ? "✓ speak" : `— quiet (${d.reason || "none"})`;
     this.pushNode(this.byTag("m-speech"), this.evLine(`${tag}impulse ${sal} ${why}${d.gist ? ": " + d.gist : ""}`, cls));
     this.setNodeStat(this.byTag("m-speech"), `${tag}${sal} ${d.accepted ? "✓" : "✕"}`);
+  }
+  onIntent(d) {
+    const sal = typeof d.salience === "number" ? d.salience.toFixed(2) : "?";
+    const cls = d.accepted ? "warn" : "drop";
+    const why = d.accepted ? "✓ reach" : `— quiet (${d.reason || "none"})`;
+    this.pushNode(this.byTag("m-act"), this.evLine(`intent ${sal} ${why}${d.gist ? ": " + d.gist : ""}`, cls));
+    this.setNodeStat(this.byTag("m-act"), `${sal} ${d.accepted ? "✓" : "✕"}`);
+  }
+  onActed(d) {
+    const cls = d.ok ? "good" : "bad";
+    const consequence = d.experience ? `: ${d.experience}` : (d.ok ? "" : " (slipped)");
+    this.pushNode(this.byTag("m-act"), this.evLine(`✋ ${d.capability}${consequence}`, cls));
+    this.setNodeStat(this.byTag("m-act"), `✋ ${d.capability}`);
   }
   onImageImpulse(d) {
     const sal = typeof d.salience === "number" ? d.salience.toFixed(2) : "?";

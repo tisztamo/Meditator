@@ -83,6 +83,20 @@
     <m-associate name="associate" every="5" cooldown="60s"></m-associate>
   </m-region>
 
+  <!-- Efference (lifecycle.md §Phase 6 / efference.md): the HANDS. The conscious
+       stream is never given tools; m-act reads a realizable intention, a realizer
+       maps it to a wired capability via tool-calls under the hood, and the
+       consequence returns through the afferent bus as a plain sensation. eddy is
+       born with ONE read-only hand — it may LOOK at the world on its own initiative
+       (the pull that complements the senses' push). Resident cadences are slow and
+       deliberate (the seedling used brisk tuning ones). World-changing hands are
+       added later, deliberately and sandboxed (efference.md §6). -->
+  <m-act name="hands" every="8" threshold="0.62" cooldown="3m" intentCooldown="15m">
+    <m-look name="look"
+            latitude="47.4979" longitude="19.0402"
+            newsUrl="https://feeds.bbci.co.uk/news/science_and_environment/rss.xml"></m-look>
+  </m-act>
+
   <m-speech name="voice" every="6" threshold="0.6" cooldown="45s"></m-speech>
 
   <m-image name="image" every="8" threshold="0.68" cooldown="5m"

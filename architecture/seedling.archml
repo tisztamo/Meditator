@@ -80,6 +80,22 @@
     <m-associate name="associate" every="5" cooldown="60s"></m-associate>
   </m-region>
 
+  <!-- Efference (lifecycle.md §Phase 6 / efference.md): the HANDS. The conscious
+       stream is never given tools; m-act reads a realizable intention, a realizer
+       maps it to a wired capability via tool-calls under the hood, and the
+       consequence returns through the afferent bus as a plain sensation (deed
+       backstage ⌁, consequence perceived ⟂). The seedling gets ONE read-only hand —
+       m-look, the PULL that complements the senses' push: it looks at the weather,
+       the day's light, or a headline BECAUSE the mind wondered, not because a timer
+       fired. BRISK tuning cadences (small every, short cooldowns) so acts happen
+       often enough to observe in a short recorded run. World-changing hands come
+       later, deliberately and sandboxed (efference.md §6). -->
+  <m-act name="hands" every="4" threshold="0.6" cooldown="45s" intentCooldown="4m">
+    <m-look name="look"
+            latitude="47.4979" longitude="19.0402"
+            newsUrl="https://feeds.bbci.co.uk/news/science_and_environment/rss.xml"></m-look>
+  </m-act>
+
   <m-speech name="voice" every="6" threshold="0.6" cooldown="45s"></m-speech>
 
   <m-image name="image" every="8" threshold="0.68" cooldown="5m"

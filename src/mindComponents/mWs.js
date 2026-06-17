@@ -32,6 +32,7 @@ const log = logger("mWs.js");
  * Subscriptions (instrument, guarded): "../prompt", "/stream/boundary",
  *   "../@interrupt-request", "../@interrupt", "/<arbiter>/decision",
  *   "/<economy>/energy", "/<memory>/compressed", "/<scribe>/filed",
+ *   "/<hands>/intent", "/<hands>/acted",
  *   "/<voice>/speech", "/<voice>/speaking", "/<voice>/impulse",
  *   "/<voice>/speech-boundary", "/<image>/generated"
  *
@@ -404,6 +405,15 @@ export class MWs extends MBaseComponent {
     // The scribe filing knowledge.
     this._subProp(mind.querySelector("m-kb"), "filed",
       f => f && this._emit("scribe", "filed", { files: f.files || [] }));
+
+    // The hands reaching out (present only when <m-act> is in the mind). `intent`
+    // is every decide (for observability, like speech's impulse); `acted` is a deed.
+    const act = mind.querySelector("m-act");
+    this._subProp(act, "intent", i => i && this._emit("act", "intent", i));
+    this._subProp(act, "acted", a => a && this._emit("act", "acted", {
+      capability: a.capability, intent: a.intent, ok: !!a.ok,
+      experience: a.experience, args: a.args, data: a.data,
+    }));
 
     // The speaking voice (present only when <m-speech> is in the mind).
     const speech = mind.querySelector("m-speech");

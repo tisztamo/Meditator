@@ -90,6 +90,7 @@ Three memory tiers, compression, persistence, and the journal. See
 | `boundarySrc` | `..m-mind/stream/boundary` | boundary source |
 | `spokenSrc` | the voice's `<name>/spoken` (auto-discovered) | aloud utterances to record; `"off"` disables |
 | `filedSrc` | the scribe's `<name>/filed` (auto-discovered) | scribe filings to journal as a backstage note; `"off"` disables |
+| `actedSrc` | the hands' `<name>/acted` (auto-discovered) | the hands' deeds (efference) journaled as a backstage (⌁) note; the consequence arrives separately and is journaled perceived (⟂); `"off"` disables |
 | `attendedSrc` | `..m-mind/attended` | the stimuli that entered each frame, journaled as perceived (⟂) notes; `"off"` disables |
 
 - **Publishes:** `compressed` — `{recent, story}` after a consolidation and once on
@@ -195,6 +196,92 @@ items, each raised as an ambient "scrap of the world".
 Every fresh item is a plain ambient reading (no `key`, never a shift). Choose a
 **calm** feed — the mind should not be fed gratuitous distress (lifecycle.md §2).
 Pure helper `parseFeedTitles(xml)` → `string[]` is exported.
+
+## The hands (`m-act` / `m-look`)
+
+The **efferent** half of the sensorimotor loop — the mirror of the [senses](#senses-m-sense-subclasses)
+(full design in [efference.md](efference.md)). Where a sense reaches *in* (the world
+pushing at the mind) and [`m-speech`](#m-speech) gives a latent intention outward
+*voice*, `m-act` gives a latent intention outward *reach*: the ability to find out
+about, or change, the real world.
+
+**The one rule:** the conscious stream is **never** given tools. Only the realizer
+inside `m-act` is. The stream never represents a function call or "I should call X";
+it merely *wonders*, and a subconscious realizer turns that into an action — the way
+imagining a grasp evokes the hand. The **deed** (the realizer running, a hand
+executing) is backstage and invisible; only the **consequence** returns, and it
+returns the way the weather does: as a plain `External` sensation through the
+afferent bus, never as a tool result. Deed ⌁, consequence ⟂.
+
+### `m-act`
+
+The hands themselves (extends [`m-observer`](#m-observer)). Two-staged on purpose,
+exactly like `m-speech`: a cheap **decide** gate keeps the expensive tool-calling
+**realize** call off the hot path.
+
+- **DECIDE** (cheap utility model, *no tools*): watching the inner stream, "is the
+  mind reaching toward something one of its hands could actually realize?" → a reach
+  gist + salience, or `NONE`. Gated by `threshold`, `cooldown`, per-intent dedup, and
+  arousal/budget.
+- **REALIZE** (capable model, tools = the capability menu, `tool_choice:"auto"`):
+  given the reach, pick a registered capability and its args — or decline, and the
+  intention simply evaporated (the second gate).
+- **EXECUTE**: validate the args against the capability's JSON Schema, run
+  `capability.execute(args)` → `{experience, salience?, data?}`. A slip is swallowed
+  and logged (failure is silent, never self-blame) — the mind feels nothing rather
+  than a failure-of-self.
+
+| Attribute | Default | Meaning |
+|-----------|---------|---------|
+| `every` | `8` | decide cadence in boundaries |
+| `threshold` | `0.6` | minimum salience from decide to attempt a realize |
+| `cooldown` | `3m` | minimum gap between two acts |
+| `intentCooldown` | `15m` | minimum gap before re-acting on the *same* intent |
+| `minArousal` | `0.15` | stand down entirely when the economy's arousal falls below this |
+| `model` | inherits `model` | the tool-calling realizer (the "actor"); low temperature (0.2) |
+| `decisionModel` | inherits `utilityModel` | the cheap decide gate |
+| `realizeTokens` | `512` | max tokens for the realize call |
+
+Plus all `m-observer` attributes.
+
+- **Capabilities register, the menu is closed:** each child capability calls
+  `registerCapability({name, description, parameters, readonly?, execute})` on
+  connect. The realizer can only ever call a *registered* hand with *schema-validated*
+  args — it cannot invent one. A mind has exactly the hands its `.archml` wires in,
+  the way a body plan does; the blast radius is auditable by reading the file.
+- **Publishes:** `intent` — `{salience, gist, accepted, reason}` for every decide
+  (observability, like speech's `impulse`); `acted` — `{intent, capability, args, ok,
+  experience, data}` for each deed, which a memory journals as a backstage (⌁) note
+  via its `actedSrc`.
+- **Dispatches (DOM, bubbling):** the **consequence** as an `External`,
+  non-urgent `interrupt-request` (`type: Sense-<capability>`) — so it flows through
+  the arbiter into the frame and is journaled perceived (⟂) via `attended`, exactly
+  like a sense. The consequence is *never* a topic.
+- **Subscribes:** the stream window (`m-observer`), and `..m-mind/economy/arousal`
+  (interoception — a tired or near-broke mind does not reach).
+
+### `m-look` — the first hand (read-only, on-demand exteroception)
+
+Where the senses *push* the world at the mind on their own clocks, `m-look` lets the
+mind *pull* — look at the weather, the day's light, or a headline drifting by
+**because it wondered**, not because a timer fired. It reuses the exact fetchers the
+senses already use (`describeWeather`, `bandFor`, `parseFeedTitles`), so it adds a
+hand with near-zero new surface and no new external dependency. Read-only: it
+observes the world, it changes nothing.
+
+| Attribute | Default | Meaning |
+|-----------|---------|---------|
+| `name` | `look` | the tool-call function name |
+| `latitude` / `longitude` | — | place for the `weather` subject (that subject is unavailable if absent) |
+| `newsUrl` | — | RSS/Atom feed for the `news` subject (that subject is unavailable if absent) |
+| `salience` | `0.55` | salience of the returned consequence (a touch above ambient — the mind reached for it) |
+
+The realizer fills a `{subject: "daylight"|"weather"|"news", about?}` argument;
+`daylight` (the local clock) is always available, `weather`/`news` only when
+configured. Wire it inside `m-act`:
+`<m-act name="hands"><m-look name="look" latitude=… longitude=… newsUrl=…/></m-act>`.
+World-changing hands (`readonly:false`) are a later, deliberate, sandboxed step
+(efference.md §6) — not in v1.
 
 ## `m-observer`
 
@@ -365,8 +452,8 @@ WebSocket server — the live stream and external voice. Full protocol in the
   tree); then `event` messages tagging each internal signal by process — the
   assembled `frame`, every attention `bid` / `decision` / `urgent`, burst
   `boundary`, `memory` state/consolidation, `economy` energy, `scribe` filings,
-  `speech` state — plus `speech_fragment` for each spoken fragment. Every tap is
-  guarded, so a minimal mind simply emits fewer events.
+  `act` intent/deed (the hands), `speech` state — plus `speech_fragment` for each
+  spoken fragment. Every tap is guarded, so a minimal mind simply emits fewer events.
 - **Receives:** `{type:"input", data:{message}}` → `External` urgent stimulus, salience 1.
 - **Dispatches (DOM, bubbling):** `interrupt-request`.
 
@@ -382,8 +469,10 @@ Not components, but the pieces components lean on (`src/infrastructure/`,
 - **`memoryVault.js`** — the git vault: `mindHome(el, sub)` resolves
   `memory/<slug>/[sub]` (dry-run → `dry-…`); `commitVault(message)` commits at
   wake / heartbeat / sleep; `ensureVault()` initializes it.
-- **`modelAccess/llm.js`** — `complete()` (one-shot) and `chatStream()` (streaming),
-  `defaultModel(role)`. Routes `local/…` ids to `LOCAL_LLM_BASE_URL`, else
+- **`modelAccess/llm.js`** — `complete()` (one-shot), `chatStream()` (streaming),
+  `completeWithTools()` (one-shot with OpenAI function-calling — the *only* place
+  tool-calls enter the codebase, used by `m-act`'s realize stage), `defaultModel(role)`.
+  Routes `local/…` ids to `LOCAL_LLM_BASE_URL`, else
   OpenRouter (real usage on, hidden reasoning off). `MEDITATOR_DRY_RUN=1` swaps in
   a deterministic offline stub. `MEDITATOR_MAX_CONCURRENCY` (default 4) caps
   concurrent utility calls; the stream is never gated behind them.

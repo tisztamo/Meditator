@@ -44,6 +44,11 @@ const log = logger('mMemory.js');
  *   - filedSrc (default: the mind's m-kb `<name>/filed` topic, auto-discovered; "off"
  *     disables): the scribe's filings, journaled as a backstage note by subscribing
  *     here rather than the scribe calling note() in.
+ *   - actedSrc (default: the mind's m-act `<name>/acted` topic, auto-discovered; "off"
+ *     disables): a DEED the hands performed (efference.md §5.3), journaled as a
+ *     backstage (⌁) note — the mind never saw it reach. Its CONSEQUENCE arrives
+ *     separately as an External stimulus and is journaled perceived (⟂) via
+ *     `attended`. Deed ⌁, consequence ⟂. Exactly mirrors `filedSrc` for the scribe.
  *   - attendedSrc (default "..m-mind/attended"; "off" disables): the stimuli that
  *     entered each frame, journaled as perceived (⟂) notes by subscribing here
  *     rather than the mind calling note() in.
@@ -67,6 +72,7 @@ export class MMemory extends MBaseComponent {
     _savedAt = null
     _lastSpokenAt = 0
     _lastFiled = null
+    _lastActed = null
     _lastAttended = null
 
     onConnect() {
@@ -99,6 +105,16 @@ export class MMemory extends MBaseComponent {
         const scribe = this.closest("m-mind")?.querySelector("m-kb[name]")
         const filedSrc = explicitFiledSrc || (scribe ? `..m-mind/${scribe.getAttribute("name")}/filed` : null)
         if (filedSrc && filedSrc !== "off") this.sub(filedSrc, this._onFiled, 12)
+
+        // The hands' deeds arrive on m-act's `acted` topic (auto-discovered,
+        // explicit, or "off"); we journal each as a backstage (⌁) note ourselves —
+        // the mind never perceived the reaching. The CONSEQUENCE comes back the
+        // ordinary way (an External stimulus → `attended` → a perceived (⟂) note),
+        // so deed and consequence land on opposite sides of the mechanism.
+        const explicitActedSrc = this.attr("actedSrc")
+        const hands = this.closest("m-mind")?.querySelector("m-act[name]")
+        const actedSrc = explicitActedSrc || (hands ? `..m-mind/${hands.getAttribute("name")}/acted` : null)
+        if (actedSrc && actedSrc !== "off") this.sub(actedSrc, this._onActed, 12)
 
         // The mind publishes the stimuli that entered each frame on `attended`; we
         // journal them as perceived (⟂) notes here, rather than the mind reaching
@@ -238,6 +254,22 @@ export class MMemory extends MBaseComponent {
         if (!f || !f.files || !f.files.length || f === this._lastFiled) return
         this._lastFiled = f
         this.note(`The scribe filed thoughts into: ${f.files.join(", ")}`, { perceived: false })
+    }
+
+    // A deed the hands performed, arriving on m-act's `acted` topic rather than a
+    // note() call into us. The hands are subconscious — the mind never saw the
+    // reaching — so this is a backstage (⌁) note. The deed records THAT it reached
+    // and with which hand; the consequence (the experience) returns separately and is
+    // journaled perceived (⟂). Dedupe on object identity against a retained-value
+    // replay; a genuine new deed is always a fresh object.
+    _onActed = a => {
+        if (!a || !a.capability || a === this._lastActed) return
+        this._lastActed = a
+        const intent = a.intent ? `: “${a.intent}”` : ""
+        const note = a.ok
+            ? `The hands reached out into the world via ${a.capability}${intent}.`
+            : `The hands reached out via ${a.capability} but it slipped${intent}.`
+        this.note(note, { perceived: false })
     }
 
     // The stimuli that entered a frame, arriving on the mind's `attended` topic

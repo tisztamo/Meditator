@@ -164,6 +164,7 @@ The example mind (`architecture/seedling.archml`) wires:
 | [`m-loop-guard`](interrupts.md#m-loop-guard) | detects repetition loops — pure code, no LLM |
 | [`m-associate`](interrupts.md#m-associate) | a small model noticing "this reminds me of…" |
 | [`m-speech`](components.md#m-speech) | the voice — occasionally speaks a thought aloud, in parallel with thinking |
+| [`m-act` / `m-look`](components.md#the-hands-m-act--m-look) | the hands — reaches out (tool-blind) to look at the world when the mind wonders |
 | [`m-kb`](components.md#m-kb) | the scribe — distills durable knowledge to `knowledge/` |
 | [`m-economy`](components.md#m-economy) | reads real cost and slows the mind as budget drains |
 | [`m-console`](components.md#m-console) | terminal input/output |
@@ -176,3 +177,5 @@ Read on:
 - [Component reference](components.md) — every attribute, default, and topic.
 - [Mind lifecycle & the graveyard](lifecycle.md) — proposed plan for ephemeral vs
   resident minds, honest retention, versioning, and how a mind is laid to rest.
+- [Efference — the hands](efference.md) — `m-act`/`m-look` (built): how the mind affects
+  the world through tool-blind realization, generalizing `m-speech` (lifecycle §Phase 6).

@@ -257,6 +257,79 @@ export async function complete(opts) {
 }
 
 /**
+ * One-shot completion WITH OpenAI-style function calling — the only place
+ * tool-calls enter the codebase (efference.md §4). It is the realize stage of
+ * m-act: given a capability menu as `tools`, a capable model picks a hand and its
+ * args. The conscious stream is NEVER given tools; only this is.
+ *
+ * Reuses the exact request path, retry/backoff, concurrency (withSlot) and
+ * economy (addUsage) of complete(); it only adds `tools`/`tool_choice` to the
+ * request and reads `tool_calls` back.
+ *
+ * @param {Object} opts
+ * @param {string} [opts.model] - model id; defaults to the voice model (the actor)
+ * @param {Array}  [opts.messages] - chat messages; or use prompt/system
+ * @param {string} [opts.prompt]
+ * @param {string} [opts.system]
+ * @param {Array}  opts.tools - OpenAI tool definitions [{type:"function", function:{name,description,parameters}}]
+ * @param {string|Object} [opts.toolChoice="auto"] - "auto" lets the model decline (no tool_call)
+ * @param {number} [opts.maxTokens=512]
+ * @param {number} [opts.temperature=0.2] - LOW: picking the right hand is not a creative act
+ * @returns {Promise<{text: string, tool_calls: Array, finish_reason: string|null, usage: Object|null}>}
+ *   tool_calls: [{ id, function: { name, arguments } }, …] | []  (arguments is a JSON string)
+ */
+export async function completeWithTools(opts) {
+  const spec = asSpec(opts.model, 'voice');
+  if (isDryRun()) return dryCompleteWithTools(opts);
+
+  const provider = resolveProvider(spec);
+  const client = clientFor(provider);
+  const request = {
+    model: provider.model,
+    messages: asMessages(opts),
+    max_tokens: opts.maxTokens || 512,
+    temperature: opts.temperature ?? 0.2,
+    tools: opts.tools,
+    tool_choice: opts.toolChoice || 'auto',
+    ...provider.extra,
+  };
+  log.debug(`completeWithTools → ${provider.key} model="${provider.model}" tools=${(opts.tools || []).length} maxTokens=${request.max_tokens} temp=${request.temperature}`);
+
+  let lastError = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await withSlot(async () => {
+        const response = await client.chat.completions.create(request);
+        addUsage(response.usage);
+        const choice = response.choices?.[0];
+        const message = choice?.message || {};
+        const toolCalls = message.tool_calls || [];
+        const finish = choice?.finish_reason;
+        log.debug(`completeWithTools ← ${toolCalls.length} tool_call(s) [${toolCalls.map(t => t.function?.name).join(", ")}], finish=${finish}, usage=${response.usage ? JSON.stringify(response.usage) : 'none'}`);
+        return {
+          text: message.content || '',
+          tool_calls: toolCalls,
+          finish_reason: finish ?? null,
+          usage: response.usage || null,
+        };
+      });
+    } catch (error) {
+      lastError = error;
+      const status = error?.status;
+      if (status && status !== 429 && status < 500) {
+        log.warn(`completeWithTools failed (${provider.key} model="${provider.model}"): ${errorDetail(error)} — not retrying (4xx). `
+          + `If this is a local model, verify vLLM was launched with --enable-auto-tool-choice and a matching --tool-call-parser (efference.md §4).`);
+        break;
+      }
+      log.warn(`completeWithTools attempt ${attempt + 1} failed: ${errorDetail(error)}, retrying`);
+      await delay(750 * Math.pow(3, attempt));
+    }
+  }
+  totals.errors += 1;
+  throw lastError;
+}
+
+/**
  * Streaming completion. Returns an object that is async-iterable over text chunks.
  *
  *   const burst = await chatStream({model, messages, maxTokens})
@@ -467,6 +540,7 @@ let dryAssociateCounter = 0;
 let dryUtteranceCounter = 0;
 let drySpeechCounter = 0;
 let dryImageCounter = 0;
+let dryActCounter = 0;
 
 function dryStream(opts = {}) {
   const prompt = (opts.messages || []).map(m => m.content).join('\n');
@@ -500,6 +574,13 @@ function dryComplete({ prompt = '', messages }) {
     reply = drySpeechCounter % 2 === 0
       ? '[0.82] I want to say this out loud, just once: the silence here is not empty, it has a texture.'
       : 'NONE';
+  } else if (/impulse to REACH/i.test(text)) {
+    // The volitional reach impulse (mAct decide stage) — reach roughly every
+    // other check, so the dry seedling exercises both the act and the decline path.
+    dryActCounter += 1;
+    reply = dryActCounter % 2 === 0
+      ? '[0.78] I find myself wondering what the light is doing outside right now.'
+      : 'NONE';
   } else if (/mid-thought transition|attention turns/i.test(text)) {
     reply = 'Hold on — something just shifted, and I want to turn toward it without dropping the thread entirely.';
   } else if (/remind|associat/i.test(text)) {
@@ -519,6 +600,28 @@ function dryComplete({ prompt = '', messages }) {
   }
   addUsage({ prompt_tokens: 200, completion_tokens: 40, cost: 0 });
   return { text: reply, usage: null };
+}
+
+// The realize stage offline: if a "look" hand is on the menu, reach for it (the
+// canonical example), choosing daylight — fully offline and deterministic, so the
+// whole efferent loop runs in a dry seedling without network. m-look short-circuits
+// to canned experiences under dry-run for the other subjects too.
+function dryCompleteWithTools({ tools = [], messages } = {}) {
+  addUsage({ prompt_tokens: 220, completion_tokens: 20, cost: 0 });
+  const look = tools.find(t => t.function?.name === 'look');
+  if (look) {
+    return {
+      text: '',
+      tool_calls: [{
+        id: 'call_dry_look',
+        type: 'function',
+        function: { name: 'look', arguments: JSON.stringify({ subject: 'daylight', about: 'the light outside' }) },
+      }],
+      finish_reason: 'tool_calls',
+      usage: null,
+    };
+  }
+  return { text: '', tool_calls: [], finish_reason: 'stop', usage: null };
 }
 
 function dryImage(opts = {}) {
