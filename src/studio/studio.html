@@ -162,9 +162,14 @@
   .logs summary{cursor:pointer;list-style:none;padding:7px 16px;font-family:var(--mono);font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);display:flex;align-items:center;gap:8px}
   .logs summary::-webkit-details-marker{display:none}
   .logs[open] summary{border-bottom:1px solid var(--line)}
-  #log{height:158px;overflow-y:auto;padding:7px 14px;font-family:var(--mono);font-size:.71rem;line-height:1.5;scrollbar-width:thin;scrollbar-color:#2a3040 transparent}
+  /* The open log gets generous vertical room (~1.9× the old 158px) so an error or
+     stack trace is readable without scrolling a sliver. */
+  #log{height:300px;overflow-y:auto;padding:7px 14px;font-family:var(--mono);font-size:.71rem;line-height:1.5;scrollbar-width:thin;scrollbar-color:#2a3040 transparent}
   #log .ln{color:#9aa3b6;white-space:pre-wrap;word-break:break-word}
   #log .ln.err{color:var(--red)}
+  /* error tally on the collapsed/expanded summary, so a failure is visible even
+     when the log is closed */
+  .logs .logerr{color:var(--red);font-weight:600}
 
   /* ---------- input ---------- */
   .foot{display:flex;gap:9px;padding:11px 16px;border-top:1px solid var(--line);background:var(--bg2);flex:none}

@@ -8,17 +8,28 @@ import A from "amanita";
  */
 export class StudioLog extends A(HTMLElement) {
   count = 0;
+  errCount = 0;
+  _autoOpened = false;   // we pop the log open once per focus, on its first error
 
   onConnect() {
     this.innerHTML =
-      `<details class="logs" id="logBox"><summary>process log <span id="logHint" style="color:var(--faint)"></span></summary><div id="log"></div></details>`;
+      `<details class="logs" id="logBox"><summary>process log <span id="logHint" style="color:var(--faint)"></span><span id="logErr" class="logerr"></span></summary><div id="log"></div></details>`;
+    this.box = this.querySelector("#logBox");
     this.logEl = this.querySelector("#log");
     this.hintEl = this.querySelector("#logHint");
+    this.errEl = this.querySelector("#logErr");
     this.sub("/conn/focusReset", () => this.reset(), 12);
     this.sub("/conn/log", d => { if (d) this.append(d.stream, d.line); }, 12);
   }
 
-  reset() { this.logEl.innerHTML = ""; this.hintEl.textContent = ""; this.count = 0; }
+  reset() {
+    this.logEl.innerHTML = "";
+    this.hintEl.textContent = "";
+    this.errEl.textContent = "";
+    this.count = 0;
+    this.errCount = 0;
+    this._autoOpened = false;
+  }
 
   append(stream, line) {
     const stick = this.logEl.scrollHeight - this.logEl.scrollTop - this.logEl.clientHeight < 40;
@@ -29,6 +40,13 @@ export class StudioLog extends A(HTMLElement) {
     while (this.logEl.children.length > 500) this.logEl.removeChild(this.logEl.firstChild);
     this.count++;
     this.hintEl.textContent = `· ${this.count}`;
+    if (stream === "err") {
+      this.errCount++;
+      this.errEl.textContent = ` · ⚠ ${this.errCount} error${this.errCount === 1 ? "" : "s"}`;
+      // Surface the trouble: open the log on its first error so the user actually
+      // sees it, but only once — don't fight a user who deliberately closes it.
+      if (!this._autoOpened) { this._autoOpened = true; this.box.open = true; }
+    }
     if (stick) this.logEl.scrollTop = this.logEl.scrollHeight;
   }
 }

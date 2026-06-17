@@ -64,6 +64,7 @@ function onceBoundary(stream, afterIndex, timeoutMs) {
 
 export class MMind extends MBaseComponent {
     backoff = 1
+    _alive = false           // true only once stream+memory came up (see _whenAlive)
     _timer = null
     _thinkingSince = null
     _burstStartedAt = null   // when the in-flight burst's cycle began (tick anchor)
@@ -111,6 +112,7 @@ export class MMind extends MBaseComponent {
             log.error("Mind could not start:", error.message)
             return
         }
+        this._alive = true
         this._thinkingSince = Date.now()
         log.info(`"${this.attr("name") || "mind"}" starts thinking.`)
         // Publish an initial tick estimate so a viewer can pace its display from
@@ -248,6 +250,11 @@ export class MMind extends MBaseComponent {
 
     async continueThinking() {
         if (this._sleeping) return
+        // Never think before initialization succeeded. _begin() bails (without
+        // setting _alive) when the stream/memory never came up — but an interrupt
+        // (e.g. the watchdog's keep-alive) routes straight here, bypassing that
+        // gate, so guard it too: a half-initialized mind must stay quiet.
+        if (!this._alive) return
         if (this._timer) { clearTimeout(this._timer); this._timer = null }
         this._burstStartedAt = Date.now()   // anchor the tick for the next schedule
 

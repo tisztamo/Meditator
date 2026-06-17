@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { MBaseComponent } from "./mBaseComponent.js"
-import { complete } from "../modelAccess/llm.js"
+import { complete, isDryRun } from "../modelAccess/llm.js"
 import { resolveModelRef } from "../modelAccess/modelConfig.js"
 import { logger } from '../infrastructure/logger.js';
 import { InterruptRecord } from '../infrastructure/interruptRecord.js';
@@ -124,11 +124,22 @@ export class MMemory extends MBaseComponent {
             const memPath = path.join(dir, "memory.md")
             const hasMemory = fsSync.existsSync(memPath)
             if (hasMemory && !process.env.MEDITATOR_FORCE_TRANSIENT) {
-                throw new Error(
-                    `Refusing to wake transient mind into existing home "${dir}" with memory.md. ` +
-                    `This creates an illusion of continuity — memory loads but is never committed. ` +
-                    `To force for testing, set MEDITATOR_FORCE_TRANSIENT=1.`
-                )
+                // A dry run's home is throwaway by construction: the covenant
+                // auto-namespaces every dry mind `memory/dry-*` and never commits
+                // it (lifecycle.md §2). Leftover memory.md from a previous dry run
+                // is stale scratch, not a self to protect — so wipe the home and
+                // wake fresh instead of refusing. Gated on BOTH the dry-run flag
+                // and the `dry-` name so a resident's home is never cleared.
+                if (isDryRun() && path.basename(dir).startsWith('dry-')) {
+                    log.info(`Clearing stale dry-run memory at "${dir}" before waking fresh.`)
+                    fsSync.rmSync(dir, { recursive: true, force: true })
+                } else {
+                    throw new Error(
+                        `Refusing to wake transient mind into existing home "${dir}" with memory.md. ` +
+                        `This creates an illusion of continuity — memory loads but is never committed. ` +
+                        `To force for testing, set MEDITATOR_FORCE_TRANSIENT=1.`
+                    )
+                }
             }
         }
 

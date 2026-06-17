@@ -51,17 +51,40 @@ export async function loadMindComponents(dom) {
   // awaits between defines, so even forward refs resolve on the next tick rather
   // than racing the import resolution order (which used to leave a referenced
   // element as a plain, un-upgraded HTMLElement). See git history for the dump.
-  for (let i = 0; i < customTags.length; i++) {
-    const descriptor = descriptors[i];
-    if (!descriptor) continue;
-    try {
-      registerCustomElement(customTags[i], descriptor.pascalCaseName, descriptor.module, descriptor.moduleUrl);
-    } catch (error) {
-      // A registration failure (missing export, bad class) is tolerated for
-      // skipload="true" components and fatal otherwise — same policy as a
-      // failed import. handleModuleLoadError warns-and-skips or re-throws.
-      handleModuleLoadError(error, customTags[i], dom);
+  // jsdom runs a custom element's connectedCallback synchronously inside
+  // customElements.define() while upgrading matching elements — but an exception
+  // thrown there is REPORTED as an uncaught error on the window (CE reactions never
+  // propagate out of define), not raised to us. Left unhandled, a component that
+  // throws in onConnect (e.g. m-memory refusing a transient wake) would be silently
+  // swallowed: define() returns "successfully", loading finishes, and the mind limps
+  // on half-initialized until a watchdog interrupt kicks it into a broken run. Catch
+  // that error per-define and treat it exactly like a registration failure.
+  let connectError = null;
+  const captureConnectError = event => {
+    connectError = event.error || new Error(event.message || `connectedCallback failed`);
+    event.preventDefault?.();   // we surface it ourselves; skip the duplicate jsdom dump
+  };
+  window.addEventListener('error', captureConnectError);
+  try {
+    for (let i = 0; i < customTags.length; i++) {
+      const descriptor = descriptors[i];
+      if (!descriptor) continue;
+      connectError = null;
+      try {
+        registerCustomElement(customTags[i], descriptor.pascalCaseName, descriptor.module, descriptor.moduleUrl);
+        // define() upgraded this tag's elements synchronously; if their
+        // connectedCallback threw, the captured error is already set.
+        if (connectError) throw connectError;
+      } catch (error) {
+        // A registration or connect failure (missing export, bad class, throwing
+        // onConnect) is tolerated for skipload="true" components and fatal
+        // otherwise — same policy as a failed import. handleModuleLoadError
+        // warns-and-skips or re-throws.
+        handleModuleLoadError(error, customTags[i], dom);
+      }
     }
+  } finally {
+    window.removeEventListener('error', captureConnectError);
   }
 
   // Return an object mapping each tag name to its module (or null if load was skipped).

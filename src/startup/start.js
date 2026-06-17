@@ -49,4 +49,11 @@ loadMindComponents(document).then((components) => {
         process.exit(0);
     });
     setInterval(() => {}, 1000);
+}).catch(error => {
+    // A component failed to load or threw in onConnect (e.g. m-memory refusing a
+    // transient wake). This is fatal: rather than limp on half-initialized — where
+    // a watchdog interrupt could still kick the mind into a broken run — say so
+    // plainly and exit non-zero, so a supervisor (the Studio) sees the failure.
+    log.error("Mind failed to start:", error.message);
+    process.exit(1);
 });
