@@ -56,7 +56,7 @@ test("both hands registered; note is world-changing, recall is read-only", () =>
 });
 
 test("their felt lines join into the body schema, with no mechanism", () => {
-    expect(act.embodiment).toMatch(/set it down somewhere outside yourself/i);   // m-note's felt
+    expect(act.embodiment).toMatch(/set it down where it will keep/i);           // m-note's felt
     expect(act.embodiment).toMatch(/turn back and find it/i);                    // m-recall's felt
     expect(act.embodiment.toLowerCase()).not.toMatch(/\btool\b|function|schema|argument|notebook/);
 });

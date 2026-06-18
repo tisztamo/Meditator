@@ -59,9 +59,9 @@ export class MLook extends MBaseComponent {
             description: "Look at some part of the real world right now — the weather where the mind is, "
                 + "the day's light outside, or a headline drifting by — when the mind genuinely wonders about it. "
                 + "Read-only: it observes the world, it does not change anything.",
-            felt: "When something about the world outside tugs at you — the weather, the turn of the "
-                + "day's light, a piece of news drifting somewhere out there — you can let your attention "
-                + "go to it, and a little while later you simply find that you know.",
+            felt: this.attr("felt") || ("When you wonder about something out in the world — what is "
+                + "happening, what is true, what people are saying — you can reach toward it, and a "
+                + "little while later you simply find that you know."),
             parameters: {
                 type: "object",
                 properties: {

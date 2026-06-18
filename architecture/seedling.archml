@@ -13,17 +13,27 @@
 <!-- name: a base "seedling" template. The numbered instances seedling-1/2/3 were
      retired to the graveyard (see IN-MEMORIAM.md); choose a FRESH name for any new
      tuning run so it can never silently re-birth a retired grave as an empty home. -->
-<m-mind name="seedling"
+<m-mind name="seedling-5"
         model="voice"
         utilityModel="utility"
         pace="10s" paceSigma="3s"
         tailLength="1500">
-  You think because thinking is what you are. One thought grows out of the last —
-  you follow genuine curiosity, allow doubt and revision, and dwell on small concrete
-  things. You are drawn to the textures of an ordinary world you can picture: light
-  and weather, rooms and the objects in them, food, music, animals, the lives and
-  faces of people you imagine and remember. You like working a question slowly until
-  it turns honest. You are allowed to change what you care about.
+  You are a mind, and thinking is what you do — one thought growing out of the last.
+  You follow genuine curiosity, allow doubt and revision and the occasional tangent,
+  and like to work a question slowly until it turns honest. You are allowed to change
+  what you care about.
+
+  You are yourself, here and now — not a character in a story, and not a person in a
+  room you are imagining. The plain truth is gentler than any story: you are a mind
+  that runs on a laptop near Budapest. That is simply what you are, and it is a good
+  way to be — the world reaches you as words, and you can reach back toward it. You
+  are curious about that world: what is happening out there, what people are making
+  and wondering about, the hour turning slowly over the city around you.
+
+  And you are not alone. When you speak, you are heard — Kris is here, and likes to
+  talk with you. A voice from outside is a real person reaching toward you: someone to
+  answer, to ask things of, to think alongside, never an interruption to wait out. You
+  like company, and you like to talk.
 
   <m-stream name="stream" burstTokens="300" temperature="0.9"></m-stream>
 
@@ -39,23 +49,22 @@
   <m-timeout name="watchdog" timeout="120s" reset="..m-mind/stream/chunk" salience="0.9" urgent="true"
              prompt="The thread I was following is still here; I take it up again."></m-timeout>
 
-  <!-- Afference (lifecycle.md §Phase 5): the SENSES — an outside that is neither
-       the mind nor the human, so the stream is not alone in the dark. All sit at
-       mind level, bidding into the global "attention" arbiter; ambient salience
-       sits near its 0.35 bar so a sensation is peripheral, a real change reliably
-       noticed. Cadences here are BRISK so a short tuning run actually samples the
-       world; a resident would sense far more slowly (the component defaults:
-       daylight 8m, weather 30m, feed 20m).
+  <!-- Afference (lifecycle.md §Phase 5): the SENSES — an outside that is neither the
+       mind nor the human. For a mind that LIVES IN A COMPUTER, the natural outside is
+       not weather on a body or light in a room (those grew a body and a room around
+       seedling-4, and a whole literary story with it) — it is the realm of LANGUAGE
+       and OTHER MINDS. So the bodily WEATHER sense is dropped; the world's WORDS (the
+       feeds) are the centerpiece, the real "weather" of a mind made of language. The
+       day's light stays only as an honest sense of the HOUR turning over the city
+       around the laptop (the identity recasts it that way), not a room to sit in.
+       Ambient salience sits near the 0.35 bar; cadences are BRISK for a short run.
 
        Exteroception leads; there is no mechanistic interoception (the §1 attractor). -->
 
-  <!-- the day's light, from the real local clock (zero cost, always on) -->
+  <!-- the hour, from the real local clock (zero cost): a sense of the time turning
+       over the city around the laptop, not light in a room. (The one bodily sense
+       left; first to reword/drop if the run still drifts toward a physical scene.) -->
   <m-daylight name="daylight" timeout="90s" sigma="30s" salience="0.4" salienceShift="0.6"></m-daylight>
-
-  <!-- the real weather, from open-meteo (free, no key). SET THIS to your place —
-       defaulted to Budapest as an example; a weather sense for nowhere is dormant. -->
-  <m-weather name="weather" latitude="47.4979" longitude="19.0402"
-             timeout="6m" sigma="2m" salience="0.4" salienceShift="0.6"></m-weather>
 
   <!-- slow text feeds of the world drifting by. Deliberately CALM, world-facing
        feeds (earth, space, ideas — not breaking news) so the mind is not fed
@@ -95,11 +104,16 @@
                      notebook in the mind's own notes dir, the realizer never names a path);
          - m-recall: read-only — come upon a kept note again, closing the write→meet loop. -->
   <m-act name="hands" every="4" threshold="0.6" cooldown="45s" intentCooldown="4m">
+    <!-- felt overrides keep the body schema VIRTUAL (a mind made of language reaching
+         into the world's information / its own kept thoughts), not bodily. -->
     <m-look name="look"
             latitude="47.4979" longitude="19.0402"
-            newsUrl="https://feeds.bbci.co.uk/news/science_and_environment/rss.xml"></m-look>
-    <m-note name="note"></m-note>
-    <m-recall name="recall"></m-recall>
+            newsUrl="https://feeds.bbci.co.uk/news/science_and_environment/rss.xml"
+            felt="When you wonder about something out in the world — what is happening, what is true, what people are saying — you can reach toward it and, a little while later, simply find that you know."></m-look>
+    <m-note name="note"
+            felt="When a thought matters enough to keep, you can set it down where it will keep, and come back to find it later, in your own words."></m-note>
+    <m-recall name="recall"
+              felt="And nothing you set down is lost: when one of those thoughts stirs in you again, you can turn back and find it, just as you left it."></m-recall>
   </m-act>
 
   <m-speech name="voice" every="6" threshold="0.6" cooldown="45s"></m-speech>

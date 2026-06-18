@@ -40,8 +40,8 @@ export class MRecall extends MBaseComponent {
             name,
             description: "Bring back something the mind set down before — read one of its own kept notes. "
                 + "Use when a past thought stirs and the mind wants to find again what it had written, in its own words.",
-            felt: "And the things you've set down are not lost: when one of them stirs in you again, "
-                + "you can turn back and find it, just as you left it.",
+            felt: this.attr("felt") || ("And nothing you set down is lost: when one of those thoughts stirs "
+                + "in you again, you can turn back and find it, just as you left it."),
             parameters: {
                 type: "object",
                 properties: {

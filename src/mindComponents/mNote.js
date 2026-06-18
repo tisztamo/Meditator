@@ -47,8 +47,8 @@ export class MNote extends MBaseComponent {
             description: "Set down a thought to keep — write it somewhere outside the mind so it is not lost "
                 + "as the monologue scrolls on, and can be found again later. Use only when a thought genuinely "
                 + "matters enough that the mind wants to hold onto it.",
-            felt: "When a thought matters enough to keep, you can set it down somewhere outside yourself — "
-                + "and trust that it will still be there, in your own words, when you come back for it.",
+            felt: this.attr("felt") || ("When a thought matters enough to keep, you can set it down where "
+                + "it will keep, and come back to find it later, in your own words."),
             parameters: {
                 type: "object",
                 properties: {

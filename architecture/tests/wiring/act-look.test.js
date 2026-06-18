@@ -71,7 +71,7 @@ test("the look hand registered itself with m-act (the closed menu)", () => {
 test("the hand contributes a felt line to the mind's body schema (embodiment)", () => {
     // m-act assembles each hand's first-person `felt` into an `embodiment` it publishes;
     // the mind weaves it into its identity so it knows what it can reach (no tool menu).
-    expect(act.embodiment).toMatch(/you can let your attention go to it/);
+    expect(act.embodiment).toMatch(/you can reach toward it/);
     expect(act.embodiment.toLowerCase()).not.toMatch(/\btool\b|function|schema|argument|subject/);
 });
 
