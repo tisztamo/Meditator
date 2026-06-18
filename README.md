@@ -42,6 +42,8 @@ Because the tail is always carried forward verbatim, the thought survives every 
 bun install
 # needs OPENROUTER_API_KEY in the environment
 bun run studio.js          # then open http://localhost:7600
+# or, with auth secrets in .env.studio:
+./studio-authenticated.sh
 ```
 
 The **[Studio](doc/studio.md)** is the integrated way to run Meditator: wake any architecture from the browser, watch a roster of live minds, speak to them, and put them to sleep — no per-mind terminal needed. Pick an architecture in the left rail, press **Wake**, and the stream appears in the center pane.

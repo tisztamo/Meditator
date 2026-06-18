@@ -91,7 +91,8 @@ HTTP side is locked.
 > **Turning it on.** Auth is opt-in: with no `STUDIO_TOKEN` the Studio stays an
 > open localhost dev tool. Set both secrets to gate it —
 > `STUDIO_TOKEN=…  STUDIO_SESSION_SECRET=$(openssl rand -hex 32)  bun studio.js` —
-> and the server refuses to start if a token is set without a secret.
+> and the server refuses to start if a token is set without a secret. If you keep
+> the secrets in `.env.studio`, run `./studio-authenticated.sh` instead.
 
 ### Out of scope (single-user, authed tool)
 

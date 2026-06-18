@@ -10,7 +10,8 @@
 #   systemctl --user enable --now meditator-studio
 #   journalctl --user -u meditator-studio -f
 #
-# The env file holds the two secrets and is NOT committed. Example contents:
+# The env file holds the two secrets and is NOT committed. Start from
+# `.env.studio.example` at the repo root, then set:
 #   STUDIO_TOKEN=a-long-shared-password
 #   STUDIO_SESSION_SECRET=$(openssl rand -hex 32)
 # The server refuses to start with a token set but no secret.
