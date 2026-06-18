@@ -16,6 +16,7 @@ const cases = [
     ["I think the answer is the waiting itself.", "I think the answer is the waiting itself."],
     ["strength 0.6: the pause is the content", "the pause is the content"],
     ['"[0.9] I hear you. Who are you?"', "I hear you. Who are you?"],
+    ["…I am here.", "I am here."],
 ];
 
 for (const [input, expectSay] of cases) {

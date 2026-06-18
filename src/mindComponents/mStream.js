@@ -36,14 +36,20 @@ const log = logger('mStream.js');
  * Trims the longest overlap between the end of the carried text and the start
  * of the new burst (also when the new text starts with extra whitespace).
  */
+function stripLeadingContinuationMarker(text) {
+    if (!text) return text
+    return text.replace(/^\s*(?:\.{3,}|…)+\s*/, "")
+}
+
 export function trimSeamOverlap(prev, next) {
-    const lead = (next.match(/^\s*/) || [""])[0]
-    const body = next.slice(lead.length)
+    const stripped = stripLeadingContinuationMarker(next)
+    const lead = (stripped.match(/^\s*/) || [""])[0]
+    const body = stripped.slice(lead.length)
     const max = Math.min(prev.length, body.length, 100)
     for (let k = max; k >= 4; k--) {
         if (prev.endsWith(body.slice(0, k))) return body.slice(k)
     }
-    return next
+    return stripped === next ? next : stripped
 }
 
 export class MStream extends MBaseComponent {

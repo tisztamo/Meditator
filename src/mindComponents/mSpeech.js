@@ -36,6 +36,7 @@ export function parseSpeechDecision(text) {
         .replace(/(?:salience|strength)\s*[:=]?\s*[01]?\.?\d+\s*[:|–-]?\s*/i, "")
         .replace(/^\s*\[\s*[01]?\.?\d+\s*\]\s*/, "")
         .replace(/^\s*[01]?\.?\d+\s*[|:–-]\s*/, "")
+        .replace(/^\s*(?:\.{3,}|…)+\s*/, "")
         .replace(/^\s*(?:SAY|SAID|THOUGHT|UTTERANCE|RESPONSE|REPLY)\s*[:–-]\s*/im, "")
         .trim()
 
