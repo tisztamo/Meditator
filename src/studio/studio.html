@@ -210,9 +210,28 @@
        border-radius:9px;padding:9px 20px;cursor:pointer;font-size:.9rem}
   studio-covenant .cov-ok:hover{background:rgba(183,156,240,.28)}
 
+  /* ---------- mobile pane switcher ---------- */
+  /* A segmented control shown only on narrow screens; on the desktop layout the
+     three columns sit side by side and the bar is hidden. */
+  .panebar{display:none}
+  .panebar button{flex:1;background:var(--surface);border:1px solid var(--line);color:var(--dim);
+       padding:8px 0;font-size:.82rem;font-family:var(--sans);cursor:pointer}
+  .panebar button:not(:first-child){border-left:none}
+  .panebar button:first-child{border-radius:8px 0 0 8px}
+  .panebar button:last-child{border-radius:0 8px 8px 0}
+  .panebar button.active{background:var(--surface2);color:var(--ink);border-color:rgba(183,156,240,.5);z-index:1}
+
   @keyframes blink{50%{opacity:0}}
   @keyframes pulse{50%{opacity:.45}}
-  @media (max-width:900px){ main{grid-template-columns:1fr} .col.rail,.col.left{border-right:none;border-bottom:1px solid var(--line)} }
+  @media (max-width:900px){
+    .panebar{display:flex;flex:none;padding:7px 10px;border-bottom:1px solid var(--line);background:var(--bg2)}
+    main{grid-template-columns:1fr}
+    .col.rail,.col.left{border-right:none;border-bottom:1px solid var(--line)}
+    /* Show one column at a time, chosen by the segmented control above. */
+    main[data-pane="minds"]     .col.left,  main[data-pane="minds"]     .col.right{display:none}
+    main[data-pane="stream"]    .col.rail,  main[data-pane="stream"]    .col.right{display:none}
+    main[data-pane="structure"] .col.rail,  main[data-pane="structure"] .col.left {display:none}
+  }
 
   /* ---------- Amanita custom-element layout roles (additive) ---------- */
   /* The UI is now an Amanita component mesh; these give the new tags the layout
@@ -231,6 +250,14 @@
     <header>
       <studio-header></studio-header>
     </header>
+
+    <!-- Mobile-only pane switcher: reveals one column at a time on a narrow
+         screen (hidden on the desktop three-column layout). -->
+    <nav class="panebar">
+      <button data-pane="minds">Minds</button>
+      <button data-pane="stream">Stream</button>
+      <button data-pane="structure">Structure</button>
+    </nav>
 
     <main>
       <!-- roster rail -->
@@ -263,5 +290,27 @@
   </studio-conn>
 
   <script type="module" src="/ui/index.js"></script>
+  <!-- Mobile pane switcher controller. Toggles which column shows on a narrow
+       screen via main[data-pane]; the active pane is persisted, and focusing a
+       mind jumps to Stream so the always-visible selector stops blocking it. -->
+  <script type="module">
+    import { getPref, setPref } from "/ui/studioPrefs.js";
+    const main = document.querySelector("main");
+    const bar = document.querySelector(".panebar");
+    const setPane = (p, persist) => {
+      main.setAttribute("data-pane", p);
+      for (const b of bar.querySelectorAll("button")) b.classList.toggle("active", b.dataset.pane === p);
+      if (persist) setPref("pane", p);
+    };
+    setPane(getPref("pane", "minds"), false);
+    bar.addEventListener("click", e => {
+      const b = e.target.closest("button");
+      if (b) setPane(b.dataset.pane, true);
+    });
+    customElements.whenDefined("studio-conn").then(() => {
+      const conn = document.querySelector("studio-conn");
+      conn && conn.on && conn.on("focused", id => { if (id) setPane("stream", true); });
+    });
+  </script>
 </body>
 </html>

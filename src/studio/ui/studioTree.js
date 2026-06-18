@@ -1,5 +1,6 @@
 import A from "amanita";
 import { esc, clock, fmt } from "./helpers.js";
+import { getPref, setPref } from "./studioPrefs.js";
 
 /**
  * studio-tree — the focused mind's component structure (id="tree", inheriting
@@ -28,12 +29,39 @@ export class StudioTree extends A(HTMLElement) {
   // ------------------------------------------------------------- the tree
   renderStructure(tree) {
     this.innerHTML = ""; this.nodes = { byId: {}, byName: {}, byTag: {} };
-    if (tree) this.appendChild(this.buildNode(tree, 0));
+    // Per-node open-states, keyed by path, persisted so reopening a mind restores
+    // what you had expanded. Loaded once per build; _setOpen writes through.
+    this._openStates = getPref("treeOpen", {});
+    if (tree) this.appendChild(this.buildNode(tree, 0, "", 0));
   }
 
-  buildNode(node, depth) {
+  /** Narrow screens (the mobile breakpoint) open only the root by default, so the
+   *  tree isn't a wall of expanded panes on a phone. */
+  _narrow() {
+    try { return !!(globalThis.matchMedia && globalThis.matchMedia("(max-width:900px)").matches); }
+    catch { return false; }
+  }
+
+  _setOpen(path, open) { this._openStates[path] = open; setPref("treeOpen", this._openStates); }
+
+  buildNode(node, depth, parentPath, idx) {
+    const seg = `${node.name || node.tag}`;
+    const path = parentPath ? `${parentPath}>${idx}:${seg}` : seg;
     const det = document.createElement("details"); det.className = "node";
-    if (depth === 0 || node.tag === "m-stream" || node.tag === "m-speech" || node.tag === "m-image") det.open = true;
+    // Restore a saved open-state if we have one; otherwise apply the default: the
+    // root is always open, and on wide screens the stream/speech/image panes too.
+    const saved = this._openStates[path];
+    const open = saved !== undefined
+      ? saved
+      : depth === 0 || (!this._narrow() && (node.tag === "m-stream" || node.tag === "m-speech" || node.tag === "m-image"));
+    // Setting .open=true queues one toggle event; swallow it so only genuine user
+    // toggles persist (closed nodes set no attribute, so they fire nothing).
+    det._skipToggle = open === true;
+    det.open = open;
+    det.addEventListener("toggle", () => {
+      if (det._skipToggle) { det._skipToggle = false; return; }
+      this._setOpen(path, det.open);
+    });
     const sum = document.createElement("summary");
     sum.innerHTML = `<span class="tw">▶</span><span class="npulse"></span><span class="nname"></span> <span class="ntag"></span><span class="nstat"></span>`;
     sum.querySelector(".nname").textContent = node.name || node.tag;
@@ -51,7 +79,7 @@ export class StudioTree extends A(HTMLElement) {
     det.appendChild(body);
     if (node.children && node.children.length) {
       const kids = document.createElement("div"); kids.className = "kids";
-      for (const c of node.children) kids.appendChild(this.buildNode(c, depth + 1));
+      node.children.forEach((c, i) => kids.appendChild(this.buildNode(c, depth + 1, path, i)));
       det.appendChild(kids);
     }
     const rec = { det, feed, pulse: sum.querySelector(".npulse"), stat: sum.querySelector(".nstat"), tag: node.tag, name: node.name };

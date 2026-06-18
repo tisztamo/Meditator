@@ -1,4 +1,5 @@
 import A from "amanita";
+import { getPref, setPref } from "./studioPrefs.js";
 
 /**
  * studio-conn — the Studio's store and its single connection to the supervisor.
@@ -212,11 +213,9 @@ export class StudioConn extends A(HTMLElement) {
   // ----------------------------------------------- focus persistence (reload)
   /** Remember the focused mind by id AND durable home, so a reload re-opens it. */
   _remember(id) {
-    try {
-      if (!id) { globalThis.localStorage && globalThis.localStorage.removeItem("studioFocus"); return; }
-      const m = this.roster.find(x => x.id === id);
-      globalThis.localStorage && globalThis.localStorage.setItem("studioFocus", JSON.stringify({ id, home: m && m.home }));
-    } catch { /* private mode / no storage */ }
+    if (!id) { setPref("focus", null); return; }
+    const m = this.roster.find(x => x.id === id);
+    setPref("focus", { id, home: m && m.home });
   }
 
   /** After a reload the page has no focus; re-open the last-focused mind if it is
@@ -224,8 +223,7 @@ export class StudioConn extends A(HTMLElement) {
    *  durable home). Runs once, when a matching mind first appears. */
   _maybeRestoreFocus() {
     if (this._restored || this.focusedId) return;
-    let saved = null;
-    try { saved = JSON.parse((globalThis.localStorage && globalThis.localStorage.getItem("studioFocus")) || "null"); } catch { /* ignore */ }
+    const saved = getPref("focus", null);
     if (!saved) { this._restored = true; return; }
     const match = this.roster.find(x => x.id === saved.id) || this.roster.find(x => x.home && x.home === saved.home);
     if (match) { this._restored = true; this.focus(match.id); }

@@ -1,5 +1,6 @@
 import A from "amanita";
 import { nearBottom, scrollDown } from "./helpers.js";
+import { getPref, setPref } from "./studioPrefs.js";
 
 // Over a long run the monologue would grow without bound and bog the browser
 // down. Keep roughly this many characters of rendered stream; older blocks are
@@ -405,7 +406,7 @@ export class StudioStream extends A(HTMLElement) {
       ? "Stream display: flow — smoothed reveal, inline burst seams. Click for raw."
       : "Stream display: raw — instant fragments, full-width burst dividers. Click for flow.";
   }
-  _loadMode() { try { return globalThis.localStorage && globalThis.localStorage.getItem("studioStreamMode") === "raw" ? false : true; } catch { return true; } }
-  _saveMode() { try { globalThis.localStorage && globalThis.localStorage.setItem("studioStreamMode", this.smooth ? "flow" : "raw"); } catch { /* ignore */ } }
+  _loadMode() { return getPref("streamMode", "flow") !== "raw"; }
+  _saveMode() { setPref("streamMode", this.smooth ? "flow" : "raw"); }
 }
 A.define("studio-stream", StudioStream);

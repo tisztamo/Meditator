@@ -12,9 +12,9 @@ single-user tool gated by one shared password, reached over a
 [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)
 so TLS and the public edge are handled for us.
 
-> **Status (2026-06):** Phase A (protect the API) is **built**; Phase B (mobile
-> polish) is still design. Phases are independent and can land in any order, but A
-> before B is the natural sequence (secure the boundary, then polish the surface).
+> **Status (2026-06):** Phase A (protect the API) and Phase B (mobile polish) are
+> both **built**. Phases are independent and can land in any order, but A before B
+> was the natural sequence (secure the boundary, then polish the surface).
 
 ## The shape of the problem
 
