@@ -1,0 +1,33 @@
+# systemd unit for the Meditator Studio (see doc/serving-remotely.md, A5).
+#
+# Install (as the owning user, with `loginctl enable-linger USER` so it survives
+# logout, or drop into /etc/systemd/system for a system service):
+#
+#   mkdir -p ~/.config/systemd/user
+#   cp deploy/meditator-studio.service ~/.config/systemd/user/
+#   # create the env file below with your secrets (chmod 600), then:
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now meditator-studio
+#   journalctl --user -u meditator-studio -f
+#
+# The env file holds the two secrets and is NOT committed. Example contents:
+#   STUDIO_TOKEN=a-long-shared-password
+#   STUDIO_SESSION_SECRET=$(openssl rand -hex 32)
+# The server refuses to start with a token set but no secret.
+
+[Unit]
+Description=Meditator Studio (mind supervisor)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/USER/Meditator
+EnvironmentFile=/home/USER/Meditator/.env.studio
+# Adjust to the absolute path of bun on this host (`which bun`).
+ExecStart=/home/USER/.bun/bin/bun studio.js
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

@@ -41,6 +41,9 @@ picture and the motivation. This `doc/` tree is the deeper reference.
   roster of live minds. Run `bun run studio.js`; no per-mind terminal needed.
 - **[WebSocket API](websocket-api.md)** — the live stream protocol on
   `ws://localhost:7627`: thought fragments out, voice in.
+- **[Serving remotely](serving-remotely.md)** — design for running the Studio on
+  a server: a shared-password cookie that protects the API over a Cloudflare
+  Tunnel, plus mobile usability fixes.
 
 ## Contributing
 

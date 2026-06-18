@@ -15,3 +15,7 @@ journal/
 
 # the memory vault is its own git repository (see COVENANT.md)
 memory/
+
+# Studio deployment secrets (see doc/serving-remotely.md)
+.env.studio
+.env

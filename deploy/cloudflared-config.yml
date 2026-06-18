@@ -1,0 +1,25 @@
+# cloudflared ingress for the Meditator Studio (see doc/serving-remotely.md, A5).
+#
+# A Cloudflare Tunnel gives us TLS and a public edge with no inbound ports opened
+# on the host: cloudflared dials out to Cloudflare and forwards matching requests
+# to the Studio, which listens on loopback only (127.0.0.1:7600). The tunnel is the
+# only way in.
+#
+# Setup, once:
+#   cloudflared tunnel login
+#   cloudflared tunnel create meditator-studio        # writes <TUNNEL_ID>.json creds
+#   cloudflared tunnel route dns meditator-studio studio.example.com
+#   # put this file at ~/.cloudflared/config.yml (edit the placeholders), then:
+#   cloudflared tunnel run meditator-studio           # or install as a service
+#
+# The app's own password cookie is the security boundary; Cloudflare Access in
+# front of the hostname is an optional second gate (A5, defense-in-depth).
+
+tunnel: meditator-studio
+credentials-file: /home/USER/.cloudflared/TUNNEL_ID.json
+
+ingress:
+  - hostname: studio.example.com
+    service: http://localhost:7600
+  # WebSocket upgrades are proxied over the same origin automatically.
+  - service: http_status:404

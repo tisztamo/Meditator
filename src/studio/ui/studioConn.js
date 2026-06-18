@@ -34,6 +34,11 @@ export class StudioConn extends A(HTMLElement) {
   roster = [];
   _restored = false;
   _onVis = null;
+  // Consecutive connect attempts that never reached `open`. Behind HTTPS this most
+  // likely means the auth cookie expired and the WS upgrade is now rejected (401);
+  // past a threshold we reload so the HTTP gate can redirect to /login (A4).
+  failedConnects = 0;
+  _opened = false;
 
   onConnect() {
     this.connect();
@@ -56,13 +61,19 @@ export class StudioConn extends A(HTMLElement) {
   connect() {
     if (this.ws) return;
     this.manualClose = false;
+    this._opened = false;
     this.pub("connMeta", "connecting…");
     let ws;
-    try { ws = new WebSocket(`ws://${location.host}`); }
+    // Match the page's scheme: a plain ws:// is blocked as mixed content behind
+    // HTTPS, which is how the Studio is served remotely (wss:// at the edge).
+    const scheme = location.protocol === "https:" ? "wss" : "ws";
+    try { ws = new WebSocket(`${scheme}://${location.host}`); }
     catch { this.pub("connState", false); this.scheduleReconnect(); return; }
     this.ws = ws;
     ws.onopen = () => {
       this.reconnectDelay = 250;
+      this._opened = true;
+      this.failedConnects = 0;
       this.pub("connState", true);
       this.pub("connMeta", "studio · " + location.host);
       // Restore the view after a drop: the supervisor forgets a reconnecting
@@ -72,10 +83,20 @@ export class StudioConn extends A(HTMLElement) {
     ws.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch { return; } this.onMsg(m); };
     ws.onerror = () => { this.pub("connState", false); };
     ws.onclose = () => {
+      const opened = this._opened;
       this.ws = null;
       this.pub("connState", false);
       this.pub("connMeta", this.manualClose ? "disconnected" : "connection lost");
-      if (!this.manualClose) this.scheduleReconnect();
+      if (this.manualClose) return;
+      // A handshake that never opened, repeated, points at an expired cookie (the
+      // upgrade is rejected before `open`). Reload once we've backed off enough —
+      // GET / then redirects to /login — instead of looping the reconnect forever.
+      if (!opened && ++this.failedConnects >= 6 && typeof location !== "undefined") {
+        this.pub("connMeta", "session expired — reloading…");
+        location.reload();
+        return;
+      }
+      this.scheduleReconnect();
     };
   }
 

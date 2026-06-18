@@ -1,6 +1,7 @@
 import express from "express";
 import { WebSocketServer, WebSocket } from "ws";
 import { spawn } from "node:child_process";
+import crypto from "node:crypto";
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -197,9 +198,151 @@ function archProfileResolution(meta) {
   return out;
 }
 
+// ----------------------------------------------------------------------- auth
+//
+// A single-user gate for serving the Studio remotely (see doc/serving-remotely.md).
+// Everything that controls a mind flows over one WebSocket; the HTTP side only
+// serves assets. Browsers can't set headers on a WebSocket, but they DO send
+// same-origin cookies on the handshake — so a signed httpOnly cookie, set by a
+// login form, gates both the HTTP routes and the WS upgrade with no token plumbing
+// in the frontend.
+//
+// The cookie's value is a CONSTANT HMAC over a fixed message: a valid cookie is
+// simply "signed by someone who knew the secret", so no session store is needed.
+// Auth is opt-in: with no STUDIO_TOKEN the Studio stays an open localhost dev tool
+// (the default). When a token is set we refuse to start without a signing secret,
+// so we never sign with a weak default.
+
+const STUDIO_TOKEN = process.env.STUDIO_TOKEN || "";
+const STUDIO_SESSION_SECRET = process.env.STUDIO_SESSION_SECRET || "";
+const AUTH_ON = !!STUDIO_TOKEN;
+const COOKIE_NAME = "studio_session";
+const COOKIE_MAX_AGE = 30 * 24 * 60 * 60;            // 30 days, in seconds
+const LOGIN_LOCK_THRESHOLD = 5;                      // failed attempts before a lockout
+const LOGIN_LOCK_MS = 30000;                         // how long the lockout lasts
+const LOGIN_DELAY_MS = 250;                          // fixed cost per attempt (slows brute force)
+
+if (AUTH_ON && !STUDIO_SESSION_SECRET) {
+  console.error("[studio] STUDIO_TOKEN is set but STUDIO_SESSION_SECRET is not — refusing to start with a weak signing key. Set both (see doc/serving-remotely.md).");
+  process.exit(1);
+}
+if (AUTH_ON) log("auth enabled — the API is gated by STUDIO_TOKEN");
+
+/** The session cookie's value: a constant HMAC over a fixed message. A valid
+ *  cookie therefore proves only "signed by the secret holder" — no per-session
+ *  state to store, and rotating the secret invalidates every issued cookie. */
+const sessionValue = () => crypto.createHmac("sha256", STUDIO_SESSION_SECRET).update("studio-v1").digest("hex");
+
+/** Constant-time compare that tolerates length mismatch without throwing. */
+function safeEqual(a, b) {
+  const ab = Buffer.from(String(a));
+  const bb = Buffer.from(String(b));
+  if (ab.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ab, bb);
+}
+
+/** Pull one cookie's value out of a raw Cookie header (no new dependency). */
+function readCookie(header, name) {
+  for (const part of String(header || "").split(";")) {
+    const i = part.indexOf("=");
+    if (i < 0) continue;
+    if (part.slice(0, i).trim() === name) return decodeURIComponent(part.slice(i + 1).trim());
+  }
+  return null;
+}
+
+/** Does this request (HTTP or WS handshake) carry a valid session cookie? With
+ *  auth off, everything is allowed — the localhost dev default. */
+function hasValidSession(req) {
+  if (!AUTH_ON) return true;
+  const got = readCookie(req.headers.cookie, COOKIE_NAME);
+  return got != null && safeEqual(got, sessionValue());
+}
+
+const sessionCookie = () => `${COOKIE_NAME}=${sessionValue()}; HttpOnly; Secure; SameSite=Lax; Max-Age=${COOKIE_MAX_AGE}; Path=/`;
+const clearedCookie = () => `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Lax; Max-Age=0; Path=/`;
+
+const loginFails = new Map();                        // ip -> { count, until }
+const clientIp = req => {
+  const xff = req.headers["x-forwarded-for"];
+  if (xff) return String(xff).split(",")[0].trim();
+  return (req.socket && req.socket.remoteAddress) || "unknown";
+};
+
+function loginPage(note) {
+  const msg = note ? `<p class="note">${note}</p>` : "";
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Studio — sign in</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#0a0d13;color:#e9e7e2;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+       min-height:100vh;display:flex;align-items:center;justify-content:center}
+  form{background:#10141d;border:1px solid rgba(235,235,245,.10);border-radius:14px;padding:28px 26px;width:min(92vw,340px)}
+  h1{font-size:1rem;font-weight:600;letter-spacing:.02em;margin-bottom:4px}
+  .sub{color:#6b7387;font-size:.8rem;margin-bottom:18px}
+  label{display:block;font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:#6b7387;margin-bottom:7px;font-weight:600}
+  input{width:100%;background:#141926;border:1px solid rgba(235,235,245,.10);color:#e9e7e2;border-radius:8px;
+        padding:10px 11px;font-size:.92rem;outline:none}
+  input:focus{border-color:rgba(183,156,240,.5)}
+  button{margin-top:16px;width:100%;background:rgba(183,156,240,.16);border:1px solid rgba(183,156,240,.4);color:#cdbcf6;
+         border-radius:8px;padding:10px;cursor:pointer;font-size:.92rem}
+  button:hover{background:rgba(183,156,240,.28)}
+  .note{color:#f2c879;font-size:.8rem;margin-bottom:14px}
+</style></head>
+<body><form method="POST" action="/login">
+  <h1>Meditator Studio</h1>
+  <div class="sub">This instance is protected. Enter the password to continue.</div>
+  ${msg}
+  <label for="p">Password</label>
+  <input id="p" name="password" type="password" autocomplete="current-password" autofocus>
+  <button type="submit">Sign in</button>
+</form></body></html>`;
+}
+
+const delay = ms => new Promise(r => setTimeout(r, ms));
+
+/** GET /login — the password form. Allowed through the gate. */
+function serveLogin(_req, res) {
+  if (!AUTH_ON) return res.redirect("/");
+  res.status(200).type("html").send(loginPage(""));
+}
+
+/** POST /login — verify the password, set the cookie, redirect home. Guarded by a
+ *  fixed per-attempt delay and a per-IP lockout (enough for a single-user tool). */
+async function handleLogin(req, res) {
+  if (!AUTH_ON) return res.redirect("/");
+  const ip = clientIp(req);
+  const rec = loginFails.get(ip);
+  if (rec && rec.until > Date.now()) return res.status(429).type("html").send(loginPage("Too many attempts — wait a moment, then try again."));
+  await delay(LOGIN_DELAY_MS);
+  const ok = safeEqual((req.body && req.body.password) || "", STUDIO_TOKEN);
+  if (!ok) {
+    const count = (rec ? rec.count : 0) + 1;
+    loginFails.set(ip, { count, until: count >= LOGIN_LOCK_THRESHOLD ? Date.now() + LOGIN_LOCK_MS : 0 });
+    return res.status(401).type("html").send(loginPage("Wrong password."));
+  }
+  loginFails.delete(ip);
+  res.setHeader("Set-Cookie", sessionCookie());
+  res.redirect("/");
+}
+
+/** Mounted before the static handlers: missing/invalid session → /login. */
+function requireAuth(req, res, next) {
+  if (hasValidSession(req)) return next();
+  res.redirect("/login");
+}
+
 // --------------------------------------------------------------- the clients
 
 const app = express();
+app.use(express.urlencoded({ extended: false }));    // parse the login form POST
+// The login routes are reachable without a session; the gate below protects the
+// rest — static assets, images, the entry page, and (via verifyClient) the WS.
+app.get("/login", serveLogin);
+app.post("/login", handleLogin);
+app.post("/logout", (_req, res) => { res.setHeader("Set-Cookie", clearedCookie()); res.redirect("/login"); });
+app.use(requireAuth);
 app.use(express.static(path.dirname(fileURLToPath(import.meta.url))));
 // Serve the Amanita framework source to the browser so the Studio UI (an Amanita
 // component mesh) can `import A from "amanita"` build-free, via an importmap in
@@ -221,8 +364,15 @@ app.get("/studio/image/:id", (req, res) => {
 app.get("/COVENANT.md", (_req, res) =>
   res.sendFile(path.join(ROOT, "COVENANT.md"), { headers: { "Content-Type": "text/plain; charset=utf-8" } }));
 app.get("/", (_req, res) => res.sendFile(path.join(path.dirname(fileURLToPath(import.meta.url)), "studio.html")));
-const httpServer = app.listen(STUDIO_PORT, () => log(`Studio at http://localhost:${STUDIO_PORT}`));
-const wss = new WebSocketServer({ server: httpServer });
+// Bind to loopback only: cloudflared connects locally, so the app must never
+// listen on a public interface — the tunnel becomes the only way in (A3).
+const httpServer = app.listen(STUDIO_PORT, "127.0.0.1", () => log(`Studio at http://localhost:${STUDIO_PORT}`));
+// Gate the WebSocket upgrade — the real security boundary. The handshake carries
+// the same same-origin cookie the HTTP gate checks; reject with 401 otherwise.
+const wss = new WebSocketServer({
+  server: httpServer,
+  verifyClient: (info, done) => hasValidSession(info.req) ? done(true) : done(false, 401, "Unauthorized"),
+});
 
 const clients = new Set();
 
