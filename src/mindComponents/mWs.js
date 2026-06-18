@@ -342,7 +342,10 @@ export class MWs extends MBaseComponent {
       this._emit("mind", "frame", {
         frameKind: payload.kind || "continue",
         system: (payload.system || "").slice(0, 8000),
-        frame: (payload.frame || "").slice(0, 8000),
+        // The thought in progress now rides as the assistant prefill, not a `frame`
+        // string. Surface it in the same field so the studio still shows the tail
+        // the model was asked to continue.
+        frame: (payload.prefill || payload.frame || "").slice(0, 8000),
         prefix: payload.prefix || null,
       });
     });

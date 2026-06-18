@@ -75,16 +75,21 @@ export class MStream extends MBaseComponent {
     }
 
     async _startBurst(payload, generation) {
-        const { system, frame, prefix, dedupe, burstTokens } =
+        const { system, prefill, frame, prefix, dedupe, burstTokens } =
             typeof payload === 'string' ? { frame: payload } : payload
 
         this.burstIndex += 1
         const burstIndex = this.burstIndex
         let burstChars = 0
 
+        // The frame is a single system message. The thought in progress, when there
+        // is one, is the mind's OWN prior turn (assistant) which the model continues
+        // — never a `user` turn, since no user is present. `frame` (a plain string
+        // payload, or a legacy {frame}) is only a fallback when nothing precedes it.
         const messages = []
         if (system) messages.push({ role: 'system', content: system })
-        messages.push({ role: 'user', content: frame })
+        if (prefill) messages.push({ role: 'assistant', content: prefill })
+        else if (frame) messages.push({ role: 'user', content: frame })
 
         // The bridge (or any injected text) physically enters the stream:
         // it becomes part of the monologue, the tail, the memory, the journal.
@@ -99,6 +104,7 @@ export class MStream extends MBaseComponent {
             const burst = await chatStream({
                 model: resolveModelRef(this.attr("model") || this.env("model"), "voice"),
                 messages,
+                continueFinal: Boolean(prefill),
                 maxTokens: Number(burstTokens || this.attr("burstTokens") || 350),
                 temperature: Number(this.attr("temperature") || 0.9),
             })

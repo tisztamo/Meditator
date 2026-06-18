@@ -316,7 +316,7 @@ export class MMind extends MBaseComponent {
             thoughtInProgress = tail + "\n" + bridge + " "
         }
 
-        const system = this._identity()
+        const identity = this._identity()
         const sections = []
         if (story) sections.push(`## How I got here (older memory, compressed)\n${story}`)
         if (recent) sections.push(`## Recently (compressed)\n${recent}`)
@@ -324,24 +324,32 @@ export class MMind extends MBaseComponent {
             sections.push(`## This just happened\n${stimuli.map(s => `- ${s.renderForFrame()}`).join("\n")}`)
         }
 
-        let instruction
+        // The whole frame is ONE system message — no `user` turn, because no user
+        // is present; this is a mind thinking to itself. The thought in progress is
+        // not a section of that message: it is carried as the mind's OWN prior turn
+        // (an assistant message, the `prefill`) which the model is asked to continue.
+        // So the instruction is placed here, ahead of the tail, never after it — the
+        // request then ends on the last token the mind actually thought, and the
+        // model has nothing to answer, only a sentence to keep writing.
+        let instruction, prefill
         if (thoughtInProgress) {
-            sections.push(`## My thought in progress\n…${thoughtInProgress}`)
             instruction = stimuli.length
-                ? `Continue the inner monologue from exactly where it leaves off, letting what just happened genuinely enter and redirect the thought. If attention has truly moved, you may leave the unfinished sentence behind. Do not repeat or summarize what is already written. Output only the continuation.`
-                : `Continue the inner monologue from exactly where it leaves off. Do not repeat or summarize what is already written. Output only the continuation.`
+                ? `Your inner monologue is already underway; its most recent words are given as your own turn that follows. Continue it from exactly where it leaves off, letting what just happened genuinely enter and redirect the thought. If attention has truly moved, you may leave the unfinished sentence behind. Do not repeat or summarize what is already written; write only the continuation.`
+                : `Your inner monologue is already underway; its most recent words are given as your own turn that follows. Continue it from exactly where it leaves off. Do not repeat or summarize what is already written; write only the continuation.`
+            prefill = thoughtInProgress
         } else {
             instruction = stimuli.length
-                ? `Begin the inner monologue now, starting from what just happened. Output only the monologue.`
-                : `Begin the inner monologue now, starting from whatever is most alive in you. Output only the monologue.`
+                ? `Begin the inner monologue now, starting from what just happened. Write only the monologue.`
+                : `Begin the inner monologue now, starting from whatever is most alive in you. Write only the monologue.`
         }
 
-        const frame = sections.join("\n\n") + (sections.length ? "\n\n" : "") + instruction
+        const system = [identity, ...sections, instruction].join("\n\n")
 
-        log.debug("Attention frame:\n" + frame)
+        log.debug("Attention frame (system):\n" + system
+            + (prefill ? "\n\n--- prefill (assistant turn, continued) ---\n…" + prefill.slice(-400) : ""))
         const payload = {
             system,
-            frame,
+            prefill,
             prefix,
             dedupe: thoughtInProgress.slice(-100),
             kind: stimuli.length ? "redirect" : "continue",

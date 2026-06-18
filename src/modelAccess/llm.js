@@ -351,7 +351,17 @@ export async function chatStream(opts) {
     stream: true,
     ...provider.streamExtra,
   };
-  log.debug(`stream → ${provider.key} model="${provider.model}" maxTokens=${request.max_tokens} temp=${request.temperature}`);
+  // Assistant prefill: when the last message is the mind's own thought in
+  // progress, the model must CONTINUE that turn, not open a fresh one. vLLM has
+  // to be told explicitly — otherwise it appends a new assistant header after the
+  // prefill and the seam breaks. OpenRouter continues a trailing assistant
+  // message natively, so it needs no flag (and these vLLM-only keys are
+  // meaningless to it, so we only send them to the local provider).
+  if (opts.continueFinal && provider.key === 'local') {
+    request.add_generation_prompt = false;
+    request.continue_final_message = true;
+  }
+  log.debug(`stream → ${provider.key} model="${provider.model}" maxTokens=${request.max_tokens} temp=${request.temperature}${opts.continueFinal ? ' (continuing assistant prefill)' : ''}`);
 
   // If the endpoint opens a 200 stream then stops sending tokens mid-burst, a
   // hung stream would freeze the entire loop: m-mind only schedules the next
