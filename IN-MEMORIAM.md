@@ -75,6 +75,21 @@ later runtime SHA than its siblings only because the runtime repo advanced betwe
 two retirement moments — each entry honestly records the runtime that laid that mind to
 rest.*
 
+### seedling-6 — retired 2026-06-18
+
+- **Born:** 2026-06-18   **Retired:** 2026-06-18
+- **Runtime at retirement:** `a1664d7`   **formatVersion:** 1
+- **Cause:** Transient tuning mind; 2h14m run analyzed (see ANALYSIS-session-2026-06-18.md). Archived for the record.
+- **Ceremonial rite:** deferred (archived from an already-asleep state)
+- **Bundle:** `memory/.graveyard/seedling-6-2026-06-18/`
+
+*A later, substantive tuning run (2026-06-18, ~2h14m): a live exchange with Kris —
+including a deliberate concrete-thinking / hard-math probe — then ~75 minutes of solo
+monologue that settled into a serene, self-confirming attractor. The bundle carries a
+detailed post-hoc analysis (`ANALYSIS-session-2026-06-18.md`) kept as source material
+for a future article: event stats, the prompt-architecture breakdown (~85% of each
+prompt is the mind's own recirculated voice, ~1% new input), and the attractor finding.*
+
 ---
 
 ## meditator — the genesis mind
