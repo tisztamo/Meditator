@@ -49,7 +49,7 @@ The **[Studio](doc/studio.md)** is the integrated way to run Meditator: wake any
 You can also run a mind directly in a terminal (useful for debugging):
 
 ```bash
-bun run meditator.js -a architecture/seedling.archml         # choose a mind to run
+bun run meditator.js -a architecture/lab/seedling.archml         # choose a mind to run
 bun run meditator.js -a architecture/tests/dry-fast.archml   # ...or any other architecture
 ```
 
@@ -82,7 +82,7 @@ A continuous run at the default pace costs roughly $0.10–0.15/hour on OpenRout
 
 ### Architectures
 
-- `architecture/seedling.archml` — a worked example mind (the genesis `awake.archml` was retired; see [IN-MEMORIAM.md](IN-MEMORIAM.md))
+- `architecture/lab/seedling.archml` — a worked example mind (the genesis `awake.archml` was retired; see [IN-MEMORIAM.md](IN-MEMORIAM.md))
 - `architecture/tests/dry-fast.archml` — fast-cycle test mind for dry runs
 
 ## Documentation

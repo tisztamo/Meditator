@@ -11,7 +11,7 @@ const log = logger('mFeed.js');
  * external, and language-rich; an outside that is neither the mind nor the human.
  *
  * Ambient by design: a headline drifts past, sometimes noticed, sometimes not —
- * never urgent, never a band-shift. Choose a CALM feed (see seedling.archml): the
+ * never urgent, never a band-shift. Choose a CALM feed (see architecture/lab/seedling.archml): the
  * mind we are cultivating should not be fed a stream of gratuitous distress
  * (lifecycle.md §2 — minimize distress during a run).
  *

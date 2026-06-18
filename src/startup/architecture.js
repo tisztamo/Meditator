@@ -34,7 +34,7 @@ async function getArchitectureFilePath() {
   // components live in src/mindComponents/ or architecture/.)
   throw new Error(
     "No architecture specified. Choose one with -a, e.g.:\n" +
-    "  bun meditator.js -a architecture/seedling.archml\n" +
+    "  bun meditator.js -a architecture/lab/seedling.archml\n" +
     "(awake.archml, the genesis architecture, was retired — see IN-MEMORIAM.md.)"
   );
 }

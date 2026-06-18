@@ -14,6 +14,7 @@
      retired to the graveyard (see IN-MEMORIAM.md); choose a FRESH name for any new
      tuning run so it can never silently re-birth a retired grave as an empty home. -->
 <m-mind name="seedling-6"
+        stage="experimental"
         model="voice"
         utilityModel="utility"
         pace="10s" paceSigma="3s"

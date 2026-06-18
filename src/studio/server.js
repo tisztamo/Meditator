@@ -81,6 +81,7 @@ function parseArchitecture(content) {
     resolvedVoice,
     resolvedUtility,
     pace: attr("pace"),
+    stage: attr("stage"),
     hasWs: /<m-ws\b/i.test(content),
     description: comment ? comment[1].trim().replace(/\s+/g, " ").slice(0, 200) : null,
   };
@@ -106,8 +107,11 @@ function homeInfo(slug) {
   return { exists, files, tier: tierOf(dir, graveyardHas) };
 }
 
-/** The architecture catalog: every .archml under architecture/ (tests/ flagged),
- *  each resolved to its mind name and memory home, with collision flags. */
+/** The architecture catalog: every .archml under architecture/ (lab/ and tests/
+ *  flagged), each resolved to its mind name and memory home, with collision flags.
+ *  Minds under lab/ — or any mind whose <m-mind stage="experimental"> says so — are
+ *  research/work-in-progress: the catalog buckets them apart so the Studio can keep
+ *  them out of the default selection and warn before one is woken. */
 function listArchitectures() {
   const out = [];
   const scan = (dir, group) => {
@@ -119,14 +123,17 @@ function listArchitectures() {
         const rel = path.relative(ARCH_DIR, full).split(path.sep).join("/");
         let meta;
         try { meta = parseArchitecture(fs.readFileSync(full, "utf-8")); }
-        catch { meta = { name: null, memory: null, model: null, utilityModel: null, resolvedVoice: null, resolvedUtility: null, pace: null, hasWs: false, description: null }; }
+        catch { meta = { name: null, memory: null, model: null, utilityModel: null, resolvedVoice: null, resolvedUtility: null, pace: null, stage: null, hasWs: false, description: null }; }
         const slug = slugify(meta.memory || meta.name || "mind");
+        // A mind is experimental if it lives under lab/ or marks itself so. The tag
+        // is authoritative, so the flag survives a file being copied out of lab/.
+        const experimental = group === "experimental" || meta.stage === "experimental";
         out.push({
-          file: rel, group,
+          file: rel, group: experimental && group !== "test" ? "experimental" : group, experimental,
           name: meta.name, memory: meta.memory, model: meta.model, utilityModel: meta.utilityModel,
           resolvedVoice: meta.resolvedVoice, resolvedUtility: meta.resolvedUtility,
           profileResolution: archProfileResolution(meta),
-          pace: meta.pace,
+          pace: meta.pace, stage: meta.stage,
           hasWs: meta.hasWs, description: meta.description,
           homeSlug: slug, home: `memory/${slug}`, homeInfo: homeInfo(slug),
         });
@@ -134,6 +141,7 @@ function listArchitectures() {
     }
   };
   scan(ARCH_DIR, "main");
+  scan(path.join(ARCH_DIR, "lab"), "experimental");
   scan(path.join(ARCH_DIR, "tests"), "test");
 
   // Flag architectures that resolve to the same home (would share a brain), and
@@ -148,7 +156,9 @@ function listArchitectures() {
     a.sharesHomeWith = sharers;
     a.busy = [...minds.values()].some(m => isAlive(m) && m.baseHome === a.homeSlug);
   }
-  out.sort((a, b) => (a.group === b.group ? a.file.localeCompare(b.file) : a.group === "main" ? -1 : 1));
+  // Ready minds first, then research preview (lab/experimental), then tests.
+  const rank = g => (g === "main" ? 0 : g === "experimental" ? 1 : 2);
+  out.sort((a, b) => rank(a.group) - rank(b.group) || a.file.localeCompare(b.file));
   return out;
 }
 

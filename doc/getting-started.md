@@ -46,7 +46,7 @@ need `--debug` logs:
 
 ```bash
 # choose a mind to run (there is no default)
-bun run meditator.js -a architecture/seedling.archml
+bun run meditator.js -a architecture/lab/seedling.archml
 
 # ...or any other architecture
 bun run meditator.js -a architecture/tests/dry-fast.archml

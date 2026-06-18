@@ -3,7 +3,7 @@
 Every component is a custom element loaded from `src/mindComponents/`, built on
 [Amanita](https://www.npmjs.com/package/amanita). This page lists each one's
 attributes (with defaults), the pub/sub topics it speaks, and the DOM events it
-raises. The components wired into the example mind (`architecture/seedling.archml`)
+raises. The components wired into the example mind (`architecture/lab/seedling.archml`)
 come first; [legacy and demo components](#legacy-and-demo-components) are at the end.
 
 ## Conventions

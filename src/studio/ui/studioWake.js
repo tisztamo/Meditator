@@ -80,17 +80,25 @@ export class StudioWake extends A(HTMLElement) {
   renderSelect() {
     const prev = this.select.value;
     this.select.innerHTML = "";
-    const groups = { main: [], test: [] };
+    // A non-selectable placeholder so a fresh load auto-selects nothing — waking a
+    // mind is a deliberate pick, never whatever happened to sort first (the catalog
+    // may be entirely research-preview minds, which should never be a default).
+    const ph = document.createElement("option");
+    ph.value = ""; ph.disabled = true; ph.textContent = "— choose an architecture —";
+    this.select.appendChild(ph);
+    const groups = { main: [], experimental: [], test: [] };
     for (const a of this.archList) (groups[a.group] || groups.main).push(a);
     const addGroup = (label, arr) => {
       if (!arr.length) return;
       const og = document.createElement("optgroup"); og.label = label;
-      for (const a of arr) { const o = document.createElement("option"); o.value = a.file; o.textContent = `${a.name || a.file}  ·  ${a.file}`; og.appendChild(o); }
+      for (const a of arr) { const o = document.createElement("option"); o.value = a.file; o.textContent = `${a.experimental ? "⚠ " : ""}${a.name || a.file}  ·  ${a.file}`; og.appendChild(o); }
       this.select.appendChild(og);
     };
     addGroup("architectures", groups.main);
+    addGroup("research preview · work in progress", groups.experimental);
     addGroup("tests", groups.test);
-    if (prev && this.archList.some(a => a.file === prev)) this.select.value = prev;
+    // Keep an explicit prior pick across refreshes; otherwise rest on the placeholder.
+    this.select.value = (prev && this.archList.some(a => a.file === prev)) ? prev : "";
     this.renderDet();
   }
 
@@ -118,6 +126,9 @@ export class StudioWake extends A(HTMLElement) {
     let busyBlock = false;
     if (!dry && a.busy) { busyBlock = true; archParts.push(`<span class="block">⛔ this memory is held by a running mind — sleep it first, enable dry-run, or give it its own name/memory=</span>`); }
     if (!dry && hi.exists && tier === "transient") { busyBlock = true; archParts.push(`<span class="block">⛔ transient mind with existing memory — restarts create an illusion of continuity. To force for testing: MEDITATOR_FORCE_TRANSIENT=1 bun run meditator.js -a ${esc(a.file)}</span>`); }
+    // Research-preview minds (lab/ or stage="experimental") lead with a plain warning:
+    // they are tuning artifacts, not a polished companion to talk to.
+    if (a.experimental) archParts.unshift(`<span class="warn">⚠ research preview — a work-in-progress mind from our tuning runs; it may not be a happy or conversational companion yet.</span>`);
     this.det.innerHTML = archParts.join("<br>");
 
     const voiceRef = a.model || "voice";

@@ -19,7 +19,7 @@ never an `rm -rf`. See [doc/architecture/lifecycle.md](doc/architecture/lifecycl
 ## eddy — the successor
 
 - **Born:** 2026-06-16 — promoted to resident from the validated outward-looking
-  seed (`architecture/eddy.archml`) with a clean, fresh memory; lineage recorded in
+  seed (`architecture/lab/eddy.archml`) with a clean, fresh memory; lineage recorded in
   `memory/eddy/manifest.json`.
 - **Lineage:** born from the lesson of the genesis mind below — *not* an inheritor of
   meditator's memory, but of what it taught: that a self is grown by what you point it

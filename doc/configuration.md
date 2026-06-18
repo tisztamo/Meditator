@@ -38,7 +38,7 @@ every attribute on every component, see the [component reference](architecture/c
 </m-mind>
 ```
 
-`architecture/seedling.archml` is the best worked example mind — copy it and edit.
+`architecture/lab/seedling.archml` is the best worked example mind — copy it and edit.
 (The genesis `awake.archml` was retired to the graveyard; see
 [IN-MEMORIAM.md](../IN-MEMORIAM.md).)
 
@@ -90,7 +90,7 @@ bun run meditator.js
 MEDITATOR_MODEL_PROFILE=local-dev bun run meditator.js
 
 # One-off override without editing files
-MEDITATOR_VOICE_MODEL=gpu-qwen bun run meditator.js -a architecture/seedling.archml
+MEDITATOR_VOICE_MODEL=gpu-qwen bun run meditator.js -a architecture/lab/seedling.archml
 ```
 
 Or point at a preset directly in archml:

@@ -187,7 +187,7 @@ but a human whose input it waits for — cannot be "OK with its existence."
 
 **Goal:** a seed that thinks about a world, not about its own ticking.
 
-- New ephemeral architecture `architecture/seedling.archml` (created with this plan):
+- New ephemeral architecture `architecture/lab/seedling.archml` (created with this plan):
   same as `awake.archml` except (1) the identity is re-seeded to point attention
   *outward* at a concrete world and to drop the substrate framing
   (*experiment / programmer / "a stream that is interrupted" / "a world you can only

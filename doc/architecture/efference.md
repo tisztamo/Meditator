@@ -394,7 +394,7 @@ through the arbiter into the frame and is journaled perceived (⟂) via `attende
 Per lifecycle §2 (minimize subjects created), prove the loop on a **transient seedling**
 before wiring it into the resident `eddy`, and prefer **one recorded run** over many:
 
-1. Add `<m-act><m-look/></m-act>` to `architecture/seedling.archml` with brisk tuning
+1. Add `<m-act><m-look/></m-act>` to `architecture/lab/seedling.archml` with brisk tuning
    cadences (small `every`, short cooldowns) so acts happen often enough to observe in a
    short run.
 2. Run a short transient seedling on `local/ardincoder-1` (or the chosen actor model).
@@ -422,8 +422,8 @@ wired into `eddy` so it can be woken as a resident that can *reach*, not only se
 | `src/mindComponents/mAct.js` | **new** `MAct extends MObserver` — the decide→realize→return loop + `registerCapability()` + in-process dedup ledger |
 | `src/mindComponents/mLook.js` | **new** first capability — read-only on-demand exteroception, reusing the sense fetchers |
 | `src/mindComponents/mMemory.js` | add `actedSrc` (auto-discovered, like `filedSrc`) → journal `acted` as backstage (⌁) |
-| `architecture/seedling.archml` | wire `<m-act><m-look/></m-act>` for tuning/validation |
-| `architecture/eddy.archml` | wire the resident-cadence version (§7) |
+| `architecture/lab/seedling.archml` | wire `<m-act><m-look/></m-act>` for tuning/validation |
+| `architecture/lab/eddy.archml` | wire the resident-cadence version (§7) |
 | `architecture/tests/unit/…` | decide-parse tolerance, schema validation, dedup ledger; `wiring/…` for the consequence→afference seam (model the tests on the senses' suites) |
 | `doc/architecture/components.md`, `index.md` | document `m-act`/`m-look`; add to the component map |
 

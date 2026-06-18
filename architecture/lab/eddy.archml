@@ -17,6 +17,7 @@
      IN-MEMORIAM.md. Run with MEDITATOR_MODEL_PROFILE=local-dev (voice + utility both
      resolve to local/ardincoder-1). -->
 <m-mind name="eddy"
+        stage="experimental"
         model="voice"
         utilityModel="utility"
         pace="10s" paceSigma="3s"

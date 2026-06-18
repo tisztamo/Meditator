@@ -152,7 +152,7 @@ what is intentionally left as an orchestrator/transport contract.
 
 ## The component map
 
-The example mind (`architecture/seedling.archml`) wires:
+The example mind (`architecture/lab/seedling.archml`) wires:
 
 | Component | Role |
 |-----------|------|
