@@ -32,8 +32,10 @@ const log = logger('mNote.js');
  *   - name: the tool-call function name (default "note")
  *   - dir: the notes directory (default: the mind's vault home `notes/`)
  *   - maxChars: cap on a single note's length (default 1200)
- *   - salience: salience of the "I set this down" consequence (default 0.45 — quiet;
- *     a kept thought is a mild, peripheral sensation of having acted)
+ *   - salience: salience of the "I set this down" consequence (default 0.6 — a thing
+ *     the mind deliberately DID should be felt a touch more than ambient weather, so
+ *     its return arc reliably lands even while a conversation is in flight; it clears
+ *     a tired mind's arousal-raised bar too)
  */
 export class MNote extends MBaseComponent {
     onConnect() {
@@ -96,7 +98,7 @@ export class MNote extends MBaseComponent {
         const echo = kept.length > 140 ? kept.slice(0, 140).trimEnd() + "…" : kept
         return {
             experience: `I set this down to keep, somewhere I can find it again${heading ? `, under "${heading}"` : ""}: “${echo}”`,
-            salience: Number(this.attr("salience") || 0.45),
+            salience: Number(this.attr("salience") || 0.6),
             data: { title: heading || null, chars: kept.length },
         }
     }

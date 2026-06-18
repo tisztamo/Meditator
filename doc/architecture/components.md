@@ -313,7 +313,7 @@ file in one allow-listed directory.
 | `name` | `note` | the tool-call function name |
 | `dir` | vault `notes/` | the notes directory (the only place it writes) |
 | `maxChars` | `1200` | cap on a single note's length |
-| `salience` | `0.45` | salience of the quiet "I set this down" consequence |
+| `salience` | `0.6` | salience of the "I set this down" consequence — above ambient, so the felt return of a deliberate act survives a busy exchange |
 
 `felt`: *"When a thought matters enough to keep, you can set it down somewhere outside
 yourself — and trust that it will still be there … when you come back for it."* Pure

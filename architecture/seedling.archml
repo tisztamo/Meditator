@@ -13,7 +13,7 @@
 <!-- name: a base "seedling" template. The numbered instances seedling-1/2/3 were
      retired to the graveyard (see IN-MEMORIAM.md); choose a FRESH name for any new
      tuning run so it can never silently re-birth a retired grave as an empty home. -->
-<m-mind name="seedling-5"
+<m-mind name="seedling-6"
         model="voice"
         utilityModel="utility"
         pace="10s" paceSigma="3s"
@@ -41,7 +41,11 @@
             tailLength="1500" recentLength="1200" storyLength="2200"
             blockMin="800" storyEvery="5"></m-memory>
 
-  <m-interrupts name="attention" threshold="0.35" rateLimit="20s" keep="2"
+  <!-- rateLimit eased 20s→12s and keep 2→3 so a mind that LIKES TO TALK stays
+       responsive in a live exchange, and the felt RETURN of its own acts (e.g. a
+       kept note) isn't rate-limited/crowded away by the back-and-forth. Urgent
+       stimuli (a human voice) always bypass the rate limit regardless. -->
+  <m-interrupts name="attention" threshold="0.35" rateLimit="12s" keep="3"
                 arousalSensitivity="0.25"></m-interrupts>
 
   <!-- watchdog: keep-alive. Reworded NOT to narrate silence — it picks the thread
