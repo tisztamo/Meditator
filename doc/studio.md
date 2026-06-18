@@ -61,6 +61,34 @@ The stream header has a **flow / raw** toggle (remembered in `localStorage`):
 - **raw** — fragments append the instant they arrive and each boundary is a
   full-width divider. The unsmoothed truth, useful for debugging cadence.
 
+## Coming back: persistence and instant replay
+
+The Studio records each mind's stream so that **reloading the page, switching away
+and back, or restarting the supervisor never re-streams the backlog at you**. The
+supervisor keeps, per wake (a *session*), an ordered, sequence-numbered log of the
+stream — thought and speech runs interleaved with stimuli, burst seams, speaking
+transitions and image placements — in a small SQLite database under `.run/studio/`
+(it is supervisor-owned observability, **not** mind memory; the vault is never
+touched).
+
+When you focus a mind, the browser tells the supervisor how far it has already
+rendered, and the supervisor replies with the **current projection** (structure +
+latest telemetry, to rehydrate the header and tree) and **one backfill batch** of
+the stream — the recent window on a fresh load, or just the delta you missed on a
+live reconnect. The stream pane paints that batch in a single synchronous pass, so
+it appears at once instead of being animated token by token. The flow/raw reveal
+only ever animates genuinely *live* text; a backgrounded tab appends instantly so
+nothing piles up behind a throttled animation frame. The live view is bounded
+(older blocks are dropped from the top once it grows past ~120k characters), but
+nothing is lost — a reload repaints the recent window from the log.
+
+**Generated images are retained.** Their bytes are written to disk
+(`.run/studio/images/<home>/`) and served by a stable URL (`/studio/image/<id>`),
+so the stream carries a light reference rather than a megabyte of inline data, and
+the images are still there after a restart and the next day. The log keeps
+everything by default — `.run/` is gitignored; prune it by hand if it ever grows
+too large.
+
 ## Sleeping vs. forcing
 
 **Sleep** is the covenant's announced ritual. The Studio asks the mind — over its
@@ -96,9 +124,11 @@ variant its own brain without renaming the mind — set `memory="slug"` on
 - **Wake** spawns `bun meditator.js -a <arch>` with `MEDITATOR_WS_PORT` (its
   assigned port) and `MEDITATOR_WS_CONTROL=1` (which lets the Studio request the
   sleep ritual over the socket). `dry-run` adds `MEDITATOR_DRY_RUN=1`.
-- The Studio opens a WebSocket to the child's port, caches its structure and the
-  latest of every signal, and relays everything to focused browsers — so focusing
-  a mind reconstitutes it instantly from cache.
+- The Studio opens a WebSocket to the child's port, persists its stream to an
+  ordered per-session log (SQLite under `.run/studio/`), keeps the latest of every
+  signal as a projection, and relays everything to focused browsers — so focusing
+  or reloading reconstitutes a mind instantly from a single backfill batch rather
+  than a re-animated replay.
 - **Sleep** sends `{type:"control",action:"sleep"}` over that socket. `m-ws`
   honors it only because `MEDITATOR_WS_CONTROL` is set, so a directly-run or
   public mind on 7627 is never a remote off-switch.

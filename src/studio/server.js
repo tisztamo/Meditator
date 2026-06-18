@@ -6,6 +6,7 @@ import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { loadModelConfig, resolveModelRef, resolveModelRefForProfile, getActiveProfile, getResolvedRoles, listProfiles } from "../modelAccess/modelConfig.js";
 import { tierOf } from "../infrastructure/manifest.js";
+import { StudioStore, parseDataUrl } from "./store.js";
 
 await loadModelConfig();
 
@@ -40,6 +41,13 @@ const STUDIO_PORT = parseInt(process.env.STUDIO_PORT || "7600", 10);
 const PORT_BASE = 7627;                              // the public port; first woken mind takes it
 const PORT_SPAN = 64;
 const SLEEP_GRACE_MS = 60000;                        // how long a graceful sleep may take before Force is meaningful
+const BACKFILL_CHARS = 120000;                       // recent-window size a reconnecting client repaints at once
+const IMAGE_WEIGHT = 1500;                           // how much an image counts toward the backfill char budget
+
+// The Studio's telemetry store: a durable, ordered record of each mind's stream
+// plus a retained archive of generated images. Supervisor-owned observability —
+// it lives under .run/studio/ and never touches the memory vault.
+const store = new StudioStore();
 
 // ----------------------------------------------------------------- utilities
 
@@ -188,6 +196,16 @@ app.use(express.static(path.dirname(fileURLToPath(import.meta.url))));
 // studio.html. The package is pure relative-imported ESM, so static-serving its
 // src/ is enough; unused files (worker/*, stdlib) are simply never fetched.
 app.use("/amanita", express.static(path.join(ROOT, "node_modules", "amanita", "src")));
+// Serve a retained generated image by id. The stream carries only this small URL
+// (not the base64 data) so the DOM stays light, and the bytes persist on disk so
+// they are still here after a restart and the next day.
+app.get("/studio/image/:id", (req, res) => {
+  const img = store.getImage(req.params.id);
+  if (!img || !fs.existsSync(img.path)) return res.status(404).end();
+  res.setHeader("Content-Type", img.mime || "application/octet-stream");
+  res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+  res.sendFile(img.path);
+});
 // Serve the Covenant (repo root) so the Studio's startup dialog can link to it.
 // As text/plain so it opens inline in the browser instead of downloading.
 app.get("/COVENANT.md", (_req, res) =>
@@ -238,48 +256,59 @@ function handleClientMessage(client, msg) {
     case "force":   forceMind(d.id); break;
     case "dismiss": dismissMind(d.id); break;
     case "input":   speakTo(d.id, d.message); break;
-    case "focus":   focusClient(client, d.id); break;
+    case "focus":   focusClient(client, d.id, d.sinceSeq == null ? null : d.sinceSeq); break;
     case "refresh": sendJSON(client, { type: "architectures", data: { list: listArchitectures() } }); break;
   }
 }
 
-/** Merge a cached run of stream fragments into as few messages as possible:
- *  consecutive fragments of the same type (thought/speech) become one with their
- *  text concatenated. A reconnecting client then replays a couple of big inserts
- *  instead of thousands of tiny ones, so it catches up almost instantly. */
-function coalesceStream(stream) {
-  const out = [];
-  for (const msg of stream) {
-    const last = out[out.length - 1];
-    if (last && last.type === msg.type) {
-      last.data.content += (msg.data && msg.data.content) || "";
-    } else {
-      out.push({ type: msg.type, data: { ...(msg.data || {}), content: (msg.data && msg.data.content) || "" } });
-    }
+/** A persisted timeline row → the compact wire entry that studio-stream's
+ *  renderBatch paints synchronously. The ordering across kinds is preserved, so
+ *  thought/speech/stimuli/boundaries/images replay exactly as they happened. */
+function rowToWire(r) {
+  const p = r.payload ? JSON.parse(r.payload) : {};
+  switch (r.kind) {
+    case "thought":  return { k: "thought", t: r.text || "" };
+    case "speech":   return { k: "speech", t: r.text || "" };
+    case "boundary": return { k: "boundary", reason: p.reason };
+    case "stim":     return { k: "stim", t: r.text || "", cls: p.cls || null };
+    case "speaking": return { k: "speaking", on: !!p.on };
+    case "image":    return { k: "image", src: p.url || (r.image_id != null ? `/studio/image/${r.image_id}` : null), prompt: p.prompt || "" };
+    default:         return { k: r.kind, t: r.text || "" };
   }
-  return out;
 }
 
-function focusClient(client, id) {
-  client.focusedId = id;
+/**
+ * Reconstitute a focused mind for one client. The browser tells us how far it has
+ * already rendered (`sinceSeq`); we reply with the current projection (structure +
+ * latest status/telemetry, for the header and tree) and ONE backfill batch of the
+ * stream timeline — the recent tail on a fresh load (`sinceSeq == null`), or just
+ * the delta since `sinceSeq` on a live reconnect — both bounded so a long absence
+ * can't return a giant batch. The browser paints the batch in one synchronous pass
+ * (no animated re-stream), then live forwarding resumes. Answered per-client.
+ */
+function focusClient(client, id, sinceSeq) {
   const m = minds.get(id);
-  if (!m) return;
-  // Reconstitute the focused mind from cache: structure, last stream state, the
-  // latest snapshot of every telemetry kind, then the recent stream text.
-  sendJSON(client, { type: "focus-reset", data: { id } });
-  if (m.structure) sendJSON(client, { type: "mind", data: { id, msg: m.structure } });
-  if (m.lastStatus) sendJSON(client, { type: "mind", data: { id, msg: m.lastStatus } });
-  for (const msg of m.snapshots.values()) {
-    if (msg.type === "event" && msg.data?.process === "image" && msg.data?.kind === "generated") continue;
-    sendJSON(client, { type: "mind", data: { id, msg } });
+  if (!m) {
+    // Unknown mind (e.g. focus restored after a supervisor restart). Clear the
+    // client's replay-wait with an empty batch so it isn't stuck awaiting one.
+    client.focusedId = id;
+    sendJSON(client, { type: "backfill", data: { id, entries: [], lastSeq: sinceSeq || 0 } });
+    return;
   }
-  // Replay the recent stream as a few coalesced messages, not thousands of
-  // token-sized ones — otherwise a reconnecting client spends seconds parsing
-  // and re-rendering the backlog fragment by fragment before it catches up.
-  for (const msg of coalesceStream(m.recentStream)) sendJSON(client, { type: "mind", data: { id, msg } });
-  for (const msg of m.recentImages) sendJSON(client, { type: "mind", data: { id, msg } });
-  // backfill recent logs too
+  client.focusedId = null;             // hold live forwarding while we reconstruct
+  // 1. projection for the header/tree (latest-per-kind; sanitized — no base64).
+  sendJSON(client, { type: "state", data: { id, structure: m.structure, status: m.lastStatus, snapshots: [...m.snapshots.values()] } });
+  // 2. the stream timeline, tail or delta, plus the in-progress (unsealed) run.
+  const fresh = sinceSeq == null;
+  const rows = fresh ? store.tail(m.sessionId, BACKFILL_CHARS) : store.since(m.sessionId, sinceSeq, BACKFILL_CHARS);
+  const entries = rows.map(rowToWire);
+  if (m.pending && m.pending.text) entries.push({ k: m.pending.kind, t: m.pending.text });
+  const lastSeq = rows.length ? rows[rows.length - 1].seq : (sinceSeq || 0);
+  sendJSON(client, { type: "backfill", data: { id, entries, lastSeq } });
+  // 3. recent process logs (unchanged).
   for (const entry of m.logs) sendJSON(client, { type: "log", data: { id, stream: entry.s, line: entry.l } });
+  // 4. resume live forwarding to this client.
+  client.focusedId = id;
 }
 
 // ------------------------------------------------------------------- waking
@@ -336,13 +365,26 @@ function wake(file, dryRun, modelProfile, forceTransient) {
     windowsHide: true,
   });
 
+  const startedAt = new Date().toISOString();
+  const home = `memory/${baseHome}`;
+  const name = meta.name || slugify(meta.memory || "mind");
+  // Open a durable session for this wake, keyed by the mind's home (not the
+  // ephemeral id), so its stream and images are findable across restarts/days.
+  let sessionId = null;
+  try { sessionId = store.startSession({ home, mindName: name, archFile: file, modelProfile: profile, startedAt }); }
+  catch (e) { log(`store.startSession failed: ${e.message}`); }
+
   const m = {
-    id, file, name: meta.name || slugify(meta.memory || "mind"), dryRun, modelProfile: profile,
-    home: `memory/${baseHome}`, baseHome, hasWs: meta.hasWs,
-    port, child, state: "waking", since: new Date().toISOString(),
+    id, file, name, dryRun, modelProfile: profile,
+    home, baseHome, hasWs: meta.hasWs,
+    port, child, state: "waking", since: startedAt,
     energy: null, spent: null, detail: "waking…",
+    // Live window + telemetry. structure/lastStatus/snapshots are the projection
+    // (latest-per-kind) used to rehydrate the header/tree instantly on focus; the
+    // ordered stream timeline lives in the store, sealed run-by-run via `pending`.
     upstream: null, structure: null, lastStatus: null, snapshots: new Map(),
-    recentStream: [], recentChars: 0, recentImages: [], logs: [], stderrTail: [], sleepRequestedAt: null,
+    sessionId, seq: 0, pending: null, _replayGuard: false, _replayTimer: null,
+    logs: [], stderrTail: [], sleepRequestedAt: null,
   };
   minds.set(id, m);
   log(`waking ${id} ← ${file}  (port ${port}${port === PORT_BASE ? ", public" : ""}${dryRun ? ", dry-run" : ""}, profile ${profile})  → memory/${baseHome}`);
@@ -376,6 +418,9 @@ function onChildExit(m, code, signal) {
   // A deliberate Force is a stop, not a crash — but it skipped the ritual, so
   // memory wasn't finalized. Only an unexpected non-zero exit is a "crash".
   m.state = (graceful || m.forced) ? "exited" : "crashed";
+  if (m._replayTimer) { clearTimeout(m._replayTimer); m._replayTimer = null; }
+  flushPending(m);                                     // seal any in-progress run
+  try { store.endSession(m.sessionId, { endedAt: new Date().toISOString(), endState: m.forced ? "forced" : m.state }); } catch {}
   const detail = graceful ? "asleep — memory committed" :
     m.forced ? "force-stopped — memory was not finalized" :
     `exited (code ${code}${signal ? `, ${signal}` : ""})${m.stderrTail.length ? `: ${m.stderrTail[m.stderrTail.length - 1]}` : ""}`;
@@ -396,6 +441,12 @@ function connectUpstream(m) {
     const ws = new WebSocket(`ws://127.0.0.1:${m.port}`);
     ws.on("open", () => {
       m.upstream = ws;
+      // On (re)connect the child replays its latest-per-kind snapshot. Treat that
+      // brief burst as projection-only so a reconnect doesn't inject stale events
+      // into the ordered timeline; real new content (a fragment) ends the window.
+      m._replayGuard = true;
+      if (m._replayTimer) clearTimeout(m._replayTimer);
+      m._replayTimer = setTimeout(() => { m._replayGuard = false; }, 800);
       if (m.state === "waking") { m.state = "awake"; broadcastLifecycle(m, "awake", "awake"); broadcastRoster(); }
     });
     ws.on("message", data => onUpstreamMessage(m, data));
@@ -415,29 +466,138 @@ function connectUpstream(m) {
 function onUpstreamMessage(m, data) {
   let msg; try { msg = JSON.parse(data.toString()); } catch { return; }
 
-  if (msg.type === "structure") {
-    m.structure = msg;
-  } else if (msg.type === "status" && msg.data && msg.data.state) {
-    m.lastStatus = msg;
-  } else if (msg.type === "event" && msg.data) {
-    m.snapshots.set(`${msg.data.process}/${msg.data.kind}`, msg);
-    if (msg.data.process === "economy" && msg.data.kind === "energy") {
-      m.energy = msg.data.energy; m.spent = msg.data.spent; broadcastRoster();
+  switch (msg.type) {
+    case "structure":
+      m.structure = (msg.data && msg.data.tree) || null;
+      forwardLive(m, msg);
+      return;
+    case "status":
+      if (msg.data && msg.data.state) m.lastStatus = msg.data.state;
+      forwardLive(m, msg);
+      return;
+    case "thought_fragment":
+    case "speech_fragment": {
+      m._replayGuard = false;                          // real content → snapshot replay is over
+      const kind = msg.type === "speech_fragment" ? "speech" : "thought";
+      appendToPending(m, kind, (msg.data && msg.data.content) || "");
+      forwardLive(m, msg);                             // rendered live by the pump; no seq
+      return;
     }
-  } else if (msg.type === "thought_fragment" || msg.type === "speech_fragment") {
-    const text = (msg.data && msg.data.content) || "";
-    m.recentStream.push(msg); m.recentChars += text.length;
-    while (m.recentChars > 60000 && m.recentStream.length) {
-      const dropped = m.recentStream.shift();
-      m.recentChars -= ((dropped.data && dropped.data.content) || "").length;
-    }
-  } else if (msg.type === "event" && msg.data?.process === "image" && msg.data?.kind === "generated") {
-    m.recentImages.push(msg);
-    while (m.recentImages.length > 12) m.recentImages.shift();
+    case "event":
+      if (msg.data) return onUpstreamEvent(m, msg);
+      forwardLive(m, msg);
+      return;
+    default:
+      forwardLive(m, msg);
   }
+}
 
-  // Live-forward to clients focused on this mind.
-  for (const c of clients) if (c.focusedId === m.id) sendJSON(c, { type: "mind", data: { id: m.id, msg } });
+/** Forward one upstream message to every client focused on this mind, optionally
+ *  tagged with the timeline `seq` it advanced (so a client can ask for the delta
+ *  since it on reconnect). Non-timeline messages carry no seq. */
+function forwardLive(m, msg, seq) {
+  const env = { type: "mind", data: { id: m.id, msg } };
+  if (seq != null) env.data.seq = seq;
+  for (const c of clients) if (c.focusedId === m.id) sendJSON(c, env);
+}
+
+/** Accumulate streamed text into the current run; flush (seal) it on a type switch. */
+function appendToPending(m, kind, text) {
+  if (!text) return;
+  if (m.pending && m.pending.kind !== kind) flushPending(m);
+  if (!m.pending) m.pending = { kind, text: "", chars: 0, at: new Date().toISOString() };
+  m.pending.text += text;
+  m.pending.chars += text.length;
+}
+
+/** Seal the in-progress run as one ordered timeline row (one row per burst/type,
+ *  not per token). Returns the assigned seq, or null if nothing was pending. */
+function flushPending(m) {
+  if (!m.pending || !m.pending.text) { m.pending = null; return null; }
+  const seq = ++m.seq;
+  try {
+    store.appendEntry(m.sessionId, { seq, at: m.pending.at, kind: m.pending.kind, text: m.pending.text, chars: m.pending.chars });
+  } catch (e) { onLog(m, "err", `store append failed: ${e.message}`); }
+  m.pending = null;
+  return seq;
+}
+
+/** Which event kinds become part of the stream timeline (vs. tree/header only). */
+function streamTimelineKind(d) {
+  const route = `${d.process}/${d.kind}`;
+  if (route === "stream/boundary") return "boundary";
+  if (route === "speech/speaking") return "speaking";
+  if (route === "image/error") return "stim";
+  if (route === "attention/urgent") return "stim";
+  if (route === "attention/decision") return (d.accepted && !d.urgent) ? "stim" : null;
+  return null;
+}
+
+function stimTextFor(d) {
+  const route = `${d.process}/${d.kind}`;
+  if (route === "image/error") return `Image generation failed: ${d.message || "error"}`;
+  if (route === "attention/urgent") return d.reason || "urgent stimulus";
+  if (route === "attention/decision") return d.reason || d.type || "stimulus";
+  return d.reason || "";
+}
+
+function onUpstreamEvent(m, msg) {
+  const d = msg.data;
+  const route = `${d.process}/${d.kind}`;
+
+  // Energy drives the roster gauge regardless of focus.
+  if (route === "economy/energy") { m.energy = d.energy; m.spent = d.spent; broadcastRoster(); }
+
+  // Images: persist bytes to disk and rewrite the data URL to a light URL on the
+  // browser hop (the child's direct clients still got the raw data URL untouched).
+  if (route === "image/generated") return onUpstreamImage(m, msg);
+
+  // Projection snapshot for the header/tree (latest-per-kind).
+  m.snapshots.set(route, d);
+
+  const kind = streamTimelineKind(d);
+  if (kind && !m._replayGuard) {
+    flushPending(m);                                   // seal preceding text first → order
+    const seq = ++m.seq;
+    const entry = { seq, at: d.at || new Date().toISOString(), kind, route, chars: 0 };
+    if (kind === "boundary") entry.payload = { reason: d.reason };
+    else if (kind === "speaking") entry.payload = { on: !!d.speaking };
+    else if (kind === "stim") { entry.text = stimTextFor(d); entry.payload = { cls: route === "image/error" ? "warn" : null }; entry.chars = entry.text.length; }
+    try { store.appendEntry(m.sessionId, entry); } catch (e) { onLog(m, "err", `store append failed: ${e.message}`); }
+    forwardLive(m, msg, seq);
+  } else {
+    forwardLive(m, msg);
+  }
+}
+
+function onUpstreamImage(m, msg) {
+  const d = msg.data;
+  if (m._replayGuard) return;                          // stale snapshot replay — already persisted
+
+  let url = d.url || null;                             // an external URL (older API) passes through
+  let imageId = null;
+  const seq = (() => { flushPending(m); return ++m.seq; })();
+  const parsed = d.dataUrl ? parseDataUrl(d.dataUrl) : null;
+  if (parsed) {
+    try {
+      const saved = store.saveImage({
+        home: m.home, sessionId: m.sessionId, seq, createdAt: d.at || new Date().toISOString(),
+        prompt: d.prompt || d.originalPrompt, revisedPrompt: d.revisedPrompt, model: d.model, size: d.size,
+        mime: parsed.mime, bytes: parsed.bytes,
+      });
+      imageId = saved.id; url = `/studio/image/${saved.id}`;
+    } catch (e) { onLog(m, "err", `image persist failed: ${e.message}`); }
+  }
+  // A light, base64-free copy for the timeline, projection and live forward.
+  const clean = { ...d, url, imageId }; delete clean.dataUrl;
+  m.snapshots.set("image/generated", clean);
+  try {
+    store.appendEntry(m.sessionId, {
+      seq, at: d.at || new Date().toISOString(), kind: "image", route: "image/generated",
+      imageId, payload: { imageId, url, prompt: d.prompt || d.originalPrompt || "" }, chars: IMAGE_WEIGHT,
+    });
+  } catch (e) { onLog(m, "err", `store append failed: ${e.message}`); }
+  forwardLive(m, { type: "event", data: clean }, seq);
 }
 
 // ------------------------------------------------------------------- sleep

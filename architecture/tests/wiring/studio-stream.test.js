@@ -90,3 +90,56 @@ test("switching out of flow flushes the buffer (nothing stranded)", () => {
     expect(el.textContent.length).toBe(100);
     expect(el.q.length).toBe(0);
 });
+
+test("renderBatch paints a backlog instantly and in order — no animation queued", () => {
+    const el = mk();
+    el.renderBatch([
+        { k: "thought", t: "I was thinking " },
+        { k: "stim", t: "a voice arrives" },
+        { k: "speech", t: "out loud" },
+        { k: "thought", t: "and then more" },
+    ]);
+    expect(el.q.length).toBe(0);                              // nothing left to animate
+    expect(el._awaitingBatch).toBe(false);
+    expect(el.querySelector(".say")).toBeTruthy();
+    expect(el.querySelector(".stim")).toBeTruthy();
+    // order preserved across kinds
+    const text = el.textContent;
+    expect(text.indexOf("thinking")).toBeLessThan(text.indexOf("a voice"));
+    expect(text.indexOf("a voice")).toBeLessThan(text.indexOf("out loud"));
+    expect(text.indexOf("out loud")).toBeLessThan(text.indexOf("and then more"));
+});
+
+test("renderBatch replays a speaking transition so following thought is thinned", () => {
+    const el = mk();
+    el.renderBatch([{ k: "speaking", on: true }, { k: "thought", t: "quiet now" }]);
+    expect(el.speaking).toBe(true);
+    expect(el.querySelector("p.thinned")).toBeTruthy();
+});
+
+test("renderBatch renders an image from a served URL and counts its weight", () => {
+    const el = mk();
+    el.renderBatch([{ k: "image", src: "/studio/image/42", prompt: "a lantern" }]);
+    const img = el.querySelector(".image-card img");
+    expect(img && img.getAttribute("src")).toBe("/studio/image/42");
+    expect(el.chars).toBeGreaterThan(1000);                  // image weight, not just the prompt
+});
+
+test("a hidden tab appends instantly instead of growing the reveal queue", () => {
+    const el = mk();
+    el.setHidden(true);
+    el.onFragment({ kind: "thought", content: "Y".repeat(80) });
+    expect(el.q.length).toBe(0);                             // not buffered behind a throttled rAF
+    expect(el.textContent.length).toBe(80);                  // shown at once
+    el.setHidden(false);
+    el.onFragment({ kind: "thought", content: "Z".repeat(20) });
+    expect(el.q.length).toBe(1);                             // visible again → metered reveal resumes
+});
+
+test("projection events are ignored while awaiting the backfill batch", () => {
+    const el = mk();
+    el._awaitingBatch = true;                                 // as set by focusReset / replayResume
+    el.onEvent({ process: "attention", kind: "urgent", reason: "stale snapshot" });
+    expect(el.querySelector(".stim")).toBeNull();            // not rendered into the stream
+    expect(el.q.length).toBe(0);
+});

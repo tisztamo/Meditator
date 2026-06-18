@@ -27,14 +27,28 @@ export class StudioConn extends A(HTMLElement) {
   maxDelay = 5000;
   focusedId = null;
   publicPort = 7627;
+  // The highest stream-timeline seq we have rendered for the focused mind. Sent as
+  // `sinceSeq` so the supervisor can reply with just the delta on a live reconnect;
+  // null means "fresh — give me the recent tail". Reset when focus changes.
+  highestSeq = null;
+  roster = [];
+  _restored = false;
+  _onVis = null;
 
   onConnect() {
     this.connect();
+    // Tell the stream when the tab is hidden so it stops the rAF reveal (which a
+    // background tab throttles to ~0 Hz, letting the queue grow unbounded) and
+    // appends live text instantly instead. Returning needs no animated catch-up.
+    this._onVis = () => this.pub("hidden", typeof document !== "undefined" && document.hidden === true);
+    if (typeof document !== "undefined") document.addEventListener("visibilitychange", this._onVis);
+    this.pub("hidden", typeof document !== "undefined" && document.hidden === true);
   }
 
   onDisconnect() {
     this.manualClose = true;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    if (this._onVis && typeof document !== "undefined") document.removeEventListener("visibilitychange", this._onVis);
     try { this.ws && this.ws.close(); } catch { /* already gone */ }
   }
 
@@ -86,14 +100,41 @@ export class StudioConn extends A(HTMLElement) {
         this.pub("defaultProfile", (m.data && m.data.modelProfile) || null);
         break;
       case "architectures": this.pub("architectures", (m.data && m.data.list) || []); break;
-      case "roster":        this.pub("roster", (m.data && m.data.minds) || []); break;
+      case "roster":        this.roster = (m.data && m.data.minds) || []; this.pub("roster", this.roster); this._maybeRestoreFocus(); break;
       case "woke":          if (m.data && m.data.id) this.focus(m.data.id); break;
       case "lifecycle":     this.pub("lifecycle", m.data || {}); break;
-      case "focus-reset":   if (m.data && m.data.id === this.focusedId) this.pub("focusReset", m.data.id); break;
-      case "mind":          if (m.data && m.data.id === this.focusedId) this.routeMindMsg(m.data.msg); break;
+      case "state":         this.onState(m.data); break;
+      case "backfill":      this.onBackfill(m.data); break;
+      case "mind":          this.onMindMsg(m.data); break;
       case "log":           if (m.data && m.data.id === this.focusedId) this.pub("log", { stream: m.data.stream, line: m.data.line }); break;
       case "error":         this.pub("error", (m.data && m.data.message) || "error"); break;
     }
+  }
+
+  /** A focus reply: the current projection (structure + latest status/telemetry)
+   *  for the header and tree. Fanned through the existing topics; the stream
+   *  ignores these (it is awaiting its backfill batch). */
+  onState(d) {
+    if (!d || d.id !== this.focusedId) return;
+    if (d.structure) this.pub("structure", d.structure);
+    if (d.status) this.pub("streamState", d.status);
+    for (const ev of d.snapshots || []) this.pub("event", ev);
+  }
+
+  /** The ordered stream timeline (tail on a fresh load, delta on reconnect). The
+   *  stream paints it in one synchronous pass. */
+  onBackfill(d) {
+    if (!d || d.id !== this.focusedId) return;
+    if (typeof d.lastSeq === "number") this.highestSeq = Math.max(this.highestSeq || 0, d.lastSeq);
+    this.pub("backfill", d.entries || []);
+  }
+
+  /** A live telemetry message for the focused mind. The envelope may carry the
+   *  timeline `seq` it advanced, which we track for the next reconnect's delta. */
+  onMindMsg(d) {
+    if (!d || d.id !== this.focusedId) return;
+    if (typeof d.seq === "number") this.highestSeq = Math.max(this.highestSeq || 0, d.seq);
+    this.routeMindMsg(d.msg);
   }
 
   /** Fan a focused mind's m-ws message into the fine-grained pane topics. */
@@ -117,7 +158,7 @@ export class StudioConn extends A(HTMLElement) {
   force(id) { this.send({ type: "force", data: { id } }); }
 
   dismiss(id) {
-    if (id === this.focusedId) { this.focusedId = null; this.pub("focused", null); this.pub("focusReset", null); }
+    if (id === this.focusedId) { this.focusedId = null; this.highestSeq = null; this.pub("focused", null); this.pub("focusReset", null); this._remember(null); }
     this.send({ type: "dismiss", data: { id } });
   }
 
@@ -130,16 +171,44 @@ export class StudioConn extends A(HTMLElement) {
 
   focus(id) {
     if (this.focusedId === id) return;
+    this.highestSeq = null;              // a different mind → reconstitute from its recent tail
+    this._restored = true;
     this.refocus(id);
+    this._remember(id);
   }
 
-  /** (Re)assert focus on a mind even if it is already the focused one — used on
-   *  reconnect, where the supervisor has dropped our focus and must replay. */
+  /** (Re)assert focus on a mind. On a fresh focus (highestSeq null) we clear the
+   *  panes and ask for the recent tail; on a live reconnect we keep what is shown
+   *  and ask only for the delta since `highestSeq`. */
   refocus(id) {
     this.focusedId = id;
     this.pub("focused", id);
-    this.pub("focusReset", id);          // immediate local clear; the server then replays its cache as mind/log
-    this.send({ type: "focus", data: { id } });
+    if (this.highestSeq == null) this.pub("focusReset", id);   // fresh: clear + repaint tail
+    else this.pub("replayResume", id);                          // reconnect: keep + append delta
+    this.send({ type: "focus", data: { id, sinceSeq: this.highestSeq } });
+  }
+
+  // ----------------------------------------------- focus persistence (reload)
+  /** Remember the focused mind by id AND durable home, so a reload re-opens it. */
+  _remember(id) {
+    try {
+      if (!id) { globalThis.localStorage && globalThis.localStorage.removeItem("studioFocus"); return; }
+      const m = this.roster.find(x => x.id === id);
+      globalThis.localStorage && globalThis.localStorage.setItem("studioFocus", JSON.stringify({ id, home: m && m.home }));
+    } catch { /* private mode / no storage */ }
+  }
+
+  /** After a reload the page has no focus; re-open the last-focused mind if it is
+   *  in the roster (match by id while the supervisor is the same run, else by its
+   *  durable home). Runs once, when a matching mind first appears. */
+  _maybeRestoreFocus() {
+    if (this._restored || this.focusedId) return;
+    let saved = null;
+    try { saved = JSON.parse((globalThis.localStorage && globalThis.localStorage.getItem("studioFocus")) || "null"); } catch { /* ignore */ }
+    if (!saved) { this._restored = true; return; }
+    const match = this.roster.find(x => x.id === saved.id) || this.roster.find(x => x.home && x.home === saved.home);
+    if (match) { this._restored = true; this.focus(match.id); }
+    // else: leave it pending so a later roster (the mind waking) can still restore.
   }
 }
 A.define("studio-conn", StudioConn);
