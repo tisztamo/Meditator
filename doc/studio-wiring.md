@@ -1,11 +1,15 @@
 # Studio wiring — finishing the decoupling in the browser
 
-> **Status: half migrated.** The Studio UI is an [Amanita](https://www.npmjs.com/package/amanita)
-> component mesh — its `<body>` is a declarative tree, exactly like a `.archml`
-> mind. It already applies the mind's [decoupling principle](architecture/decoupling.md)
-> to *state* (panes read by subscribing to topics) but not yet to *commands*
-> (panes still reach in and call methods). This page documents the mesh as it
-> stands and the slices that finish the job.
+> **Status: commands inverted; folding the stray controls remains.** The Studio UI
+> is an [Amanita](https://www.npmjs.com/package/amanita) component mesh — its
+> `<body>` is a declarative tree, exactly like a `.archml` mind. It now applies the
+> mind's [decoupling principle](architecture/decoupling.md) in *both* directions:
+> panes read state by subscribing to topics (DOWN) and issue commands as bubbling
+> `studio-command` events the hub routes (UP, [S1](#slices)). No pane reads the
+> hub's fields any more ([S2](#slices)), so the hub is swappable and mockable. What
+> is left is cosmetic — three controls still live as loose markup wired by reaching
+> *out* of the mesh ([S3](#slices)). This page documents the mesh as it stands and
+> the slices that finish the job.
 
 See [The Studio](studio.md) for the user-facing tour and
 [decoupling.md](architecture/decoupling.md) for the same principle on the mind side.
@@ -52,7 +56,7 @@ supervisor and the focus state, and it talks to the panes two ways:
   | `connState` / `connMeta` | socket up/down + label | header, wake |
   | `roster` | the live minds | roster, header, speak |
   | `architectures` / `profiles` / `defaultProfile` / `publicPort` | wake catalog + hello | wake, header |
-  | `focused` / `focusReset` / `replayResume` | focus changes + replay mode | roster, header, stream, tree, log |
+  | `focused` / `focusReset` / `replayResume` | focus changes + replay mode | roster, header, stream, tree, log, speak, toast |
   | `structure` | the focused mind's component tree | tree |
   | `backfill` | the ordered stream timeline (tail / delta) | stream |
   | `streamFragment` / `streamState` | live thought/speech + state | stream, header |
@@ -61,46 +65,47 @@ supervisor and the focus state, and it talks to the panes two ways:
   | `log` | the child's stdout/stderr line | log, toast |
   | `youSaid` / `error` / `hidden` | local echo, errors, tab visibility | stream, toast |
 
-- **UP — commands, as method calls (the part still to invert).** A pane reaches
-  the hub with `this.el("/conn/")` and calls a method that wraps the supervisor
-  message verbatim: `wake` / `refresh` / `focus` / `sleep` / `force` / `dismiss` /
-  `speak`. The wire protocol is unchanged from the pre-mesh monolith.
+- **UP — commands, as bubbling events ([S1](#slices), done).** A pane dispatches a
+  bubbling `studio-command` (via the [`command(el, cmd, …)`](#the-pattern) helper in
+  `ui/helpers.js`); `studio-conn` adds one listener in `onConnect` that routes
+  `detail.cmd` through `run()` to the same `send()` wrappers it always had —
+  `wake` / `refresh` / `focus` / `sleep` / `force` / `dismiss` / `speak`. The
+  wrappers are now reached only by that listener, never across components, and the
+  wire protocol is unchanged from the pre-mesh monolith.
 
 `studio-covenant` is fully self-contained (no `/conn/` state); the DOWN-path panes
 above (`studio-header`, `studio-tree`, `studio-log`, `studio-toast`,
-`studio-stream`) are clean subscribers. The gap is entirely on the UP-path and a
-few stragglers.
+`studio-stream`) are clean subscribers. With the command path inverted and the
+field-reads gone, the only coupling left is a few stray controls wired *out* of the
+mesh.
 
 ## The gap
 
-Three kinds of coupling remain — all the mirror image of what the mind migration
-removed.
+Three kinds of coupling were identified, all the mirror image of what the mind
+migration removed. [S1](#slices) and [S2](#slices) closed the first two; the third
+remains.
 
-**1. Commands are reach-in method calls.**
+**1. Commands were reach-in method calls — now bubbling `studio-command` events
+([S1](#slices), done).** Each pane that used to call `this.el("/conn/").<method>()`
+— `studio-speak`'s `speak`, `studio-roster`'s `sleep`/`force`/`dismiss`/`focus`,
+`studio-wake`'s `wake`/`refresh` — now dispatches `command(this, cmd, …)`, and the
+hub's `run()` listener routes it to the same wrapper.
 
-| Pane | Reach-in |
-|------|----------|
-| `studio-speak` | `this.el("/conn/").speak(t)` (`studioSpeak.js:47`) |
-| `studio-roster` | `this.conn().sleep/force/dismiss/focus(id)` (`studioRoster.js:29`–`37`) |
-| `studio-wake` | `this.el("/conn/").wake(...)` / `.refresh()` (`studioWake.js:54`, `:61`) |
+**2. Some panes read the hub's *private fields* — now cached from their own topics
+([S2](#slices), done).** `studio-speak` (`roster` / `focusedId`), `studio-stream`
+(`focusedId`), and `studio-toast` (`focusedId`) each cache the value delivered by a
+subscription they already held, so **nothing reads `studio-conn`'s fields** any more
+— its contract is "topics out, command events in."
 
-**2. Some panes read the hub's *private fields* instead of the topics that already
-carry the same state.** This couples to `studio-conn`'s internal shape, not even a
-method contract:
-
-- `studio-speak` reads `conn.roster` / `conn.focusedId` (`studioSpeak.js:23`, `:29`,
-  `:33`) although it subscribes to `/conn/roster` and `/conn/focused`;
-- `studio-stream` reads `conn.focusedId` in `onLifecycle` (`studioStream.js:117`);
-- `studio-toast` reads `conn.focusedId` (`studioToast.js:16`).
-
-**3. Three controls live as loose markup in `studio.html` and are wired by reaching
-*out* of the mesh:**
+**3. Three controls still live as loose markup in `studio.html` and are wired by
+reaching *out* of the mesh ([S3](#slices), remaining):**
 
 - the flow/raw toggle — `studio-stream` does
-  `closest(".col").querySelector("[data-streammode]")` (`studioStream.js:62`–`64`);
+  `closest(".col").querySelector("[data-streammode]")` (`studioStream.js`);
 - the rail's ⟳ refresh — `studio-wake` does `getElementById("archRefresh")`
-  (`studioWake.js:60`);
-- the mobile pane switcher — an inline `<script>` (`studio.html:296`–`314`) reaches
+  (`studioWake.js`); the command it fires is already inverted, but it still reaches
+  *out* to find the button;
+- the mobile pane switcher — an inline `<script>` (`studio.html`) reaches
   `document.querySelector("main")`, `.panebar`, and `studio-conn.on("focused", …)`.
 
 ## The pattern
@@ -115,9 +120,8 @@ Mirror the mind side exactly.
   of a faculty dispatching `interrupt-request` and the arbiter handling it.
 
   ```js
-  // pane
-  this.dispatchEvent(new CustomEvent("studio-command",
-    { bubbles: true, detail: { cmd: "speak", text } }))
+  // pane — command(el, cmd, detail) in ui/helpers.js wraps the dispatch
+  command(this, "speak", { text })
 
   // studio-conn.onConnect()
   this.addEventListener("studio-command", e => this.run(e.detail))
@@ -140,16 +144,16 @@ Mirror the mind side exactly.
 Independently shippable and behaviour-preserving, like the mind migration's slices.
 The supervisor wire protocol does **not** change in any of them.
 
-| Slice | Change | Restores |
-|-------|--------|----------|
-| **S1 — command path** | Panes dispatch `studio-command`; `studio-conn` listens once and routes to `send()`. Drop every `this.el("/conn/").<method>()`. | *declared* commands (greppable, no hidden lookup); *fan-in* (a logger / confirm interposer can also listen) |
-| **S2 — stop reading the hub's fields** | `studio-speak` / `studio-stream` / `studio-toast` cache `focused`/`roster` from their subscriptions. | a *swappable / mockable* hub; the last single-match reach gone |
-| **S3 — fold the stray controls in** | flow/raw → owned by `studio-stream`; ⟳ → owned by `studio-wake`; pane switcher → a `studio-panes` component on `/conn/focused`. | a pure mesh — no `closest` / `getElementById` / `document.querySelector` reach-around |
-| **S4 — (optional) split `studio-conn`** | Separate the WebSocket transport from the focus/state store, mirroring how a mind separates `m-ws` (transport) from its faculties. | clarity; an alternate transport (e.g. replay-only from the store) becomes possible |
-| **S5 — docs + tests** | Keep this page's tables current; add pane unit tests that drive a fake hub (dispatch commands → assert sent; pub topics → assert render). | the auditability the `.archml` gives a mind |
+| Slice | Status | Change | Restores |
+|-------|--------|--------|----------|
+| **S1 — command path** | ✅ done | Panes dispatch `studio-command` (via `command()` in `ui/helpers.js`); `studio-conn` listens once in `onConnect` and routes through `run()` to `send()`. Every `this.el("/conn/").<method>()` is gone. | *declared* commands (greppable, no hidden lookup); *fan-in* (a logger / confirm interposer can also listen) |
+| **S2 — stop reading the hub's fields** | ✅ done | `studio-speak` / `studio-stream` / `studio-toast` cache `focused`/`roster` from their subscriptions. | a *swappable / mockable* hub; the last single-match reach gone |
+| **S3 — fold the stray controls in** | remaining | flow/raw → owned by `studio-stream`; ⟳ → owned by `studio-wake`; pane switcher → a `studio-panes` component on `/conn/focused`. | a pure mesh — no `closest` / `getElementById` / `document.querySelector` reach-around |
+| **S4 — (optional) split `studio-conn`** | remaining | Separate the WebSocket transport from the focus/state store, mirroring how a mind separates `m-ws` (transport) from its faculties. | clarity; an alternate transport (e.g. replay-only from the store) becomes possible |
+| **S5 — docs + tests** | partial | Keep this page's tables current; add pane unit tests that drive a fake hub (dispatch commands → assert sent; pub topics → assert render). | the auditability the `.archml` gives a mind |
 
-S1 and S2 are the core and pair naturally; S3 is cosmetic-but-cleansing; S4 is a
-stretch.
+S1 and S2 were the core and shipped together; S3 is cosmetic-but-cleansing and is
+what remains; S4 is a stretch.
 
 ## Deliberately *not* inverted
 

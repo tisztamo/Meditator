@@ -54,6 +54,9 @@ export class StudioStream extends A(HTMLElement) {
   //   events (they rehydrate the header/tree, not the stream). hidden: the tab is
   //   backgrounded — append live text instantly instead of feeding the rAF pump.
   _awaitingBatch = false; hidden = false;
+  // The focused mind's id, cached from /conn/focused so onLifecycle can match it
+  // without reaching into the hub's fields.
+  focusedId = null;
 
   onConnect() {
     this.smooth = this._loadMode();
@@ -63,6 +66,9 @@ export class StudioStream extends A(HTMLElement) {
     const btn = ctl && ctl.querySelector && ctl.querySelector("[data-streammode]");
     if (btn) { this._modeCtl = btn; btn.addEventListener("click", () => this.toggleMode()); this._renderMode(); }
 
+    // Track the focused id from its topic, so lifecycle messages can be matched
+    // to the mind we are showing without reading the hub.
+    this.sub("/conn/focused", id => { this.focusedId = id; }, 12);
     // Fresh focus: clear and await the backfill batch. Reconnect: keep what is
     // shown, start a fresh paragraph, and await the delta batch.
     this.sub("/conn/focusReset", () => { this.clear("reconstituting this mind"); this._awaitingBatch = true; }, 12);
@@ -114,8 +120,7 @@ export class StudioStream extends A(HTMLElement) {
   }
 
   onLifecycle(d) {
-    const conn = this.el("/conn/");
-    if (!conn || !d || d.id !== conn.focusedId) return;
+    if (!d || d.id !== this.focusedId) return;
     if (d.state === "exited" || d.state === "crashed" || d.state === "sleeping") {
       if (this.smooth) this.enqueue({ t: "stop" });
       else { this.endThought(); this.setSpeaking(false); }

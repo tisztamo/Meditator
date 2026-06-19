@@ -7,13 +7,14 @@ import A from "amanita";
  */
 export class StudioToast extends A(HTMLElement) {
   timer = null;
+  focusedId = null;   // cached from /conn/focused, so we never read the hub's field
   _lastErrAt = 0;   // throttle stack-trace bursts to one toast
 
   onConnect() {
     this.sub("/conn/error", msg => this.show(msg), 12);
+    this.sub("/conn/focused", id => { this.focusedId = id; }, 12);
     this.sub("/conn/lifecycle", d => {
-      const conn = this.el("/conn/");
-      if (d && d.state === "crashed" && conn && d.id === conn.focusedId) {
+      if (d && d.state === "crashed" && d.id === this.focusedId) {
         this.show("mind crashed — see the process log");
       }
     }, 12);

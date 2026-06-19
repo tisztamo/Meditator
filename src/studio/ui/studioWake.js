@@ -1,13 +1,13 @@
 import A from "amanita";
-import { esc } from "./helpers.js";
+import { esc, command } from "./helpers.js";
 
 /**
  * studio-wake — the "wake a mind" panel (class="wake", inheriting the existing
  * .wake CSS). An architecture <select> grouped into architectures/tests, a model
  * profile <select>, a live detail line resolving the target memory home with
  * collision / busy / no-window warnings, a dry-run toggle, and the Wake button.
- * Ports renderArchSelect / selectedArch / renderArchDet. Wake →
- * studio-conn.wake(); the rail's ⟳ → studio-conn.refresh().
+ * Ports renderArchSelect / selectedArch / renderArchDet. Wake and the rail's ⟳
+ * dispatch "wake" / "refresh" studio-commands; the hub routes them.
  */
 export class StudioWake extends A(HTMLElement) {
   archList = [];
@@ -51,14 +51,14 @@ export class StudioWake extends A(HTMLElement) {
     this.wakeBtn.addEventListener("click", () => {
       const a = this.selected();
       if (!a) return;
-      this.el("/conn/").wake(a.file, this.dryRunBox.checked, this.selectedProfile(), this.chosenName(a));
+      command(this, "wake", { file: a.file, dryRun: this.dryRunBox.checked, modelProfile: this.selectedProfile(), name: this.chosenName(a) });
       // Let the next architectures broadcast (the new mind changes the roster)
       // re-seed the field with the now-incremented suggestion, so back-to-back
       // tuning runs auto-advance seedling-7 → seedling-8 without a re-select.
       this._prefilledFile = undefined;
     });
     const r = document.getElementById("archRefresh");
-    if (r) r.addEventListener("click", () => this.el("/conn/").refresh());
+    if (r) r.addEventListener("click", () => command(this, "refresh"));
 
     this.sub("/conn/profiles", list => { this.profiles = list || []; this.renderProfileSelect(); }, 12);
     this.sub("/conn/defaultProfile", p => { this.defaultProfile = p; this.renderProfileSelect(); }, 12);

@@ -11,9 +11,13 @@ import { getPref, setPref } from "./studioPrefs.js";
  *     subscribe with this.sub("/conn/<topic>", cb). Amanita's pub stores the
  *     value on the element and replays it to a late subscriber, so panes get the
  *     current roster/architectures/structure on connect with no snapshot plumbing.
- *   - UP (commands): panes call this.el("/conn/").<method>(...) — each method
- *     sends the existing supervisor message verbatim. The wire protocol is
- *     unchanged from the old monolithic studio.html.
+ *   - UP (commands): a pane dispatches a bubbling "studio-command" DOM event;
+ *     studio-conn adds one listener (onConnect) that routes detail.cmd through
+ *     run() to the transport wrapper below. Panes no longer reach in and call the
+ *     hub — the browser mirror of a faculty raising interrupt-request for the
+ *     arbiter (see doc/architecture/interrupts.md). The wrappers still send the
+ *     existing supervisor message verbatim; the wire protocol is unchanged from
+ *     the old monolithic studio.html.
  *
  * This replaces that monolith's connect()/scheduleReconnect()/onMsg()/focus()/
  * act()/speak() globals. Telemetry for the focused mind is fanned into
@@ -43,6 +47,11 @@ export class StudioConn extends A(HTMLElement) {
 
   onConnect() {
     this.connect();
+    // UP path: panes dispatch a bubbling "studio-command"; we are its single
+    // listener — the analogue of m-interrupts hearing interrupt-request — and
+    // route each to its transport wrapper via run(). Another listener (a logger,
+    // a confirm gate) can interpose ahead of us without any pane knowing.
+    this.addEventListener("studio-command", e => this.run(e.detail));
     // Tell the stream when the tab is hidden so it stops the rAF reveal (which a
     // background tab throttles to ~0 Hz, letting the queue grow unbounded) and
     // appends live text instantly instead. Returning needs no animated catch-up.
@@ -171,7 +180,27 @@ export class StudioConn extends A(HTMLElement) {
     }
   }
 
-  // ------------------------------------- outbound commands (called via el())
+  // --------------------------------------------------- outbound commands
+  // Reached only by run() below (the "studio-command" listener), never across
+  // components. Each wrapper sends the existing supervisor message verbatim — it
+  // is the transport boundary, the browser counterpart of m-ws (see
+  // doc/studio-wiring.md "Deliberately not inverted").
+
+  /** The single command listener: map a "studio-command" event's detail to its
+   *  wrapper. Mirrors the arbiter mapping an interrupt-request to its handling. */
+  run(d) {
+    if (!d || !d.cmd) return;
+    switch (d.cmd) {
+      case "speak":   this.speak(d.text); break;
+      case "wake":    this.wake(d.file, d.dryRun, d.modelProfile, d.name); break;
+      case "refresh": this.refresh(); break;
+      case "sleep":   this.sleep(d.id); break;
+      case "force":   this.force(d.id); break;
+      case "dismiss": this.dismiss(d.id); break;
+      case "focus":   this.focus(d.id); break;
+    }
+  }
+
   wake(file, dryRun, modelProfile, name) {
     if (file) this.send({ type: "wake", data: { file, dryRun: !!dryRun, modelProfile: modelProfile || null, name: name || null } });
   }

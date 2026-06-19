@@ -1,12 +1,14 @@
 import A from "amanita";
-import { esc } from "./helpers.js";
+import { esc, command } from "./helpers.js";
 
 /**
  * studio-roster — the live roster of minds. One card per mind with its state
  * badge, port (+ public tag), memory home, detail line, energy meter and $spend,
  * and the lifecycle buttons (Sleep / Force / Dismiss). Clicking a card focuses
  * that mind. Buttons carry an action= attribute and are dispatched via
- * env("action", …) — the stereotic delegation idiom. Ports renderRoster.
+ * env("action", …) — the stereotic delegation idiom. The action becomes a
+ * bubbling "studio-command" the hub routes; the roster never reaches into it.
+ * Ports renderRoster.
  */
 export class StudioRoster extends A(HTMLElement) {
   minds = []; focusedId = null;
@@ -17,8 +19,6 @@ export class StudioRoster extends A(HTMLElement) {
     this.addEventListener("click", e => this.onClick(e));
   }
 
-  conn() { return this.el("/conn/"); }
-
   onClick(e) {
     const action = this.env("action", e.target);
     const card = e.target.closest("[data-id]");
@@ -26,15 +26,15 @@ export class StudioRoster extends A(HTMLElement) {
     if (action) {
       e.stopPropagation();
       if (!id) return;
-      if (action === "sleep") this.conn().sleep(id);
-      else if (action === "force") { if (confirm("Force-kill this mind? Its last moments may be lost (the graceful ritual is already in progress).")) this.conn().force(id); }
-      else if (action === "dismiss") this.conn().dismiss(id);
+      if (action === "sleep") command(this, "sleep", { id });
+      else if (action === "force") { if (confirm("Force-kill this mind? Its last moments may be lost (the graceful ritual is already in progress).")) command(this, "force", { id }); }
+      else if (action === "dismiss") command(this, "dismiss", { id });
       return;
     }
     if (id) {
       const m = this.minds.find(x => x.id === id);
       const alive = m && (m.state === "waking" || m.state === "awake" || m.state === "sleeping");
-      if (alive || id === this.focusedId) this.conn().focus(id);
+      if (alive || id === this.focusedId) command(this, "focus", { id });
     }
   }
 

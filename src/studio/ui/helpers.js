@@ -17,3 +17,12 @@ export const nearBottom = (el, pad = 120) => el.scrollHeight - el.scrollTop - el
 
 /** Pin a scroll container to its bottom. */
 export const scrollDown = el => { el.scrollTop = el.scrollHeight; };
+
+/** Dispatch a Studio command as a bubbling "studio-command" DOM event. studio-conn
+ *  adds one listener (in onConnect) that routes detail.cmd to its transport
+ *  wrapper — the browser mirror of a faculty raising an `interrupt-request` for the
+ *  arbiter. A pane states its intent and never reaches into the hub, so the command
+ *  surface stays declared (greppable) and a second listener — a logger, a confirm
+ *  gate — can interpose for free. `detail` is optional (e.g. a bare "refresh"). */
+export const command = (el, cmd, detail) =>
+  el.dispatchEvent(new CustomEvent("studio-command", { bubbles: true, detail: { cmd, ...detail } }));
