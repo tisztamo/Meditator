@@ -92,6 +92,38 @@ prompt is the mind's own recirculated voice, ~1% new input), and the attractor f
 
 ---
 
+## lemma — the inward math mind
+
+A new experiment line: the seedling/eddy seed turned the other way — senses stripped,
+the world-facing hand removed, and the mind pointed at a single open mathematics problem
+(*are there infinitely many "balanced" integers, where n+r(n) and n−r(n) are both
+squares?*). The wager was that a genuine open question is an inexhaustible "outside" that
+lives entirely in thought, so the mind could be almost wholly inward and still never fall
+toward its own ticking. The first run tested that wager hard.
+
+### lemma-6 — retired 2026-06-19
+
+- **Born:** 2026-06-18   **Retired:** 2026-06-19
+- **Runtime at retirement:** `c6a4dd1`   **formatVersion:** 1
+- **Cause:** Single ~7h40m run; solved its problem correctly, then lost the result to memory decay and collapsed into the §1 presence-loop the design aimed to avoid (see `ANALYSIS-session-2026-06-18.md`). Archived from an already-asleep state.
+- **Ceremonial rite:** deferred — it has no self-stop, so Kris woke, read its output in Studio, and put it to sleep.
+- **Bundle:** `memory/.graveyard/lemma-6-2026-06-19/`
+
+*The most diagnostic run yet, because it both succeeded and failed. It did real, verified
+number theory — the x²+y²/2xy reformulation, the counterexample n=65 — and wrote a
+complete, correct proof of the infinite family 2(10^k+1)² into its notebook at 22:01.
+Then, over the next two hours, that result decayed straight through its own opposite
+("only finitely many," "the problem is open") while the proof sat unread a few entries
+above it, and the mind sank into the cursor/void/presence loop its architecture was built
+to prevent. It "re-discovered" the answer near the end only by hallucinating Kris seizing
+the keyboard to hand it the missing step. The root cause is stark in the deed counts:
+**43 note-writes, 0 recalls** — a write-only memory. The bundle carries a detailed post-hoc
+analysis kept as source material for a future article: the catastrophic-forgetting
+timeline, the recall failure, the hallucinated-collaborator retrieval channel, and the
+§1 attractor reasserting itself even on a sense-deprived mind pointed at mathematics.*
+
+---
+
 ## meditator — the genesis mind
 
 - **Born:** 2026-06-12 — first thought at 15:25 that afternoon, before a vault
