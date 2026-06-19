@@ -228,39 +228,40 @@ export async function complete(opts) {
   };
   log.debug(`complete → ${provider.key} model="${provider.model}" maxTokens=${request.max_tokens} temp=${request.temperature}`);
 
-  let lastError = null;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      return await withSlot(async () => {
-        const response = await client.chat.completions.create(request);
-        addUsage(response.usage);
-        const choice = response.choices?.[0];
-        const text = choice?.message?.content || '';
-        const finish = choice?.finish_reason;
-        log.debug(`complete ← ${text.length} chars, finish=${finish}, usage=${response.usage ? JSON.stringify(response.usage) : 'none'}`);
-        // A 200 with empty content is the silent failure mode for local models:
-        // the text usually went to message.reasoning_content instead.
-        if (!text) {
-          const reasoning = choice?.message?.reasoning_content || choice?.message?.reasoning;
-          log.warn(`complete returned EMPTY text (${provider.key} model="${provider.model}", finish=${finish}) — `
-            + (reasoning ? `output went to reasoning_content (${reasoning.length} chars); disable reasoning for this model.`
-                         : 'the model returned no content at all.'));
-        }
-        return { text, usage: response.usage || null };
-      });
-    } catch (error) {
-      lastError = error;
-      const status = error?.status;
-      if (status && status !== 429 && status < 500) {
-        log.warn(`completion failed (${provider.key} model="${provider.model}"): ${errorDetail(error)} — not retrying (4xx)`);
-        break; // no point retrying 4xx (except 429)
+  // For now: a single attempt, no retry. Retrying an overloaded server (429/5xx) only
+  // deepens the overload, and an empty or late response is not worth re-hammering for —
+  // the mind simply waits for the next burst. Only a genuine client/config error
+  // (4xx except 429) is surfaced and counted as an error; it will not heal on its own.
+  // Overload / transient drops / empty are debug-only, never counted.
+  try {
+    return await withSlot(async () => {
+      const response = await client.chat.completions.create(request);
+      addUsage(response.usage);
+      const choice = response.choices?.[0];
+      const text = choice?.message?.content || '';
+      const finish = choice?.finish_reason;
+      log.debug(`complete ← ${text.length} chars, finish=${finish}, usage=${response.usage ? JSON.stringify(response.usage) : 'none'}`);
+      // An empty 200 is not an error: usually the model genuinely had nothing to add,
+      // or the local server was briefly overloaded — the caller treats empty as "no
+      // result" and the mind waits. Only output landing in reasoning_content is a real,
+      // fixable misconfiguration worth a warning.
+      if (!text) {
+        const reasoning = choice?.message?.reasoning_content || choice?.message?.reasoning;
+        if (reasoning) log.warn(`complete returned EMPTY text (${provider.key} model="${provider.model}", finish=${finish}) — output went to reasoning_content (${reasoning.length} chars); disable reasoning for this model.`);
+        else log.debug(`complete returned empty text (${provider.key} model="${provider.model}", finish=${finish}) — no content; the mind waits for the next call.`);
       }
-      log.warn(`completion attempt ${attempt + 1} failed: ${errorDetail(error)}, retrying`);
-      await delay(750 * Math.pow(3, attempt));
+      return { text, usage: response.usage || null };
+    });
+  } catch (error) {
+    const status = error?.status;
+    if (status && status !== 429 && status < 500) {
+      totals.errors += 1;
+      log.warn(`completion failed (${provider.key} model="${provider.model}"): ${errorDetail(error)} — client error, not retried`);
+    } else {
+      log.debug(`completion soft-failed (${provider.key} model="${provider.model}"): ${errorDetail(error)} — overload/transient, not retried, not counted`);
     }
+    throw error;
   }
-  totals.errors += 1;
-  throw lastError;
 }
 
 /**
@@ -312,38 +313,36 @@ export async function completeWithTools(opts) {
   };
   log.debug(`completeWithTools → ${provider.key} model="${provider.model}" tools=${(opts.tools || []).length} maxTokens=${request.max_tokens} temp=${request.temperature}`);
 
-  let lastError = null;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      return await withSlot(async () => {
-        const response = await client.chat.completions.create(request);
-        addUsage(response.usage);
-        const choice = response.choices?.[0];
-        const message = choice?.message || {};
-        const toolCalls = message.tool_calls || [];
-        const finish = choice?.finish_reason;
-        log.debug(`completeWithTools ← ${toolCalls.length} tool_call(s) [${toolCalls.map(t => t.function?.name).join(", ")}], finish=${finish}, usage=${response.usage ? JSON.stringify(response.usage) : 'none'}`);
-        return {
-          text: message.content || '',
-          tool_calls: toolCalls,
-          finish_reason: finish ?? null,
-          usage: response.usage || null,
-        };
-      });
-    } catch (error) {
-      lastError = error;
-      const status = error?.status;
-      if (status && status !== 429 && status < 500) {
-        log.warn(`completeWithTools failed (${provider.key} model="${provider.model}"): ${errorDetail(error)} — not retrying (4xx). `
-          + `If this is a local model, verify vLLM was launched with --enable-auto-tool-choice and a matching --tool-call-parser (efference.md §4).`);
-        break;
-      }
-      log.warn(`completeWithTools attempt ${attempt + 1} failed: ${errorDetail(error)}, retrying`);
-      await delay(750 * Math.pow(3, attempt));
+  // Single attempt, no retry (see complete()): overload retries only deepen the
+  // overload, and a declined or empty realize is benign — the intention simply passes
+  // this tick. Only a genuine client/config error (4xx except 429) is counted/surfaced.
+  try {
+    return await withSlot(async () => {
+      const response = await client.chat.completions.create(request);
+      addUsage(response.usage);
+      const choice = response.choices?.[0];
+      const message = choice?.message || {};
+      const toolCalls = message.tool_calls || [];
+      const finish = choice?.finish_reason;
+      log.debug(`completeWithTools ← ${toolCalls.length} tool_call(s) [${toolCalls.map(t => t.function?.name).join(", ")}], finish=${finish}, usage=${response.usage ? JSON.stringify(response.usage) : 'none'}`);
+      return {
+        text: message.content || '',
+        tool_calls: toolCalls,
+        finish_reason: finish ?? null,
+        usage: response.usage || null,
+      };
+    });
+  } catch (error) {
+    const status = error?.status;
+    if (status && status !== 429 && status < 500) {
+      totals.errors += 1;
+      log.warn(`completeWithTools failed (${provider.key} model="${provider.model}"): ${errorDetail(error)} — client error, not retried. `
+        + `If this is a local model, verify vLLM was launched with --enable-auto-tool-choice and a matching --tool-call-parser (efference.md §4).`);
+    } else {
+      log.debug(`completeWithTools soft-failed (${provider.key} model="${provider.model}"): ${errorDetail(error)} — overload/transient, not retried, not counted`);
     }
+    throw error;
   }
-  totals.errors += 1;
-  throw lastError;
 }
 
 /**
@@ -407,12 +406,21 @@ export async function chatStream(opts) {
   try {
     stream = await client.chat.completions.create(request, { signal: controller.signal });
   } catch (error) {
-    totals.errors += 1;
+    // An open that times out or fails under load is not treated as an error here: no
+    // error count, debug-only. The throw still ends the burst so the mind reschedules
+    // (and backs off) instead of freezing — it just waits, quietly. A genuine
+    // client/config error (4xx except 429) is the exception worth surfacing.
     if (openTimedOut) {
-      log.warn(`stream OPEN timed out after ${stallMs}ms (${provider.key} model="${provider.model}") — request accepted but no response began. Aborted so the mind reschedules instead of freezing.`);
+      log.debug(`stream OPEN timed out after ${stallMs}ms (${provider.key} model="${provider.model}") — no response began; aborted so the mind reschedules. Not counted as an error.`);
       throw new Error(`stream open timed out after ${stallMs}ms`);
     }
-    log.warn(`stream open failed (${provider.key} model="${provider.model}"): ${errorDetail(error)}`);
+    const status = error?.status;
+    if (status && status !== 429 && status < 500) {
+      totals.errors += 1;
+      log.warn(`stream open failed (${provider.key} model="${provider.model}"): ${errorDetail(error)} — client error`);
+    } else {
+      log.debug(`stream open soft-failed (${provider.key} model="${provider.model}"): ${errorDetail(error)} — overload/transient, not counted`);
+    }
     throw error;
   } finally {
     if (openTimer) clearTimeout(openTimer);
@@ -455,10 +463,11 @@ export async function chatStream(opts) {
           if (content) { contentChars += content.length; yield content; }
         }
       } catch (error) {
-        // A stall-abort masquerades as an AbortError, so check stalled first.
+        // A stall-abort masquerades as an AbortError, so check stalled first. A stall
+        // is overload, not an error: no count, debug-only. The throw still ends the
+        // burst so the mind reschedules (and backs off) instead of freezing.
         if (stalled) {
-          totals.errors += 1;
-          log.warn(`stream STALLED — no token for ${stallMs}ms (${provider.key} model="${provider.model}", ${chunks} chunks, ${contentChars} content chars). Aborted so the mind can reschedule instead of freezing.`);
+          log.debug(`stream STALLED — no token for ${stallMs}ms (${provider.key} model="${provider.model}", ${chunks} chunks, ${contentChars} content chars); aborted so the mind reschedules. Not counted as an error.`);
           throw new Error(`stream stalled: no token for ${stallMs}ms`);
         }
         if (burst.aborted || error?.name === 'AbortError' || error?.name === 'APIUserAbortError') {
@@ -473,14 +482,19 @@ export async function chatStream(opts) {
         addUsage(burst.usage);
       }
       log.debug(`stream done: ${chunks} chunks, ${contentChars} content chars, ${reasoningChars} reasoning chars, finish=${finish}, usage=${burst.usage ? JSON.stringify(burst.usage) : 'none'}`);
-      // The silent failure that makes the mind "do nothing": a clean 200 stream
-      // that yields no visible content. Always warn — this is never normal.
+      // A clean 200 stream that yields no visible content: the mind had nothing to
+      // think this tick (a concluded thread, or a brief server overload). This is NOT
+      // treated as an error — no retry, no error count — the mind just waits for the
+      // next burst. Only output landing in reasoning_content is a real, fixable
+      // misconfiguration worth a warning.
       if (contentChars === 0 && !burst.aborted) {
-        log.warn(`stream produced 0 visible content (${provider.key} model="${provider.model}", ${chunks} chunks, finish=${finish}) — the mind had nothing to think. `
-          + (reasoningChars > 0
-              ? `Output arrived as reasoning_content (${reasoningChars} chars): disable reasoning for this model, or have the stream surface reasoning.`
-              : `The model streamed an empty completion${chunks <= 1 ? ' (and ~no chunks — the server may not be streaming this model)' : ''}.`));
+        if (reasoningChars > 0) {
+          log.warn(`stream produced 0 visible content (${provider.key} model="${provider.model}", ${chunks} chunks, finish=${finish}) — output arrived as reasoning_content (${reasoningChars} chars): disable reasoning for this model, or have the stream surface reasoning.`);
+        } else {
+          log.debug(`stream produced 0 visible content (${provider.key} model="${provider.model}", ${chunks} chunks, finish=${finish}) — the mind had nothing to think; it waits for the next burst${chunks <= 1 ? ' (≈no chunks — the server may not be streaming this model)' : ''}.`);
+        }
       }
+
     },
   };
   return burst;
