@@ -80,6 +80,11 @@ test("a note is set down (world-changing) and read back (closing the loop)", asy
     expect(back.experience).toMatch(/I find again something I set down/i);
     expect(back.experience).toMatch(/Rivers do not push the canyon away/);
     expect(back.data.title).toBe("rivers");
+    // The return arc re-enters URGENT, so it bypasses the arbiter's rate-limit instead
+    // of being dropped in a contended window (the lemma-7 defect); a deliberately-sought
+    // note lands at a salience that survives a crowded queue.
+    expect(back.urgent).toBe(true);
+    expect(back.salience).toBe(0.8);
 });
 
 test("recall on an empty notebook fails (m-act would swallow it — no afference)", async () => {

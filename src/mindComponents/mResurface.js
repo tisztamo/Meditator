@@ -114,13 +114,22 @@ export class MResurface extends MObserver {
      */
     _pickRelevant(notes) {
         const minNoteChars = Number(this.attr("minNoteChars") || 120)
-        const nowCues = contentStems(this.window)
-        if (!nowCues.size) return null
 
         const fresh = notes.filter(n => n.stamp !== this._lastStamp)
         const pool = fresh.length ? fresh : notes
         const substantive = pool.filter(n => n.text.length >= minNoteChars)
         const candidates = substantive.length ? substantive : pool
+
+        // A loop that still carries content: surface the kept note whose own words most
+        // overlap it, so what comes back is RELEVANT to the loop, not a random memory.
+        // But a loop can collapse into content-free spam ("1. 1. 1.", repeated
+        // punctuation) that yields no cues to rank by — and that trough is exactly when
+        // a real kept result is most worth pulling back. So when there are no cues, fall
+        // back to the freshest substantive note rather than going silent and ceding the
+        // boundary to the loop-guard's generic "pick something unrelated" (lemma-7: its
+        // one in-notebook loop was digit-spam, so resurface never once fired).
+        const nowCues = contentStems(this.window)
+        if (!nowCues.size) return candidates[candidates.length - 1]
 
         let best = null, bestScore = -Infinity
         for (let i = 0; i < candidates.length; i++) {

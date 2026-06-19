@@ -91,6 +91,25 @@ test("a flowing, non-repetitive stream does NOT resurface anything", async () =>
     expect(raised.length).toBe(0);
 });
 
+test("a content-free loop (digit-spam) still resurfaces the freshest substantive note", async () => {
+    // lemma-7's one in-notebook loop had collapsed into "1. 1. 1." — a high loopScore but
+    // zero content cues to rank notes by. Resurface must NOT go silent there (ceding the
+    // boundary to the loop-guard's generic redirect, which is what happened): with no cues
+    // it falls back to the freshest substantive note rather than skipping the rescue.
+    const DIGIT_SPAM = "1. ".repeat(400);
+    raised.length = 0;
+    resurface.setAttribute("dir", notesDir);
+    resurface._lastStamp = null;
+    resurface.window = DIGIT_SPAM;
+    resurface.onBoundary({ reason: "completed" });
+    await delay(60);
+
+    expect(raised.length).toBe(1);
+    expect(raised[0].reason).toMatch(/Rivers do not push the canyon away/);   // the substantive result
+    expect(raised[0].reason).not.toMatch(/going in circles/);                 // not the terse meta-note
+    expect(raised[0].urgent).toBe(true);
+});
+
 test("with nothing set down yet, a loop resurfaces nothing (no afference)", async () => {
     const emptyDir = path.join(os.tmpdir(), "med-resurface-empty-" + Date.now());
     resurface.setAttribute("dir", emptyDir);
