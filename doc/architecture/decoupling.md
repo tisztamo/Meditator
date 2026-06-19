@@ -67,6 +67,7 @@ Two Amanita facts make this robust and are worth keeping in mind:
 | mind frame: recent/story | `m-memory` → `compressed {recent, story}` (also on load) | `m-mind` `compressedSrc` | ✅ done |
 | mind frame: tail | `m-memory` → `tail` (retained, on every change) | `m-mind` `tailSrc` | ✅ done |
 | mind: wake notice | `m-memory` raises `interrupt-request` on load | the arbiter → `takePending()` | ✅ done |
+| mind: origin seed | `m-origin` → `prompt` (its content) | `m-mind` `originSrc` → `_seedIfFresh` raises `interrupt-request` | ✅ done |
 | mind: perceived-stimulus journaling | `m-mind` → `attended [lines]` | `m-memory` `attendedSrc` → `note()` | ✅ done |
 
 After these, **nothing pulls a faculty's *content* by class/method.** Memory is

@@ -128,6 +128,14 @@ back here when a word is unclear.
 - **archml** — "architecture markup language." The file that *describes* a mind.
   It is a small subset of HTML: a `<m-mind>` element holding the mind's identity
   text, with child elements for its parts. The file *is* the configuration.
+- **identity** — the prose inside `<m-mind>`: the mind's standing self-description
+  (its "system prompt"), placed in every [attention frame](#the-rhythm-of-thought).
+  *Who* the mind is. The seed of the **self**.
+- **origin** — a child `<m-origin>`: the one matter a mind is first set thinking
+  about (for `lemma`, an open math problem). *What* it was given, as opposed to who
+  it is — the seed of the **thought**. It seeds only the first thought of a fresh
+  mind, like an opening query, then lives or fades in memory as the *origin story*;
+  it is not repeated in every frame, and a remembering mind is never re-seeded.
 - **component** — one part of a mind, written as a custom HTML element whose name
   starts with `m-` (for example `<m-stream>`, `<m-memory>`). See the
   [component reference](architecture/components.md).

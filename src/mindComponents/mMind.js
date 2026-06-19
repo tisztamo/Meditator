@@ -19,6 +19,12 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
  *   [bridge]     1-2 transition sentences, the only LLM-written part, redirects only
  *   [tail]       verbatim end of the stream — "what I was just saying" — always last
  *
+ * The identity is the seed of the SELF and stands in every frame. Distinct from
+ * it is the seed of the THOUGHT — a child <m-origin>, the one matter the mind was
+ * first set upon. The origin does not stand in the frame: a freshly-born mind is
+ * seeded with it once, as an opening stimulus, and thereafter it lives or fades
+ * in memory like any experience (see _seedIfFresh).
+ *
  * The rhythm is a FIXED TICK: bursts are scheduled `pace` apart measured from
  * one burst's START to the next, NOT `pace` after the previous one finishes. The
  * cadence is therefore decoupled from how long the model takes — a fast burst is
@@ -74,6 +80,9 @@ export class MMind extends MBaseComponent {
     _memRecent = ""
     _memStory = ""
     _embodiment = ""         // the hands' body schema, mirrored from m-act (not pulled)
+    _originText = ""         // the origin (seed of the first thought), mirrored from m-origin
+    _hasOrigin = false       // whether an <m-origin> ref was wired (so we wait for it)
+    _originReady = false     // whether the origin mirror has been delivered at least once
 
     onConnect() {
         // "stream/boundary" and "@interrupt" fields are auto-subscribed by Amanita.
@@ -109,6 +118,18 @@ export class MMind extends MBaseComponent {
         const embodimentSrc = this.attr('embodimentSrc') || (handsName ? `..m-mind/${handsName}/embodiment` : null)
         if (embodimentSrc && embodimentSrc !== 'off') this.sub(embodimentSrc, e => { this._embodiment = e || "" }, 12)
 
+        // Mirror the ORIGIN — the matter this mind was first set thinking about — the
+        // same decoupled way: m-origin publishes its text on `prompt`, we mirror it
+        // from an auto-discovered, overridable ref, never a querySelector reach-in
+        // (decoupling.md). The querySelector here only reads m-origin's NAME to build
+        // the ref, exactly as memory and the hands are discovered above. Read once,
+        // at birth, by _seedIfFresh.
+        const origin = this.querySelector('m-origin[name]')
+        const originName = origin?.getAttribute('name')
+        const originSrc = this.attr('originSrc') || (originName ? `..m-mind/${originName}/prompt` : null)
+        this._hasOrigin = !!(originSrc && originSrc !== 'off')
+        if (this._hasOrigin) this.sub(originSrc, o => { this._originText = o || ""; this._originReady = true }, 12)
+
         this._begin()
     }
 
@@ -129,7 +150,44 @@ export class MMind extends MBaseComponent {
         // Publish an initial tick estimate so a viewer can pace its display from
         // the very first burst (the next one is published per-schedule).
         this.pub("pace", { tickMs: Math.round(this._tickMs()) })
+        // A freshly-born mind is seeded with its <m-origin>, if any, before the
+        // first burst drains the attention queue — so the origin is the first
+        // thing it thinks about (see _seedIfFresh).
+        this._seedIfFresh()
         this.continueThinking()
+    }
+
+    /**
+     * Seed the FIRST thought of a freshly-born mind with its <m-origin> — the one
+     * matter it was set thinking about (lemma's problem; a question or situation
+     * for any other mind). Raised onto the attention spine like an opening query,
+     * so it enters the first frame as "what just happened" and is journaled via
+     * `attended`; from there it lives or fades in memory as the origin story.
+     *
+     * Fired once, and ONLY for a fresh mind — one whose memory came up empty. A
+     * mind that woke up remembering already carries its origin in memory (kept or
+     * faded, which is memory's business), so it is never re-seeded; re-injecting
+     * the origin verbatim would deny the mind its own forgetting. The freshness
+     * test mirrors the wake notice: memory raises a Waking stimulus exactly when
+     * there IS loaded content, and stays silent — leaving the mirrors empty —
+     * exactly when there is not.
+     */
+    _seedIfFresh() {
+        if (this._seeded) return
+        this._seeded = true
+        if (this._memTail || this._memRecent || this._memStory) return
+        const origin = (this._originText || "").trim()
+        if (!origin) return
+        log.info(`Seeding the first thought from <m-origin> (${origin.length} chars).`)
+        this.dispatchEvent(new CustomEvent("interrupt-request", {
+            bubbles: true,
+            detail: new InterruptRecord({
+                source: 'Internal',
+                type: 'Origin',
+                reason: origin,
+                salience: 1,
+            }),
+        }))
     }
 
     /** Waits until the stream (and memory, if declared) are upgraded and loaded. */
@@ -139,7 +197,12 @@ export class MMind extends MBaseComponent {
             const memory = this.querySelector('m-memory')
             const streamReady = stream && stream.on
             const memoryReady = !memory || (memory.on && memory.loaded)
-            if (streamReady && memoryReady) return
+            // The origin is read once at birth and never again, so — unlike the
+            // forgiving embodiment/memory mirrors — its content must be present
+            // before the first burst, or the seed is lost. Wait for the mirror
+            // to land (presence/flag only; the content is never pulled here).
+            const originReady = !this._hasOrigin || this._originReady
+            if (streamReady && memoryReady && originReady) return
             await delay(100)
         }
         throw new Error("stream/memory components did not come up in time")

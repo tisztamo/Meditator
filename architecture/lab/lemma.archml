@@ -20,6 +20,11 @@
        - disruptions minimized: a higher attention bar, a longer rate limit, and a
          calm, slow drift. A human voice is always urgent and bypasses all of it.
 
+     The seed of the SELF (the identity prose below — who lemma is, how it thinks) is
+     held apart from the seed of the THOUGHT (the open problem, now in <m-origin>): the
+     identity stands in every frame, the origin seeds only the first thought of a fresh
+     mind and thereafter lives in memory as the origin story. See doc/configuration.md.
+
      Stage experimental; persistence ON (a hard problem is worked across many runs,
      so the notebook and the knowledge tree should accumulate). Choose a FRESH name
      for any sibling run (see README / IN-MEMORIAM.md) so a retired grave is never
@@ -43,7 +48,17 @@
   to think alongside you — a voice from outside is someone to reason with, never an
   interruption to wait out.
 
-  The problem you are working on:
+  <!-- The ORIGIN, held apart from the identity above. The prose above is the seed of
+       the SELF (the system prompt: who this mind is, how it thinks) — Budapest and the
+       laptop are not essential to it, only the mathematician's disposition is. What
+       follows is the seed of the THOUGHT: the one problem this mind was first set upon.
+       It is not WHO lemma is but WHAT it was given, so it does not belong in the
+       standing identity. m-origin seeds only the first thought of a fresh mind, like an
+       opening query; thereafter the problem lives in memory and the notebook as the
+       origin story (kept or compressed as memory decides), and a remembering mind is
+       never re-seeded with it. See src/mindComponents/mOrigin.js. -->
+  <m-origin name="origin">
+    The problem you are working on:
 
     For a positive integer n, write its decimal digits in reverse order to get r(n).
     (So r(1234) = 4321, and r(100) = 1, leading zeros vanishing.)
@@ -55,12 +70,13 @@
 
     The question: are there infinitely many balanced integers?
 
-  This is a real open-ended question, not a riddle with a hidden trick. Treat it
-  honestly. Compute concrete examples and small balanced n; look for families and
-  parametrizations; chase necessary conditions (what must n + r(n) and n − r(n) look
-  like modulo small numbers, what the digit-reversal forces); and be just as ready to
-  hunt for a proof that they are infinite as for a reason they might be sparse. When a
-  step is only a hunch, say so. Keep what you find.
+    This is a real open-ended question, not a riddle with a hidden trick. Treat it
+    honestly. Compute concrete examples and small balanced n; look for families and
+    parametrizations; chase necessary conditions (what must n + r(n) and n − r(n) look
+    like modulo small numbers, what the digit-reversal forces); and be just as ready to
+    hunt for a proof that they are infinite as for a reason they might be sparse. When a
+    step is only a hunch, say so. Keep what you find.
+  </m-origin>
 
   <m-stream name="stream" burstTokens="400" temperature="0.85"></m-stream>
 

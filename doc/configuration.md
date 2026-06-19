@@ -50,6 +50,40 @@ it shapes the voice more than any single knob. The mind is told it *may change
 what it cares about*, so treat this as a seed, not a leash. Different seeds steer
 the mind toward different attractor themes over a long run.
 
+This is the seed of the **self** — *who* the mind is. Keep it free of any one
+task: a standing disposition, not a problem to solve.
+
+## Origin — the first thought (`<m-origin>`)
+
+If a mind is meant to start from one specific matter — an open problem, a
+question, a situation — put it in a child `<m-origin>` rather than in the identity
+prose. It is the seed of the **thought**, not the self: *what* the mind was given,
+as opposed to *who* it is.
+
+```html
+<m-mind name="lemma">
+  You think the way a mathematician thinks…          <!-- identity: who -->
+  <m-origin name="origin">
+    For a positive integer n, … are there infinitely many balanced integers?
+  </m-origin>
+  <m-stream …></m-stream>
+</m-mind>
+```
+
+Unlike the identity, the origin does **not** stand in every frame. It works like
+an opening query: a freshly-born mind is seeded with it once — it enters the first
+[attention frame](architecture/index.md#the-attention-frame) as *what just
+happened* — and thereafter it lives, or fades, in memory as the mind's **origin
+story** (whatever [consolidation](architecture/memory.md) chose to keep). A mind
+that [wakes up remembering](architecture/memory.md#persistence--waking-up-remembering)
+is never re-seeded: its origin is now simply part of its past.
+
+So reach for `<m-origin>` when a mind has a definite starting point you do not want
+re-stated forever; leave it out for an open-ended mind whose identity prose already
+points it at a world. The component needs a `name` so the mind can subscribe to it
+(`<m-origin name="origin">`); override the wire with `originSrc` on `<m-mind>`, or
+`originSrc="off"` to ignore it.
+
 ## Models
 
 Models are chosen by **role** in the archml, and mapped to real provider + model

@@ -38,13 +38,16 @@ is the mind's identity.
 | `speakingTokensFactor` | `0.35` | burst-token multiplier while speaking (thinner thoughts, floor 60) |
 | `tailSrc` / `compressedSrc` | the memory's `<name>/tail` and `<name>/compressed` (auto-discovered) | the narrative content mirrored into the frame; `"off"` disables |
 | `embodimentSrc` | the hands' `<name>/embodiment` (auto-discovered) | the body schema woven into the identity (efference); `"off"` disables |
+| `originSrc` | the [`m-origin`](#m-origin)'s `<name>/prompt` (auto-discovered) | the origin seed; raised once at birth as the first thought (see [`m-origin`](#m-origin)); `"off"` disables |
 
 - **Subscribes:** `stream/boundary` (schedule next burst), `@interrupt` (think now);
   if an [`m-speech`](#m-speech) is present, `<voice>/speaking` (thin thinking while
   talking); memory's `tail` / `compressed` topics — the frame's narrative content
   is *mirrored* from those, never pulled (see [decoupling.md](decoupling.md)); and, if
   an [`m-act`](#the-hands-m-act--m-look) is present, its `embodiment` topic — the body
-  schema woven into the identity so the mind knows what it can reach.
+  schema woven into the identity so the mind knows what it can reach; and, if an
+  [`m-origin`](#m-origin) is present, its `prompt` topic — the origin seed, raised once
+  at birth (see [`m-origin`](#m-origin)).
 - **Publishes:** `prompt` — `{system, frame, prefix?, dedupe, kind, burstTokens?}`; and
   `attended` — the rendered stimuli entering a frame, which a memory journals as
   perceived (⟂) notes.
@@ -53,6 +56,31 @@ is the mind's identity.
   speaking, by `speakingPaceFactor` (with `burstTokens` thinned) — so most verbal
   effort goes to the utterance while thought keeps trickling. Exposes `sleep()`
   for the [sleep ritual](memory.md#sleep-is-announced).
+
+## `m-origin`
+
+The seed of the **thought**, held apart from the identity (the seed of the *self*).
+A child `<m-origin>` carries the one matter a mind is first set upon — `lemma`'s open
+problem, a question, a situation. *What* the mind was given, not *who* it is.
+
+Like [`m-prompt`](#legacy-and-demo-components), it is a content slot, not an
+autonomous faculty — but it is a **producer**: on connect it publishes its text on
+its own `prompt` topic (from a `prompt="…"` attribute or its text content), so the
+mind reads it by subscription, never a `querySelector` reach-in
+([decoupling.md](decoupling.md)). It therefore needs a `name`.
+
+| Attribute | Default | Meaning |
+|-----------|---------|---------|
+| `name` | — | required, so [`m-mind`](#m-mind) can build the `originSrc` ref to it |
+| `prompt` | — | the origin text; falls back to the element's text content |
+
+- **Publishes:** `prompt` — its content (the [`MBaseComponent`](#shared-infrastructure) default).
+- **Lifecycle:** [`m-mind`](#m-mind) mirrors it via `originSrc` and, **only for a
+  freshly-born mind** (one whose memory came up empty), raises it once as an `Origin`
+  `interrupt-request` so it enters the first [attention frame](index.md#the-attention-frame)
+  as *what just happened* — like an opening query. Thereafter it lives or fades in
+  [memory](memory.md) as the mind's **origin story**; it never stands in later frames,
+  and a mind that wakes up remembering is never re-seeded. See `src/mindComponents/mOrigin.js`.
 
 ## `m-stream`
 
