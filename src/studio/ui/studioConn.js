@@ -172,8 +172,8 @@ export class StudioConn extends A(HTMLElement) {
   }
 
   // ------------------------------------- outbound commands (called via el())
-  wake(file, dryRun, modelProfile) {
-    if (file) this.send({ type: "wake", data: { file, dryRun: !!dryRun, modelProfile: modelProfile || null } });
+  wake(file, dryRun, modelProfile, name) {
+    if (file) this.send({ type: "wake", data: { file, dryRun: !!dryRun, modelProfile: modelProfile || null, name: name || null } });
   }
   refresh() { this.send({ type: "refresh" }); }
   sleep(id) { this.send({ type: "sleep", data: { id } }); }

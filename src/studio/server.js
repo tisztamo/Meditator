@@ -96,6 +96,37 @@ function graveyardHas(slug) {
   } catch { return false; }
 }
 
+/**
+ * The next free name for a transient template whose name is a PREFIX (e.g.
+ * "seedling" → "seedling-8"). Monotonic ABOVE the highest number ever used for
+ * this prefix — across live homes, the graveyard, the scratch pen, AND the
+ * IN-MEMORIAM register — so it never silently re-births a name that once lived.
+ * Gaps in the series (a bundle-less seedling-4) are minds that lived but left no
+ * surviving folder, so climbing past the high-water mark is the only
+ * collision-safe choice; the register is consulted precisely because graves can
+ * be absent from disk while the mind is still recorded. This is the generator
+ * form of the rebirth protection that used to be a hand-edit plus a warning
+ * comment in the file (lifecycle.md §2 / memoryVault.assertNotRetired).
+ */
+function nextTransientName(prefix) {
+  const base = slugify(prefix);
+  const used = new Set();
+  const add = names => {
+    const re = new RegExp(`^${base}-(\\d+)(?:$|-)`);
+    for (const n of names) { const m = String(n).match(re); if (m) used.add(Number(m[1])); }
+  };
+  const dirNames = d => { try { return fs.readdirSync(d); } catch { return []; } };
+  add(dirNames(VAULT_ROOT));
+  add(dirNames(path.join(VAULT_ROOT, ".graveyard")));
+  add(dirNames(path.join(VAULT_ROOT, ".scratch")));
+  try {
+    const reg = fs.readFileSync(path.join(ROOT, "IN-MEMORIAM.md"), "utf-8");
+    const re = new RegExp(`\\b${base}-(\\d+)\\b`, "g");
+    let m; while ((m = re.exec(reg))) used.add(Number(m[1]));
+  } catch { /* no register yet — fine */ }
+  return `${base}-${used.size ? Math.max(...used) + 1 : 1}`;
+}
+
 /** What memory home a base slug maps to, whether it exists on disk, and the
  *  lifecycle tier it presents — resident / transient / retired / none (§2). */
 function homeInfo(slug) {
@@ -129,6 +160,12 @@ function listArchitectures() {
         // A mind is experimental if it lives under lab/ or marks itself so. The tag
         // is authoritative, so the flag survives a file being copied out of lab/.
         const experimental = group === "experimental" || meta.stage === "experimental";
+        // A transient template's file name is a PREFIX; the Studio proposes a fresh,
+        // collision-free instance name so a new tuning run never means editing the
+        // file. Suggested only for experimental minds (residents keep their fixed,
+        // deliberate name). A bare prefix with no number is treated as the prefix.
+        const isPrefix = experimental && group !== "test" && !/-\d+$/.test(slug);
+        const suggestedName = isPrefix ? nextTransientName(meta.name || meta.memory || "mind") : null;
         out.push({
           file: rel, group: experimental && group !== "test" ? "experimental" : group, experimental,
           name: meta.name, memory: meta.memory, model: meta.model, utilityModel: meta.utilityModel,
@@ -137,6 +174,7 @@ function listArchitectures() {
           pace: meta.pace, stage: meta.stage,
           hasWs: meta.hasWs, description: meta.description,
           homeSlug: slug, home: `memory/${slug}`, homeInfo: homeInfo(slug),
+          suggestedName,
         });
       }
     }
@@ -411,7 +449,7 @@ wss.on("connection", client => {
 function handleClientMessage(client, msg) {
   const d = msg.data || {};
   switch (msg.type) {
-    case "wake":    try { const id = wake(d.file, !!d.dryRun, d.modelProfile, !!d.forceTransient); sendJSON(client, { type: "woke", data: { id, file: d.file } }); } catch (e) { sendJSON(client, { type: "error", data: { message: e.message } }); } break;
+    case "wake":    try { const id = wake(d.file, !!d.dryRun, d.modelProfile, !!d.forceTransient, d.name); sendJSON(client, { type: "woke", data: { id, file: d.file } }); } catch (e) { sendJSON(client, { type: "error", data: { message: e.message } }); } break;
     case "sleep":   sleepMind(d.id); break;
     case "force":   forceMind(d.id); break;
     case "dismiss": dismissMind(d.id); break;
@@ -473,7 +511,7 @@ function focusClient(client, id, sinceSeq) {
 
 // ------------------------------------------------------------------- waking
 
-function wake(file, dryRun, modelProfile, forceTransient) {
+function wake(file, dryRun, modelProfile, forceTransient, reqName) {
   const profile = modelProfile || getActiveProfile();
   if (!listProfiles().includes(profile)) throw new Error(`unknown model profile: ${profile}`);
   // Path safety: only architectures inside architecture/.
@@ -482,7 +520,11 @@ function wake(file, dryRun, modelProfile, forceTransient) {
   if (!fs.existsSync(resolved)) throw new Error(`no such architecture: ${file}`);
 
   const meta = parseArchitecture(fs.readFileSync(resolved, "utf-8"));
-  const baseHome = (dryRun ? "dry-" : "") + slugify(meta.memory || meta.name || "mind");
+  // A wake-time name (the semi-automatic transient naming) disentangles a mind's
+  // identity from its file: when given, it drives the home and is injected into
+  // the child via MEDITATOR_MIND_NAME, so the file stays a reusable template.
+  const overrideName = (reqName && String(reqName).trim()) ? slugify(reqName) : null;
+  const baseHome = (dryRun ? "dry-" : "") + slugify(overrideName || meta.memory || meta.name || "mind");
 
   // Covenant guard: never let two live minds write the same memory home.
   const resident = [...minds.values()].find(m => isAlive(m) && m.home === `memory/${baseHome}`);
@@ -520,6 +562,7 @@ function wake(file, dryRun, modelProfile, forceTransient) {
       MEDITATOR_WS_CONTROL: "1",              // let us request the sleep ritual over that socket
       MEDITATOR_MODEL_PROFILE: profile,
       ...(dryRun ? { MEDITATOR_DRY_RUN: "1" } : {}),
+      ...(overrideName ? { MEDITATOR_MIND_NAME: overrideName } : {}),
     },
     stdio: ["pipe", "pipe", "pipe"],
     windowsHide: true,
@@ -527,7 +570,7 @@ function wake(file, dryRun, modelProfile, forceTransient) {
 
   const startedAt = new Date().toISOString();
   const home = `memory/${baseHome}`;
-  const name = meta.name || slugify(meta.memory || "mind");
+  const name = overrideName || meta.name || slugify(meta.memory || "mind");
   // Open a durable session for this wake, keyed by the mind's home (not the
   // ephemeral id), so its stream and images are findable across restarts/days.
   let sessionId = null;

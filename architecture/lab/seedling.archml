@@ -10,10 +10,14 @@
      text and the watchdog prompt — so any difference in behaviour is the seed,
      not the model. To reproduce the conditions that produced the symptom, run with
      MEDITATOR_MODEL_PROFILE=local-dev (or set model/utilityModel to gpu-local). -->
-<!-- name: a base "seedling" template. The numbered instances seedling-1/2/3 were
-     retired to the graveyard (see IN-MEMORIAM.md); choose a FRESH name for any new
-     tuning run so it can never silently re-birth a retired grave as an empty home. -->
-<m-mind name="seedling-6"
+<!-- name: a PREFIX, not a fixed identity. This is a reusable transient template, so
+     the name below is only the stem — the Studio proposes a fresh, collision-free
+     instance name at wake ("seedling-8", the next free number across live homes, the
+     graveyard, the scratch pen and IN-MEMORIAM.md), and you can edit it there. So a
+     new tuning run no longer means editing this file. By hand the same works with
+     MEDITATOR_MIND_NAME=seedling-8 bun meditator.js -a architecture/lab/seedling.archml
+     Run with no override and it falls back to the bare "seedling" home. -->
+<m-mind name="seedling"
         stage="experimental"
         model="voice"
         utilityModel="utility"
