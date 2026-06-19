@@ -28,10 +28,10 @@ exclude_patterns:
 - '**/.vscode/**'
 models:
   agent: ardincoder-1
-  agent_base_url: http://codumentor.mecset.local:1248/v1/
+  agent_base_url: http://localhost:1248/v1/
   agent_api_key: none
   embedding: ardinembedder-2
-  embedding_base_url: http://codumentor.mecset.local:1248/v1/
+  embedding_base_url: http://localhost:1248/v1/
   embedding_api_key: none
 logging:
   level: WARNING
