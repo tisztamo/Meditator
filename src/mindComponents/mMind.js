@@ -324,13 +324,16 @@ export class MMind extends MBaseComponent {
             sections.push(`## This just happened\n${stimuli.map(s => `- ${s.renderForFrame()}`).join("\n")}`)
         }
 
-        // The whole frame is ONE system message — no `user` turn, because no user
-        // is present; this is a mind thinking to itself. The thought in progress is
-        // not a section of that message: it is carried as the mind's OWN prior turn
-        // (an assistant message, the `prefill`) which the model is asked to continue.
-        // So the instruction is placed here, ahead of the tail, never after it — the
-        // request then ends on the last token the mind actually thought, and the
-        // model has nothing to answer, only a sentence to keep writing.
+        // The frame is split across three chat turns (built in m-stream): a `system`
+        // message (identity + memory + what just happened), a `user` message carrying
+        // the instruction, and — when a thought is already underway — an `assistant`
+        // prefill holding that thought, which the model is asked to continue. The
+        // instruction is a `user` turn rather than a section of the system block for
+        // two reasons: the request must contain a user query at all (litellm/vLLM
+        // reject a system-only or system+assistant request with "No user query found
+        // in messages"), and placing it ahead of the assistant prefill lets the
+        // request end on the mind's own last token, so the model continues the thought
+        // instead of answering it.
         let instruction, prefill
         if (thoughtInProgress) {
             instruction = stimuli.length
@@ -343,12 +346,14 @@ export class MMind extends MBaseComponent {
                 : `Begin the inner monologue now, starting from whatever is most alive in you. Write only the monologue.`
         }
 
-        const system = [identity, ...sections, instruction].join("\n\n")
+        const system = [identity, ...sections].join("\n\n")
 
         log.debug("Attention frame (system):\n" + system
+            + "\n\n--- instruction (user turn) ---\n" + instruction
             + (prefill ? "\n\n--- prefill (assistant turn, continued) ---\n…" + prefill.slice(-400) : ""))
         const payload = {
             system,
+            instruction,
             prefill,
             prefix,
             dedupe: thoughtInProgress.slice(-100),

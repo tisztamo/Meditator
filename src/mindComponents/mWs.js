@@ -339,12 +339,15 @@ export class MWs extends MBaseComponent {
         this._emit("mind", "frame", { frameKind: "raw", frame: payload.slice(0, 8000) });
         return;
       }
+      // The frame is now three turns: system, the instruction (a user turn), and the
+      // thought in progress (the assistant prefill the model continues). The studio
+      // panel only renders `system`/`frame`/`prefix`, so fold the instruction into the
+      // displayed system block and surface the prefill as the `frame` (the tail being
+      // continued). Display-only — the actual request keeps them as separate turns.
+      const sysDisplay = [payload.system, payload.instruction].filter(Boolean).join("\n\n");
       this._emit("mind", "frame", {
         frameKind: payload.kind || "continue",
-        system: (payload.system || "").slice(0, 8000),
-        // The thought in progress now rides as the assistant prefill, not a `frame`
-        // string. Surface it in the same field so the studio still shows the tail
-        // the model was asked to continue.
+        system: sysDisplay.slice(0, 8000),
         frame: (payload.prefill || payload.frame || "").slice(0, 8000),
         prefix: payload.prefix || null,
       });
