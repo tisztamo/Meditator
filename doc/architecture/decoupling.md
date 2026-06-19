@@ -110,5 +110,6 @@ same migration: its panes read supervisor state by subscribing to topics and now
 issue *commands* as bubbling `studio-command` events the `studio-conn` hub routes —
 the browser mirror of the [`interrupt-request`](interrupts.md) pattern, replacing
 the reach-in this page removes. With the panes' field-reads also gone the hub is
-swappable and mockable; what remains is folding a few stray controls into the mesh.
-See [Studio wiring](../studio-wiring.md).
+swappable and mockable, and the stray controls are folded in as their own
+components — the Studio is now a pure mesh, with only an optional transport split
+left. See [Studio wiring](../studio-wiring.md).

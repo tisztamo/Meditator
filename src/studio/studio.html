@@ -252,17 +252,14 @@
     </header>
 
     <!-- Mobile-only pane switcher: reveals one column at a time on a narrow
-         screen (hidden on the desktop three-column layout). -->
-    <nav class="panebar">
-      <button data-pane="minds">Minds</button>
-      <button data-pane="stream">Stream</button>
-      <button data-pane="structure">Structure</button>
-    </nav>
+         screen (hidden on the desktop three-column layout). It sets data-pane on
+         the <main name="view"> below. -->
+    <studio-panes class="panebar"></studio-panes>
 
-    <main>
+    <main name="view">
       <!-- roster rail -->
       <div class="col rail">
-        <div class="colhead"><span>minds</span><span id="archRefresh" title="rescan architectures" style="cursor:pointer">⟳</span></div>
+        <div class="colhead"><span>minds</span><studio-refresh style="cursor:pointer"></studio-refresh></div>
         <div class="scroll">
           <studio-wake class="wake"></studio-wake>
           <studio-roster></studio-roster>
@@ -271,7 +268,7 @@
 
       <!-- focused mind: stream -->
       <div class="col left">
-        <div class="colhead"><span>stream of consciousness</span><span class="hdr-right"><span class="legend">thought · 🗣 speech · ⟂ stimulus</span><span class="streammode" data-streammode>flow</span></span></div>
+        <div class="colhead"><span>stream of consciousness</span><span class="hdr-right"><span class="legend">thought · 🗣 speech · ⟂ stimulus</span><studio-streammode name="streammode" class="streammode">flow</studio-streammode></span></div>
         <studio-stream id="stream"></studio-stream>
         <studio-speak class="foot"></studio-speak>
       </div>
@@ -290,27 +287,5 @@
   </studio-conn>
 
   <script type="module" src="/ui/index.js"></script>
-  <!-- Mobile pane switcher controller. Toggles which column shows on a narrow
-       screen via main[data-pane]; the active pane is persisted, and focusing a
-       mind jumps to Stream so the always-visible selector stops blocking it. -->
-  <script type="module">
-    import { getPref, setPref } from "/ui/studioPrefs.js";
-    const main = document.querySelector("main");
-    const bar = document.querySelector(".panebar");
-    const setPane = (p, persist) => {
-      main.setAttribute("data-pane", p);
-      for (const b of bar.querySelectorAll("button")) b.classList.toggle("active", b.dataset.pane === p);
-      if (persist) setPref("pane", p);
-    };
-    setPane(getPref("pane", "minds"), false);
-    bar.addEventListener("click", e => {
-      const b = e.target.closest("button");
-      if (b) setPane(b.dataset.pane, true);
-    });
-    customElements.whenDefined("studio-conn").then(() => {
-      const conn = document.querySelector("studio-conn");
-      conn && conn.on && conn.on("focused", id => { if (id) setPane("stream", true); });
-    });
-  </script>
 </body>
 </html>

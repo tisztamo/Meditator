@@ -1,6 +1,6 @@
 import A from "amanita";
 import { nearBottom, scrollDown } from "./helpers.js";
-import { getPref, setPref } from "./studioPrefs.js";
+import { getPref } from "./studioPrefs.js";
 
 // Over a long run the monologue would grow without bound and bog the browser
 // down. Keep roughly this many characters of rendered stream; older blocks are
@@ -32,8 +32,9 @@ const SOFT_PARA = 2400;
  * blocks, and stimuli / burst boundaries as markers — concatenating fragments
  * into one continuous monologue with a live caret.
  *
- * Two display modes, toggled by the [data-streammode] control in the column
- * header and remembered in localStorage:
+ * Two display modes, owned by the studio-streammode control in the column header
+ * (it publishes the mode on `/streammode/mode`; this pane subscribes) and
+ * remembered in localStorage:
  *   - "flow" (default): incoming fragments are buffered and revealed at a metered
  *     rate that drains over ~one burst tick (learned from the mind's "pace"
  *     telemetry), so a burst trickles out instead of dumping and its boundary is
@@ -49,7 +50,7 @@ const SOFT_PARA = 2400;
 export class StudioStream extends A(HTMLElement) {
   curP = null; caret = null; speaking = false; sayEl = null; saySpan = null; primed = false; chars = 0;
   // flow-mode reveal engine
-  smooth = true; tickMs = 8000; q = []; _raf = null; _lastT = null; _acc = 0; _modeCtl = null;
+  smooth = true; tickMs = 8000; q = []; _raf = null; _lastT = null; _acc = 0;
   // _awaitingBatch: between a (re)focus and its backfill batch, ignore projection
   //   events (they rehydrate the header/tree, not the stream). hidden: the tab is
   //   backgrounded — append live text instantly instead of feeding the rAF pump.
@@ -61,10 +62,10 @@ export class StudioStream extends A(HTMLElement) {
   onConnect() {
     this.smooth = this._loadMode();
     this.clear("Wake a mind, or focus one, to watch its stream.");
-    // The flow/raw toggle lives in the column header (outside the scroll area).
-    const ctl = (this.closest(".col") || this.parentElement);
-    const btn = ctl && ctl.querySelector && ctl.querySelector("[data-streammode]");
-    if (btn) { this._modeCtl = btn; btn.addEventListener("click", () => this.toggleMode()); this._renderMode(); }
+    // The flow/raw toggle is its own mesh component (studio-streammode) in the
+    // column header; we react to the mode it publishes instead of reaching across
+    // the DOM to find and wire its button.
+    this.sub("/streammode/mode", on => this.setMode(!!on), 12);
 
     // Track the focused id from its topic, so lifecycle messages can be matched
     // to the mind we are showing without reading the hub.
@@ -397,21 +398,14 @@ export class StudioStream extends A(HTMLElement) {
   setSpeaking(on) { if (on === this.speaking) return; this.speaking = on; if (!on) this.endSpeech(); this.endThought(); }
 
   // ---------------------------------------------------------------- mode
-  toggleMode() {
+  /** Apply a flow/raw change published by studio-streammode (which owns the
+   *  button and the persisted preference). Flush first so no buffered text is
+   *  stranded mid-reveal across the switch. */
+  setMode(on) {
+    if (on === this.smooth) return;
     this._flush();          // never strand buffered text across a mode switch
-    this.smooth = !this.smooth;
-    this._saveMode();
-    this._renderMode();
-  }
-  _renderMode() {
-    if (!this._modeCtl) return;
-    this._modeCtl.textContent = this.smooth ? "flow" : "raw";
-    this._modeCtl.classList.toggle("raw", !this.smooth);
-    this._modeCtl.title = this.smooth
-      ? "Stream display: flow — smoothed reveal, inline burst seams. Click for raw."
-      : "Stream display: raw — instant fragments, full-width burst dividers. Click for flow.";
+    this.smooth = on;
   }
   _loadMode() { return getPref("streamMode", "flow") !== "raw"; }
-  _saveMode() { setPref("streamMode", this.smooth ? "flow" : "raw"); }
 }
 A.define("studio-stream", StudioStream);

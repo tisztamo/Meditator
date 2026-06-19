@@ -1,15 +1,16 @@
 # Studio wiring — finishing the decoupling in the browser
 
-> **Status: commands inverted; folding the stray controls remains.** The Studio UI
-> is an [Amanita](https://www.npmjs.com/package/amanita) component mesh — its
-> `<body>` is a declarative tree, exactly like a `.archml` mind. It now applies the
-> mind's [decoupling principle](architecture/decoupling.md) in *both* directions:
-> panes read state by subscribing to topics (DOWN) and issue commands as bubbling
-> `studio-command` events the hub routes (UP, [S1](#slices)). No pane reads the
-> hub's fields any more ([S2](#slices)), so the hub is swappable and mockable. What
-> is left is cosmetic — three controls still live as loose markup wired by reaching
-> *out* of the mesh ([S3](#slices)). This page documents the mesh as it stands and
-> the slices that finish the job.
+> **Status: a pure mesh; only the optional transport split (S4) is left.** The
+> Studio UI is an [Amanita](https://www.npmjs.com/package/amanita) component mesh —
+> its `<body>` is a declarative tree, exactly like a `.archml` mind. It now applies
+> the mind's [decoupling principle](architecture/decoupling.md) in *both*
+> directions: state flows down as topics, and commands flow up as bubbling
+> `studio-command` events the hub routes ([S1](#slices)). No pane reads the hub's
+> fields ([S2](#slices)), so it is swappable and mockable, and the three stray
+> controls are folded in as their own mesh components ([S3](#slices)) — no
+> `closest` / `getElementById` / `document.querySelector` reach-around survives.
+> What is left is the *optional* split of `studio-conn` into transport + store
+> ([S4](#slices), a stretch). This page documents the mesh as it stands.
 
 See [The Studio](studio.md) for the user-facing tour and
 [decoupling.md](architecture/decoupling.md) for the same principle on the mind side.
@@ -75,15 +76,18 @@ supervisor and the focus state, and it talks to the panes two ways:
 
 `studio-covenant` is fully self-contained (no `/conn/` state); the DOWN-path panes
 above (`studio-header`, `studio-tree`, `studio-log`, `studio-toast`,
-`studio-stream`) are clean subscribers. With the command path inverted and the
-field-reads gone, the only coupling left is a few stray controls wired *out* of the
-mesh.
+`studio-stream`) are clean subscribers. The controls that once sat as loose markup
+in the colheads are now their own mesh components: `studio-streammode` (the
+flow/raw toggle, publishing `/streammode/mode`), `studio-refresh` (the rail's ⟳,
+dispatching `refresh`), and `studio-panes` (the mobile column switcher, on
+`/conn/focused`). With the command path inverted, the field-reads gone, and the
+controls folded in, no pane reaches across the DOM.
 
 ## The gap
 
 Three kinds of coupling were identified, all the mirror image of what the mind
-migration removed. [S1](#slices) and [S2](#slices) closed the first two; the third
-remains.
+migration removed. [S1](#slices), [S2](#slices) and [S3](#slices) have closed all
+three.
 
 **1. Commands were reach-in method calls — now bubbling `studio-command` events
 ([S1](#slices), done).** Each pane that used to call `this.el("/conn/").<method>()`
@@ -97,16 +101,18 @@ hub's `run()` listener routes it to the same wrapper.
 subscription they already held, so **nothing reads `studio-conn`'s fields** any more
 — its contract is "topics out, command events in."
 
-**3. Three controls still live as loose markup in `studio.html` and are wired by
-reaching *out* of the mesh ([S3](#slices), remaining):**
+**3. Three controls were loose markup wired by reaching *out* of the mesh — now
+each is its own component ([S3](#slices), done):**
 
-- the flow/raw toggle — `studio-stream` does
-  `closest(".col").querySelector("[data-streammode]")` (`studioStream.js`);
-- the rail's ⟳ refresh — `studio-wake` does `getElementById("archRefresh")`
-  (`studioWake.js`); the command it fires is already inverted, but it still reaches
-  *out* to find the button;
-- the mobile pane switcher — an inline `<script>` (`studio.html`) reaches
-  `document.querySelector("main")`, `.panebar`, and `studio-conn.on("focused", …)`.
+- the flow/raw toggle was found with `closest(".col").querySelector("[data-streammode]")`;
+  it is now `studio-streammode`, which owns the preference and publishes
+  `/streammode/mode` for `studio-stream` to subscribe to;
+- the rail's ⟳ refresh was found with `getElementById("archRefresh")`; it is now
+  `studio-refresh`, which dispatches the `refresh` command directly;
+- the mobile pane switcher was an inline `<script>` reaching
+  `document.querySelector("main")`, `.panebar` and `studio-conn.on("focused", …)`;
+  it is now `studio-panes`, which subscribes to `/conn/focused` and reaches the
+  view through a declared `/view/` ref (`<main name="view">`).
 
 ## The pattern
 
@@ -134,10 +140,13 @@ Mirror the mind side exactly.
   it becomes swappable and mockable (a unit test drives a pane against a fake hub
   with no WebSocket), the same swappability the mind migration won for `m-memory`.
 
-- **A stray control becomes part of the mesh** — either rendered by the component
-  that owns its behaviour (the stream owns its flow/raw toggle; wake owns its ⟳) or
-  promoted to a tiny component that publishes/dispatches like any other pane (the
-  pane switcher becomes `studio-panes`, subscribing to `/conn/focused`).
+- **A stray control becomes part of the mesh** — promoted to a tiny component that
+  publishes/dispatches like any other pane. `studio-streammode` owns the flow/raw
+  preference and publishes `/streammode/mode`; `studio-refresh` dispatches the
+  `refresh` command; `studio-panes` subscribes to `/conn/focused`. (The doc once
+  weighed "rendered by the owning pane" for the toggle and ⟳, but a uniform
+  tiny-component split keeps the colhead layout pixel-identical and the wiring
+  consistent.)
 
 ## Slices
 
@@ -148,12 +157,14 @@ The supervisor wire protocol does **not** change in any of them.
 |-------|--------|--------|----------|
 | **S1 — command path** | ✅ done | Panes dispatch `studio-command` (via `command()` in `ui/helpers.js`); `studio-conn` listens once in `onConnect` and routes through `run()` to `send()`. Every `this.el("/conn/").<method>()` is gone. | *declared* commands (greppable, no hidden lookup); *fan-in* (a logger / confirm interposer can also listen) |
 | **S2 — stop reading the hub's fields** | ✅ done | `studio-speak` / `studio-stream` / `studio-toast` cache `focused`/`roster` from their subscriptions. | a *swappable / mockable* hub; the last single-match reach gone |
-| **S3 — fold the stray controls in** | remaining | flow/raw → owned by `studio-stream`; ⟳ → owned by `studio-wake`; pane switcher → a `studio-panes` component on `/conn/focused`. | a pure mesh — no `closest` / `getElementById` / `document.querySelector` reach-around |
+| **S3 — fold the stray controls in** | ✅ done | flow/raw → `studio-streammode` (publishes `/streammode/mode`); ⟳ → `studio-refresh` (dispatches `refresh`); pane switcher → `studio-panes` (on `/conn/focused`, reaches `<main name="view">` via `/view/`). | a pure mesh — no `closest` / `getElementById` / `document.querySelector` reach-around |
 | **S4 — (optional) split `studio-conn`** | remaining | Separate the WebSocket transport from the focus/state store, mirroring how a mind separates `m-ws` (transport) from its faculties. | clarity; an alternate transport (e.g. replay-only from the store) becomes possible |
-| **S5 — docs + tests** | partial | Keep this page's tables current; add pane unit tests that drive a fake hub (dispatch commands → assert sent; pub topics → assert render). | the auditability the `.archml` gives a mind |
+| **S5 — docs + tests** | ✅ done | This page kept current; pane unit tests drive a fake hub (`studioHarness.js`): dispatch commands → assert sent (`studio-command.test.js`), pub topics → assert render (`studio-state.test.js`), and the folded-in controls (`studio-controls.test.js`). | the auditability the `.archml` gives a mind |
 
-S1 and S2 were the core and shipped together; S3 is cosmetic-but-cleansing and is
-what remains; S4 is a stretch.
+S1 and S2 were the core and shipped together; S3 folded the stray controls in and
+S5 added the fake-hub tests. Only S4 — an optional stretch — is left; the doc's
+"Deliberately *not* inverted" note already blesses `studio-conn` as the transport,
+so the mesh is complete without it.
 
 ## Deliberately *not* inverted
 

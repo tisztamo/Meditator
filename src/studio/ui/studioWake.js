@@ -6,8 +6,8 @@ import { esc, command } from "./helpers.js";
  * .wake CSS). An architecture <select> grouped into architectures/tests, a model
  * profile <select>, a live detail line resolving the target memory home with
  * collision / busy / no-window warnings, a dry-run toggle, and the Wake button.
- * Ports renderArchSelect / selectedArch / renderArchDet. Wake and the rail's ⟳
- * dispatch "wake" / "refresh" studio-commands; the hub routes them.
+ * Ports renderArchSelect / selectedArch / renderArchDet. Wake dispatches a "wake"
+ * studio-command the hub routes; the rail's ⟳ is its own studio-refresh control.
  */
 export class StudioWake extends A(HTMLElement) {
   archList = [];
@@ -57,8 +57,6 @@ export class StudioWake extends A(HTMLElement) {
       // tuning runs auto-advance seedling-7 → seedling-8 without a re-select.
       this._prefilledFile = undefined;
     });
-    const r = document.getElementById("archRefresh");
-    if (r) r.addEventListener("click", () => command(this, "refresh"));
 
     this.sub("/conn/profiles", list => { this.profiles = list || []; this.renderProfileSelect(); }, 12);
     this.sub("/conn/defaultProfile", p => { this.defaultProfile = p; this.renderProfileSelect(); }, 12);

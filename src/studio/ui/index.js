@@ -9,10 +9,13 @@
 import "./studioConn.js";
 import "./studioHeader.js";
 import "./studioWake.js";
+import "./studioRefresh.js";
 import "./studioRoster.js";
 import "./studioStream.js";
+import "./studioStreamMode.js";
 import "./studioTree.js";
 import "./studioLog.js";
 import "./studioSpeak.js";
 import "./studioToast.js";
+import "./studioPanes.js";
 import "./studioCovenant.js";

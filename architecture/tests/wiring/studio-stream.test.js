@@ -5,13 +5,11 @@ import "./setup.js";
 import { test, expect } from "bun:test";
 import { StudioStream } from "../../../src/studio/ui/studioStream.js";
 
-// A focused studio-stream inside a column with the mode toggle, with the reveal
-// loop's self-scheduling disabled (we pump by hand).
+// A focused studio-stream, with the reveal loop's self-scheduling disabled (we
+// pump by hand). The flow/raw mode is now owned by studio-streammode and arrives
+// via setMode(); tests drive that directly.
 function mk() {
-    document.body.innerHTML =
-        `<div class="col left"><div class="colhead">` +
-        `<span class="streammode" data-streammode>flow</span></div>` +
-        `<studio-stream></studio-stream></div>`;
+    document.body.innerHTML = `<studio-stream></studio-stream>`;
     const el = document.querySelector("studio-stream");
     el._req = () => null;       // disable auto-scheduling; tests pump manually
     return el;
@@ -22,10 +20,9 @@ function drain(el) {
     for (let t = 0; el.q.length && t < 60000; t += 250) el._pump(t);
 }
 
-test("defaults to flow mode and labels the toggle", () => {
+test("defaults to flow mode", () => {
     const el = mk();
     expect(el.smooth).toBe(true);
-    expect(el._modeCtl && el._modeCtl.textContent).toBe("flow");
 });
 
 test("flow mode reveals text gradually rather than dumping it", () => {
@@ -68,10 +65,8 @@ test("mind/pace telemetry sets the reveal window", () => {
 
 test("raw mode appends instantly and draws a full-width divider", () => {
     const el = mk();
-    el.toggleMode();                       // flow -> raw
+    el.setMode(false);                     // flow -> raw (as studio-streammode publishes)
     expect(el.smooth).toBe(false);
-    expect(el._modeCtl.textContent).toBe("raw");
-    expect(el._modeCtl.classList.contains("raw")).toBe(true);
 
     el.prime();
     el.onFragment({ kind: "thought", content: "hello" });
@@ -86,7 +81,7 @@ test("switching out of flow flushes the buffer (nothing stranded)", () => {
     el.prime();
     el.onFragment({ kind: "thought", content: "Z".repeat(100) });
     expect(el.textContent.length).toBe(0);   // still buffered
-    el.toggleMode();                          // flush + switch to raw
+    el.setMode(false);                        // flush + switch to raw
     expect(el.textContent.length).toBe(100);
     expect(el.q.length).toBe(0);
 });
