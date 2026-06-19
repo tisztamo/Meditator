@@ -93,6 +93,8 @@ export class MImage extends MObserver {
       maxTokens: 180,
       temperature: 0.6,
       prompt: this._decisionPrompt(),
+      debugTag: "image-impulse",
+      debugEl: this,
     });
     const parsed = parseImageDecision((result.text || "").trim());
     const threshold = Number(this.attr("threshold") || 0.68);
@@ -122,6 +124,8 @@ export class MImage extends MObserver {
         quality: this.attr("quality") || undefined,
         background: this.attr("background") || undefined,
         outputFormat: this.attr("outputFormat") || undefined,
+        debugTag: "image-generate",
+        debugEl: this,
       });
       const payload = {
         prompt,

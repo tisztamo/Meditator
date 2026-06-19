@@ -331,6 +331,8 @@ export class MMemory extends MBaseComponent {
             model: resolveModelRef(this.attr("model") || this.env("utilityModel"), "utility"),
             maxTokens: Math.ceil(targetChars / 3),
             temperature: 0.3,
+            debugTag: `memory-${tier}`,
+            debugEl: this,
             prompt: `You maintain the ${tier} memory of a mind's inner monologue, written in its own voice.
 
 <monologue-and-prior-memory>

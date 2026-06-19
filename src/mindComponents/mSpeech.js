@@ -187,6 +187,8 @@ export class MSpeech extends MObserver {
             maxTokens: 120,
             temperature: 0.7,
             prompt: this._decisionPrompt(addressed),
+            debugTag: "speech-impulse",
+            debugEl: this,
         })
         const raw = (result.text || "").trim()
         const parsed = parseSpeechDecision(raw)
@@ -231,6 +233,8 @@ export class MSpeech extends MObserver {
                 messages,
                 maxTokens: Number(this.attr("speakTokens") || 200),
                 temperature: Number(this.attr("temperature") || 0.85),
+                debugTag: "speech-voice",
+                debugEl: this,
             })
             this._burst = burst
             for await (const text of burst) {

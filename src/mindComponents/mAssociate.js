@@ -34,6 +34,8 @@ export class MAssociate extends MObserver {
                 model: resolveModelRef(this.attr("model") || this.env("utilityModel"), "utility"),
                 maxTokens: 120,
                 temperature: 0.9,
+                debugTag: "associate",
+                debugEl: this,
                 prompt: `You are the associative undercurrent of a mind. Below is its current stream of thought:
 
 <stream>

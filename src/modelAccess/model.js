@@ -10,6 +10,7 @@ export async function createCompletion(prompt, model) {
     prompt,
     model: model ? resolveModelRef(model, 'utility') : resolveModelRef(null, 'utility'),
     maxTokens: 400,
+    debugTag: 'legacy',
   });
   return result.text;
 }

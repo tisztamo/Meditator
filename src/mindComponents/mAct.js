@@ -172,6 +172,8 @@ export class MAct extends MObserver {
             maxTokens: 120,
             temperature: 0.6,
             prompt: this._decisionPrompt(),
+            debugTag: "act-decide",
+            debugEl: this,
         })
         const raw = (result.text || "").trim()
         // Reuse m-speech's tolerant parser: a non-NONE reply is the reach gist, with
@@ -233,6 +235,8 @@ export class MAct extends MObserver {
                 toolChoice: "auto",
                 maxTokens: Number(this.attr("realizeTokens") || 512),
                 temperature: 0.2,
+                debugTag: "act-realize",
+                debugEl: this,
             })
         } catch (error) {
             log.warn("Realizer call failed:", error.message || error)

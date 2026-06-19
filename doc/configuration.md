@@ -118,6 +118,7 @@ Or point at a preset directly in archml:
 | `MEDITATOR_DRY_RUN` | `1` runs the whole loop offline against a stub |
 | `MEDITATOR_MAX_CONCURRENCY` | cap on concurrent *utility* calls (default `4`) |
 | `MEDITATOR_STDIN` | `1` forces console input on when stdin is not a TTY |
+| `MEDITATOR_DEBUG_PROMPTS` | dump every prompt sent to a model to disk (see [Dumping prompts](#dumping-every-prompt)) |
 
 CLI flags: `--models-config` / `-mc`, `--model-profile` / `-mp`.
 
@@ -224,3 +225,44 @@ bun run meditator.js -a architecture/yourmind.archml --debug=mMind.js
 Per-source debug logs are the fastest way to see whether your knobs do what you
 expect — `mMind.js` prints the full assembled frame each burst, `mMemory.js` the
 consolidations, `mInterrupts.js` the accept/drop decisions.
+
+### Dumping every prompt
+
+When the logs are not enough and you want the *exact* text sent to a model —
+every stream-of-thought burst and every auxiliary call (speech, association,
+memory compression, the act decide/realize stages, the visual impulse, the
+bridge, the scribe) — set `MEDITATOR_DEBUG_PROMPTS`:
+
+```bash
+MEDITATOR_DEBUG_PROMPTS=1            bun run meditator.js -a architecture/lab/seedling.archml
+MEDITATOR_DEBUG_PROMPTS=/var/tmp/p   bun run meditator.js   # custom root
+```
+
+`1`/`true`/`yes`/`on` dump under `./debug/prompts` (gitignored); any other
+non-empty value is taken as the root directory. Unset (or `0`/`false`/`off`/
+empty) disables it — **off by default**. Every model call funnels through one
+place (`src/modelAccess/llm.js`), so the switch captures all of them, dry-run
+included.
+
+One file per call, laid out so the (many) files are easy to find and to prune:
+
+```
+debug/prompts/<runId>/<mind>/<tag>/<seq>-<tag>.txt
+   runId  one directory per process run (YYYYMMDD-HHMMSS-pid) — prune a whole
+          run by deleting its directory; the newest sorts last
+   mind   the mind's slug (matches its vault home), so concurrent Studio minds
+          never interleave
+   tag    the mechanism: stream, speech-impulse, speech-voice, associate,
+          memory-recent/memory-story, act-decide, act-realize, image-impulse,
+          image-generate, bridge, kb
+   seq    global, zero-padded, monotonic counter — files sort chronologically
+          within a tag and when grepped flat across the run
+```
+
+Each file carries a header (time, kind, tag, mind, model, provider, maxTokens,
+temperature, tools…) followed by the full messages with their roles, marking the
+assistant prefill that a continued burst carries. Pruning is just `rm -rf debug/`
+or deleting old `<runId>` directories.
+
+> **Sensitive.** A dump contains the mind's full inner monologue, its memory, and
+> anything a human said over the websocket — treat `debug/` like the memory vault.

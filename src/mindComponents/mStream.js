@@ -117,6 +117,8 @@ export class MStream extends MBaseComponent {
                 continueFinal: Boolean(prefill),
                 maxTokens: Number(burstTokens || this.attr("burstTokens") || 350),
                 temperature: Number(this.attr("temperature") || 0.9),
+                debugTag: "stream",
+                debugEl: this,
             })
             context = { burst, superseded: false }
             this._current = context

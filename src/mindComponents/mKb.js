@@ -88,6 +88,8 @@ export class MKb extends MBaseComponent {
             model: resolveModelRef(this.attr("model") || this.env("utilityModel"), "utility"),
             maxTokens: 900,
             temperature: 0.3,
+            debugTag: "kb",
+            debugEl: this,
             prompt: `You are the librarian of a thinking mind. Distill durable knowledge from its recent thoughts into a markdown knowledge base. Durable means: ideas, conclusions, questions and themes worth keeping — not the moment-to-moment narration.
 
 Current knowledge tree (paths relative to the KB root):

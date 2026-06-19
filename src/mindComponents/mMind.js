@@ -388,6 +388,8 @@ ${self ? `About you:\n${self}` : ""}${body ? `\n\nSome things about how you meet
                 model: resolveModelRef(this.attr("bridgeModel") || this.env("utilityModel"), "utility"),
                 maxTokens: 90,
                 temperature: 0.6,
+                debugTag: "bridge",
+                debugEl: this,
                 prompt: `A mind is thinking to itself. Its thought in progress ends like this:
 "…${tail.slice(-400)}"
 

@@ -13,6 +13,9 @@ journal/
 *.log
 .run/
 
+# prompt dumps from MEDITATOR_DEBUG_PROMPTS (debug only; can grow large)
+debug/
+
 # the memory vault is its own git repository (see COVENANT.md)
 memory/
 

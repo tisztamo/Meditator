@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { logger } from '../infrastructure/logger.js';
+import { dumpPrompt } from '../infrastructure/promptDebug.js';
 import { modelForRole, resolveModelRef } from './modelConfig.js';
 
 const log = logger('llm.js');
@@ -208,13 +209,19 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
  */
 export async function complete(opts) {
   const spec = asSpec(opts.model, 'utility');
+  const messages = asMessages(opts);
+  dumpPrompt({
+    kind: 'complete', tag: opts.debugTag, el: opts.debugEl, messages,
+    model: specLabel(spec), provider: spec.provider, dryRun: isDryRun(),
+    params: { maxTokens: opts.maxTokens || 300, temperature: opts.temperature ?? 0.3 },
+  });
   if (isDryRun()) return dryComplete(opts);
 
   const provider = resolveProvider(spec);
   const client = clientFor(provider);
   const request = {
     model: provider.model,
-    messages: asMessages(opts),
+    messages,
     max_tokens: opts.maxTokens || 300,
     temperature: opts.temperature ?? 0.3,
     ...provider.extra,
@@ -280,13 +287,23 @@ export async function complete(opts) {
  */
 export async function completeWithTools(opts) {
   const spec = asSpec(opts.model, 'voice');
+  const messages = asMessages(opts);
+  dumpPrompt({
+    kind: 'tools', tag: opts.debugTag, el: opts.debugEl, messages,
+    model: specLabel(spec), provider: spec.provider, dryRun: isDryRun(),
+    params: {
+      maxTokens: opts.maxTokens || 512, temperature: opts.temperature ?? 0.2,
+      toolChoice: opts.toolChoice || 'auto',
+      tools: (opts.tools || []).map(t => t.function?.name).filter(Boolean).join(', '),
+    },
+  });
   if (isDryRun()) return dryCompleteWithTools(opts);
 
   const provider = resolveProvider(spec);
   const client = clientFor(provider);
   const request = {
     model: provider.model,
-    messages: asMessages(opts),
+    messages,
     max_tokens: opts.maxTokens || 512,
     temperature: opts.temperature ?? 0.2,
     tools: opts.tools,
@@ -339,13 +356,22 @@ export async function completeWithTools(opts) {
  */
 export async function chatStream(opts) {
   const spec = asSpec(opts.model, 'voice');
+  const messages = asMessages(opts);
+  dumpPrompt({
+    kind: 'stream', tag: opts.debugTag, el: opts.debugEl, messages,
+    model: specLabel(spec), provider: spec.provider, dryRun: isDryRun(),
+    params: {
+      maxTokens: opts.maxTokens || 350, temperature: opts.temperature ?? 0.9,
+      continueFinal: opts.continueFinal ? true : undefined,
+    },
+  });
   if (isDryRun()) return dryStream(opts);
 
   const provider = resolveProvider(spec);
   const client = clientFor(provider);
   const request = {
     model: provider.model,
-    messages: asMessages(opts),
+    messages,
     max_tokens: opts.maxTokens || 350,
     temperature: opts.temperature ?? 0.9,
     stream: true,
@@ -477,6 +503,12 @@ export async function chatStream(opts) {
 export async function generateImage(opts = {}) {
   const prompt = (opts.prompt || '').trim();
   if (!prompt) throw new Error('image prompt is required');
+  dumpPrompt({
+    kind: 'image', tag: opts.debugTag || 'image', el: opts.debugEl, prompt,
+    model: opts.model || process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1',
+    provider: 'openai', dryRun: isDryRun(),
+    params: { size: opts.size, quality: opts.quality },
+  });
   if (isDryRun()) return dryImage(opts);
 
   const client = imageClientFor();
