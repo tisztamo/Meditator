@@ -25,9 +25,15 @@ const log = logger('mRecall.js');
  * Attributes:
  *   - name: the tool-call function name (default "recall")
  *   - dir: the notes directory (default: the mind's vault home `notes/`, matching m-note)
- *   - salience: salience of the "I find again…" consequence (default 0.6 — coming upon
- *     a thing the mind deliberately chose to look up should clear the attention bar as
- *     reliably as setting one down does, even on a tired mind; matches m-note)
+ *   - salience: salience of the "I find again…" consequence (default 0.8 — coming upon
+ *     a thing the mind deliberately chose to look up should land reliably even in a
+ *     crowded queue; higher than m-note's write because a recall arrives in a more
+ *     contended window than a write does — see `urgent` below)
+ *   - urgent: re-enter the recalled note as an URGENT stimulus ("true", the default),
+ *     so it bypasses the arbiter's threshold + rate-limit instead of losing the slot to
+ *     a co-firing watchdog/associate as a non-urgent 0.6 consequence did (lemma-7: the
+ *     hand fired, but the recalled note never came back). "false" makes it ambient like
+ *     a write — it then waits for a free boundary and may be dropped.
  */
 export class MRecall extends MBaseComponent {
     _seen = new Set()
@@ -90,7 +96,16 @@ export class MRecall extends MBaseComponent {
         const text = note.text.length > 400 ? note.text.slice(0, 400).trimEnd() + "…" : note.text
         return {
             experience: `I find again something I set down before${note.title ? `, about ${note.title.toLowerCase()}` : ""}: “${text}”`,
-            salience: Number(this.attr("salience") || 0.6),
+            salience: Number(this.attr("salience") || 0.8),
+            // Re-enter URGENT (unless told otherwise): a recalled note answers a reach
+            // the mind just made, but its consequence lands some bursts later in a
+            // contended window — right after the note-write, amid the watchdog and
+            // associate. As a non-urgent 0.6 stimulus it was silently rate-limited away
+            // (lemma-7: recall fired, the note never came back). Urgent bypasses the
+            // arbiter's threshold + rate-limit so the answer to "find what I wrote" is
+            // not a coin flip; the high salience keeps it from being crowded out among
+            // co-firing urgents.
+            urgent: this.attr("urgent") !== "false",
             data: { title: note.title, stamp: note.stamp },
         }
     }

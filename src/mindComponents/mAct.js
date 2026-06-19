@@ -337,7 +337,14 @@ export class MAct extends MObserver {
                 type: (out && out.type) || `Sense-${name}`,  // reads like any other sensation
                 reason: experience,
                 salience,
-                urgent: false,                               // a consequence is ambient, never commandeers a burst
+                // A consequence is ambient by default — it waits for the next burst
+                // boundary and never commandeers one. But a hand may opt its OWN
+                // consequence in to urgency (out.urgent): recall does, because it
+                // answers a reach the mind already made yet arrives in a contended
+                // window (right after a write, amid the watchdog/associate), where a
+                // non-urgent stimulus loses the arbiter's rate-limit race regardless
+                // of salience (mInterrupts.js §_onRequest). efference.md §5.2.
+                urgent: !!(out && out.urgent),
             })
             log.debug(`consequence of "${name}": ${record}`)
             this.dispatchEvent(new CustomEvent("interrupt-request", { bubbles: true, detail: record }))
