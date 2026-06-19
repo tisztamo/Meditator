@@ -150,6 +150,11 @@ loads Amanita build-free — an importmap points `"amanita"` at `/amanita/a.js`,
 the server static-mounts straight from `node_modules`. None of this changes the
 supervisor protocol; the wire messages are exactly as before.
 
+The internal wiring — the full topic vocabulary, and the in-progress migration of
+the command path from reach-in method calls to bubbling events (the same
+[decoupling](architecture/decoupling.md) the mind completed) — is detailed in
+[Studio wiring](studio-wiring.md).
+
 Implementation: [`src/studio/server.js`](../src/studio/server.js) (supervisor),
 [`src/studio/studio.html`](../src/studio/studio.html) (the page — an importmap and a
 declarative component tree), and [`src/studio/ui/`](../src/studio/ui/) (the components).

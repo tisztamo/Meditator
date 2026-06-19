@@ -102,3 +102,12 @@ direct calls, on the same footing as the arbiter's documented `takePending()`:
   as an adapter/rename between mismatched vocabularies; the subscriber-ref pattern
   covers every current case and fits the "prefer structural-relative refs" grain.
   **Deferred** until a concrete adapter need appears.
+
+## The same principle, in the browser
+
+The [Studio](../studio.md) UI is an Amanita component mesh too, and it is on the
+same migration: its panes already read supervisor state by subscribing to topics,
+but still issue *commands* by reaching into the `studio-conn` hub and calling its
+methods — the browser mirror of the reach-in this page removes. The plan to finish
+it (commands as bubbling events, a swappable hub) is in
+[Studio wiring](../studio-wiring.md).

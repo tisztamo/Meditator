@@ -39,6 +39,9 @@ picture and the motivation. This `doc/` tree is the deeper reference.
 - **[The Studio](studio.md)** — the usual way to run Meditator: wake, watch,
   speak to, and sleep minds from the browser, with an architecture picker and a
   roster of live minds. Run `bun run studio.js`; no per-mind terminal needed.
+- **[Studio wiring](studio-wiring.md)** — the Studio's Amanita component mesh: its
+  topic vocabulary, and the slices that finish applying the mind's decoupling to
+  the browser (commands as bubbling events, a swappable hub).
 - **[WebSocket API](websocket-api.md)** — the live stream protocol on
   `ws://localhost:7627`: thought fragments out, voice in.
 - **[Serving remotely](serving-remotely.md)** — design for running the Studio on
