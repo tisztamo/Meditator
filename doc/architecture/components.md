@@ -224,8 +224,11 @@ exactly like `m-speech`: a cheap **decide** gate keeps the expensive tool-callin
 
 - **DECIDE** (cheap utility model, *no tools*): watching the inner stream, "is the
   mind reaching toward something one of its hands could actually realize?" → a reach
-  gist + salience, or `NONE`. Gated by `threshold`, `cooldown`, per-intent dedup, and
-  arousal/budget.
+  gist + salience, or `NONE`. A reach can be outward (find out / change something) **or
+  inward** — turning back to find again something the mind set down before, which the
+  gate explicitly counts as a real reach (especially when the mind is unsure or going
+  over the same ground), so a read is not dismissed as idle musing. Gated by
+  `threshold`, the cooldown lane(s), per-intent dedup, and arousal/budget.
 - **REALIZE** (capable model, tools = the capability menu, `tool_choice:"auto"`):
   given the reach, pick a registered capability and its args — or decline, and the
   intention simply evaporated (the second gate).
@@ -238,7 +241,8 @@ exactly like `m-speech`: a cheap **decide** gate keeps the expensive tool-callin
 |-----------|---------|---------|
 | `every` | `8` | decide cadence in boundaries |
 | `threshold` | `0.6` | minimum salience from decide to attempt a realize |
-| `cooldown` | `3m` | minimum gap between two acts |
+| `cooldown` | `3m` | minimum gap between two acts (the world-changing lane) |
+| `readCooldown` | — | when set, read-only hands (look, recall) run on their own cooldown lane of this length, so a recent write never blocks a read; absent, all hands share `cooldown` |
 | `intentCooldown` | `15m` | minimum gap before re-acting on the *same* intent |
 | `minArousal` | `0.15` | stand down entirely when the economy's arousal falls below this |
 | `model` | inherits `model` | the tool-calling realizer (the "actor"); low temperature (0.2) |
@@ -332,11 +336,16 @@ small encounter, not mere rumination.
 |-----------|---------|---------|
 | `name` | `recall` | the tool-call function name |
 | `dir` | vault `notes/` | the notes directory (share m-note's) |
-| `salience` | `0.5` | salience of the "I find again…" consequence |
+| `salience` | `0.6` | salience of the "I find again…" consequence (matches m-note: a deliberate look-up should clear the bar as reliably as a set-down) |
 
 `felt`: *"And the things you've set down are not lost: when one of them stirs in you
 again, you can turn back and find it, just as you left it."* Pair it with m-note:
 `<m-act ...><m-note name="note"/><m-recall name="recall"/></m-act>`.
+
+As a **hand**, recall only fires when the conscious stream reaches for it — but a
+forgetting mind does not know it has anything to look up (lemma-6: 43 writes, 0 reads).
+For the *involuntary* return arc — a kept note pushed back unbidden when the mind loses
+its thread — see [`m-resurface`](#m-resurface).
 
 ## `m-observer`
 
@@ -379,6 +388,34 @@ changes.
 
 Plus all `m-observer` attributes. Reads the last ~1200 chars; the model answers
 `NONE` or `SALIENCE`/`THOUGHT`; raises `type: Association` at the model's salience.
+
+## `m-resurface`
+
+Involuntary recall (extends `m-observer`) — the **push** half of the note loop, the
+counterpart to the [`m-recall`](#m-recall--read-a-kept-note-back) *pull* hand. Where
+m-associate confabulates a "this reminds me of…" from the model's latent training,
+m-resurface surfaces a **real kept note**. When the mind loses its thread and circles
+the same ground, it does not wait for the stream to *want* a note: on the same pure-code
+loop signal `m-loop-guard` uses (no model call), it reads `notebook.md` and pushes back
+the note most relevant to what the mind is circling — chosen by cue-overlap, preferring a
+substantive result over a terse meta-note. Born from lemma-6's write-only memory (43
+note-writes, 0 reads: it re-derived a proof it had already written, sitting unread in its
+own notebook). One notebook read per hit; no model cost to decide *or* act.
+
+| Attribute | Default | Meaning |
+|-----------|---------|---------|
+| `overlap` | `0.4` | loop score that counts as "I've lost the thread" |
+| `minWindow` | `700` | min stream chars before it judges a loop |
+| `minNoteChars` | `120` | a note must be this long to count as substantive (a terse meta-note never wins over a real result) |
+| `urgent` | `true` | supersede the looping burst immediately, like the watchdog |
+| `dir` | vault `notes/` | the notes directory (share m-note's) |
+| `salience` | `0.9` | recovering lost work matters like the keep-alive watchdog, so it lands even on a tired mind |
+
+Plus all `m-observer` attributes. Raises `type: Recall`, first-person and self-caused
+("I realize I have been going over the same ground. I turn back to something I set
+down…"), naming no mechanism. Wire it as a **direct child of the mind** (not inside the
+`drift` region) so its salience is undamped by a region gain, and so its `urgent` raise
+is not lost to the global rate limit a co-firing loop-guard would otherwise win.
 
 ## `m-speech`
 

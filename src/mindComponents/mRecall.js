@@ -25,7 +25,9 @@ const log = logger('mRecall.js');
  * Attributes:
  *   - name: the tool-call function name (default "recall")
  *   - dir: the notes directory (default: the mind's vault home `notes/`, matching m-note)
- *   - salience: salience of the "I find again…" consequence (default 0.5)
+ *   - salience: salience of the "I find again…" consequence (default 0.6 — coming upon
+ *     a thing the mind deliberately chose to look up should clear the attention bar as
+ *     reliably as setting one down does, even on a tired mind; matches m-note)
  */
 export class MRecall extends MBaseComponent {
     _seen = new Set()
@@ -88,7 +90,7 @@ export class MRecall extends MBaseComponent {
         const text = note.text.length > 400 ? note.text.slice(0, 400).trimEnd() + "…" : note.text
         return {
             experience: `I find again something I set down before${note.title ? `, about ${note.title.toLowerCase()}` : ""}: “${text}”`,
-            salience: Number(this.attr("salience") || 0.5),
+            salience: Number(this.attr("salience") || 0.6),
             data: { title: note.title, stamp: note.stamp },
         }
     }

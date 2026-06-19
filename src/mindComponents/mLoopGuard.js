@@ -58,7 +58,7 @@ const STOPWORDS = new Set(("the a an and or but if then else of to in on at by f
     "just only also too than because while when where which who whom what how all any both each few more most other " +
     "some such own same can will would should could may might must do does did have has had").split(" "))
 
-function contentStems(text) {
+export function contentStems(text) {
     const words = text.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, "").split(/\s+/)
     const set = new Set()
     for (const word of words) {
@@ -67,7 +67,7 @@ function contentStems(text) {
     return set
 }
 
-function containment(a, b) {
+export function containment(a, b) {
     const smaller = a.size <= b.size ? a : b
     const larger = a.size <= b.size ? b : a
     if (!smaller.size) return 0

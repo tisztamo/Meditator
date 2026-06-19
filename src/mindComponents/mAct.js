@@ -51,7 +51,12 @@ const log = logger('mAct.js');
  * Attributes:
  *   - every: decide cadence in boundaries (default 8)
  *   - threshold: min salience from decide to attempt a realize (default 0.6)
- *   - cooldown: min time between two acts (default "3m")
+ *   - cooldown: min time between two acts (default "3m"). Governs the WORLD-CHANGING
+ *     lane; in legacy mode (no readCooldown) it is the single shared lane for all hands.
+ *   - readCooldown: when set, READ-ONLY hands (look, recall) run on their own cooldown
+ *     lane of this length, decoupled from world-changing ones — so a recent note never
+ *     blocks a recall, and reading and writing stop contending for one slot. Absent,
+ *     all hands share the single `cooldown` lane, exactly as before.
  *   - intentCooldown: min time before re-acting on the SAME intent (default "15m")
  *   - minArousal: stand down entirely when arousal falls below this (default 0.15)
  *   - model (actorModel): the tool-calling realizer (defaults to ancestor voice model)
@@ -76,7 +81,8 @@ export class MAct extends MObserver {
     _busy = false
     _capabilities = []
     _ledger = new Map()   // normalized intent → timestamp of last act on it
-    _lastActAt = 0
+    _lastActAt = 0        // world-changing lane (and the single shared lane in legacy mode)
+    _lastReadAt = 0       // read-only lane — used only when `readCooldown` is set
     _arousal = 1
     embodiment = ""       // the assembled body schema (see _publishEmbodiment)
 
@@ -149,9 +155,13 @@ export class MAct extends MObserver {
             return
         }
 
-        // One act per cooldown (mirrors m-speech).
-        const cooldownMs = parseTime(this.attr("cooldown") || "3m")
-        if (Date.now() - this._lastActAt < cooldownMs) return
+        // One act per cooldown (mirrors m-speech). World-changing and read-only hands
+        // run on separate lanes when `readCooldown` is set, so a recent note never
+        // blocks a recall (and vice versa) — reading and writing no longer contend for
+        // one slot. With no `readCooldown`, all hands share the one lane, as before.
+        // Proceed as long as SOME hand's lane is open; the realizer is later offered
+        // only the open-lane hands.
+        if (!this._capabilities.some(c => this._laneOpen(c.readonly))) return
 
         this._busy = true
         try {
@@ -211,14 +221,22 @@ export class MAct extends MObserver {
 
     /** REALIZE + EXECUTE: a capable model picks a hand; we run it and return the consequence. */
     async _realize(decision) {
-        // Claim the cooldown and the per-intent ledger slot up front (at accept time),
-        // so a reach that the realizer then declines still does not re-fire next cadence.
-        this._lastActAt = Date.now()
+        // Claim the per-intent ledger slot up front (at accept time), so a standing
+        // wish fires once and a reach the realizer then declines does not re-fire on it
+        // next cadence. The cooldown LANE is claimed at execute (below), once we know
+        // which class of hand actually ran — so a recall never closes the note lane.
         this._ledger.set(normalizeIntent(decision.gist), Date.now())
         this._pruneLedger()
 
         const model = resolveModelRef(this.attr("model") || this.env("model"), "voice")
-        const tools = this._capabilities.map(c => ({
+        // Offer only hands whose cooldown lane is open, so the realizer cannot pick one
+        // that just fired — and a recent write cannot crowd out a read.
+        const openHands = this._capabilities.filter(c => this._laneOpen(c.readonly))
+        if (!openHands.length) {
+            log.debug("all hand lanes closed at realize — the reach passes")
+            return
+        }
+        const tools = openHands.map(c => ({
             type: "function",
             function: { name: c.name, description: c.description, parameters: c.parameters },
         }))
@@ -278,6 +296,10 @@ export class MAct extends MObserver {
             return
         }
 
+        // Claim this hand's cooldown lane now (at the point of acting, including a slip),
+        // so the world-changing and read-only lanes advance independently.
+        this._claimLane(cap.readonly)
+
         // A hand that slips must never crash the mind, exactly as a sense going quiet
         // must not (m-sense). On error: no afference (failure is silent, not self-blame
         // — efference.md §5.5), but the deed is still journaled as an honest ⌁ note.
@@ -322,6 +344,23 @@ export class MAct extends MObserver {
         }
     }
 
+    /** Whether this mind splits read-only hands onto their own cooldown lane (P2). */
+    _hasReadLane() { return this.attr("readCooldown") != null }
+
+    /** Is the cooldown lane for a hand of this class (read-only vs world-changing) open? */
+    _laneOpen(readonly) {
+        if (readonly && this._hasReadLane()) {
+            return Date.now() - this._lastReadAt >= parseTime(this.attr("readCooldown"))
+        }
+        return Date.now() - this._lastActAt >= parseTime(this.attr("cooldown") || "3m")
+    }
+
+    /** Mark a hand of this class as having just acted, advancing its lane. */
+    _claimLane(readonly) {
+        if (readonly && this._hasReadLane()) this._lastReadAt = Date.now()
+        else this._lastActAt = Date.now()
+    }
+
     /** Drop ledger entries older than the intent cooldown so it cannot grow without bound. */
     _pruneLedger() {
         const intentCooldownMs = parseTime(this.attr("intentCooldown") || "15m")
@@ -338,7 +377,7 @@ export class MAct extends MObserver {
     }
 
     _decisionPrompt() {
-        return `You are the impulse to REACH inside a mind that mostly thinks quietly to itself. Some thoughts are a reaching-toward: a genuine wish to find something out about the real world, or to change something in it. You decide whether, right now, the mind is reaching toward something one of its hands could actually realize — not merely musing in passing. This is occasional: most idle wondering is not a real reach, so stay quiet unless there is a true, realizable pull.
+        return `You are the impulse to REACH inside a mind that mostly thinks quietly to itself. Some thoughts are a reaching-toward: a genuine wish to find something out about the real world, to change something in it, or to turn back to something the mind itself set down before and now wants to find again. You decide whether, right now, the mind is reaching toward something one of its hands could actually realize — not merely musing in passing. This is occasional: most idle wondering is not a real reach, so stay quiet unless there is a true, realizable pull. But wanting to recover what it already worked out — to find again a thing it set down earlier, especially when it feels unsure, or like it is going over the same ground it has covered before — IS a real, realizable reach, not idle wondering.
 
 The hands available right now:
 <hands>

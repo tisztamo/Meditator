@@ -1,10 +1,16 @@
 # Recall — storing and remembering, automatically
 
-> **Status: design.** This is a forward-looking design, not yet shipped. It
-> builds directly on what already runs: `m-memory` (compressing memory + the
-> vault), `m-kb` (the scribe), `m-associate` (the associative undercurrent), and
-> the interrupt spine. It is the concrete first step of the "recursive / fractal
-> memory" future sketched in [deep-structure.md](deep-structure.md#2-recursive--fractal-memory).
+> **Status: design (mostly unshipped).** This is the forward-looking design for
+> the full faculty: the episodic store (`m-episodic`), decay/folding, cue-indexed
+> semantic retrieval, and `m-recall` as an involuntary observer. A **first minimal
+> slice of the involuntary push now ships** as
+> [`m-resurface`](components.md#m-resurface): on a lost-thread (loop) signal it
+> resurfaces the most relevant note from `notebook.md` — no episodic store, no
+> decay, no model call yet. It builds on what already runs: `m-memory` (compressing
+> memory + the vault), `m-kb` (the scribe), `m-associate` (the associative
+> undercurrent), `m-note`/`m-recall` (the pull-only note loop), and the interrupt
+> spine. It is the concrete first step of the "recursive / fractal memory" future
+> sketched in [deep-structure.md](deep-structure.md#2-recursive--fractal-memory).
 > See [memory.md](memory.md) for what exists today.
 
 ## The gap: a mind that stores but cannot remember
