@@ -3,6 +3,11 @@
 Meditator runs under [Bun](https://bun.sh). A mind is one `.archml` file; running
 it starts a continuous stream of thought you can watch, speak to, and put to sleep.
 
+> **First time here?** This page is about *installing and running*. If the ideas
+> (bursts, stimuli, salience, the vault) are new, read [Concepts](concepts.md)
+> first, then the [Tutorial](tutorial.md) to build a mind from scratch. Any
+> unfamiliar word is in the [Glossary](glossary.md).
+
 ## Prerequisites
 
 - **[Bun](https://bun.sh)** (the runtime; Meditator does not run under Node).
@@ -121,6 +126,8 @@ the mind is doing.
 
 ## Next
 
+- [Tutorial](tutorial.md) — build your own mind from an empty file, and watch each
+  idea (burst, stimulus, salience, vault) work.
 - [The Studio](studio.md) — roster, focus, dry-run, sleep vs. force.
 - [Configuration](configuration.md) — tune the mind, swap models, set a budget.
 - [Architecture overview](architecture/index.md) — what actually happens each burst.

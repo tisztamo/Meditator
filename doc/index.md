@@ -13,6 +13,18 @@ picture and the motivation. This `doc/` tree is the deeper reference.
 > If you find a page describing a multi-stage interrupt *pipeline* or a
 > *state-chain* persistence system, it is pre-2026 and wrong — please flag it.
 
+## New here? (a gentle on-ramp)
+
+If the README felt dense, or English is not your first language, start with these
+three — they assume no prior knowledge and explain every special word:
+
+- **[Concepts](concepts.md)** — the big idea in plain, short sentences: what a
+  mind is, why it cannot be commanded, how it remembers. Read this first.
+- **[Tutorial](tutorial.md)** — build and run your own first mind step by step,
+  offline and free, and *see* each idea working.
+- **[Glossary](glossary.md)** — every special word (burst, salience, efference,
+  vault, covenant…) in one line of plain language, with examples.
+
 ## Start here
 
 - **[Getting started](getting-started.md)** — install Bun, set a key, run the

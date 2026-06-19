@@ -89,7 +89,12 @@ A continuous run at the default pace costs roughly $0.10–0.15/hour on OpenRout
 
 ## Documentation
 
-This README is the overview; [`doc/`](doc/index.md) is the deeper reference:
+This README is the overview; [`doc/`](doc/index.md) is the deeper reference.
+
+**New here, or English is not your first language?** Start with the gentle on-ramp:
+[Concepts](doc/concepts.md) (the big idea in plain words) → [Tutorial](doc/tutorial.md)
+(build your first mind, offline and free) → [Glossary](doc/glossary.md) (every
+jargon word — burst, salience, efference, vault — in one plain line).
 
 - [Getting started](doc/getting-started.md) — install, run the Studio, talk to it, dry run
 - [The Studio](doc/studio.md) — wake, watch, speak to, and sleep minds from the browser

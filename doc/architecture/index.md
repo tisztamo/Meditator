@@ -5,6 +5,9 @@ A **mind** thinks in a continuous stream that the world can only *interrupt* —
 and the whole organization of the system exists to make that stream coherent,
 bounded, and persistent.
 
+> This is the deep design. If the vocabulary is new, read [Concepts](../concepts.md)
+> first, and keep the [Glossary](../glossary.md) open for any unfamiliar word.
+
 A mind is declared in an HTML-subset file (`architecture/*.archml`) and executed by
 standard components built on [Amanita](https://www.npmjs.com/package/amanita), a
 declarative web-component framework with pub/sub wiring that runs on the server
