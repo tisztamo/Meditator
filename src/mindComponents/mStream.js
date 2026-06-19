@@ -43,13 +43,18 @@ function stripLeadingContinuationMarker(text) {
 
 export function trimSeamOverlap(prev, next) {
     const stripped = stripLeadingContinuationMarker(next)
+    const cueStripped = stripped !== next
     const lead = (stripped.match(/^\s*/) || [""])[0]
     const body = stripped.slice(lead.length)
+    // After a continuation cue the model has re-anchored on the tail, so even a
+    // short echo (e.g. one repeated word) is a real overlap worth trimming. With
+    // no cue we stay conservative to avoid trimming coincidental short matches.
+    const minOverlap = cueStripped ? 2 : 4
     const max = Math.min(prev.length, body.length, 100)
-    for (let k = max; k >= 4; k--) {
+    for (let k = max; k >= minOverlap; k--) {
         if (prev.endsWith(body.slice(0, k))) return body.slice(k)
     }
-    return stripped === next ? next : stripped
+    return cueStripped ? stripped : next
 }
 
 export class MStream extends MBaseComponent {
@@ -75,21 +80,26 @@ export class MStream extends MBaseComponent {
     }
 
     async _startBurst(payload, generation) {
-        const { system, prefill, frame, prefix, dedupe, burstTokens } =
+        const { system, instruction, prefill, frame, prefix, dedupe, burstTokens } =
             typeof payload === 'string' ? { frame: payload } : payload
 
         this.burstIndex += 1
         const burstIndex = this.burstIndex
         let burstChars = 0
 
-        // The frame is a single system message. The thought in progress, when there
-        // is one, is the mind's OWN prior turn (assistant) which the model continues
-        // — never a `user` turn, since no user is present. `frame` (a plain string
-        // payload, or a legacy {frame}) is only a fallback when nothing precedes it.
+        // Three turns: a `system` message (identity + memory + what just happened),
+        // a `user` message carrying the instruction, and — when a thought is already
+        // underway — an `assistant` prefill the model is asked to continue. The
+        // instruction MUST be a user turn: litellm/vLLM reject a system-only or
+        // system+assistant request ("No user query found in messages"). Ending on the
+        // assistant prefill (with continueFinal) keeps the model continuing the
+        // thought rather than answering. `frame`/`instruction` are interchangeable
+        // labels for the user turn; `frame` is the legacy/string-payload fallback.
+        const userTurn = instruction || frame
         const messages = []
         if (system) messages.push({ role: 'system', content: system })
+        if (userTurn) messages.push({ role: 'user', content: userTurn })
         if (prefill) messages.push({ role: 'assistant', content: prefill })
-        else if (frame) messages.push({ role: 'user', content: frame })
 
         // The bridge (or any injected text) physically enters the stream:
         // it becomes part of the monologue, the tail, the memory, the journal.
