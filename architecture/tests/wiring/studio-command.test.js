@@ -28,11 +28,21 @@ test("run() routes wake / refresh / sleep / force / dismiss verbatim", () => {
   conn.run({ cmd: "force", id: "m2" });
   conn.run({ cmd: "dismiss", id: "m3" });
   expect(conn.sent).toEqual([
-    { type: "wake", data: { file: "a.archml", dryRun: true, modelProfile: "p", name: "n" } },
+    { type: "wake", data: { file: "a.archml", dryRun: true, modelProfile: "p", name: "n", origin: null, projectRoot: null } },
     { type: "refresh" },
     { type: "sleep", data: { id: "m1" } },
     { type: "force", data: { id: "m2" } },
     { type: "dismiss", data: { id: "m3" } },
+  ]);
+});
+
+test("run() forwards an edited origin story and an external project root on wake", () => {
+  const conn = detachedHub();
+  conn.run({ cmd: "wake", file: "lab/companion.archml", dryRun: false, modelProfile: "local-dev",
+             name: "companion-1", origin: "An opening this instance begins on.", projectRoot: "/home/u/spinoff" });
+  expect(conn.sent).toEqual([
+    { type: "wake", data: { file: "lab/companion.archml", dryRun: false, modelProfile: "local-dev",
+      name: "companion-1", origin: "An opening this instance begins on.", projectRoot: "/home/u/spinoff" } },
   ]);
 });
 

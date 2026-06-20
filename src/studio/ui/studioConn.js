@@ -193,7 +193,7 @@ export class StudioConn extends A(HTMLElement) {
     if (!d || !d.cmd) return;
     switch (d.cmd) {
       case "speak":   this.speak(d.text); break;
-      case "wake":    this.wake(d.file, d.dryRun, d.modelProfile, d.name); break;
+      case "wake":    this.wake(d.file, d.dryRun, d.modelProfile, d.name, d.origin, d.projectRoot); break;
       case "refresh": this.refresh(); break;
       case "sleep":   this.sleep(d.id); break;
       case "force":   this.force(d.id); break;
@@ -202,8 +202,8 @@ export class StudioConn extends A(HTMLElement) {
     }
   }
 
-  wake(file, dryRun, modelProfile, name) {
-    if (file) this.send({ type: "wake", data: { file, dryRun: !!dryRun, modelProfile: modelProfile || null, name: name || null } });
+  wake(file, dryRun, modelProfile, name, origin, projectRoot) {
+    if (file) this.send({ type: "wake", data: { file, dryRun: !!dryRun, modelProfile: modelProfile || null, name: name || null, origin: origin || null, projectRoot: projectRoot || null } });
   }
   refresh() { this.send({ type: "refresh" }); }
   sleep(id) { this.send({ type: "sleep", data: { id } }); }

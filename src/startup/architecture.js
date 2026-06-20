@@ -52,6 +52,47 @@ export function applyMindNameOverride(content, rawName) {
   return content.slice(0, tag.index) + attrs + content.slice(tag.index + tag[0].length);
 }
 
+/**
+ * Rewrites the first <m-origin>'s content onto `originText`, returning the new
+ * source. This is how an instance's ORIGIN STORY — the seed of the *thought*, what
+ * this particular mind was set upon (mOrigin.js) — is supplied at wake without
+ * editing the file: the archml carries a nice DEFAULT origin, the Studio shows it in
+ * an editable field, and the chosen text is injected into the child via
+ * MEDITATOR_ORIGIN, exactly as a wake-time name is via MEDITATOR_MIND_NAME. We
+ * substitute into the SOURCE so the architecture snapshot in the home records the
+ * origin the mind actually woke with (lifecycle.md §2 / COVENANT §1 re-executability).
+ *
+ * The new text is written as the element's TEXT CONTENT (not a prompt="…" attribute),
+ * so multi-line stories need no attribute gymnastics; any existing prompt="…" on the
+ * tag is dropped, because MBaseComponent.getPrompt prefers the attribute over the
+ * content and would otherwise win. The text is minimally entity-escaped so it cannot
+ * break out of the element (jsdom decodes it back when the mind reads it).
+ *
+ * A blank/whitespace override is a no-op (→ the file's own default origin is used),
+ * and a mind with no <m-origin> is left untouched (no origin slot to fill).
+ */
+export function applyOriginOverride(content, originText) {
+  const text = String(originText || "").trim();
+  if (!text) return content;
+  const open = content.match(/<m-origin\b[^>]*>/i);
+  if (!open) return content;                      // no origin slot — nothing to override
+
+  // Drop any prompt="…" from the opening tag (text content is the source of truth now).
+  const openTag = open[0].replace(/\s+prompt\s*=\s*"[^"]*"/i, "");
+  const escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  const start = open.index;
+  const afterOpen = start + open[0].length;
+  const closeRel = content.slice(afterOpen).search(/<\/m-origin\s*>/i);
+  if (closeRel === -1) {
+    // Self-closing or unterminated: replace just the opening tag with a full element.
+    return content.slice(0, start) + `${openTag}\n${escaped}\n</m-origin>` + content.slice(afterOpen);
+  }
+  const closeStart = afterOpen + closeRel;
+  const closeEnd = closeStart + content.slice(closeStart).match(/<\/m-origin\s*>/i)[0].length;
+  return content.slice(0, start) + `${openTag}\n${escaped}\n</m-origin>` + content.slice(closeEnd);
+}
+
 async function getArchitectureFilePath() {
   const args = process.argv;
   const fileArgIndex = args.findIndex(arg => arg === "--architecture-file" || arg === "-a");
@@ -82,6 +123,14 @@ export async function readArchitectureFile() {
     if (override && override.trim()) {
       content = applyMindNameOverride(content, override);
       log.info(`Applied MEDITATOR_MIND_NAME override → name="${override.trim()}"`);
+    }
+    // A wake-time origin override (the Studio's editable origin story, or
+    // MEDITATOR_ORIGIN by hand) supplies this instance's seed of thought without
+    // editing the file — see applyOriginOverride.
+    const originOverride = process.env.MEDITATOR_ORIGIN;
+    if (originOverride && originOverride.trim()) {
+      content = applyOriginOverride(content, originOverride);
+      log.info(`Applied MEDITATOR_ORIGIN override (${originOverride.trim().length} chars)`);
     }
     loaded = { path: filePath, content };
     return content;

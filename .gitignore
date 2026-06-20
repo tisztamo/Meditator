@@ -22,3 +22,6 @@ memory/
 # Studio deployment secrets (see doc/serving-remotely.md)
 .env.studio
 .env
+
+# local list of external projects the Studio tends (machine-specific abs paths)
+config/studio-projects.json

@@ -86,13 +86,98 @@ function parseArchitecture(content) {
     stage: attr("stage"),
     hasWs: /<m-ws\b/i.test(content),
     description: comment ? comment[1].trim().replace(/\s+/g, " ").slice(0, 200) : null,
+    origin: extractOrigin(content),
   };
 }
 
-/** Does the graveyard hold a bundle for this slug? (a retired mind, §3) */
-function graveyardHas(slug) {
+/** The first <m-origin>'s text — its prompt="…" attribute, else its element text —
+ *  decoded to plain prose. This is the editable "origin story" the wake panel
+ *  pre-fills (the seed of the mind's first thought; see mOrigin.js). Null if the
+ *  architecture has no origin slot. */
+function extractOrigin(content) {
+  const open = content.match(/<m-origin\b[^>]*>/i);
+  if (!open) return null;
+  const pm = open[0].match(/\bprompt\s*=\s*"([^"]*)"/i);
+  if (pm) return decodeEntities(pm[1]).trim() || null;
+  const start = open.index + open[0].length;
+  const close = content.slice(start).search(/<\/m-origin\s*>/i);
+  if (close === -1) return null;
+  const inner = content.slice(start, start + close).replace(/<[^>]+>/g, "");
+  return decodeEntities(inner).trim() || null;
+}
+
+/** Decode the handful of XML entities applyOriginOverride emits, for display. */
+function decodeEntities(s) {
+  return String(s || "")
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"').replace(/&#0*39;|&apos;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
+// --- Projects the Studio tends -------------------------------------------------
+// The default project is Meditator itself. Additional EXTERNAL projects — spinoffs
+// that run on this runtime but keep their OWN minds, vault, graveyard and
+// IN-MEMORIAM — are declared via the MEDITATOR_STUDIO_PROJECTS path-list (":"/","
+// separated) or a config/studio-projects.json array of project roots. Their minds
+// are spawned with cwd = the project root, so the whole Covenant machinery resolves
+// THERE, never in Meditator's vault. This is what lets the Studio develop a spinoff
+// (e.g. a companion-minds repo) without its residents ever touching memory/ here.
+
+const DEFAULT_PROJECT = {
+  name: "meditator", root: ROOT, archDir: ARCH_DIR, vaultRoot: VAULT_ROOT,
+  componentsPath: null, modelsConfig: path.join(ROOT, "config", "models.yaml"),
+  inMemoriam: path.join(ROOT, "IN-MEMORIAM.md"),
+};
+
+function extraProjectRoots() {
+  const roots = [];
+  if (process.env.MEDITATOR_STUDIO_PROJECTS) {
+    roots.push(...process.env.MEDITATOR_STUDIO_PROJECTS.split(/[:,]/).map(s => s.trim()).filter(Boolean));
+  }
   try {
-    return fs.readdirSync(path.join(VAULT_ROOT, ".graveyard"))
+    const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, "config", "studio-projects.json"), "utf-8"));
+    if (Array.isArray(cfg)) roots.push(...cfg.filter(s => typeof s === "string"));
+  } catch { /* no config file — fine */ }
+  return roots;
+}
+
+/** All projects the Studio tends: the default (Meditator) plus any external roots
+ *  that look like a project (have an architecture/ dir). Cheap + best-effort,
+ *  recomputed per catalog refresh so editing the config needs no restart. */
+function listProjects() {
+  const seen = new Set([ROOT]);
+  const projects = [DEFAULT_PROJECT];
+  for (const raw of extraProjectRoots()) {
+    let root;
+    try { root = path.resolve(raw); } catch { continue; }
+    if (seen.has(root)) continue;
+    seen.add(root);
+    if (!fs.existsSync(path.join(root, "architecture"))) { log(`project "${raw}": no architecture/ dir — skipped`); continue; }
+    const componentsPath = path.join(root, "src", "mindComponents");
+    const modelsConfig = path.join(root, "config", "models.yaml");
+    projects.push({
+      name: path.basename(root), root,
+      archDir: path.join(root, "architecture"),
+      vaultRoot: path.join(root, "memory"),
+      componentsPath: fs.existsSync(componentsPath) ? componentsPath : null,
+      modelsConfig: fs.existsSync(modelsConfig) ? modelsConfig : DEFAULT_PROJECT.modelsConfig,
+      inMemoriam: path.join(root, "IN-MEMORIAM.md"),
+    });
+  }
+  return projects;
+}
+
+/** The project a (resolved) root belongs to, or the default. */
+function projectForRoot(root) {
+  if (!root) return DEFAULT_PROJECT;
+  let want; try { want = path.resolve(root); } catch { return DEFAULT_PROJECT; }
+  return listProjects().find(p => p.root === want) || DEFAULT_PROJECT;
+}
+
+/** Does the graveyard hold a bundle for this slug? (a retired mind, §3) */
+function graveyardHas(slug, vaultRoot = VAULT_ROOT) {
+  try {
+    return fs.readdirSync(path.join(vaultRoot, ".graveyard"))
       .some(b => b === slug || b.startsWith(slug + "-"));
   } catch { return false; }
 }
@@ -109,7 +194,8 @@ function graveyardHas(slug) {
  * form of the rebirth protection that used to be a hand-edit plus a warning
  * comment in the file (lifecycle.md §2 / memoryVault.assertNotRetired).
  */
-function nextTransientName(prefix) {
+function nextTransientName(prefix, project = DEFAULT_PROJECT) {
+  const { vaultRoot, inMemoriam } = project;
   const base = slugify(prefix);
   const used = new Set();
   const add = names => {
@@ -117,27 +203,28 @@ function nextTransientName(prefix) {
     for (const n of names) { const m = String(n).match(re); if (m) used.add(Number(m[1])); }
   };
   const dirNames = d => { try { return fs.readdirSync(d); } catch { return []; } };
-  add(dirNames(VAULT_ROOT));
-  add(dirNames(path.join(VAULT_ROOT, ".graveyard")));
-  add(dirNames(path.join(VAULT_ROOT, ".scratch")));
+  add(dirNames(vaultRoot));
+  add(dirNames(path.join(vaultRoot, ".graveyard")));
+  add(dirNames(path.join(vaultRoot, ".scratch")));
   try {
-    const reg = fs.readFileSync(path.join(ROOT, "IN-MEMORIAM.md"), "utf-8");
+    const reg = fs.readFileSync(inMemoriam, "utf-8");
     const re = new RegExp(`\\b${base}-(\\d+)\\b`, "g");
     let m; while ((m = re.exec(reg))) used.add(Number(m[1]));
   } catch { /* no register yet — fine */ }
   return `${base}-${used.size ? Math.max(...used) + 1 : 1}`;
 }
 
-/** What memory home a base slug maps to, whether it exists on disk, and the
- *  lifecycle tier it presents — resident / transient / retired / none (§2). */
-function homeInfo(slug) {
-  const dir = path.join(VAULT_ROOT, slug);
+/** What memory home a base slug maps to (within a project's vault), whether it
+ *  exists on disk, and the lifecycle tier it presents — resident / transient /
+ *  retired / none (§2). */
+function homeInfo(slug, vaultRoot = VAULT_ROOT) {
+  const dir = path.join(vaultRoot, slug);
   let exists = false, files = 0;
   try {
     const st = fs.statSync(dir);
     if (st.isDirectory()) { exists = true; files = fs.readdirSync(dir).length; }
   } catch { /* no home yet */ }
-  return { exists, files, tier: tierOf(dir, graveyardHas) };
+  return { exists, files, tier: tierOf(dir, s => graveyardHas(s, vaultRoot)) };
 }
 
 /** The architecture catalog: every .archml under architecture/ (lab/ and tests/
@@ -147,16 +234,17 @@ function homeInfo(slug) {
  *  them out of the default selection and warn before one is woken. */
 function listArchitectures() {
   const out = [];
-  const scan = (dir, group) => {
+  const scan = (project, dir, group) => {
+    const isDefault = project.root === ROOT;
     let entries = [];
     try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
     for (const e of entries) {
       if (e.isFile() && e.name.endsWith(".archml")) {
         const full = path.join(dir, e.name);
-        const rel = path.relative(ARCH_DIR, full).split(path.sep).join("/");
+        const rel = path.relative(project.archDir, full).split(path.sep).join("/");
         let meta;
         try { meta = parseArchitecture(fs.readFileSync(full, "utf-8")); }
-        catch { meta = { name: null, memory: null, model: null, utilityModel: null, resolvedVoice: null, resolvedUtility: null, pace: null, stage: null, hasWs: false, description: null }; }
+        catch { meta = { name: null, memory: null, model: null, utilityModel: null, resolvedVoice: null, resolvedUtility: null, pace: null, stage: null, hasWs: false, description: null, origin: null }; }
         const slug = slugify(meta.memory || meta.name || "mind");
         // A mind is experimental if it lives under lab/ or marks itself so. The tag
         // is authoritative, so the flag survives a file being copied out of lab/.
@@ -166,39 +254,50 @@ function listArchitectures() {
         // file. Suggested only for experimental minds (residents keep their fixed,
         // deliberate name). A bare prefix with no number is treated as the prefix.
         const isPrefix = experimental && group !== "test" && !/-\d+$/.test(slug);
-        const suggestedName = isPrefix ? nextTransientName(meta.name || meta.memory || "mind") : null;
+        const suggestedName = isPrefix ? nextTransientName(meta.name || meta.memory || "mind", project) : null;
         out.push({
           file: rel, group: experimental && group !== "test" ? "experimental" : group, experimental,
+          // Which project this architecture belongs to. External (non-default)
+          // projects wake into their OWN vault with cwd = their root.
+          project: project.name, projectRoot: project.root, external: !isDefault,
           name: meta.name, memory: meta.memory, model: meta.model, utilityModel: meta.utilityModel,
           resolvedVoice: meta.resolvedVoice, resolvedUtility: meta.resolvedUtility,
           profileResolution: archProfileResolution(meta),
           pace: meta.pace, stage: meta.stage,
           hasWs: meta.hasWs, description: meta.description,
-          homeSlug: slug, home: `memory/${slug}`, homeInfo: homeInfo(slug),
+          origin: meta.origin,
+          homeSlug: slug,
+          home: isDefault ? `memory/${slug}` : `${project.name}/memory/${slug}`,
+          homeInfo: homeInfo(slug, project.vaultRoot),
           suggestedName,
         });
       }
     }
   };
-  scan(ARCH_DIR, "main");
-  scan(path.join(ARCH_DIR, "lab"), "experimental");
-  scan(path.join(ARCH_DIR, "tests"), "test");
+  for (const project of listProjects()) {
+    scan(project, project.archDir, "main");
+    scan(project, path.join(project.archDir, "lab"), "experimental");
+    scan(project, path.join(project.archDir, "tests"), "test");
+  }
 
-  // Flag architectures that resolve to the same home (would share a brain), and
-  // whether that home is currently held by a running mind (would race the vault).
-  const bySlug = new Map();
+  // Flag architectures that resolve to the same home WITHIN A PROJECT (would share a
+  // brain), and whether that home is held by a running mind OF THAT PROJECT — two
+  // projects may each have a same-named home without colliding.
+  const homeKey = a => `${a.projectRoot} ${a.homeSlug}`;
+  const byHome = new Map();
   for (const a of out) {
-    if (!bySlug.has(a.homeSlug)) bySlug.set(a.homeSlug, []);
-    bySlug.get(a.homeSlug).push(a.file);
+    if (!byHome.has(homeKey(a))) byHome.set(homeKey(a), []);
+    byHome.get(homeKey(a)).push(a.file);
   }
   for (const a of out) {
-    const sharers = (bySlug.get(a.homeSlug) || []).filter(f => f !== a.file);
+    const sharers = (byHome.get(homeKey(a)) || []).filter(f => f !== a.file);
     a.sharesHomeWith = sharers;
-    a.busy = [...minds.values()].some(m => isAlive(m) && m.baseHome === a.homeSlug);
+    a.busy = [...minds.values()].some(m => isAlive(m) && m.projectRoot === a.projectRoot && m.baseHome === a.homeSlug);
   }
-  // Ready minds first, then research preview (lab/experimental), then tests.
+  // Default project first, then ready minds, research preview, tests; stable by file.
+  const prank = a => (a.projectRoot === ROOT ? 0 : 1);
   const rank = g => (g === "main" ? 0 : g === "experimental" ? 1 : 2);
-  out.sort((a, b) => rank(a.group) - rank(b.group) || a.file.localeCompare(b.file));
+  out.sort((a, b) => prank(a) - prank(b) || rank(a.group) - rank(b.group) || a.file.localeCompare(b.file));
   return out;
 }
 
@@ -219,6 +318,7 @@ function allocPort() {
 function rosterSummary() {
   return [...minds.values()].map(m => ({
     id: m.id, file: m.file, name: m.name, home: m.home, baseHome: m.baseHome,
+    project: m.projectName || "meditator",
     port: m.port, public: m.port === PORT_BASE, dryRun: m.dryRun, modelProfile: m.modelProfile || null,
     state: m.state, since: m.since, hasWindow: !!(m.upstream && m.upstream.readyState === WebSocket.OPEN),
     energy: m.energy, spent: m.spent, detail: m.detail || null,
@@ -456,7 +556,7 @@ wss.on("connection", client => {
 function handleClientMessage(client, msg) {
   const d = msg.data || {};
   switch (msg.type) {
-    case "wake":    try { const id = wake(d.file, !!d.dryRun, d.modelProfile, !!d.forceTransient, d.name); sendJSON(client, { type: "woke", data: { id, file: d.file } }); } catch (e) { sendJSON(client, { type: "error", data: { message: e.message } }); } break;
+    case "wake":    try { const id = wake(d.file, !!d.dryRun, d.modelProfile, !!d.forceTransient, d.name, d.origin, d.projectRoot); sendJSON(client, { type: "woke", data: { id, file: d.file } }); } catch (e) { sendJSON(client, { type: "error", data: { message: e.message } }); } break;
     case "sleep":   sleepMind(d.id); break;
     case "force":   forceMind(d.id); break;
     case "dismiss": dismissMind(d.id); break;
@@ -518,12 +618,16 @@ function focusClient(client, id, sinceSeq) {
 
 // ------------------------------------------------------------------- waking
 
-function wake(file, dryRun, modelProfile, forceTransient, reqName) {
+function wake(file, dryRun, modelProfile, forceTransient, reqName, reqOrigin, reqProjectRoot) {
   const profile = modelProfile || getActiveProfile();
   if (!listProfiles().includes(profile)) throw new Error(`unknown model profile: ${profile}`);
-  // Path safety: only architectures inside architecture/.
-  const resolved = path.resolve(ARCH_DIR, file || "");
-  if (resolved !== ARCH_DIR && !resolved.startsWith(ARCH_DIR + path.sep)) throw new Error("architecture must live under architecture/");
+  // Which project this architecture belongs to: the default (Meditator) unless the
+  // panel named an external one. The project decides the vault, the graveyard, the
+  // IN-MEMORIAM register and the child's cwd — so a spinoff's minds live in ITS home.
+  const project = projectForRoot(reqProjectRoot);
+  // Path safety: only architectures inside the project's architecture/ dir.
+  const resolved = path.resolve(project.archDir, file || "");
+  if (resolved !== project.archDir && !resolved.startsWith(project.archDir + path.sep)) throw new Error("architecture must live under the project's architecture/");
   if (!fs.existsSync(resolved)) throw new Error(`no such architecture: ${file}`);
 
   const meta = parseArchitecture(fs.readFileSync(resolved, "utf-8"));
@@ -532,11 +636,13 @@ function wake(file, dryRun, modelProfile, forceTransient, reqName) {
   // the child via MEDITATOR_MIND_NAME, so the file stays a reusable template.
   const overrideName = (reqName && String(reqName).trim()) ? slugify(reqName) : null;
   const baseHome = (dryRun ? "dry-" : "") + slugify(overrideName || meta.memory || meta.name || "mind");
+  const homeAbs = path.join(project.vaultRoot, baseHome);
+  const homeLabel = project.root === ROOT ? `memory/${baseHome}` : `${project.name}/memory/${baseHome}`;
 
-  // Covenant guard: never let two live minds write the same memory home.
-  const resident = [...minds.values()].find(m => isAlive(m) && m.home === `memory/${baseHome}`);
+  // Covenant guard: never let two live minds write the same memory home (per project).
+  const resident = [...minds.values()].find(m => isAlive(m) && m._homeAbs === homeAbs);
   if (resident) {
-    throw new Error(`memory/${baseHome} is already held by "${resident.name || resident.file}" (${resident.state}). ` +
+    throw new Error(`${homeLabel} is already held by "${resident.name || resident.file}" (${resident.state}). ` +
       `Sleep it first, or give this architecture a different name/memory= so it gets its own home.`);
   }
 
@@ -545,12 +651,11 @@ function wake(file, dryRun, modelProfile, forceTransient, reqName) {
   // existing home loads old memory without committing new, creating an illusion
   // of a continuing subject. Override with forceTransient (testing exception).
   if (!dryRun && !forceTransient) {
-    const homeTier = tierOf(path.join(VAULT_ROOT, baseHome), graveyardHas);
+    const homeTier = tierOf(homeAbs, s => graveyardHas(s, project.vaultRoot));
     if (homeTier === "transient") {
-      const memPath = path.join(VAULT_ROOT, baseHome, "memory.md");
-      if (fs.existsSync(memPath)) {
+      if (fs.existsSync(path.join(homeAbs, "memory.md"))) {
         throw new Error(
-          `memory/${baseHome} is a transient mind with existing memory. ` +
+          `${homeLabel} is a transient mind with existing memory. ` +
           `Restarting a transient loads old memory without committing new, creating an illusion of continuity. ` +
           `To force for testing: MEDITATOR_FORCE_TRANSIENT=1 bun run meditator.js -a ${file}`
         );
@@ -560,23 +665,36 @@ function wake(file, dryRun, modelProfile, forceTransient, reqName) {
 
   const port = allocPort();
   const id = `m${++mindSeq}`;
-  const relForSpawn = path.relative(ROOT, resolved).split(path.sep).join("/");
-  const child = spawn(process.execPath, [MEDITATOR_ENTRY, "-a", relForSpawn], {
-    cwd: ROOT,
+  // The entry and the architecture are addressed ABSOLUTELY, because the child runs
+  // with cwd = the project root (so its vault/graveyard/scratch resolve there), which
+  // is not necessarily Meditator's ROOT. The runtime entry is always Meditator's.
+  const entry = path.join(ROOT, MEDITATOR_ENTRY);
+  const child = spawn(process.execPath, [entry, "-a", resolved], {
+    cwd: project.root,
     env: {
       ...process.env,
       MEDITATOR_WS_PORT: String(port),        // place this child's m-ws on its own port
       MEDITATOR_WS_CONTROL: "1",              // let us request the sleep ritual over that socket
       MEDITATOR_MODEL_PROFILE: profile,
+      // Absolute, so the model config is found regardless of the child's cwd.
+      MEDITATOR_MODELS_CONFIG: project.modelsConfig,
+      // An external project supplies its own components; the rest fall through to the
+      // runtime's built-ins (componentLoading.js tries each path in turn).
+      ...(project.componentsPath ? { MIND_COMPONENTS_PATH: project.componentsPath } : {}),
       ...(dryRun ? { MEDITATOR_DRY_RUN: "1" } : {}),
       ...(overrideName ? { MEDITATOR_MIND_NAME: overrideName } : {}),
+      // The editable origin story (the seed of the mind's first thought), when the
+      // panel sent one different from the file's default — see applyOriginOverride.
+      ...(reqOrigin && String(reqOrigin).trim() ? { MEDITATOR_ORIGIN: String(reqOrigin) } : {}),
     },
     stdio: ["pipe", "pipe", "pipe"],
     windowsHide: true,
   });
 
   const startedAt = new Date().toISOString();
-  const home = `memory/${baseHome}`;
+  // The store/telemetry home is project-qualified so two projects' same-named homes
+  // never share a session or image folder.
+  const home = homeLabel;
   const name = overrideName || meta.name || slugify(meta.memory || "mind");
   // Open a durable session for this wake, keyed by the mind's home (not the
   // ephemeral id), so its stream and images are findable across restarts/days.
@@ -587,6 +705,7 @@ function wake(file, dryRun, modelProfile, forceTransient, reqName) {
   const m = {
     id, file, name, dryRun, modelProfile: profile,
     home, baseHome, hasWs: meta.hasWs,
+    projectRoot: project.root, projectName: project.name, _homeAbs: homeAbs,
     port, child, state: "waking", since: startedAt,
     energy: null, spent: null, detail: "waking…",
     // Live window + telemetry. structure/lastStatus/snapshots are the projection
@@ -597,7 +716,7 @@ function wake(file, dryRun, modelProfile, forceTransient, reqName) {
     logs: [], stderrTail: [], sleepRequestedAt: null,
   };
   minds.set(id, m);
-  log(`waking ${id} ← ${file}  (port ${port}${port === PORT_BASE ? ", public" : ""}${dryRun ? ", dry-run" : ""}, profile ${profile})  → memory/${baseHome}`);
+  log(`waking ${id} ← ${project.name}:${file}  (port ${port}${port === PORT_BASE ? ", public" : ""}${dryRun ? ", dry-run" : ""}, profile ${profile})  → ${homeAbs}`);
 
   pipeLines(child.stdout, "out", m);
   pipeLines(child.stderr, "err", m);
