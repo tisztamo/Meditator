@@ -129,6 +129,7 @@ export class StudioConn extends A(HTMLElement) {
         this.pub("publicPort", this.publicPort);
         this.pub("profiles", (m.data && m.data.profiles) || []);
         this.pub("defaultProfile", (m.data && m.data.modelProfile) || null);
+        this.pub("voice", (m.data && m.data.voice) || { enabled: false });
         break;
       case "architectures": this.pub("architectures", (m.data && m.data.list) || []); break;
       case "roster":        this.roster = (m.data && m.data.minds) || []; this.pub("roster", this.roster); this._maybeRestoreFocus(); break;

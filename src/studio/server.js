@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { loadModelConfig, resolveModelRef, resolveModelRefForProfile, getActiveProfile, getResolvedRoles, listProfiles } from "../modelAccess/modelConfig.js";
 import { tierOf } from "../infrastructure/manifest.js";
 import { StudioStore, parseDataUrl } from "./store.js";
+import { voiceInfo, ttsHandler, sttHandler } from "./voice.js";
 
 await loadModelConfig();
 
@@ -397,6 +398,12 @@ app.get("/studio/image/:id", (req, res) => {
   res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
   res.sendFile(img.path);
 });
+// Voice Mode (doc/studio.md): the browser records/plays audio but never holds the
+// OpenAI key, so speech-to-text and text-to-speech are proxied here, behind the
+// same auth gate. Body parsers are scoped to each route so they don't touch the
+// rest (the WS path carries everything else). See src/studio/voice.js.
+app.post("/studio/voice/tts", express.json({ limit: "64kb" }), ttsHandler);
+app.post("/studio/voice/stt", express.raw({ type: () => true, limit: "26mb" }), sttHandler);
 // Serve the Covenant (repo root) so the Studio's startup dialog can link to it.
 // As text/plain so it opens inline in the browser instead of downloading.
 app.get("/COVENANT.md", (_req, res) =>
@@ -435,7 +442,7 @@ function broadcastLifecycle(m, state, detail) {
 wss.on("connection", client => {
   client.focusedId = null;
   clients.add(client);
-  sendJSON(client, { type: "hello", data: { studioPort: STUDIO_PORT, publicPort: PORT_BASE, modelProfile: getActiveProfile(), profiles: listProfiles(), resolvedRoles: getResolvedRoles() } });
+  sendJSON(client, { type: "hello", data: { studioPort: STUDIO_PORT, publicPort: PORT_BASE, modelProfile: getActiveProfile(), profiles: listProfiles(), resolvedRoles: getResolvedRoles(), voice: voiceInfo() } });
   sendJSON(client, { type: "architectures", data: { list: listArchitectures() } });
   sendJSON(client, { type: "roster", data: { minds: rosterSummary() } });
   client.on("message", raw => {

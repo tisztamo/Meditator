@@ -22,6 +22,7 @@ import "./studioStreamMode.js";
 import "./studioTree.js";
 import "./studioLog.js";
 import "./studioSpeak.js";
+import "./studioVoice.js";
 import "./studioToast.js";
 import "./studioPanes.js";
 import "./studioCovenant.js";

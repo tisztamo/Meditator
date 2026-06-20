@@ -142,10 +142,15 @@ Or point at a preset directly in archml:
 | `MEDITATOR_VOICE_MODEL` | override voice tier (preset, role, or raw id) |
 | `MEDITATOR_UTILITY_MODEL` | override utility tier |
 | `OPENROUTER_API_KEY` | required for OpenRouter (the default cloud provider) |
-| `OPENAI_API_KEY` | required for real image generation via `<m-image>` |
+| `OPENAI_API_KEY` | required for real image generation via `<m-image>`, and for the Studio's [Voice Mode](studio.md#voice-mode) (TTS/STT) |
 | `OPENAI_IMAGE_MODEL` | default image model for `<m-image>` (default `gpt-image-1`) |
 | `OPENAI_IMAGE_SIZE` | default image size for `<m-image>` (default `1024x1024`) |
 | `OPENAI_IMAGE_FORMAT` | default output format for `gpt-image-1` images (default `png`) |
+| `STUDIO_VOICE` | set to `0` to switch Voice Mode off even with a key present |
+| `STUDIO_VOICE_NAME` | default Voice Mode voice (default `marin`; the user can also pick one in the UI) |
+| `STUDIO_TTS_MODEL` | text-to-speech model (default `gpt-4o-mini-tts`) |
+| `STUDIO_STT_MODEL` | speech-to-text model (default `gpt-4o-transcribe`) |
+| `STUDIO_TTS_INSTRUCTIONS` | how the mind's voice should sound (default: an unhurried, warm, clearly-articulated voice) |
 | `LOCAL_LLM_BASE_URL` | OpenAI-compatible endpoint for the `local` provider |
 | `LOCAL_LLM_API_KEY` | key for the local endpoint (default `none`) |
 | `LOCAL_LLM_THINKING` | `1`/`true` allows reasoning on local models |

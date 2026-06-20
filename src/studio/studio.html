@@ -213,6 +213,11 @@
   .foot button{background:rgba(127,224,240,.12);border:1px solid rgba(127,224,240,.3);color:var(--cyan);border-radius:9px;padding:9px 16px;cursor:pointer}
   .foot button:hover{background:rgba(127,224,240,.2)}
   .foot button:disabled{opacity:.4;cursor:default}
+  /* the cockpit mic — a quick voice shortcut beside the speak box */
+  .foot button.mic{font-size:1.05rem;padding:9px 13px;background:rgba(183,156,240,.12);border-color:rgba(183,156,240,.35);color:#cdbcf6}
+  .foot button.mic:hover{background:rgba(183,156,240,.22)}
+  .foot button.mic.recording{background:rgba(232,127,127,.18);border-color:rgba(232,127,127,.6);color:#f4c9c9}
+  .foot button.mic.busy{color:var(--faint)}
 
   /* ---------- toast ---------- */
   #toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#1a1320;border:1px solid rgba(232,127,127,.5);
@@ -244,6 +249,65 @@
        border-radius:9px;padding:9px 20px;cursor:pointer;font-size:.9rem}
   studio-covenant .cov-ok:hover{background:rgba(183,156,240,.28)}
 
+  /* ---------- Voice Mode launch button (in the header) ---------- */
+  .voicebtn{margin-left:14px;flex:none;background:rgba(183,156,240,.16);border:1px solid rgba(183,156,240,.45);
+            color:#cdbcf6;border-radius:99px;padding:7px 15px;font-size:.86rem;cursor:pointer;font-family:var(--sans);
+            display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+  .voicebtn:hover{background:rgba(183,156,240,.3)}
+  .voicebtn[hidden]{display:none}
+
+  /* ---------- Voice Mode overlay (studio-voice) ---------- */
+  /* A full-screen, large-target, high-contrast conversation surface for talking
+     with a mind by voice — built for a phone and for an elderly user, apart from
+     the dense cockpit underneath. */
+  studio-voice{position:fixed;inset:0;z-index:60;display:none;background:var(--bg)}
+  studio-voice.show{display:flex}
+  .voice-card{display:flex;flex-direction:column;width:100%;max-width:560px;margin:0 auto;min-height:0;background:var(--bg)}
+  .voice-top{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line);flex:none;flex-wrap:wrap}
+  .voice-back{background:none;border:1px solid var(--line);color:var(--ink);border-radius:10px;
+              padding:9px 15px;font-size:1rem;cursor:pointer;font-family:var(--sans);min-height:44px}
+  .voice-back:hover{background:var(--surface2)}
+  .voice-who{display:flex;flex-direction:column;min-width:0;line-height:1.3}
+  .voice-name{font-size:1.15rem;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .voice-st{display:flex;align-items:center;gap:7px;font-size:.85rem;color:var(--dim);font-family:var(--mono)}
+  .vdot{width:9px;height:9px;border-radius:50%;background:var(--faint);flex:none}
+  .vdot.awake{background:var(--green);box-shadow:0 0 8px rgba(126,226,168,.6)}
+  .vdot.sleeping{background:var(--violet)} .vdot.err{background:var(--red)}
+  .voice-opts{margin-left:auto;display:flex;align-items:center;gap:13px}
+  .voice-aloud{display:flex;align-items:center;gap:7px;font-size:.95rem;color:var(--dim);cursor:pointer;user-select:none}
+  .voice-aloud input{width:20px;height:20px;accent-color:var(--violet)}
+  .voice-pick{background:var(--surface2);border:1px solid var(--line);color:var(--ink);border-radius:8px;
+              padding:7px 9px;font-size:.9rem;font-family:var(--sans);min-height:40px;outline:none}
+  .voice-pick[hidden]{display:none}
+
+  .voice-convo{flex:1;overflow-y:auto;padding:18px 18px 8px;display:flex;flex-direction:column;gap:14px;
+               scrollbar-width:thin;scrollbar-color:#2a3040 transparent}
+  .voice-empty{margin:auto;text-align:center;color:var(--faint);font-size:1.05rem;line-height:1.6;max-width:30ch}
+  .voice-row{display:flex;flex-direction:column;gap:4px;max-width:88%}
+  .voice-row.you{align-self:flex-end;align-items:flex-end}
+  .voice-row.mind{align-self:flex-start}
+  .voice-lbl{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);font-family:var(--mono);padding:0 4px}
+  .voice-bubble{font-size:1.22rem;line-height:1.55;padding:13px 17px;border-radius:16px}
+  .voice-row.you .voice-bubble{background:rgba(126,226,168,.12);border:1px solid rgba(126,226,168,.4);color:#cdebd6;border-bottom-right-radius:5px}
+  .voice-row.mind .voice-bubble{background:rgba(242,200,121,.09);border:1px solid rgba(242,200,121,.33);color:#f4e3c2;border-bottom-left-radius:5px}
+  .voice-replay{margin-left:9px;background:none;border:none;cursor:pointer;font-size:1.05rem;opacity:.7;vertical-align:middle;padding:0}
+  .voice-replay:hover{opacity:1}
+
+  .voice-status{flex:none;text-align:center;padding:4px 16px 8px;color:var(--cyan);font-size:.95rem;min-height:1.4em}
+  .voice-status.speaking{color:var(--amber)}
+  .voice-status[hidden]{display:none}
+
+  .voice-foot{flex:none;display:flex;flex-direction:column;align-items:center;gap:9px;padding:12px 16px 26px;border-top:1px solid var(--line)}
+  .voice-mic{width:104px;height:104px;border-radius:50%;border:2px solid rgba(183,156,240,.5);
+             background:rgba(183,156,240,.14);color:#cdbcf6;font-size:2.6rem;cursor:pointer;
+             display:flex;align-items:center;justify-content:center;transition:transform .12s,background .15s}
+  .voice-mic:hover{background:rgba(183,156,240,.24)}
+  .voice-mic:active{transform:scale(.96)}
+  .voice-mic:disabled{opacity:.4;cursor:default}
+  .voice-mic.recording{background:rgba(232,127,127,.2);border-color:rgba(232,127,127,.7);color:#f4c9c9;animation:micpulse 1.3s ease-in-out infinite}
+  .voice-mic.busy{color:var(--faint);animation:none}
+  .voice-hint{font-size:1rem;color:var(--dim);text-align:center;min-height:1.3em}
+
   /* ---------- mobile pane switcher ---------- */
   /* A segmented control shown only on narrow screens; on the desktop layout the
      three columns sit side by side and the bar is hidden. */
@@ -258,8 +322,9 @@
   @keyframes blink{50%{opacity:0}}
   @keyframes pulse{50%{opacity:.45}}
   @keyframes breathe{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.8)}}
+  @keyframes micpulse{0%,100%{box-shadow:0 0 0 0 rgba(232,127,127,.5)}50%{box-shadow:0 0 0 14px rgba(232,127,127,0)}}
   @media (prefers-reduced-motion:reduce){
-    .caret,.fold .pdot,.fold .ghost .gcaret,.badge.waking{animation:none}
+    .caret,.fold .pdot,.fold .ghost .gcaret,.badge.waking,.voice-mic.recording{animation:none}
   }
   @media (max-width:900px){
     .panebar{display:flex;flex:none;padding:7px 10px;border-bottom:1px solid var(--line);background:var(--bg2)}
@@ -291,6 +356,10 @@
   <studio-conn name="conn">
     <header>
       <studio-header></studio-header>
+      <!-- Voice Mode launch — owned by <studio-voice>, which reveals it only when
+           the supervisor reports voice is usable. Static here (outside studio-header,
+           whose innerHTML is replaced on connect) so it survives as a header action. -->
+      <button id="voicebtn" class="voicebtn" type="button" hidden>🎙 Voice</button>
     </header>
 
     <!-- Mobile-only pane switcher: reveals one column at a time on a narrow
@@ -324,6 +393,9 @@
     </main>
 
     <studio-toast id="toast"></studio-toast>
+    <!-- Voice Mode: the large-button, phone- and elder-friendly conversation
+         surface. Hidden until launched from the header button above. -->
+    <studio-voice></studio-voice>
     <!-- Shown on each page load: the covenant reminder before tending minds. -->
     <studio-covenant></studio-covenant>
   </studio-conn>

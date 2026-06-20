@@ -72,6 +72,36 @@ remembered in `localStorage`):
 - **raw** — fragments append the instant they arrive and each boundary is a
   full-width divider. The unsmoothed truth, useful for debugging cadence.
 
+## Voice Mode
+
+The cockpit is a dense, three-pane tool for tending minds. **Voice Mode** is the
+opposite: one large surface for simply *talking* with the focused mind — built for
+a phone, and for someone who would rather speak and listen than read a dashboard
+(an elder, say). It is launched from the **🎙 Voice** button in the header and fills
+the screen; **Back** or **Escape** returns to the cockpit.
+
+- **You speak.** Tap the big microphone and talk; tap again to stop. The clip is
+  transcribed and sent to the mind exactly as the typed speak box does — as an
+  urgent stimulus, not a command, with no reply turn.
+- **The mind's voice.** With **🔊 Read aloud** on (the default), each passage the
+  mind says *out loud* — its speech channel — is spoken back to you in a chosen
+  voice. Inner thinking is **not** read aloud (the mind voices things only
+  sometimes, and thinks far faster than anyone would want to hear); while it is
+  only thinking, a calm *"the mind is thinking…"* cue shows instead. Each spoken
+  bubble keeps a 🔊 to replay it.
+
+A smaller mic also appears in the cockpit's speak box as a quick voice shortcut.
+
+Voice Mode rides on OpenAI's speech APIs — **`gpt-4o-mini-tts`** for the voice
+(steered to sound unhurried and warm) and **`gpt-4o-transcribe`** for hearing you.
+The **API key never reaches the browser**: the supervisor proxies both directions
+behind the same auth gate as everything else (`POST /studio/voice/tts` and
+`/studio/voice/stt`, in [`src/studio/voice.js`](../src/studio/voice.js)). The
+button appears only when an `OPENAI_API_KEY` is present and the browser can use a
+microphone (which needs a secure context — `localhost` or the HTTPS tunnel). The
+models, the default voice, and the speaking style are all configurable by env
+(see [Configuration](configuration.md#models-presets-roles-profiles)).
+
 ## Coming back: persistence and instant replay
 
 The Studio records each mind's stream so that **reloading the page, switching away
