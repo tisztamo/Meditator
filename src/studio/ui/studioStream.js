@@ -1,62 +1,68 @@
 import A from "amanita";
 import { nearBottom, scrollDown } from "./helpers.js";
 import { getPref } from "./studioPrefs.js";
-import { Fold } from "./studioFold.js";
+// The stream's part-components register themselves on import; studio-stream creates
+// them as the timeline grows. Importing here means a studio-stream is never used
+// without its parts being defined (matters for the unit tests, too).
+import "./studioThoughtRun.js";
+import "./studioSpeech.js";
+import "./studioStim.js";
+import "./studioImage.js";
 
-// Over a long run the monologue would grow without bound and bog the browser
-// down. Keep roughly this many characters of rendered stream; older blocks are
-// dropped from the top. Stripped content is not lost — a reload backfills the
-// recent window from the supervisor's persisted log.
+// Over a long run the monologue would grow without bound and bog the browser down.
+// Keep roughly this many characters of rendered stream; older parts are dropped from
+// the top. Stripped content is not lost — a reload backfills the recent window from
+// the supervisor's persisted log.
 const MAX_CHARS = 120000;
-// How much a generated image counts toward the char budget above (it is a heavy
-// DOM node even though its text is short), so images can trigger pruning too.
-const IMAGE_WEIGHT = 1500;
+// A run with no landmark for a very long time is sealed at this size and a fresh run
+// started, so the timeline stays a sequence of bounded, individually-prunable parts
+// (a marathon think becomes a few stacked folds rather than one unbounded block).
+// Generous, so a typical run — a handful of bursts between landmarks — stays whole.
+const RUN_SOFT_CAP = 8000;
 
 // Smoothing constants. The mind thinks in discrete bursts (one streamed LLM call
-// each) on a fixed tick; raw, a burst arrives as a fast dump followed by quiet.
-// In "flow" mode we hold the arriving text in a buffer and release it at a rate
-// that drains the buffer over ~one tick, so the text trickles out continuously
-// and the burst seam is barely visible. DRAIN_FRACTION < 1 keeps the buffer
-// mostly empty by the time the next burst lands (bounding the added latency);
-// MIN_WIN floors the window for very fast minds.
+// each) on a fixed tick; raw, a burst arrives as a fast dump followed by quiet. In
+// "flow" mode we hold the arriving text in a buffer and release it at a rate that
+// drains the buffer over ~one tick, so the text trickles out continuously and the
+// burst seam is barely visible. DRAIN_FRACTION < 1 keeps the buffer mostly empty by
+// the time the next burst lands (bounding the added latency); MIN_WIN floors the
+// window for very fast minds.
 const DRAIN_FRACTION = 0.85;
 const MIN_WIN = 700;
-// Roll to a fresh paragraph at a seam once the current one gets this long, so
-// the flowing-but-unbroken text still prunes. Most seams stay inline.
-const SOFT_PARA = 2400;
 
 /**
  * studio-stream — the focused mind's stream of consciousness (id="stream",
  * inheriting the existing #stream CSS; it is the flex:1 scroll column).
  *
- * It renders inner thought as flowing paragraphs, spoken-aloud passages as .say
- * blocks, and stimuli / burst boundaries as markers — concatenating fragments
- * into one continuous monologue with a live caret.
+ * It is the timeline's MODEL and sequencer, not its renderer. The stream of fragments
+ * and events is grouped — once, independent of display mode — into a sequence of
+ * part-components that own their own data and render themselves:
  *
- * Three display modes, owned by the studio-streammode control in the column header
- * (it publishes the mode on `/streammode/mode`; this pane subscribes) and
- * remembered in localStorage:
- *   - "fold" (default): an unbroken run of thinking gathers into ONE fixed-height
- *     Fold block (see studioFold.js) that holds its place, so the column stops
- *     scrolling faster than you can read. The live fold shows its opening (anchored)
- *     and a ghosting tail; once a landmark closes it, it settles to begin/(end) +
- *     meta, expandable on click. Speech, stimuli and images never fold — they stay
- *     full, the landmarks you scan for.
- *   - "flow": incoming fragments are buffered and revealed at a metered rate that
- *     drains over ~one burst tick (learned from the mind's "pace" telemetry), so a
- *     burst trickles out instead of dumping and its boundary is a barely-visible
- *     inline seam. The reveal slows as the buffer empties and speeds up when behind.
- *   - "raw": the original behaviour — fragments append the instant they arrive
- *     and each boundary is a full-width divider.
+ *   - studio-thought-run — a run of thinking between two landmarks (renders fold /
+ *     flow / raw from its own data, and re-renders when the mode changes);
+ *   - studio-speech / studio-stim / studio-image — the landmarks, mode-independent.
  *
- * Ports addThought / addSpeech / addStim / addBoundary / newPara / moveCaret /
- * setSpeaking and friends. The state pill lives in studio-header; this pane only
- * tracks `speaking` locally to thin the thinking stream while the mind talks.
+ * Because each part renders itself from its data according to the CURRENT mode (a
+ * retained `mode` topic the parts subscribe to via `../mode`), switching display mode
+ * re-renders the whole column — settled parts and the in-flight run alike. What you
+ * see never depends on which mode happened to be active when the text arrived.
+ *
+ * This component's remaining jobs are: subscribe to the hub's /conn/ topics; route
+ * fragments/events through one mode-independent ingestion state machine into the live
+ * part; meter the "flow" reveal (the rAF pump below) by feeding the live part; prune
+ * old parts; repaint a backlog in one synchronous pass; and re-publish the display
+ * mode so the parts react.
+ *
+ * Display modes are owned by the studio-streammode control in the column header (it
+ * publishes the mode on `/streammode/mode`; we subscribe and re-publish as our own
+ * `mode` topic) and remembered in localStorage. "fold" is the default.
  */
 export class StudioStream extends A(HTMLElement) {
-  curP = null; caret = null; speaking = false; sayEl = null; saySpan = null; primed = false; chars = 0;
-  // display mode: "fold" (default) | "flow" | "raw". `fold` is the live Fold tail.
-  mode = "fold"; fold = null;
+  // the live tail: the trailing parts live fragments grow (each is null between landmarks)
+  liveRun = null; liveSpeech = null;
+  speaking = false; primed = false; chars = 0;
+  // display mode: "fold" (default) | "flow" | "raw". Source of truth + republished topic.
+  mode = "fold";
   // flow-mode reveal engine
   tickMs = 8000; q = []; _raf = null; _lastT = null; _acc = 0;
   // `smooth` (the flow reveal) is derived, so the pump/seam code reads it unchanged.
@@ -64,33 +70,29 @@ export class StudioStream extends A(HTMLElement) {
   // _awaitingBatch: between a (re)focus and its backfill batch, ignore projection
   //   events (they rehydrate the header/tree, not the stream). hidden: the tab is
   //   backgrounded — append live text instantly instead of feeding the rAF pump.
-  _awaitingBatch = false; hidden = false;
-  // The focused mind's id, cached from /conn/focused so onLifecycle can match it
-  // without reaching into the hub's fields.
+  //   _batching: inside renderBatch — suppress per-item scroll/prune (done once at end).
+  _awaitingBatch = false; hidden = false; _batching = false;
+  // The focused mind's id, cached from /conn/focused so onLifecycle can match it.
   focusedId = null;
 
   onConnect() {
     this.mode = this._loadMode();
+    this.pub("mode", this.mode);     // retained → a part paints in the right mode on connect
     this.clear("Wake a mind, or focus one, to watch its stream.");
     // The fold/flow/raw toggle is its own mesh component (studio-streammode) in the
-    // column header; we react to the mode it publishes instead of reaching across
-    // the DOM to find and wire its button.
+    // column header; we react to the mode it publishes and re-publish it for our parts.
     this.sub("/streammode/mode", m => this.setMode(m), 12);
 
     // Track the focused id from its topic, so lifecycle messages can be matched
     // to the mind we are showing without reading the hub.
     this.sub("/conn/focused", id => { this.focusedId = id; }, 12);
     // Fresh focus: clear and await the backfill batch. Reconnect: keep what is
-    // shown, start a fresh paragraph, and await the delta batch.
+    // shown, settle the live tail, and await the delta batch.
     this.sub("/conn/focusReset", () => { this.clear("reconstituting this mind"); this._awaitingBatch = true; }, 12);
-    this.sub("/conn/replayResume", () => { this._awaitingBatch = true; this.prime(); this.endThought(); }, 12);
+    this.sub("/conn/replayResume", () => { this._awaitingBatch = true; this.prime(); this.sealRun(); this.sealSpeech(); }, 12);
     this.sub("/conn/backfill", entries => this.renderBatch(entries || []), 12);
     this.sub("/conn/hidden", h => this.setHidden(!!h), 12);
     this.sub("/conn/streamFragment", f => { if (f) this.onFragment(f); }, 12);
-    // The transient idle between bursts must NOT end the paragraph in flow mode —
-    // that is exactly the seam we want to make continuous; nor close a live fold.
-    // (Only raw mode keeps the break.)
-    this.sub("/conn/streamState", s => { if (this._awaitingBatch) return; if (s !== "streaming" && this.mode === "raw") this.endThought(); }, 12);
     this.sub("/conn/event", d => this.onEvent(d), 12);
     this.sub("/conn/lifecycle", d => this.onLifecycle(d), 12);
     this.sub("/conn/youSaid", t => this.stim(`You said: "${t}"`, "you"), 12);
@@ -98,134 +100,180 @@ export class StudioStream extends A(HTMLElement) {
 
   clear(msg) {
     this.innerHTML = `<div class="placeholder"><span class="big">…</span><span>${msg}</span></div>`;
-    this.curP = null; this.caret = null; this.speaking = false; this.sayEl = null; this.saySpan = null; this.primed = false; this.chars = 0;
-    this.fold = null;
+    this.liveRun = null; this.liveSpeech = null; this.speaking = false; this.primed = false; this.chars = 0;
     this.q = []; this._cancel(); this._lastT = null; this._acc = 0;
   }
-  prime() { if (!this.primed) { this.innerHTML = ""; this.primed = true; this.chars = 0; } }
+  prime() { if (!this.primed) { this.innerHTML = ""; this.primed = true; this.chars = 0; this.liveRun = null; this.liveSpeech = null; } }
 
-  /** Bound the DOM: once the rendered text exceeds MAX_CHARS, drop the oldest
-   *  top-level blocks. Never touch the live tail (curP / sayEl). When the user is
-   *  reading back (not pinned), compensate scrollTop so the view doesn't jump. */
+  /** Bound the DOM: once banked text exceeds MAX_CHARS, drop the oldest parts. Never
+   *  touch the live tail (liveRun / liveSpeech). When the user is reading back (not
+   *  pinned), compensate scrollTop so the view doesn't jump. */
   prune(stick) {
     if (this.chars <= MAX_CHARS) return;
     const before = stick ? 0 : this.scrollHeight;
     while (this.chars > MAX_CHARS) {
       const first = this.firstElementChild;
-      if (!first || first === this.curP || first === this.sayEl || (this.fold && first === this.fold.el)) break;
-      this.chars -= (first.dataset && first.dataset.w != null) ? Number(first.dataset.w) : (first.textContent || "").length;
+      if (!first || first === this.liveRun || first === this.liveSpeech) break;
+      this.chars -= (typeof first.weight === "number" ? first.weight : (first.textContent || "").length);
       first.remove();
     }
     if (stick) scrollDown(this);
     else { const removed = before - this.scrollHeight; if (removed > 0) this.scrollTop = Math.max(0, this.scrollTop - removed); }
   }
 
-  // ----------------------------------------------------- inbound (mode-aware)
+  // ----------------------------------------------------- inbound (mode is for METERING only)
   onFragment(f) {
     this._awaitingBatch = false;     // a live fragment means replay is over
     this.prime();
     const kind = f.kind === "speech" ? "speech" : "thought";
-    if (this.mode === "fold") return this._foldFragment(kind, f.content || "");
+    const text = f.content || "";
     // Flow mode meters the reveal — but only while visible. A hidden tab appends
     // instantly so the queue can't grow unbounded behind a throttled rAF.
-    if (this.smooth && !this.hidden) this.enqueue({ kind, s: f.content || "", i: 0 });
-    else if (kind === "speech") this.addSpeech(f.content);
-    else this.addThought(f.content);
+    if (this.smooth && !this.hidden) this.enqueue({ t: kind, s: text, i: 0 });
+    else if (kind === "speech") this._applySpeech(text);
+    else this._applyThought(text);
+  }
+
+  onEvent(d) {
+    const route = `${d.process}/${d.kind}`;
+    // The mind's burst tick — size the reveal window from it. (Always honoured, even
+    // mid-replay, since it only tunes the live pump.)
+    if (route === "mind/pace") { if (d.tickMs > 0) this.tickMs = d.tickMs; return; }
+    // During replay, projection snapshot events rehydrate the header/tree only; the
+    // stream's content comes from its backfill batch.
+    if (this._awaitingBatch) return;
+    if (this.smooth && !this.hidden) {
+      switch (route) {
+        case "stream/boundary":    this.prime(); this.enqueue({ t: "bnd", d }); break;
+        case "attention/urgent":   this.enqueue({ t: "stim", text: d.reason || "urgent stimulus" }); break;
+        case "attention/decision": if (d.accepted && !d.urgent) this.enqueue({ t: "stim", text: d.reason || d.type }); break;
+        case "speech/speaking":    this.enqueue({ t: "speaking", on: d.speaking }); break;
+        case "image/generated":    this.prime(); this.enqueue({ t: "image", d }); break;
+        case "image/error":        this.enqueue({ t: "stim", text: `Image generation failed: ${d.message || "error"}`, cls: "warn" }); break;
+      }
+      return;
+    }
+    switch (route) {
+      case "stream/boundary":    this._applyBoundary(d); break;
+      case "attention/urgent":   this._applyStim(d.reason || "urgent stimulus"); break;
+      case "attention/decision": if (d.accepted && !d.urgent) this._applyStim(d.reason || d.type); break;
+      case "speech/speaking":    this._applySpeaking(d.speaking); break;
+      case "image/generated":    this._applyImage(d); break;
+      case "image/error":        this._applyStim(`Image generation failed: ${d.message || "error"}`, "warn"); break;
+    }
   }
 
   onLifecycle(d) {
     if (!d || d.id !== this.focusedId) return;
     if (d.state === "exited" || d.state === "crashed" || d.state === "sleeping") {
-      if (this.mode === "fold") { this._closeFold(); this.setSpeaking(false); }
-      else if (this.smooth) this.enqueue({ t: "stop" });
-      else { this.endThought(); this.setSpeaking(false); }
+      if (this.smooth && !this.hidden) this.enqueue({ t: "stop" });
+      else this._applyStop();
     }
   }
 
-  onEvent(d) {
-    const route = `${d.process}/${d.kind}`;
-    // The mind's burst tick — size the reveal window from it. (Always honoured,
-    // even mid-replay, since it only tunes the live pump.)
-    if (route === "mind/pace") { if (d.tickMs > 0) this.tickMs = d.tickMs; return; }
-    // During replay, projection snapshot events rehydrate the header/tree only;
-    // the stream's content comes from its backfill batch.
-    if (this._awaitingBatch) return;
-    if (this.mode === "fold") return this._foldEvent(route, d);
-    if (this.smooth && !this.hidden) {
-      switch (route) {
-        case "stream/boundary":    this.prime(); this.enqueue({ t: "bnd", d }); break;
-        case "attention/urgent":   this.stim(d.reason || "urgent stimulus"); break;
-        case "attention/decision": if (d.accepted && !d.urgent) this.stim(d.reason || d.type); break;
-        case "speech/speaking":    this.enqueue({ t: "speaking", on: d.speaking }); break;
-        case "image/generated":    this.prime(); this.enqueue({ t: "image", d }); break;
-        case "image/error":        this.stim(`Image generation failed: ${d.message || "error"}`, "warn"); break;
-      }
-      return;
-    }
-    switch (route) {
-      case "stream/boundary":    this.prime(); this.addBoundary(d); break;
-      case "attention/urgent":   this.addStim(d.reason || "urgent stimulus"); break;
-      case "attention/decision": if (d.accepted && !d.urgent) this.addStim(d.reason || d.type); break;
-      case "speech/speaking":    this.setSpeaking(d.speaking); break;
-      case "image/generated":    this.addImage(d); break;
-      case "image/error":        this.addStim(`Image generation failed: ${d.message || "error"}`, "warn"); break;
-    }
-  }
-
-  /** A stimulus marker. In fold mode it is a landmark — it closes the live fold and
-   *  renders full; in flow it is ordered into the reveal (instant when hidden). */
+  /** A stimulus marker, ordered into the reveal in flow (instant when hidden). */
   stim(text, cls) {
-    if (this.mode === "fold") { this._closeFold(); return this.addStim(text, cls); }
-    if (this.smooth && !this.hidden) this.enqueue({ t: "stim", text, cls }); else this.addStim(text, cls);
+    if (this.smooth && !this.hidden) this.enqueue({ t: "stim", text, cls });
+    else this._applyStim(text, cls);
   }
 
-  // ------------------------------------------------------------ fold mode
-  /** Ensure a live fold exists to receive thought. Does not touch speech — the
-   *  caller decides whether a speech card is closing. */
-  _ensureFold() {
-    if (this.fold) return;
-    this.endThought();
-    const stick = nearBottom(this);
-    this.fold = new Fold(() => this._now(), { thinned: this.speaking });
-    this.appendChild(this.fold.el);
-    if (stick) scrollDown(this);
+  // ------------------------------------------- ingestion state machine (mode-independent)
+  // Grouping into runs and landmarks is identical in every mode; only the metering
+  // (above) and each part's rendering vary. That is what makes a mode switch a pure
+  // re-render of the same data.
+
+  _makeRun() {
+    const el = document.createElement("studio-thought-run");
+    el.record = { text: "", bounds: [], thinned: this.speaking, t0: this._now(), t1: 0, live: true, open: false };
+    return el;
   }
-  /** Settle the live fold into its closed begin/(end) summary and bank its chars. */
-  _closeFold() {
-    if (!this.fold) return;
-    const stick = nearBottom(this);
-    const f = this.fold; this.fold = null;
-    f.close();
-    this.chars += f.chars;
-    if (stick) scrollDown(this);
-    this.prune(stick);
+  ensureRun() {
+    if (this.liveRun) return;
+    const stick = this._stick();
+    this.prime();
+    this.liveRun = this._makeRun();
+    this.appendChild(this.liveRun);
+    if (!this._batching && stick) scrollDown(this);
   }
-  /** Fold-mode fragment: thought grows the live fold; speech is a full landmark.
-   *  Thinned thought can arrive in parallel with speech, so a thought fragment
-   *  only closes a speech card once the mind has actually stopped speaking. */
-  _foldFragment(kind, text) {
-    if (kind === "speech") { this._closeFold(); this.addSpeech(text); return; }
-    if (this.sayEl && !this.speaking) this.endSpeech();
-    this._ensureFold();
-    this.fold.append(text);
+  sealRun() {
+    if (!this.liveRun) return;
+    const stick = this._stick();
+    const r = this.liveRun; this.liveRun = null;
+    r.seal(this._now());
+    this.chars += r.weight;
+    if (!this._batching) { if (stick) scrollDown(this); this.prune(stick); }
   }
-  /** Fold-mode events: a burst boundary bumps the fold's count; every other signal
-   *  is a landmark that closes the fold and renders full. */
-  _foldEvent(route, d) {
-    switch (route) {
-      case "stream/boundary":    if (this.fold) this.fold.bump(); break;
-      case "attention/urgent":   this.stim(d.reason || "urgent stimulus"); break;
-      case "attention/decision": if (d.accepted && !d.urgent) this.stim(d.reason || d.type); break;
-      case "speech/speaking":    if (d.speaking) this._closeFold(); this.setSpeaking(d.speaking); break;
-      case "image/generated":    this._closeFold(); this.addImage(d); break;
-      case "image/error":        this.stim(`Image generation failed: ${d.message || "error"}`, "warn"); break;
-    }
+  ensureSpeech() {
+    if (this.liveSpeech) return;
+    const stick = this._stick();
+    this.prime();
+    this.liveSpeech = document.createElement("studio-speech");
+    this.liveSpeech.record = { text: "" };
+    this.appendChild(this.liveSpeech);
+    if (!this._batching && stick) scrollDown(this);
   }
+  sealSpeech() {
+    if (!this.liveSpeech) return;
+    const s = this.liveSpeech; this.liveSpeech = null;
+    s.seal();
+    this.chars += s.weight;
+    if (!this._batching) this.prune(this._stick());
+  }
+
+  _applyThought(text) {
+    if (this.liveSpeech && !this.speaking) this.sealSpeech();   // speech finished; thinking resumes
+    const stick = this._stick();
+    this.ensureRun();
+    this.liveRun.append(text);
+    // A run that never meets a landmark is sealed at the soft cap so prune stays fine.
+    if (this.liveRun && this.liveRun.weight > RUN_SOFT_CAP) this.sealRun();
+    this._settle(stick);
+  }
+  _applySpeech(text) {
+    this.sealRun();
+    const stick = this._stick();
+    this.ensureSpeech();
+    this.liveSpeech.append(text);
+    this._settle(stick);
+  }
+  _applyBoundary(d) { if (this.liveRun) this.liveRun.bump(d); }
+  _applyStim(text, cls) {
+    this.sealRun(); this.sealSpeech();
+    const stick = this._stick();
+    this.prime();
+    const el = document.createElement("studio-stim");
+    el.record = { text, cls: cls || null };
+    this.appendChild(el);
+    this.chars += el.weight;
+    this._settle(stick);
+  }
+  _applyImage(d) {
+    this.sealRun(); this.sealSpeech();
+    const stick = this._stick();
+    this.prime();
+    const el = document.createElement("studio-image");
+    el.record = { src: (d && (d.url || d.dataUrl)) || null, prompt: (d && (d.prompt || d.originalPrompt)) || "generated image" };
+    this.appendChild(el);
+    this.chars += el.weight;
+    this._settle(stick);
+  }
+  _applySpeaking(on) {
+    if (on === this.speaking) return;
+    this.speaking = on;
+    this.sealRun();                  // a run ends when the mind starts OR stops speaking
+    if (!on) this.sealSpeech();      // ...and the say card settles when it stops
+  }
+  _applyStop() { this.sealRun(); this.sealSpeech(); this.speaking = false; }
+
+  // Pinned-to-bottom probe — but skip the layout read while batching (we scroll once
+  // at the end of a backfill).
+  _stick() { return this._batching ? true : nearBottom(this); }
+  _settle(stick) { if (this._batching) return; if (stick) scrollDown(this); this.prune(stick); }
 
   // ------------------------------------------------ flow-mode reveal engine
-  /** Queue an item and make sure the reveal loop is running. Items are either
-   *  text ({kind, s, i}) revealed gradually, or markers ({t, ...}) emitted at
-   *  their position the moment the text ahead of them has been revealed. */
+  /** Queue an item and make sure the reveal loop is running. Items are either text
+   *  ({t:"thought"|"speech", s, i}) revealed gradually, or markers ({t, ...}) emitted
+   *  at their position the moment the text ahead of them has been revealed. */
   enqueue(item) { this.q.push(item); if (this._raf == null) this._raf = this._req(this._pump); }
 
   _req(cb) { return (typeof requestAnimationFrame === "function") ? requestAnimationFrame(cb) : setTimeout(() => cb(this._now()), 16); }
@@ -258,7 +306,7 @@ export class StudioStream extends A(HTMLElement) {
         const take = Math.min(n, it.s.length - it.i);
         const piece = it.s.slice(it.i, it.i + take);
         it.i += take; n -= take;
-        if (it.kind === "speech") this.addSpeech(piece); else this.addThought(piece);
+        if (it.t === "speech") this._applySpeech(piece); else this._applyThought(piece);
         if (it.i >= it.s.length) this.q.shift();
       } else {
         this.q.shift();
@@ -272,27 +320,27 @@ export class StudioStream extends A(HTMLElement) {
 
   _applyMarker(it) {
     switch (it.t) {
-      case "bnd":      this.addBoundaryInline(it.d); break;
-      case "stim":     this.addStim(it.text, it.cls); break;
-      case "image":    this.addImage(it.d); break;
-      case "speaking": this.setSpeaking(it.on); break;
-      case "stop":     this.endThought(); this.setSpeaking(false); break;
+      case "bnd":      this._applyBoundary(it.d); break;
+      case "stim":     this._applyStim(it.text, it.cls); break;
+      case "image":    this._applyImage(it.d); break;
+      case "speaking": this._applySpeaking(it.on); break;
+      case "stop":     this._applyStop(); break;
     }
   }
 
-  /** Reveal everything buffered at once (used when switching out of flow mode so
-   *  no text is stranded). */
+  /** Reveal everything buffered at once (used when switching out of flow mode, or when
+   *  the tab hides, so no text is stranded mid-reveal). */
   _flush() {
     for (const it of this.q) {
-      if (it.s != null) { const piece = it.s.slice(it.i); it.i = it.s.length; if (it.kind === "speech") this.addSpeech(piece); else this.addThought(piece); }
+      if (it.s != null) { const piece = it.s.slice(it.i); it.i = it.s.length; if (it.t === "speech") this._applySpeech(piece); else this._applyThought(piece); }
       else this._applyMarker(it);
     }
     this.q = []; this._cancel(); this._lastT = null; this._acc = 0;
   }
 
   /** The tab's visibility changed. Going hidden, drain the buffer instantly (so
-   *  nothing is stranded mid-reveal) and switch to instant appends; the rAF pump
-   *  a background tab would throttle never runs, so the queue can't pile up. */
+   *  nothing is stranded) and switch to instant appends; the rAF pump a background tab
+   *  would throttle never runs, so the queue can't pile up. */
   setHidden(h) {
     if (h === this.hidden) return;
     this.hidden = h;
@@ -301,234 +349,50 @@ export class StudioStream extends A(HTMLElement) {
 
   // ------------------------------------------------------- batch replay (instant)
   /**
-   * Paint a whole backlog of timeline entries in ONE synchronous pass — no rAF,
-   * no per-item layout reads — then continue live in the last paragraph. This is
-   * what makes a reload / tab-return repaint instantly instead of re-animating the
-   * stream token by token. Entries are appended to whatever is already shown
-   * (empty after a fresh focus-reset; the existing tail on a reconnect), so it
-   * serves both the recent-tail and the delta cases.
+   * Paint a whole backlog of timeline entries in ONE synchronous pass — no rAF — then
+   * continue live in the trailing part. This is what makes a reload / tab-return
+   * repaint instantly instead of re-animating the stream token by token. The same
+   * mode-independent ingestion runs, with per-item scroll/prune suppressed; each part
+   * paints in the current mode as it connects, so a backfill needs no animation.
+   *
+   * Entries continue whatever is already shown (empty after a fresh focus-reset; the
+   * existing tail on a reconnect, which replayResume has already settled). A trailing
+   * run/speech is left open so live fragments continue it.
    *
    * Entry kinds: {k:"thought"|"speech", t} · {k:"boundary", reason} ·
    * {k:"stim", t, cls} · {k:"speaking", on} · {k:"image", src, prompt}.
    */
   renderBatch(entries) {
     this._awaitingBatch = false;
-    if (this.mode === "fold") return this._renderBatchFolded(entries || []);
-    if (!entries || !entries.length) { if (this.curP) this.moveCaret(this.curP); return; }
+    if (!entries || !entries.length) return;
     this.prime();
-    this.endThought(); this.endSpeech();
-    const frag = document.createDocumentFragment();
-    let p = null, say = null, saySpan = null, added = 0;
-    const endP = () => { p = null; };
-    const endSay = () => { say = null; saySpan = null; };
+    this._batching = true;
+    this.sealRun(); this.sealSpeech();
     for (const e of entries) {
       if (!e || !e.k) continue;
       switch (e.k) {
-        case "thought": {
-          if (!p) { endSay(); p = document.createElement("p"); if (this.speaking) p.className = "thinned"; frag.appendChild(p); }
-          p.appendChild(document.createTextNode(e.t || "")); added += (e.t || "").length;
-          break;
-        }
-        case "speech": {
-          if (!say) {
-            endP();
-            say = document.createElement("div"); say.className = "say";
-            const lbl = document.createElement("span"); lbl.className = "lbl"; lbl.textContent = "spoken aloud"; say.appendChild(lbl);
-            saySpan = document.createElement("span"); say.appendChild(saySpan); frag.appendChild(say);
-          }
-          saySpan.appendChild(document.createTextNode(e.t || "")); added += (e.t || "").length;
-          break;
-        }
-        case "boundary": {
-          if (this.smooth) {
-            if (p) { p.appendChild(this._seamEl(e.reason === "completed" ? null : { reason: e.reason })); if ((p.textContent || "").length > SOFT_PARA) endP(); }
-          } else {
-            endP();
-            const el = document.createElement("div"); el.className = "bnd"; el.textContent = e.reason === "completed" ? "burst" : (e.reason || "burst");
-            frag.appendChild(el); added += el.textContent.length;
-          }
-          break;
-        }
-        case "stim": {
-          endP(); endSay();
-          const el = document.createElement("div"); el.className = "stim" + (e.cls ? (" " + e.cls) : ""); el.textContent = "⟂ " + (e.t || "");
-          frag.appendChild(el); added += el.textContent.length;
-          break;
-        }
-        case "speaking": {
-          this.speaking = !!e.on; if (!e.on) endSay(); endP();
-          break;
-        }
-        case "image": {
-          endP(); endSay();
-          const card = this._imageCard(e.src, e.prompt);
-          frag.appendChild(card); added += Number(card.dataset.w);
-          break;
-        }
+        case "thought":  this._applyThought(e.t || ""); break;
+        case "speech":   this._applySpeech(e.t || ""); break;
+        case "boundary": this._applyBoundary({ reason: e.reason }); break;
+        case "stim":     this._applyStim(e.t || "", e.cls); break;
+        case "speaking": this._applySpeaking(!!e.on); break;
+        case "image":    this._applyImage({ url: e.src, prompt: e.prompt }); break;
       }
     }
-    this.appendChild(frag);
-    this.chars += added;
-    // Continue the live tail where the batch left off.
-    this.curP = p; this.sayEl = say; this.saySpan = saySpan;
-    if (this.curP) this.moveCaret(this.curP);
+    this._batching = false;
     scrollDown(this);
     this.prune(true);
   }
-
-  /** Fold-mode backfill: the same single synchronous pass, but consecutive thought
-   *  bursts (with their inner boundaries) gather into Fold blocks, while speech /
-   *  stimuli / images stay full landmarks. A trailing run is left as an OPEN live
-   *  fold so live fragments continue it; a batch ending on a landmark leaves none. */
-  _renderBatchFolded(entries) {
-    if (!entries.length) return;
-    this.prime();
-    this.endThought(); this.endSpeech(); this._closeFold();
-    const frag = document.createDocumentFragment();
-    let fold = null, say = null, saySpan = null, added = 0;
-    const closeFold = () => { if (fold) { fold.close(); added += fold.chars; fold = null; } };
-    const endSay = () => { say = null; saySpan = null; };
-    for (const e of entries) {
-      if (!e || !e.k) continue;
-      switch (e.k) {
-        case "thought": {
-          if (say && !this.speaking) endSay();   // speech finished; thinking resumes
-          if (!fold) { fold = new Fold(() => this._now(), { thinned: this.speaking }); frag.appendChild(fold.el); }
-          fold.append(e.t || "");
-          break;
-        }
-        case "speech": {
-          closeFold();
-          if (!say) {
-            say = document.createElement("div"); say.className = "say";
-            const lbl = document.createElement("span"); lbl.className = "lbl"; lbl.textContent = "spoken aloud"; say.appendChild(lbl);
-            saySpan = document.createElement("span"); say.appendChild(saySpan); frag.appendChild(say);
-          }
-          saySpan.appendChild(document.createTextNode(e.t || "")); added += (e.t || "").length;
-          break;
-        }
-        case "boundary": { if (fold) fold.bump(); break; }
-        case "stim": {
-          closeFold(); endSay();
-          const el = document.createElement("div"); el.className = "stim" + (e.cls ? (" " + e.cls) : ""); el.textContent = "⟂ " + (e.t || "");
-          frag.appendChild(el); added += el.textContent.length;
-          break;
-        }
-        case "speaking": {
-          this.speaking = !!e.on; if (!e.on) endSay(); else closeFold();
-          break;
-        }
-        case "image": {
-          closeFold(); endSay();
-          const card = this._imageCard(e.src, e.prompt);
-          frag.appendChild(card); added += Number(card.dataset.w);
-          break;
-        }
-      }
-    }
-    this.appendChild(frag);
-    this.chars += added;
-    // Leave a trailing live fold / speech open so live fragments continue them; a
-    // landmark-terminated batch leaves both null. The live fold's chars are banked
-    // only when it later closes (it is the unprunable tail until then).
-    this.fold = fold; this.sayEl = say; this.saySpan = saySpan; this.curP = null;
-    scrollDown(this);
-    this.prune(true);
-  }
-
-  // -------------------------------------------------------- rendering (ported)
-  moveCaret(host) { if (this.caret) this.caret.remove(); this.caret = document.createElement("span"); this.caret.className = "caret"; (host || this).appendChild(this.caret); }
-  newPara() { this.curP = document.createElement("p"); if (this.speaking) this.curP.className = "thinned"; this.appendChild(this.curP); this.moveCaret(this.curP); }
-  addThought(text) { const stick = nearBottom(this); if (!this.curP) this.newPara(); this.caret ? this.caret.before(text) : this.curP.appendChild(document.createTextNode(text)); this.chars += text.length; if (stick) scrollDown(this); this.prune(stick); }
-  endThought() { this.curP = null; if (this.caret) { this.caret.remove(); this.caret = null; } }
-  addSpeech(text) {
-    const stick = nearBottom(this);
-    if (!this.sayEl) {
-      this.endThought();
-      this.sayEl = document.createElement("div"); this.sayEl.className = "say";
-      const lbl = document.createElement("span"); lbl.className = "lbl"; lbl.textContent = "spoken aloud"; this.sayEl.appendChild(lbl);
-      this.saySpan = document.createElement("span"); this.sayEl.appendChild(this.saySpan);
-      this.appendChild(this.sayEl);
-    }
-    this.saySpan.appendChild(document.createTextNode(text));
-    this.chars += text.length;
-    if (stick) scrollDown(this);
-    this.prune(stick);
-  }
-  endSpeech() { this.sayEl = null; this.saySpan = null; }
-  /** Build a generated-image card. Prefers a served URL (light DOM) over an inline
-   *  data URL. Stamps its char weight on the node so prune accounts for it. */
-  _imageCard(src, prompt) {
-    const p = prompt || "generated image";
-    const card = document.createElement("figure");
-    card.className = "image-card";
-    card.dataset.w = String(p.length + IMAGE_WEIGHT);
-    const lbl = document.createElement("figcaption");
-    lbl.className = "lbl";
-    lbl.textContent = "generated image";
-    card.appendChild(lbl);
-    if (src) {
-      const img = document.createElement("img");
-      img.alt = p;
-      img.loading = "lazy";
-      img.src = src;
-      card.appendChild(img);
-    }
-    const cap = document.createElement("figcaption");
-    cap.className = "prompt";
-    cap.textContent = p;
-    card.appendChild(cap);
-    return card;
-  }
-  addImage(d) {
-    const src = d && (d.url || d.dataUrl);
-    const prompt = (d && (d.prompt || d.originalPrompt)) || "generated image";
-    const stick = nearBottom(this);
-    this.endThought();
-    this.prime();
-    const card = this._imageCard(src, prompt);
-    this.appendChild(card);
-    this.chars += Number(card.dataset.w);
-    if (stick) scrollDown(this);
-    this.prune(stick);
-  }
-  addStim(text, cls) { const stick = nearBottom(this); this.endThought(); this.prime(); const d = document.createElement("div"); d.className = "stim" + (cls ? (" " + cls) : ""); d.textContent = "⟂ " + text; this.appendChild(d); this.chars += d.textContent.length; if (stick) scrollDown(this); this.prune(stick); }
-  /** Raw-mode boundary: a full-width labelled divider ("like now"). */
-  addBoundary(d) { const stick = nearBottom(this); this.endThought(); const el = document.createElement("div"); el.className = "bnd"; el.textContent = d.reason === "completed" ? "burst" : d.reason; this.appendChild(el); this.chars += el.textContent.length; if (stick) scrollDown(this); this.prune(stick); }
-  /** Flow-mode boundary: a barely-visible inline seam inside the flowing text.
-   *  Occasionally rolls to a fresh paragraph so the unbroken text still prunes. */
-  addBoundaryInline(d) {
-    if (!this.curP) this.newPara();
-    const stick = nearBottom(this);
-    const seam = this._seamEl(d);
-    if ((this.curP.textContent || "").length > SOFT_PARA) {
-      if (this.caret) this.caret.before(seam); else this.curP.appendChild(seam);
-      this.endThought();   // next thought starts a fresh paragraph
-    } else if (this.caret) {
-      this.caret.before(seam);
-    } else {
-      this.curP.appendChild(seam);
-    }
-    if (stick) scrollDown(this);
-  }
-  _seamEl(d) {
-    const seam = document.createElement("span");
-    const ok = !d || d.reason === "completed";
-    seam.className = ok ? "seam" : "seam warn";
-    seam.title = ok ? "burst seam" : (d.reason || "burst");
-    return seam;
-  }
-  setSpeaking(on) { if (on === this.speaking) return; this.speaking = on; if (!on) this.endSpeech(); this.endThought(); }
 
   // ---------------------------------------------------------------- mode
-  /** Apply a fold/flow/raw change published by studio-streammode (which owns the
-   *  button and the persisted preference). Flush the flow buffer and settle any
-   *  live fold first, so no text is stranded across the switch. */
+  /** Apply a fold/flow/raw change published by studio-streammode. Drain any buffered
+   *  flow text first (so nothing is stranded across the switch), then re-publish the
+   *  mode — every part re-renders itself from its own data, settled and in-flight
+   *  alike. We never touch the parts directly; they react to the topic. */
   setMode(mode) {
     if (mode === this.mode) return;
-    this._flush();                                   // drain any buffered flow text
-    if (this.mode === "fold") this._closeFold();     // settle the live fold on the way out
-    this.mode = mode;
+    this._flush();
+    this.pub("mode", mode);   // pub stores this.mode = mode and notifies every part
   }
   _loadMode() {
     const m = getPref("streamMode", "fold");

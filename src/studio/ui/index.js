@@ -12,6 +12,12 @@ import "./studioWake.js";
 import "./studioRefresh.js";
 import "./studioRoster.js";
 import "./studioStream.js";
+// The stream's part-components (studio-stream creates one per timeline block). Also
+// imported by studioStream.js; listed here so the registry stays the full picture.
+import "./studioThoughtRun.js";
+import "./studioSpeech.js";
+import "./studioStim.js";
+import "./studioImage.js";
 import "./studioStreamMode.js";
 import "./studioTree.js";
 import "./studioLog.js";

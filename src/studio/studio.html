@@ -278,6 +278,10 @@
   studio-conn, studio-header, studio-log{display:contents}
   studio-wake{display:block}
   studio-roster{display:block}
+  /* The stream's parts are transparent wrappers: each renders inner DOM with the
+     existing .fold/.say/.stim/.image-card/p classes, so display:contents keeps that
+     inner DOM on the #stream layout (the wrapper itself generates no box). */
+  studio-thought-run, studio-speech, studio-stim, studio-image{display:contents}
 </style>
 </head>
 <body>

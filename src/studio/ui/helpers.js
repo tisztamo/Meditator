@@ -5,6 +5,15 @@
 /** Escape a value for safe interpolation into innerHTML. */
 export const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+/** Build an element: tag, optional className, optional text. The stream's
+ *  part-components render with plain DOM; this is the one-liner they share. */
+export const mk = (tag, cls, txt) => {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (txt != null) e.textContent = txt;
+  return e;
+};
+
 /** Wall-clock HH:MM:SS, for event/log timestamps. */
 export const clock = () => new Date().toTimeString().slice(0, 8);
 

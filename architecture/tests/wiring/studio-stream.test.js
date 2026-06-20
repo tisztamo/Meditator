@@ -3,7 +3,22 @@
 // stubbed out) so the cadence is deterministic.
 import "./setup.js";
 import { test, expect } from "bun:test";
+import { delay } from "./setup.js";
 import { StudioStream } from "../../../src/studio/ui/studioStream.js";
+import "../../../src/studio/ui/studioStreamMode.js";   // registers studio-streammode (the header toggle)
+
+// Run a body with an isolated localStorage so the toggle's persisted preference
+// cannot leak into other tests (and is not read from a leaked one).
+async function withIsolatedPrefs(fn) {
+  const saved = globalThis.localStorage, store = {};
+  globalThis.localStorage = {
+    getItem: k => (k in store ? store[k] : null),
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: k => { delete store[k]; },
+    clear: () => { for (const k in store) delete store[k]; },
+  };
+  try { await fn(); } finally { globalThis.localStorage = saved; }
+}
 
 // A focused studio-stream in FLOW mode, with the reveal loop's self-scheduling
 // disabled (we pump by hand). The mode is owned by studio-streammode and arrives
@@ -231,15 +246,79 @@ test("fold-mode renderBatch gathers a backlog into folds + full landmarks", () =
     expect(el.querySelector(".say")).toBeTruthy();
     expect(el.querySelectorAll(".fold").length).toBe(2);     // one closed run + the trailing live run
     expect(el.querySelector(".fold.live")).toBeTruthy();
-    expect(el.fold).toBeTruthy();                            // live tail continues after replay
+    expect(el.liveRun).toBeTruthy();                         // live tail continues after replay
 });
 
-test("leaving fold mode settles the live fold (nothing stranded)", () => {
+// ----------------------------------------- mode is a view: switching re-renders data
+// (Each part re-renders from its own data when the mode topic changes — settled parts
+//  and the in-flight run alike. The await lets the parts' ../mode subscriptions settle:
+//  in the browser they are long-registered by the time anyone clicks the toggle, so the
+//  repaint is synchronous; here content + switch happen in one tick, so we let the
+//  subscriptions register — Amanita then replays the current mode to each.)
+
+test("switching mode re-renders the in-flight run in the new mode (not settled)", async () => {
     const el = mkFold();
     el.prime();
-    el.onFragment({ kind: "thought", content: "an open run of thought" });
-    expect(el.querySelector(".fold.live")).toBeTruthy();
+    el.onFragment({ kind: "thought", content: "an open run of thought that keeps going" });
+    const run = el.liveRun;
+    expect(el.querySelector(".fold.live")).toBeTruthy();     // fold face
     el.setMode("raw");
-    expect(el.querySelector(".fold.live")).toBeNull();       // settled on the way out
-    expect(el.querySelector(".fold")).toBeTruthy();
+    await delay(15);
+    expect(el.querySelector(".fold")).toBeNull();            // re-rendered, not folded
+    expect(el.querySelector("p")).toBeTruthy();              // now a raw paragraph
+    expect(el.querySelector(".caret")).toBeTruthy();         // STILL live — not sealed
+    expect(el.liveRun).toBe(run);                            // same run element, just repainted
+    expect(el.textContent).toContain("open run of thought");
+});
+
+test("switching mode re-renders already-settled content, not just new content", async () => {
+    const el = mkFold();
+    el.renderBatch([
+        { k: "thought", t: "first I considered the divisors" },
+        { k: "boundary", reason: "completed" },
+        { k: "thought", t: "and how they pair around the root" },
+        { k: "speech", t: "out loud" },                       // seals the run into a closed fold
+        { k: "thought", t: "then I moved on to their sum" },
+    ]);
+    expect(el.querySelectorAll(".fold").length).toBe(2);     // settled fold + live fold
+    expect(el.querySelector(".say")).toBeTruthy();
+
+    el.setMode("raw");                                        // a settled fold must re-render too
+    await delay(15);
+    expect(el.querySelector(".fold")).toBeNull();            // EVERY run repainted as raw
+    expect(el.querySelectorAll("p").length).toBeGreaterThan(0);
+    expect(el.querySelector(".bnd")).toBeTruthy();            // the boundary is now a divider
+    expect(el.querySelector(".say")).toBeTruthy();           // the landmark is unchanged
+    expect(el.textContent).toContain("first I considered");  // nothing lost
+
+    el.setMode("flow");                                       // …and again, to flow
+    await delay(15);
+    expect(el.querySelector(".fold")).toBeNull();
+    expect(el.querySelector(".seam")).toBeTruthy();          // boundary now an inline seam
+    expect(el.querySelector(".bnd")).toBeNull();
+});
+
+test("end to end: the header toggle re-renders the live run through the mesh", async () => {
+    await withIsolatedPrefs(async () => {
+        // The real column wiring: the toggle publishes /streammode/mode; the stream
+        // subscribes, re-publishes `mode`, and its parts react via `../mode`.
+        document.body.innerHTML =
+            `<div><studio-streammode name="streammode" class="streammode fold">fold</studio-streammode>` +
+            `<studio-stream></studio-stream></div>`;
+        const stream = document.querySelector("studio-stream");
+        stream._req = () => null;
+        await delay(20);                                      // /streammode/mode sub resolves → stream is "fold"
+        expect(stream.mode).toBe("fold");
+
+        stream.onFragment({ kind: "thought", content: "a thought arriving live through the mesh" });
+        expect(stream.querySelector(".fold.live")).toBeTruthy();   // default fold face
+        await delay(20);                                      // the run's ../mode sub registers
+
+        document.querySelector("studio-streammode").click();  // fold → flow, all through pub/sub
+        await delay(20);
+        expect(stream.mode).toBe("flow");
+        expect(stream.querySelector(".fold")).toBeNull();     // re-rendered to flow — no reach-in
+        expect(stream.querySelector("p")).toBeTruthy();
+        expect(stream.textContent).toContain("a thought arriving");
+    });
 });
