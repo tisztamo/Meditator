@@ -366,7 +366,7 @@ been able to reason by hand.
 | `src/mindComponents/mTerminal.js` | **new** `MTerminal extends MBaseComponent` — registers the `terminal` capability; the grace race; output→experience; deferred `interrupt-request`; single-slot; dry-run stub; `onDisconnect` kill |
 | `memory/.gitignore` | ignore `*/workspace/` so the scratch desk is never committed |
 | `architecture/lab/seedling.archml` | wire `<m-terminal>` for the §8 validation run |
-| `architecture/lab/lemma.archml` | wire the resident version after validation |
+| `architecture/lemma.archml` | wire the resident version after validation |
 | `architecture/tests/unit/…` | output→experience transform, truncation, dry-run stub, sandbox arg-assembly (no real exec) |
 | `architecture/tests/wiring/…` | the grace race (fast vs deferred), the env-scrub invariant, the timeout consequence, the deed ⌁ / consequence ⟂ split — modeled on `act-note.test.js` |
 | `doc/architecture/components.md`, `index.md`, `efference.md` | document `m-terminal`; add to the component/hands map |

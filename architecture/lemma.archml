@@ -25,12 +25,18 @@
      identity stands in every frame, the origin seeds only the first thought of a fresh
      mind and thereafter lives in memory as the origin story. See doc/configuration.md.
 
-     Stage experimental; persistence ON (a hard problem is worked across many runs,
-     so the notebook and the knowledge tree should accumulate). Choose a FRESH name
-     for any sibling run (see README / IN-MEMORIAM.md) so a retired grave is never
-     silently re-birthed. Run with MEDITATOR_MODEL_PROFILE=local-dev. -->
+     RESIDENT architecture — graduated out of architecture/lab/ to the catalog root
+     after the lemma-1 … lemma-14 research runs (see IN-MEMORIAM.md and the lemma-*
+     ANALYSIS files in the vault). At the catalog root with no stage="experimental" it
+     is a fixed-home architecture: it wakes its OWN home memory/lemma/ rather than a
+     fresh sibling name each run, and persistence ON means the notebook and knowledge
+     tree accumulate across runs. Residency itself is conferred by the vault manifest,
+     not by this file (tierOf reads memory/lemma/manifest.json): run
+       bun tools/promote.mjs lemma --commit
+     once to write the resident manifest before the first wake — until then a wake is
+     transient and will refuse to re-open a home that already holds memory. Run with
+     MEDITATOR_MODEL_PROFILE=local-dev. -->
 <m-mind name="lemma"
-        stage="experimental"
         model="voice"
         utilityModel="utility"
         pace="12s" paceSigma="4s"
