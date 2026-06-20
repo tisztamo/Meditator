@@ -12,7 +12,7 @@ import path from "node:path";
 import { delay } from "./setup.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
 
-let mind, resurface, notesDir, raised;
+let mind, resurface, notesDir, kbDir, raised;
 
 // A repetitive, on-topic loop: its two halves overlap heavily (high loopScore), and its
 // content words (river / canyon / arriving) hook the substantive note below.
@@ -45,7 +45,10 @@ beforeAll(async () => {
         <m-resurface name="resurface" overlap="0.4" minNoteChars="120" cooldown="0ms"></m-resurface>
       </m-mind>
     `;
+    // The notebook-only cases keep the knowledge base out of the pool (kb="off"); the
+    // KB-folding case below points `kb` at its own temp tree.
     document.querySelector('[name="resurface"]').setAttribute("dir", notesDir);
+    document.querySelector('[name="resurface"]').setAttribute("kb", "off");
 
     await loadMindComponents(document);
     await delay(60);
@@ -60,6 +63,7 @@ beforeAll(async () => {
 
 afterAll(() => {
     try { fs.rmSync(notesDir, { recursive: true, force: true }); } catch { /* best effort */ }
+    try { if (kbDir) fs.rmSync(kbDir, { recursive: true, force: true }); } catch { /* best effort */ }
 });
 
 test("a detected loop resurfaces the most relevant substantive note, urgently", async () => {
@@ -84,7 +88,7 @@ test("a detected loop resurfaces the most relevant substantive note, urgently", 
 
 test("a flowing, non-repetitive stream does NOT resurface anything", async () => {
     raised.length = 0;
-    resurface._lastStamp = null;
+    resurface._lastKey = null;
     resurface.window = FLOWING;
     resurface.onBoundary({ reason: "completed" });
     await delay(60);
@@ -99,7 +103,7 @@ test("a content-free loop (digit-spam) still resurfaces the freshest substantive
     const DIGIT_SPAM = "1. ".repeat(400);
     raised.length = 0;
     resurface.setAttribute("dir", notesDir);
-    resurface._lastStamp = null;
+    resurface._lastKey = null;
     resurface.window = DIGIT_SPAM;
     resurface.onBoundary({ reason: "completed" });
     await delay(60);
@@ -114,10 +118,44 @@ test("with nothing set down yet, a loop resurfaces nothing (no afference)", asyn
     const emptyDir = path.join(os.tmpdir(), "med-resurface-empty-" + Date.now());
     resurface.setAttribute("dir", emptyDir);
     raised.length = 0;
-    resurface._lastStamp = null;
+    resurface._lastKey = null;
     resurface.window = LOOP;
     resurface.onBoundary({ reason: "completed" });
     await delay(60);
     expect(raised.length).toBe(0);
     resurface.setAttribute("dir", notesDir);   // restore
+});
+
+// §5: a conclusion the scribe FILED into knowledge/ — which nothing used to read
+// back — now joins the same pool, so a mind circling a question it already settled
+// gets its own filed answer, not only a hand-written note.
+test("a loop matching a filed knowledge conclusion resurfaces it, felt as understanding", async () => {
+    kbDir = path.join(os.tmpdir(), "med-resurface-kb-" + Date.now());
+    fs.mkdirSync(path.join(kbDir, "tools"), { recursive: true });
+    fs.writeFileSync(path.join(kbDir, "tools", "simplicity.md"),
+        "# Simplicity\n\nThe best tools I ever made were small enough to hold in one thought; "
+        + "cleverness no one can re-enter is a kind of dishonesty. Simplicity is not a style but a form of honesty.");
+
+    // Draw from the KB only (point notes at an empty dir) so the assertion is unambiguous.
+    const noNotes = path.join(os.tmpdir(), "med-resurface-nonotes-" + Date.now());
+    resurface.setAttribute("dir", noNotes);
+    resurface.setAttribute("kb", kbDir);
+    resurface._lastKey = null;
+    raised.length = 0;
+    resurface.window = ("Simple tools are honest tools, and I keep turning the same thought over. "
+        + "Simple, honest tools; the simple honest tool again. ").repeat(6);
+    resurface.onBoundary({ reason: "completed" });
+    await delay(60);
+
+    expect(raised.length).toBe(1);
+    expect(raised[0].reason).toMatch(/small enough to hold in one thought/);   // the filed conclusion
+    // Felt as understanding (knowledge), not as a note "set down" — and the title rides along.
+    expect(raised[0].reason).toMatch(/I turn back to something I came to understand, about simplicity/i);
+    // The One Rule: no leak of where/how it was stored.
+    expect(raised[0].reason.toLowerCase()).not.toMatch(/knowledge|notebook|\.md|\bfile\b|append/);
+    expect(raised[0].urgent).toBe(true);
+    expect(raised[0].type).toBe("Recall");
+
+    resurface.setAttribute("dir", notesDir);
+    resurface.setAttribute("kb", "off");
 });

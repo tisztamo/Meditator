@@ -1,7 +1,5 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import { MBaseComponent } from "./mBaseComponent.js"
-import { parseNotebook } from "./mNote.js"
+import { readKept } from "./recallSources.js"
 import { mindHome } from '../infrastructure/memoryVault.js';
 import { logger } from '../infrastructure/logger.js';
 
@@ -25,6 +23,9 @@ const log = logger('mRecall.js');
  * Attributes:
  *   - name: the tool-call function name (default "recall")
  *   - dir: the notes directory (default: the mind's vault home `notes/`, matching m-note)
+ *   - kb: the scribe's knowledge directory, folded into the same candidate pool so the
+ *     mind can find again a conclusion it once filed — not only a hand-written note
+ *     (default: the mind's vault home `knowledge/`, matching m-kb; "off" for notes only)
  *   - salience: salience of the "I find again…" consequence (default 0.8 — coming upon
  *     a thing the mind deliberately chose to look up should land reliably even in a
  *     crowded queue; higher than m-note's write because a recall arrives in a more
@@ -78,24 +79,25 @@ export class MRecall extends MBaseComponent {
      * on a read failure; m-act swallows it.
      */
     async _recall({ about } = {}) {
-        const dir = this.attr("dir") || mindHome(this, "notes")
-        let raw
-        try {
-            raw = await fs.readFile(path.join(dir, "notebook.md"), "utf8")
-        } catch (error) {
-            if (error.code === "ENOENT") throw new Error("there is nothing set down yet")
-            throw error
-        }
-        const notes = parseNotebook(raw)
-        if (!notes.length) throw new Error("there is nothing set down yet")
+        const notesDir = this.attr("dir") || mindHome(this, "notes")
+        const kb = this.attr("kb")
+        const kbDir = kb === "off" ? null : (kb || mindHome(this, "knowledge"))
 
-        const note = this._pick(notes, about)
-        this._seen.add(note.stamp)
+        const kept = await readKept({ notesDir, kbDir })
+        if (!kept.length) throw new Error("there is nothing set down yet")
+
+        const note = this._pick(kept, about)
+        this._seen.add(note.key)
         if (this._seen.size > 200) this._seen = new Set([...this._seen].slice(-100))
 
         const text = note.text.length > 400 ? note.text.slice(0, 400).trimEnd() + "…" : note.text
+        // Felt by where it came from, never how it was stored: a note was deliberately
+        // "set down"; filed knowledge is something the mind "had worked out".
+        const found = note.source === "knowledge"
+            ? "I find again something I had worked out"
+            : "I find again something I set down before"
         return {
-            experience: `I find again something I set down before${note.title ? `, about ${note.title.toLowerCase()}` : ""}: “${text}”`,
+            experience: `${found}${note.title ? `, about ${note.title.toLowerCase()}` : ""}: “${text}”`,
             salience: Number(this.attr("salience") || 0.8),
             // Re-enter URGENT (unless told otherwise): a recalled note answers a reach
             // the mind just made, but its consequence lands some bursts later in a
@@ -106,7 +108,7 @@ export class MRecall extends MBaseComponent {
             // not a coin flip; the high salience keeps it from being crowded out among
             // co-firing urgents.
             urgent: this.attr("urgent") !== "false",
-            data: { title: note.title, stamp: note.stamp },
+            data: { title: note.title, stamp: note.stamp, source: note.source },
         }
     }
 
@@ -122,7 +124,7 @@ export class MRecall extends MBaseComponent {
             }
         }
         for (let i = notes.length - 1; i >= 0; i--) {
-            if (!this._seen.has(notes[i].stamp)) return notes[i]
+            if (!this._seen.has(notes[i].key)) return notes[i]
         }
         return notes[notes.length - 1]
     }

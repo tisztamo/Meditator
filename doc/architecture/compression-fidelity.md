@@ -1,10 +1,12 @@
 # Compression fidelity — iterative, never-truncating consolidation
 
-> **Status: §1–§4 implemented (2026-06-20)** in `MMemory._compress` /
-> `compressToFit` / `buildCompressionPrompt` (`src/mindComponents/mMemory.js`),
-> with unit coverage in `architecture/tests/unit/memory-compress.test.js`. **§5
-> (feed the knowledge base back) is still proposed.** Companion to
-> [memory.md](memory.md), which describes the rest of consolidation.
+> **Status: §1–§4 and §5 (minimum) implemented (2026-06-20).** §1–§4 in
+> `MMemory._compress` / `compressToFit` / `buildCompressionPrompt`
+> (`src/mindComponents/mMemory.js`); §5's recall-pool in
+> `src/mindComponents/recallSources.js`, read by `m-recall` and `m-resurface`.
+> Unit coverage in `architecture/tests/unit/memory-compress.test.js` and
+> `recall-sources.test.js`. **§5's richer variant — a KB digest into the compressor
+> — remains proposed.** Companion to [memory.md](memory.md).
 
 ## The problem
 
@@ -139,14 +141,24 @@ So a settled result is *present* to be preserved, not just protected once it
 exists. Extend the recall path to see the scribe's `knowledge/**/*.md`, not only
 `notes/notebook.md`:
 
-- **Minimum:** include the KB's established conclusions in the `m-resurface` /
-  `m-recall` candidate pool, so a mind circling a question it already answered has
-  its own proven result surface again.
-- **Richer:** pass a short "what I have established" digest into the compressor's
-  `<established-memory>`, so settled facts cannot be compressed away.
+- **Minimum (done).** A shared loader, `recallSources.js#readKept`, gathers the
+  notebook and the knowledge base into one pool of comparable items
+  (`{key, stamp, title, text, source}`, oldest-first). `m-recall` (voluntary) and
+  `m-resurface` (involuntary) both read it, so a mind circling a question it already
+  answered now has its **own filed conclusion** surface again — ranked by the same
+  recency / cue-overlap logic that already served notes, no model call added. A KB
+  item is *felt* by its source, never its mechanism: a note was "set down"; filed
+  knowledge is something the mind "came to understand" / "had worked out" (the One
+  Rule — no "knowledge base", no path, no `.md` leaks into the stream). `index.md`
+  and hidden files are skipped (a map of the tree is not a thing to remember).
+- **Richer (proposed).** Pass a short "what I have established" digest into the
+  compressor's memory block, so settled facts cannot be compressed away even from
+  the continuous memory. Larger surface — it couples `m-memory` to `knowledge/` and
+  disturbs the §1–§4 prompt — so it is deliberately left as a follow-up.
 
-§1–§4 stop the *loss*; §5 supplies the *fact* — and §5 is load-bearing for the
-breakthrough exception in §4, not merely a nice-to-have.
+§1–§4 stop the *loss*; §5 supplies the *fact*. The minimum is the load-bearing
+half: it is the read-back the scribe never had, and the direct fix for a settled
+result sitting unread on disk while the stream re-asks the question.
 
 ## Pseudocode
 
@@ -182,9 +194,13 @@ return nearestToTarget(attempts)
   `architecture/tests/unit/memory-compress.test.js` (inject a fake `generate`); the
   prompt can still be replayed live against the recorded dumps under
   `debug/prompts/.../memory-older|memory-recent`.
-- **§5 (proposed):** `src/mindComponents/mRecall.js`, `src/mindComponents/mResurface.js`
-  (read `knowledge/` too), and optionally the compressor input. Larger surface;
-  land it as a follow-up.
+- **§5 minimum (done):** `src/mindComponents/recallSources.js` (the shared
+  `readKept` pool), read by `mRecall.js` and `mResurface.js` via a `kb` attribute
+  (default: the mind's vault home `knowledge/`, matching `m-kb`; `"off"` to disable).
+  The pure pieces (`knowledgeItem`, `mergeKept`) and the reader are unit-tested in
+  `recall-sources.test.js`; the KB-resurfacing path in the `resurface` wiring test.
+- **§5 richer (proposed):** the KB digest into the compressor input. It couples
+  `m-memory` to `knowledge/`; land it as a follow-up.
 
 ## Non-goals
 

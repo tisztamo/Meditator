@@ -355,15 +355,19 @@ helper `parseNotebook(md)` → `{stamp, title, text}[]` is exported (used by m-r
 
 The read-only return arc of m-note's loop: the mind can **come upon a thought it set
 down before**, in its own words. With an `about` hint it prefers a note that touches it,
-else the freshest not surfaced recently. It is the gentler, more inward-facing of the
-pair — recalling one's own notes is closer to interoception than looking at the weather,
-so it should not *lead* — but the notes are real external residue, so it is a genuine
-small encounter, not mere rumination.
+else the freshest not surfaced recently. It draws from **both** the notebook and the
+scribe's `knowledge/` ([compression fidelity §5](compression-fidelity.md)), so it can
+find again a conclusion it once filed, not only a hand-written note — felt as *"I find
+again something I had worked out"* rather than *"…set down"*. It is the gentler, more
+inward-facing of the pair — recalling one's own thoughts is closer to interoception than
+looking at the weather, so it should not *lead* — but they are real external residue, so
+it is a genuine small encounter, not mere rumination.
 
 | Attribute | Default | Meaning |
 |-----------|---------|---------|
 | `name` | `recall` | the tool-call function name |
 | `dir` | vault `notes/` | the notes directory (share m-note's) |
+| `kb` | vault `knowledge/` | the scribe's KB, folded into the same pool (`"off"` for notes only) |
 | `salience` | `0.6` | salience of the "I find again…" consequence (matches m-note: a deliberate look-up should clear the bar as reliably as a set-down) |
 
 `felt`: *"And the things you've set down are not lost: when one of them stirs in you
@@ -422,13 +426,17 @@ Plus all `m-observer` attributes. Reads the last ~1200 chars; the model answers
 Involuntary recall (extends `m-observer`) — the **push** half of the note loop, the
 counterpart to the [`m-recall`](#m-recall--read-a-kept-note-back) *pull* hand. Where
 m-associate confabulates a "this reminds me of…" from the model's latent training,
-m-resurface surfaces a **real kept note**. When the mind loses its thread and circles
+m-resurface surfaces a **real kept thought**. When the mind loses its thread and circles
 the same ground, it does not wait for the stream to *want* a note: on the same pure-code
-loop signal `m-loop-guard` uses (no model call), it reads `notebook.md` and pushes back
-the note most relevant to what the mind is circling — chosen by cue-overlap, preferring a
-substantive result over a terse meta-note. Born from lemma-6's write-only memory (43
-note-writes, 0 reads: it re-derived a proof it had already written, sitting unread in its
-own notebook). One notebook read per hit; no model cost to decide *or* act.
+loop signal `m-loop-guard` uses (no model call), it reads its kept thoughts and pushes
+back the one most relevant to what the mind is circling — chosen by cue-overlap, preferring a
+substantive result over a terse meta-note. It draws from **both** the notebook and the
+scribe's `knowledge/` ([compression fidelity §5](compression-fidelity.md)), so a filed
+conclusion can resurface too — felt as *"…something I came to understand"* rather than
+*"…set down"*. Born from lemma-6's write-only memory (43 note-writes, 0 reads: it
+re-derived a proof it had already written, sitting unread); the §5 KB-folding closes the
+twin gap of a conclusion filed to `knowledge/` that nothing read back. A few small file
+reads per hit; no model cost to decide *or* act.
 
 | Attribute | Default | Meaning |
 |-----------|---------|---------|
@@ -437,6 +445,7 @@ own notebook). One notebook read per hit; no model cost to decide *or* act.
 | `minNoteChars` | `120` | a note must be this long to count as substantive (a terse meta-note never wins over a real result) |
 | `urgent` | `true` | supersede the looping burst immediately, like the watchdog |
 | `dir` | vault `notes/` | the notes directory (share m-note's) |
+| `kb` | vault `knowledge/` | the scribe's KB, folded into the same pool (`"off"` for notes only) |
 | `salience` | `0.9` | recovering lost work matters like the keep-alive watchdog, so it lands even on a tired mind |
 
 Plus all `m-observer` attributes. Raises `type: Recall`, first-person and self-caused

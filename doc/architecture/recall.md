@@ -24,8 +24,11 @@ Meditator already *stores* its past, in three places:
   tree — semantic memory, detached from when it was learned.
 - The **journal** keeps the unedited raw stream, day by day.
 
-But none of this is ever *recalled*. The scribe writes `knowledge/` and nothing
-reads it back. `memory.md` re-enters the frame only as the same ambient summary,
+Most of this is never *recalled*. (The first read-back now exists: `m-resurface`
+and `m-recall` fold the scribe's `knowledge/` into their candidate pool alongside
+the notebook — see [compression fidelity §5](compression-fidelity.md) — so a filed
+conclusion can resurface on a matching loop. The full cued retrieval below is still
+the goal.) `memory.md` re-enters the frame only as the same ambient summary,
 never as a pointed "I remember when…". The closest thing to remembering is
 **`m-associate`** — and it does not remember at all. It reads the current stream
 and asks a tiny model *"does this remind you of something different?"* The model

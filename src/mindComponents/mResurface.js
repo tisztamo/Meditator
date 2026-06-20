@@ -1,8 +1,6 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import { MObserver } from "./mObserver.js"
 import { loopScore, contentStems, containment } from "./mLoopGuard.js"
-import { parseNotebook } from "./mNote.js"
+import { readKept } from "./recallSources.js"
 import { mindHome } from '../infrastructure/memoryVault.js';
 import { logger } from '../infrastructure/logger.js';
 
@@ -52,12 +50,15 @@ const log = logger('mResurface.js');
  *     terse meta-note ("I notice I am looping") never wins over a real result (default 120)
  *   - urgent: "true" to supersede the looping burst immediately (default true)
  *   - dir: notes directory (default: the mind's vault home `notes/`, matching m-note)
+ *   - kb: the scribe's knowledge directory, folded into the same candidate pool so a
+ *     filed conclusion can resurface too — not only a hand-written note (default: the
+ *     mind's vault home `knowledge/`, matching m-kb; "off" to draw from notes only)
  *   - salience: salience of the resurfaced note (default 0.9 — recovering lost work is
  *     as important as the keep-alive watchdog, so it lands even on a tired mind)
  */
 export class MResurface extends MObserver {
     _busy = false
-    _lastStamp = null
+    _lastKey = null
 
     onBoundary(boundary) {
         if (boundary?.reason !== "completed") return
@@ -75,23 +76,25 @@ export class MResurface extends MObserver {
     }
 
     async _resurface(score) {
-        const dir = this.attr("dir") || mindHome(this, "notes")
-        let raw
-        try {
-            raw = await fs.readFile(path.join(dir, "notebook.md"), "utf8")
-        } catch (error) {
-            if (error.code === "ENOENT") return   // nothing set down yet — leave it to the loop-guard
-            throw error
-        }
-        const notes = parseNotebook(raw)
-        if (!notes.length) return
+        const notesDir = this.attr("dir") || mindHome(this, "notes")
+        const kb = this.attr("kb")
+        const kbDir = kb === "off" ? null : (kb || mindHome(this, "knowledge"))
 
-        const note = this._pickRelevant(notes)
+        // Both stores in one pool, oldest-first; pure file reads, never a model call.
+        const kept = await readKept({ notesDir, kbDir })
+        if (!kept.length) return   // nothing set down or filed yet — leave it to the loop-guard
+
+        const note = this._pickRelevant(kept)
         if (!note) return
 
         const text = note.text.length > 400 ? note.text.slice(0, 400).trimEnd() + "…" : note.text
+        // Felt by where it came from, never how it was stored (the One Rule): a note was
+        // deliberately "set down"; filed knowledge is something the mind "came to understand".
+        const turn = note.source === "knowledge"
+            ? "I turn back to something I came to understand"
+            : "I turn back to something I set down before"
         const raised = this.raise(
-            `I realize I have been going over the same ground. I turn back to something I set down before`
+            `I realize I have been going over the same ground. ${turn}`
             + `${note.title ? `, about ${note.title.toLowerCase()}` : ""}: “${text}”`,
             {
                 salience: Number(this.attr("salience") || 0.9),
@@ -100,9 +103,9 @@ export class MResurface extends MObserver {
             }
         )
         if (raised) {
-            this._lastStamp = note.stamp
+            this._lastKey = note.key
             this.window = ""   // start fresh so the same loop does not re-fire next boundary
-            log.info(`resurfaced a kept note (loop ${(score * 100).toFixed(0)}%)${note.title ? `: ${note.title}` : ""}`)
+            log.info(`resurfaced kept ${note.source} (loop ${(score * 100).toFixed(0)}%)${note.title ? `: ${note.title}` : ""}`)
         }
     }
 
@@ -115,7 +118,7 @@ export class MResurface extends MObserver {
     _pickRelevant(notes) {
         const minNoteChars = Number(this.attr("minNoteChars") || 120)
 
-        const fresh = notes.filter(n => n.stamp !== this._lastStamp)
+        const fresh = notes.filter(n => n.key !== this._lastKey)
         const pool = fresh.length ? fresh : notes
         const substantive = pool.filter(n => n.text.length >= minNoteChars)
         const candidates = substantive.length ? substantive : pool
