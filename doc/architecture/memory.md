@@ -34,11 +34,16 @@ rhythm:
 - Every `storyEvery`-th (default 5th) consolidation: in parallel,
   `story ← compress(story + recent)` and `recent ← compress(overflow)`.
 
-Compression is one small utility-model call per tier, instructed to keep topics,
-conclusions, decisions and open questions in the mind's own first-person voice,
-invent nothing, and drop filler — condensed to fit the character budget. If a
-call fails, the raw block is kept and retried at the next boundary, so nothing is
-silently lost.
+Compression folds the new thinking into the established memory of that tier — a
+utility-model call instructed to keep the conclusions, decisions and open questions
+the memory already holds, take from the new thinking only what is durable, invent
+nothing, and drop filler, all in the mind's own first-person voice. Rather than ask
+for "at most N characters" (which the model cannot measure and a tight token cap
+silently truncates), it **iterates to fit**: each call's output is measured in
+characters, and if it overshoots the budget the model is re-driven to tighten it —
+never truncated, never asked to expand. If a call fails or returns empty, the raw
+block is kept and retried at the next boundary, so nothing is silently lost. See
+[compression fidelity](compression-fidelity.md) for the loop and the prompt.
 
 Because each tier has a fixed budget, the assembled frame stays a few thousand
 tokens no matter how long the mind runs. A mind can think for days.
@@ -162,6 +167,9 @@ the lineage of minds that have run in [`IN-MEMORIAM.md`](../../IN-MEMORIAM.md).
 
 ## See also
 
+- [Compression fidelity](compression-fidelity.md) — how consolidation iterates to
+  fit instead of truncating (done), and the proposal to feed settled knowledge back
+  so a mind stops losing what it already worked out (§5, still proposed).
 - [Recall — storing and remembering](recall.md) — the design for automatic
   episodic storage and associative recall, the reader this diary was missing.
 - [Component reference: `m-memory`](components.md#m-memory) — every attribute.

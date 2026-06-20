@@ -306,13 +306,17 @@ export class MMemory extends MBaseComponent {
 
             if (this._foldCount % this.storyEvery === 0 && this.recent) {
                 const [story, recent] = await Promise.all([
-                    this._compress(`${this.story}\n${this.recent}`, this.storyLength, "older"),
-                    this._compress(block, this.recentLength, "recent"),
+                    // Fold `recent` into the established `story` (the story is the
+                    // memory being revised; `recent` is the new thinking to absorb).
+                    this._compress(this.story, this.recent, this.storyLength, "older"),
+                    // Start the next `recent` fresh from the block (no prior memory).
+                    this._compress("", block, this.recentLength, "recent"),
                 ])
                 this.story = story
                 this.recent = recent
             } else {
-                this.recent = await this._compress(`${this.recent}\n${block}`, this.recentLength, "recent")
+                // Fold the new block into the established `recent`.
+                this.recent = await this._compress(this.recent, block, this.recentLength, "recent")
             }
             this.pub("compressed", { recent: this.recent, story: this.story })
         } catch (error) {
@@ -324,24 +328,28 @@ export class MMemory extends MBaseComponent {
         }
     }
 
-    async _compress(text, targetChars, tier) {
-        const input = text.trim()
-        if (input.length <= targetChars) return input
-        const result = await complete({
-            model: resolveModelRef(this.attr("model") || this.env("utilityModel"), "utility"),
-            maxTokens: Math.ceil(targetChars / 3),
-            temperature: 0.3,
-            debugTag: `memory-${tier}`,
-            debugEl: this,
-            prompt: `You maintain the ${tier} memory of a mind's inner monologue, written in its own voice.
-
-<monologue-and-prior-memory>
-${input}
-</monologue-and-prior-memory>
-
-Condense this into at most ${targetChars} characters of first-person memory ("I was thinking about…", "I decided…", "I still wonder…"). Keep: topics visited in order, conclusions, decisions, open questions, and anything that felt important. Drop filler and repetition. Never invent anything. Output only the condensed memory.`,
+    // Fold `fresh` thinking into the `established` memory, in the mind's own voice,
+    // aiming at `targetChars` — iterating to fit and never truncating
+    // (doc/architecture/compression-fidelity.md §1–§4). The actual model wiring is
+    // injected into compressToFit() so the accept/tighten/fallback policy can be
+    // unit-tested without a model. maxTokens is a per-pass anti-truncation guard,
+    // sized off the input (worst case: the model echoes its whole input); it is
+    // never the budget and never surfaced to the model.
+    async _compress(established, fresh, targetChars, tier) {
+        return compressToFit({
+            established, fresh, targetChars, tier,
+            generate: async (prompt, maxTokens) => {
+                const result = await complete({
+                    model: resolveModelRef(this.attr("model") || this.env("utilityModel"), "utility"),
+                    maxTokens,
+                    temperature: 0.3,
+                    debugTag: `memory-${tier}`,
+                    debugEl: this,
+                    prompt,
+                })
+                return result.text
+            },
         })
-        return result.text.trim()
     }
 
     // ------------------------------------------------------------ public api
@@ -545,4 +553,154 @@ ${this.tail}
         }
         await fs.appendFile(file, text)
     }
+}
+
+// ---------------------------------------------------------------------------
+// Consolidation internals (doc/architecture/compression-fidelity.md §1–§4).
+// Pure of the mind and of model wiring, so the length policy and the prompt are
+// unit-testable on their own.
+// ---------------------------------------------------------------------------
+
+/**
+ * Of several attempts, the one whose length is nearest `targetChars`. A chooser,
+ * never a generator: it only picks among text the model already produced, so it
+ * can neither invent nor expand. Used when every pass overshot the budget — we
+ * take the closest rather than truncate.
+ */
+export function nearestToTarget(attempts, targetChars) {
+    return attempts.reduce((best, a) =>
+        Math.abs(a.length - targetChars) < Math.abs(best.length - targetChars) ? a : best)
+}
+
+/**
+ * The consolidation prompt — folds `incoming` thinking into the `memory` kept so
+ * far, in the mind's own first-person voice, aiming at `targetChars`.
+ *
+ * The length budget is expressed against the MEMORY being revised, NOT against
+ * memory+incoming. The work is to fold new thinking into an existing memory, so
+ * the memory's own size is the thing to aim by: on average the budget already IS
+ * roughly the memory's size (a tier is compressed back to its budget each fold),
+ * give or take after the last fold. A percentage of the memory is actionable to a
+ * token-by-token generator in a way "N characters of everything you can see" is
+ * not — and asking for a small fraction of memory+incoming is what made the model
+ * echo its whole input verbatim. The new thinking is raw material to absorb into
+ * the budget, not text to add on top.
+ *
+ * Three shapes, by what is present (the tighten shape is a re-drive of an
+ * over-long previous output, where `incoming` is empty):
+ *   - fold    (memory + incoming): the usual case — integrate the new thinking.
+ *   - first   (incoming only): no memory yet — write it from the new thinking.
+ *   - tighten (memory only): shorten an over-long previous output, losing nothing.
+ *
+ * Domain-neutral on purpose: m-memory serves every mind, not only the math minds.
+ */
+export function buildCompressionPrompt({ tier, memory = "", incoming = "", targetChars }) {
+    const hasMemory = memory.length > 0
+    const hasIncoming = incoming.length > 0
+    // Percentage is of the memory being revised (or, with no memory yet, of the
+    // new thinking that becomes the first memory) — never of the two combined.
+    const base = (hasMemory ? memory.length : incoming.length) || 1
+    const pct = Math.round(targetChars / base * 100)
+    const voice = `the ${tier} memory of a mind's inner life, in its own first-person voice ("I was thinking about…", "I decided…", "I still wonder…")`
+
+    if (hasMemory && hasIncoming) {
+        return `You keep ${voice}.
+
+<memory-so-far>
+${memory}
+</memory-so-far>
+
+<new-thinking>
+${incoming}
+</new-thinking>
+
+Write the next version of the memory by folding the new thinking into the memory-so-far. Keep the conclusions, decisions, and open questions the memory already holds; from the new thinking keep only what is durable — results, decisions, questions, anything that felt important — and condense or drop repetition, abandoned dead ends, and passing detail. Never invent anything: if it is not in the text above, it does not belong in the memory. Write one continuous first-person account.
+
+Length: judge the size against the memory itself, not against everything above — you are revising the memory, not adding to it. The memory-so-far is ${base} characters; make the new version about ${targetChars} characters, which is about ${pct}% of it. The new thinking is raw material to absorb into that budget, not text to append on top, so folding it in must not grow the memory much past that size. Output only the memory.`
+    }
+
+    if (hasIncoming) {
+        return `You are writing ${voice}.
+
+<new-thinking>
+${incoming}
+</new-thinking>
+
+This is the first such memory — nothing has been kept yet, so condense the new thinking into a memory of its own. Keep results, decisions, open questions, and anything that felt important; drop repetition, abandoned dead ends, and passing detail. Never invent anything: if it is not in the text above, it does not belong in the memory. Write one continuous first-person account.
+
+Length: the new thinking is ${base} characters; make the memory about ${targetChars} characters, which is about ${pct}% of that. Output only the memory.`
+    }
+
+    // tighten: memory only, no fresh material — a shorter version of the same memory.
+    return `You keep ${voice}.
+
+<memory-so-far>
+${memory}
+</memory-so-far>
+
+This memory is a little too long. Produce a shorter version of it without losing substance: keep every conclusion, decision, and open question, and condense the wording, dropping repetition and passing detail. Never invent anything: if it is not in the text above, it does not belong in the memory. Write one continuous first-person account.
+
+Length: it is currently ${base} characters; make the shorter version about ${targetChars} characters, which is about ${pct}% of that. Output only the memory.`
+}
+
+/**
+ * The never-truncating length loop (compression-fidelity §1–§3), pure of model
+ * wiring. Drive `generate(prompt, maxTokens)` with a prompt aimed at
+ * `targetChars`, measure the OUTPUT in characters, and re-drive to tighten until
+ * it lands in the accept band [0.8, 1.2]·target. Closing the loop in code is the
+ * whole point: the model cannot measure its own length, so we measure it.
+ *
+ *   - In band                → accept.
+ *   - Too long               → feed this output back and tighten (no fresh material).
+ *   - Below the floor        → over-compressed; fall back to the previous, longer
+ *                              attempt. NEVER ask the model to expand — expansion
+ *                              invites invention.
+ *   - Passes exhausted (all  → take the attempt nearest the target. Never truncate.
+ *     still too long)
+ *
+ * `generate` is given a generous per-pass `maxTokens` guard sized off the input
+ * (worst case: it echoes its whole input). The guard exists only so a single pass
+ * is never cut short; it is never the budget. An empty/overloaded response is not
+ * a compression: fall back to a prior attempt, or throw so the caller keeps the
+ * raw block and retries (nothing is silently lost).
+ */
+export async function compressToFit({ established, fresh, targetChars, tier, generate, maxPasses = 4 }) {
+    established = (established || "").trim()
+    fresh = (fresh || "").trim()
+    const combined = [established, fresh].filter(Boolean).join("\n\n")
+    if (!combined) return ""
+    // Already within budget: keep the raw material rather than spend a call to
+    // paraphrase it (and never grow it — that would invite invention).
+    if (combined.length <= targetChars) return combined
+
+    const floor = Math.round(targetChars * 0.8)
+    const ceiling = Math.round(targetChars * 1.2)
+    const attempts = []
+    // Pass 1 folds `fresh` into `established`. If the result overshoots we re-drive
+    // the previous OUTPUT to tighten it — there is no more fresh material then.
+    let memory = established
+    let incoming = fresh
+
+    for (let pass = 1; pass <= maxPasses; pass++) {
+        const guard = Math.ceil((memory.length + incoming.length) / 2) + 512
+        const prompt = buildCompressionPrompt({ tier, memory, incoming, targetChars })
+        const out = (await generate(prompt, guard) || "").trim()
+
+        if (!out) {
+            if (attempts.length) break              // fall back to a prior attempt
+            throw new Error(`compression (${tier}) returned empty text`)
+        }
+        attempts.push(out)
+
+        if (out.length >= floor && out.length <= ceiling) return out   // in band → done
+        if (out.length < floor) {
+            // Over-compressed: prefer the previous, longer attempt; never expand.
+            return attempts.length > 1 ? attempts[attempts.length - 2] : out
+        }
+        // Too long → re-drive this output to tighten; no fresh material remains.
+        memory = out
+        incoming = ""
+    }
+    // Every pass still too long: take the nearest to target (never truncate/expand).
+    return nearestToTarget(attempts, targetChars)
 }
