@@ -182,3 +182,6 @@ Read on:
   resident minds, honest retention, versioning, and how a mind is laid to rest.
 - [Efference — the hands](efference.md) — `m-act`/`m-look` (built): how the mind affects
   the world through tool-blind realization, generalizing `m-speech` (lifecycle §Phase 6).
+- [Terminal — the real cursor](terminal.md) — `m-terminal` (design): a world-changing hand
+  that runs a sandboxed script and returns the screen as a sensation — the latency/feedback/
+  timeout model and the guardrail for arbitrary code (builds on efference.md).
