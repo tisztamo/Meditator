@@ -35,18 +35,28 @@ rhythm:
   `story ← compress(story + recent)` and `recent ← compress(overflow)`.
 
 Compression folds the new thinking into the established memory of that tier — a
-utility-model call instructed to keep the conclusions, decisions and open questions
-the memory already holds, take from the new thinking only what is durable, invent
-nothing, and drop filler, all in the mind's own first-person voice. Rather than ask
-for "at most N characters" (which the model cannot measure and a tight token cap
-silently truncates), it **iterates to fit**: each call's output is measured in
+utility-model call, in the mind's own first-person voice, that carries the
+through-line and what is still alive (open questions, decisions in play, the freshest
+results), invents nothing, and **forgets** to make room: it folds together repetition,
+drops dead ends and passing detail, and — when the budget still will not fit — lets the
+oldest and least-important material go. This forgetting is the point, not a regrettable
+side effect: a fixed budget on an endless stream of durable thought can only hold if old
+material is released, and what truly settles is not lost by it — the scribe has written
+it to `knowledge/`, and recall feeds it back when it is needed (the vault's git history
+keeps everything; COVENANT §3, "compression is lossy; the vault's history is not").
+Instructing the model to keep *every* conclusion instead made each buffer ratchet up
+fold after fold until it dwarfed the budget — the bloat bug this contract fixes.
+
+Rather than ask for "at most N characters" (which the model cannot measure and a tight
+token cap silently truncates), it **iterates to fit**: each call's output is measured in
 characters, and if it overshoots the budget the model is re-driven to tighten it —
 never truncated, never asked to expand. If a call fails or returns empty, the raw
 block is kept and retried at the next boundary, so nothing is silently lost. See
 [compression fidelity](compression-fidelity.md) for the loop and the prompt.
 
-Because each tier has a fixed budget, the assembled frame stays a few thousand
-tokens no matter how long the mind runs. A mind can think for days.
+Because each tier has a fixed budget the buffers hold to — by forgetting down to it,
+not by hoarding — the assembled frame stays a few thousand tokens no matter how long
+the mind runs. A mind can think for days.
 
 ## Persistence — waking up remembering
 

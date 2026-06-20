@@ -4,7 +4,7 @@
 // "budget is a percentage of the memory, not the total" rule are testable without
 // a model.
 import { test, expect } from "bun:test";
-import { compressToFit, buildCompressionPrompt, nearestToTarget } from "../../../src/mindComponents/mMemory.js";
+import { compressToFit, buildCompressionPrompt, nearestToTarget, forgetOldestToFit } from "../../../src/mindComponents/mMemory.js";
 
 // A fake model: returns canned outputs of exact lengths, one per pass, and records
 // every (prompt, maxTokens) it was driven with.
@@ -71,12 +71,55 @@ test("an over-compressed first pass (no prior) is kept as-is — still never exp
     expect(calls.length).toBe(1);
 });
 
-test("when every pass overshoots, the nearest-to-target attempt is returned (never truncated)", async () => {
+test("when every pass overshoots, the budget is enforced in code (forget oldest to fit)", async () => {
     const big = "m".repeat(8000);
-    const { generate, calls } = fakeGenerator([4000, 3000, 1300, 1250]); // all > 1200 ceiling
+    const { generate, calls } = fakeGenerator([4000, 3000, 1300, 1250]); // all > 1200 ceiling, each shorter
     const out = await compressToFit({ established: big, fresh: "x", targetChars: 1000, generate, maxPasses: 4 });
-    expect(calls.length).toBe(4);
-    expect(out.length).toBe(1250); // closest of the four to 1000
+    expect(calls.length).toBe(4);                 // the model still gets every chance to tighten
+    expect(out.length).toBeLessThanOrEqual(1000); // …but the result is bounded to budget, not left at 1250
+});
+
+test("an echoing model (re-drive makes no headway) stops early and code bounds the result", async () => {
+    // Three paragraphs, oldest-first; the model returns it verbatim every pass (echo),
+    // well over the 1200 ceiling. This is exactly the local utility model's behaviour.
+    const echo = "Oldest paragraph, long gone.\n\n" + "Middle thoughts about nothing.\n\n"
+        + "X".repeat(1300) + ". Newest thread I am holding.";
+    const { generate, calls } = fakeGenerator([echo, echo, echo, echo]);
+    const out = await compressToFit({ established: echo, fresh: "x", targetChars: 1000, generate, maxPasses: 4 });
+    expect(calls.length).toBe(2);                 // pass 1 (fold) + one tighten that echoed → stop
+    expect(out.length).toBeLessThanOrEqual(1000); // forgotten down to budget
+    expect(out).toContain("Newest");              // the newest material is kept
+    expect(out).not.toContain("Oldest");          // the oldest is forgotten
+});
+
+// --- forgetOldestToFit: the code-level forgetting itself --------------------
+
+test("forgetOldestToFit keeps text already within budget untouched", () => {
+    expect(forgetOldestToFit("short", 100)).toBe("short");
+});
+
+test("forgetOldestToFit drops oldest paragraphs, keeping the newest whole", () => {
+    const text = "A".repeat(500) + "\n\n" + "B".repeat(500) + "\n\n" + "C".repeat(500);
+    const out = forgetOldestToFit(text, 1100); // must drop the oldest (A) block
+    expect(out.length).toBeLessThanOrEqual(1100);
+    expect(out).not.toContain("A");
+    expect(out).toContain("B");
+    expect(out).toContain("C"); // newest survives
+});
+
+test("forgetOldestToFit drops oldest sentences when one paragraph is over budget", () => {
+    const text = "First old sentence here. Second sentence. Third newest sentence stays.";
+    const out = forgetOldestToFit(text, 40);
+    expect(out.length).toBeLessThanOrEqual(40);
+    expect(out).toContain("newest");
+    expect(out).not.toContain("First old");
+});
+
+test("forgetOldestToFit falls back to a word-edge cut for one long unbroken run, keeping the tail", () => {
+    const out = forgetOldestToFit("alpha beta gamma delta epsilon zeta", 14);
+    expect(out.length).toBeLessThanOrEqual(14);
+    expect(out).not.toContain("alpha");   // oldest dropped
+    expect(out.startsWith(" ")).toBe(false); // clean word edge
 });
 
 test("an empty first response throws so the caller keeps the raw block", async () => {
@@ -86,11 +129,13 @@ test("an empty first response throws so the caller keeps the raw block", async (
         .rejects.toThrow(/empty text/);
 });
 
-test("an empty later response falls back to the best prior attempt", async () => {
+test("an empty later response falls back to the best prior attempt, then bounds it to budget", async () => {
     const big = "m".repeat(5000);
     const { generate } = fakeGenerator([2000, ""]); // long, then the model returns nothing
     const out = await compressToFit({ established: big, fresh: "x", targetChars: 1000, generate });
-    expect(out.length).toBe(2000);
+    // Falls back to the 2000-char prior attempt rather than the empty one — then forgets
+    // it down to the budget (the bound always applies; nothing oversized is persisted).
+    expect(out.length).toBeLessThanOrEqual(1000);
 });
 
 test("maxTokens is a generous guard sized off the input — never a tight cap", async () => {
@@ -147,4 +192,29 @@ test("a tighten pass (no fresh material) asks for a shorter version of the same 
     expect(prompt).not.toContain("<new-thinking>");
     expect(prompt).toContain("currently 2000 characters");
     expect(prompt).toContain("about 50% of that");
+});
+
+// --- the contract licenses FORGETTING (regression guard for the bloat bug) ----
+// A fixed-size buffer fed an unbounded stream of durable content can only be held
+// to budget if old material may be released to make room. Instructing the model to
+// keep every conclusion makes the buffer ratchet up every fold (the bloat bug). The
+// memory is lossy by design (COVENANT §3); the vault's git history is the durable
+// record. These guard against a silent revert to lossless retention.
+
+test("the fold prompt licenses forgetting old material to fit, and no longer commands unconditional retention", () => {
+    const prompt = buildCompressionPrompt({
+        tier: "older", memory: "m".repeat(40000), incoming: "n".repeat(9000), targetChars: 7200,
+    });
+    // It must permit releasing old material…
+    expect(prompt).toContain("release the oldest and least-important");
+    expect(prompt).toContain("let older material go to stay within it");
+    // …and must NOT order the model to keep every existing conclusion (the old bug).
+    expect(prompt).not.toContain("Keep the conclusions, decisions, and open questions the memory already holds");
+});
+
+test("the tighten prompt makes room by forgetting rather than only re-wording", () => {
+    const prompt = buildCompressionPrompt({ tier: "older", memory: "m".repeat(20000), incoming: "", targetChars: 7200 });
+    expect(prompt).toContain("release the oldest, most settled, least-important detail");
+    // The lossless trap that caused the bloat: a shorter version "without losing substance".
+    expect(prompt).not.toContain("without losing substance");
 });

@@ -1,7 +1,12 @@
 # Compression fidelity — iterative, never-truncating consolidation
 
-> **Status: §1–§4 and §5 (minimum) implemented (2026-06-20).** §1–§4 in
-> `MMemory._compress` / `compressToFit` / `buildCompressionPrompt`
+> **Status: §1–§4 and §5 (minimum) implemented (2026-06-20).** §3–§4 amended the
+> same day to fix the **bloat bug** (`story` reached ~6× budget in an hour, and it is
+> injected into every burst frame): the fold/tighten prompts now **license forgetting**,
+> and — because the local utility model *echoes* a "make it shorter" re-drive verbatim
+> rather than tightening (so the prompt alone cannot bound the buffer) — `compressToFit`
+> now **detects the stall and enforces the budget in code** via `forgetOldestToFit`.
+> §1–§4 in `MMemory._compress` / `compressToFit` / `forgetOldestToFit` / `buildCompressionPrompt`
 > (`src/mindComponents/mMemory.js`); §5's recall-pool in
 > `src/mindComponents/recallSources.js`, read by `m-recall` and `m-resurface`.
 > Unit coverage in `architecture/tests/unit/memory-compress.test.js` and
@@ -76,30 +81,51 @@ treat it as "too long" and iterate.
 
 Accept when the output is within `[0.8, 1.2] × target` (`maxPasses ≈ 4`).
 
-- **Too long** → feed this attempt back and tighten (§1).
+- **Too long** → feed this attempt back and tighten (§1). **But if a re-drive does
+  not shorten it, stop** — see below.
 - **Below the floor** (over-compressed) → fall back to the previous, longer
   attempt. **Never ask the model to expand** — expansion invites invention, which
-  violates "never invent." Keep every attempt; if passes run out, take the one
-  closest to target.
+  violates "never invent."
+- **Still too long after the model's best effort** → **forget the oldest material to
+  fit, in code** (`forgetOldestToFit`): drop whole units from the front — paragraphs,
+  then sentences, then a word edge — keeping the newest. This is what actually bounds
+  the buffer.
 
-A verbatim echo needs no special detector — it is simply "too long," handled by
-the next pass.
+> **The tighten loop is not enough on its own — measured, not assumed.** It was first
+> believed that "a verbatim echo needs no special detector — it is simply *too long*,
+> handled by the next pass." That is false for the local utility model: re-driven to
+> shorten a coherent first-person memory *with no new material to integrate*, it returns
+> the text **byte-for-byte** (replayed against lemma-12's real buffer: passes 1–4 all
+> 12,725 chars; tightening an echo yields another echo). So the accept band can never be
+> reached by tightening, and `nearestToTarget` would just persist the smallest oversized
+> echo — which still grows every fold (the bloat). The fix is twofold: **detect the
+> stall** (a re-drive that does not shrink ends the loop, saving wasted calls) and
+> **enforce the budget in code** by forgetting the oldest. Re-running the same real case
+> through the fixed loop: 13,095 → **3,849 chars, in band**, in two model calls.
 
-### 4. Integrate old and new by folding, not re-summarising
+### 4. Integrate old and new by folding — and forget to make room
 
 Show the model the **memory so far** and the **new thinking** as two separate
 blocks, and ask it to produce the next version of the memory by folding the new
-into the existing — keeping the conclusions and open questions the memory already
-holds, and adding from the new thinking only what is durable. The point is to frame
-the task as *revising an existing memory*, not re-summarising a flat blob: that is
-what lets the budget be a percentage of the memory (§1), and it stops a long-settled
-conclusion from being re-derived or dropped just because the latest burst did not
-mention it.
+into the existing. The point is to frame the task as *revising an existing memory*,
+not re-summarising a flat blob: that is what lets the budget be a percentage of the
+memory (§1), and it stops a long-settled conclusion from being re-derived just
+because the latest burst did not mention it.
 
-This is **not** an instruction to treat the established memory as proven or
-immutable — the model may re-word, reorganise, or trim it to make room. It is only
-that the established memory is the thing being revised, and the new thinking is
-material to fold in.
+The established memory is **not** proven or immutable — the model may re-word,
+reorganise, and, crucially, **forget**: fold together repetition, drop dead ends and
+passing detail, and *when it still will not fit, let the oldest and least-important
+material go*. This forgetting is load-bearing, not optional. The memory is a
+fixed-size buffer fed an endless stream of durable thought; it can only hold to its
+budget if old material is released to make room. Instructing the model to *keep the
+conclusions the memory already holds* — the earlier wording — made each buffer
+ratchet up fold after fold (a math mind's `story` grew to ~6× its budget over an hour)
+until it dwarfed the budget and dominated every frame: **the bloat bug.** Forgetting
+here is safe and covenant-sanctioned (COVENANT §3, "compression is lossy by design;
+the vault's history is not"): what truly settles is written to `knowledge/` by the
+scribe and flows back through recall (§5), and the vault's git history keeps the lot —
+so the working memory does not have to hoard it. A mind forgets the small and the
+settled in order to keep its hold on what it is working out now.
 
 The one case this does not actively rescue — a genuine new breakthrough that has
 not yet survived a fold — is **deliberately not the compressor's job**. It cannot
@@ -125,14 +151,17 @@ You keep the {tier} memory of a mind's inner life, in its own first-person voice
 </new-thinking>
 
 Write the next version of the memory by folding the new thinking into the
-memory-so-far. Keep the conclusions, decisions, and open questions the memory
-already holds; from the new thinking keep only what is durable — results, decisions,
-questions, anything that felt important — and condense or drop repetition, abandoned
-dead ends, and passing detail. Never invent anything.
+memory-so-far. This is a living, bounded memory, not a permanent record — what truly
+settles you have written down elsewhere and it comes back when you need it, so this
+memory need not hold everything. Carry the through-line: where the thinking began, the
+turns that still matter, the open questions and decisions in play, and from the new
+thinking whatever is genuinely alive. Make room by letting go — fold together what
+repeats, drop dead ends and passing detail, and when it still will not fit, release the
+oldest and least-important so the freshest thinking has space. Never invent anything.
 Length: judge the size against the memory itself, not against everything above. The
 memory-so-far is {base} characters; make the new version about {target} ({pct}% of
 it). The new thinking is raw material to absorb into that budget, not text to append
-on top. Output only the memory.
+on top — let older material go to stay within it. Output only the memory.
 ```
 
 ### 5. Feed the knowledge base back
@@ -177,23 +206,31 @@ for pass in 1..4:
     guard = ceil((len(memory)+len(new)) / 2) + 512     // silent anti-truncation ceiling
     out   = model(prompt(memory, new, target, pct), max_tokens=guard)
     if out is empty:  break if any attempts else throw  // keep raw block, retry next boundary
+    prev = len(last attempt) or ∞
     attempts.push(out)
     if len(out) in band:      return out
     if len(out) < band.low:   return previousLongerElseThis(attempts)  // never expand
+    if len(out) >= prev:      break                     // re-drive didn't shrink (echo) → stop
     memory = out; new = ""                              // too long → tighten the output
-return nearestToTarget(attempts)
+
+// The model would not bring it into band. Enforce the budget in code: forget the
+// oldest material to fit — drop whole units from the FRONT (paragraphs, sentences,
+// word edge), keeping the newest. NOT the truncation §1 outlawed (that cut the new);
+// this releases the old, which the vault + KB keep and recall surfaces again.
+return forgetOldestToFit(nearestToTarget(attempts), target)
 ```
 
 ## Scope
 
-- **§1–§4 (done):** `MMemory._compress` now delegates to two pure, exported
-  helpers — `compressToFit` (the never-truncating length loop) and
-  `buildCompressionPrompt` (the three-shape fold prompt) — plus `nearestToTarget`;
-  `_consolidate` passes the established memory and the new thinking separately. The
-  policy is unit-tested without a model in
-  `architecture/tests/unit/memory-compress.test.js` (inject a fake `generate`); the
-  prompt can still be replayed live against the recorded dumps under
-  `debug/prompts/.../memory-older|memory-recent`.
+- **§1–§4 (done):** `MMemory._compress` now delegates to pure, exported helpers —
+  `compressToFit` (the never-growing length loop: tighten while it shrinks, then
+  forget in code), `forgetOldestToFit` (the code-level budget enforcer), and
+  `buildCompressionPrompt` (the three-shape fold prompt that licenses forgetting) —
+  plus `nearestToTarget`; `_consolidate` passes the established memory and the new
+  thinking separately. The policy is unit-tested without a model in
+  `architecture/tests/unit/memory-compress.test.js` (inject a fake `generate`,
+  including an echoing one); the prompt can still be replayed live against the
+  recorded dumps under `debug/prompts/.../memory-older|memory-recent`.
 - **§5 minimum (done):** `src/mindComponents/recallSources.js` (the shared
   `readKept` pool), read by `mRecall.js` and `mResurface.js` via a `kb` attribute
   (default: the mind's vault home `knowledge/`, matching `m-kb`; `"off"` to disable).

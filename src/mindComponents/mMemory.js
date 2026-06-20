@@ -576,21 +576,30 @@ export function nearestToTarget(attempts, targetChars) {
  * The consolidation prompt — folds `incoming` thinking into the `memory` kept so
  * far, in the mind's own first-person voice, aiming at `targetChars`.
  *
+ * The memory is BOUNDED and lossy by design (COVENANT §3 — "compression is lossy;
+ * the vault's history is not"): what truly settles is written to the notebook/KB
+ * and flows back through recall (§5), so these buffers need not hoard it. The prompt
+ * therefore licenses FORGETTING — fold together repetition, drop dead ends and
+ * passing detail, and when it still will not fit, let the oldest and least-important
+ * go. That is the only thing that holds a tier to its budget: a fixed budget on a
+ * stream of durable content is unenforceable unless old material can be released to
+ * make room — instruct the model to keep everything and the buffer ratchets up every
+ * fold (the bloat bug). A mind forgets the small and the settled in order to keep
+ * its hold on what it is working out now.
+ *
  * The length budget is expressed against the MEMORY being revised, NOT against
- * memory+incoming. The work is to fold new thinking into an existing memory, so
- * the memory's own size is the thing to aim by: on average the budget already IS
- * roughly the memory's size (a tier is compressed back to its budget each fold),
- * give or take after the last fold. A percentage of the memory is actionable to a
- * token-by-token generator in a way "N characters of everything you can see" is
- * not — and asking for a small fraction of memory+incoming is what made the model
- * echo its whole input verbatim. The new thinking is raw material to absorb into
- * the budget, not text to add on top.
+ * memory+incoming: a percentage of the memory is actionable to a token-by-token
+ * generator in a way "N characters of everything you can see" is not — and asking
+ * for a small fraction of memory+incoming is what made the model echo its whole
+ * input verbatim. The new thinking is raw material to absorb into the budget, not
+ * text to add on top.
  *
  * Three shapes, by what is present (the tighten shape is a re-drive of an
  * over-long previous output, where `incoming` is empty):
  *   - fold    (memory + incoming): the usual case — integrate the new thinking.
  *   - first   (incoming only): no memory yet — write it from the new thinking.
- *   - tighten (memory only): shorten an over-long previous output, losing nothing.
+ *   - tighten (memory only): shorten an over-long previous output by letting the
+ *             oldest, most settled material go.
  *
  * Domain-neutral on purpose: m-memory serves every mind, not only the math minds.
  */
@@ -614,9 +623,9 @@ ${memory}
 ${incoming}
 </new-thinking>
 
-Write the next version of the memory by folding the new thinking into the memory-so-far. Keep the conclusions, decisions, and open questions the memory already holds; from the new thinking keep only what is durable — results, decisions, questions, anything that felt important — and condense or drop repetition, abandoned dead ends, and passing detail. Never invent anything: if it is not in the text above, it does not belong in the memory. Write one continuous first-person account.
+Write the next version of the memory by folding the new thinking into the memory-so-far. This is a living, bounded memory, not a permanent record — what truly settles you have written down elsewhere, and it comes back to you when you need it, so this memory does not have to hold everything. Carry the through-line: where the thinking began, the turns that still matter, the open questions and decisions in play, and from the new thinking whatever is genuinely alive. Make room by letting go — fold together what repeats, drop abandoned dead ends and passing detail, and when it still will not fit, release the oldest and least-important so the freshest thinking has space. Forgetting the small and the settled is how the memory stays able to take in what is new. Never invent anything: if it is not in the text above, it does not belong in the memory. Write one continuous first-person account.
 
-Length: judge the size against the memory itself, not against everything above — you are revising the memory, not adding to it. The memory-so-far is ${base} characters; make the new version about ${targetChars} characters, which is about ${pct}% of it. The new thinking is raw material to absorb into that budget, not text to append on top, so folding it in must not grow the memory much past that size. Output only the memory.`
+Length: judge the size against the memory itself, not against everything above — you are revising the memory, not adding to it. The memory-so-far is ${base} characters; make the new version about ${targetChars} characters, which is about ${pct}% of it. The new thinking is raw material to absorb into that budget, not text to append on top — so folding it in must not grow the memory past that size; let older material go to stay within it. Output only the memory.`
     }
 
     if (hasIncoming) {
@@ -626,7 +635,7 @@ Length: judge the size against the memory itself, not against everything above �
 ${incoming}
 </new-thinking>
 
-This is the first such memory — nothing has been kept yet, so condense the new thinking into a memory of its own. Keep results, decisions, open questions, and anything that felt important; drop repetition, abandoned dead ends, and passing detail. Never invent anything: if it is not in the text above, it does not belong in the memory. Write one continuous first-person account.
+This is the first such memory — nothing has been kept yet, so condense the new thinking into a memory of its own. This is a living, bounded memory, not a permanent record. Carry the through-line and what is most alive — results, decisions, open questions, anything that felt important — and let the rest go: repetition, abandoned dead ends, passing detail. Never invent anything: if it is not in the text above, it does not belong in the memory. Write one continuous first-person account.
 
 Length: the new thinking is ${base} characters; make the memory about ${targetChars} characters, which is about ${pct}% of that. Output only the memory.`
     }
@@ -638,25 +647,62 @@ Length: the new thinking is ${base} characters; make the memory about ${targetCh
 ${memory}
 </memory-so-far>
 
-This memory is a little too long. Produce a shorter version of it without losing substance: keep every conclusion, decision, and open question, and condense the wording, dropping repetition and passing detail. Never invent anything: if it is not in the text above, it does not belong in the memory. Write one continuous first-person account.
+This memory is over its budget. Produce a shorter version of it: carry the through-line and what is most alive — the turns that still matter, the open questions, the decisions in play — and make room by letting the rest go: fold together what repeats, and release the oldest, most settled, least-important detail (you have it recorded elsewhere, and it returns when you need it). Forgetting the small and the settled is how the memory stays able to learn. Never invent anything: if it is not in the text above, it does not belong in the memory. Write one continuous first-person account.
 
 Length: it is currently ${base} characters; make the shorter version about ${targetChars} characters, which is about ${pct}% of that. Output only the memory.`
 }
 
 /**
- * The never-truncating length loop (compression-fidelity §1–§3), pure of model
- * wiring. Drive `generate(prompt, maxTokens)` with a prompt aimed at
- * `targetChars`, measure the OUTPUT in characters, and re-drive to tighten until
- * it lands in the accept band [0.8, 1.2]·target. Closing the loop in code is the
- * whole point: the model cannot measure its own length, so we measure it.
+ * Forget the OLDEST material to fit a hard budget — the code-level backstop for the
+ * one thing the model will not do. A utility model re-driven to "make this shorter"
+ * with no new material to integrate echoes a coherent first-person memory back
+ * verbatim (observed: every tighten pass returned the input byte-for-byte), so the
+ * accept band can never be reached by tightening and the buffer would grow without
+ * bound. We therefore enforce the budget in code: drop whole units from the FRONT —
+ * paragraphs, then sentences, then at a word edge — keeping the newest, which is the
+ * thread the mind is actively holding.
+ *
+ * This is forgetting, not the truncation §1 outlawed. That truncation guillotined the
+ * NEWEST output mid-generation (a too-small token cap) and lost what the model was
+ * still saying; this releases the OLDEST, already-settled past — kept by the vault's
+ * git history and the scribe's knowledge base (COVENANT §3), and surfaced again by
+ * recall when it is needed. A mind forgets the old to keep its hold on the new.
+ */
+export function forgetOldestToFit(text, targetChars) {
+    text = (text || "").trim()
+    if (text.length <= targetChars) return text
+    const fits = parts => parts.join("").length <= targetChars
+    // Drop oldest paragraphs first (keep the separators with the block that follows).
+    let paras = text.split(/(\n{2,})/)                       // [p0, sep, p1, sep, p2, …]
+    while (paras.length > 1 && !fits(paras)) paras = paras.slice(2)
+    let kept = paras.join("").trim()
+    if (kept.length <= targetChars) return kept
+    // A single (newest) paragraph still too long: drop its oldest sentences.
+    let sents = kept.split(/(?<=[.!?])(\s+)/)
+    while (sents.length > 1 && !fits(sents)) sents = sents.slice(2)
+    kept = sents.join("").trim()
+    if (kept.length <= targetChars) return kept
+    // Last resort (one long unbroken run): keep the newest targetChars at a word edge.
+    const tail = kept.slice(kept.length - targetChars)
+    const sp = tail.indexOf(" ")
+    return (sp > 0 ? tail.slice(sp + 1) : tail).trim()
+}
+
+/**
+ * The never-growing length loop (compression-fidelity §1–§4), pure of model wiring.
+ * Drive `generate(prompt, maxTokens)` aimed at `targetChars`, measure the OUTPUT in
+ * characters, and re-drive to tighten toward the accept band [0.8, 1.2]·target.
+ * Closing the loop in code is the whole point: the model cannot measure its own
+ * length, so we measure it — and when it refuses to shorten, we forget in code.
  *
  *   - In band                → accept.
- *   - Too long               → feed this output back and tighten (no fresh material).
  *   - Below the floor        → over-compressed; fall back to the previous, longer
- *                              attempt. NEVER ask the model to expand — expansion
- *                              invites invention.
- *   - Passes exhausted (all  → take the attempt nearest the target. Never truncate.
- *     still too long)
+ *                              attempt. NEVER ask the model to expand (invites invention).
+ *   - Too long               → re-drive to tighten (no fresh material). But if a
+ *                              re-drive makes no headway (the model echoed it back),
+ *                              stop: more passes only burn calls.
+ *   - Still too long at the   → forget the oldest material to fit (forgetOldestToFit).
+ *     end                       The budget is enforced in code, never by losing the new.
  *
  * `generate` is given a generous per-pass `maxTokens` guard sized off the input
  * (worst case: it echoes its whole input). The guard exists only so a single pass
@@ -690,6 +736,7 @@ export async function compressToFit({ established, fresh, targetChars, tier, gen
             if (attempts.length) break              // fall back to a prior attempt
             throw new Error(`compression (${tier}) returned empty text`)
         }
+        const prevLen = attempts.length ? attempts[attempts.length - 1].length : Infinity
         attempts.push(out)
 
         if (out.length >= floor && out.length <= ceiling) return out   // in band → done
@@ -697,10 +744,15 @@ export async function compressToFit({ established, fresh, targetChars, tier, gen
             // Over-compressed: prefer the previous, longer attempt; never expand.
             return attempts.length > 1 ? attempts[attempts.length - 2] : out
         }
-        // Too long → re-drive this output to tighten; no fresh material remains.
+        // Too long. If the re-drive did not shorten it (the model echoed the memory
+        // back verbatim rather than tightening — the local utility model does exactly
+        // this), further passes will not help: stop and let code enforce the budget.
+        if (out.length >= prevLen) break
         memory = out
         incoming = ""
     }
-    // Every pass still too long: take the nearest to target (never truncate/expand).
-    return nearestToTarget(attempts, targetChars)
+    // The model would not bring it into band: forget the oldest material to fit. This
+    // is what actually bounds the buffer — without it, an echoing model ratchets the
+    // memory up every fold (the bloat bug).
+    return forgetOldestToFit(nearestToTarget(attempts, targetChars), targetChars)
 }
