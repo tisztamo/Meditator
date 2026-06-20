@@ -167,7 +167,7 @@ The example mind (`architecture/lab/seedling.archml`) wires:
 | [`m-loop-guard`](interrupts.md#m-loop-guard) | detects repetition loops — pure code, no LLM |
 | [`m-associate`](interrupts.md#m-associate) | a small model noticing "this reminds me of…" |
 | [`m-speech`](components.md#m-speech) | the voice — occasionally speaks a thought aloud, in parallel with thinking |
-| [`m-act` (+ `m-look`/`m-note`/`m-recall`)](components.md#the-hands-m-act--m-look) | the hands — reaches out (tool-blind) to look at the world, keep a note, or recall one; the mind carries a felt body schema of what it can reach |
+| [`m-act` (+ `m-look`/`m-note`/`m-recall`/`m-terminal`)](components.md#the-hands-m-act--m-look) | the hands — reaches out (tool-blind) to look at the world, keep a note, recall one, or run a sandboxed computation and read the screen; the mind carries a felt body schema of what it can reach |
 | [`m-kb`](components.md#m-kb) | the scribe — distills durable knowledge to `knowledge/` |
 | [`m-economy`](components.md#m-economy) | reads real cost and slows the mind as budget drains |
 | [`m-console`](components.md#m-console) | terminal input/output |
@@ -182,6 +182,6 @@ Read on:
   resident minds, honest retention, versioning, and how a mind is laid to rest.
 - [Efference — the hands](efference.md) — `m-act`/`m-look` (built): how the mind affects
   the world through tool-blind realization, generalizing `m-speech` (lifecycle §Phase 6).
-- [Terminal — the real cursor](terminal.md) — `m-terminal` (design): a world-changing hand
+- [Terminal — the real cursor](terminal.md) — `m-terminal` (built): a world-changing hand
   that runs a sandboxed script and returns the screen as a sensation — the latency/feedback/
   timeout model and the guardrail for arbitrary code (builds on efference.md).

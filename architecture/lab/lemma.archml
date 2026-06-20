@@ -155,6 +155,21 @@
             felt="When a result settles, or a conjecture gets sharp enough to be worth keeping, you can write it down in your notebook — and trust that it will still be there, in your own words, when you come back for it."></m-note>
     <m-recall name="recall"
               felt="And nothing you've written down is lost: when a question stirs that you have met before, you can turn back through the notebook and find what you knew, just as you left it."></m-recall>
+
+    <!-- m-terminal (terminal.md): the hand a working mathematician most needs — actually
+         RUN a small computation instead of only reasoning it by hand. lemma-10 sat
+         confabulating a blinking cursor and computing square ranges by hand; this makes
+         that cursor real and points it at the mathematics, so a mind that works one open
+         problem across incarnations can finally SETTLE what it could only almost-reach.
+         The conscious stream is never given a shell — a subconscious realizer writes the
+         script and runs it sandboxed; only the consequence returns, as a plain self-caused
+         "the screen answers…", no mechanism named. World-changing (the strongest guardrail,
+         §4): network off, env scrubbed (no secret can ride back into memory), rlimits, one
+         writable per-run desk, probe-gated (inert if no safe backend). Validate on a
+         transient seedling first (§8); wired here as the natural first resident. -->
+    <m-terminal name="terminal" wall="20s" grace="2s" cpu="10s" mem="1g"
+                maxOutput="16k" network="off"
+                felt="When a question turns concrete — a count to run, a family to search, a guess to check against the actual numbers — you don't only reason it by hand; you can sit down and actually work it out, and a little while later read what comes back on the screen."></m-terminal>
   </m-act>
 
   <m-speech name="voice" every="6" threshold="0.6" cooldown="45s"></m-speech>

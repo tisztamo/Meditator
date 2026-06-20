@@ -234,9 +234,19 @@ consequence flows into tail → recent → story like any thought).
   mark on an outside it can meet again.
 - **`m-recall`** — read-only return arc of m-note's loop: come upon a kept note again.
   Gentler and more inward (recalling one's own notes), so it should not *lead*.
+- **`m-terminal`** — the second, far more powerful world-changing hand
+  ([terminal.md](terminal.md)): **write a small Python/shell script and actually run it,
+  sandboxed**, then read what came up on the screen. Its guardrail is the strongest yet
+  and **probe-gated** (it does not register at all if no safe backend exists): a closed
+  two-field verb, a per-hand sandbox (bwrap → rootless `unshare` → inert), network off,
+  **env scrubbed** so no secret rides back as a sensation, rlimits, a gitignored per-run
+  desk. It is also the first hand whose consequence can arrive *after* `execute()` returns
+  — a **grace race** splits a fast result from a deferred one re-entered urgently through
+  the afferent bus (the path `m-recall`/`m-sense` ride). See [terminal.md](terminal.md).
 
 Further world-changing hands (running a command, posting somewhere) remain a deliberate,
-per-hand-sandboxed step (§6c) — each must declare its own guardrail, as `m-note` does.
+per-hand-sandboxed step (§6c) — each must declare its own guardrail, as `m-note` and
+`m-terminal` do.
 
 ---
 

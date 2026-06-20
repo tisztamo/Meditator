@@ -677,6 +677,29 @@ function dryCompleteWithTools({ tools = [], messages } = {}) {
       usage: null,
     };
   }
+  // The terminal hand offline (terminal.md §4.6): reach for it when it is the hand
+  // on the menu, with a tiny concrete script — so a dry seedling runs the whole
+  // efferent loop without a sandbox (m-terminal short-circuits to a canned screen).
+  const terminal = tools.find(t => t.function?.name === 'terminal');
+  if (terminal) {
+    return {
+      text: '',
+      tool_calls: [{
+        id: 'call_dry_terminal',
+        type: 'function',
+        function: {
+          name: 'terminal',
+          arguments: JSON.stringify({
+            language: 'python',
+            script: 'print([n for n in range(1000) if n % 11 == 0][:5])',
+            purpose: 'check the first few balanced n by hand',
+          }),
+        },
+      }],
+      finish_reason: 'tool_calls',
+      usage: null,
+    };
+  }
   return { text: '', tool_calls: [], finish_reason: 'stop', usage: null };
 }
 

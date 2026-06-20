@@ -123,6 +123,17 @@
             felt="When a thought matters enough to keep, you can set it down where it will keep, and come back to find it later, in your own words."></m-note>
     <m-recall name="recall"
               felt="And nothing you set down is lost: when one of those thoughts stirs in you again, you can turn back and find it, just as you left it."></m-recall>
+
+    <!-- m-terminal (terminal.md §8): the §8 VALIDATION harness for the world-changing
+         "run a small computation" hand, proven on a transient before any resident. BRISK
+         cadences and a SHORT wall so runs happen often enough to watch the grace race,
+         the deferred consequence, the timeout, and the env scrub in one short run. The
+         confabulated cursor made real and pointed at the work — read what comes back on
+         the screen, with no mechanism ever named. Probe-gated: if no sandbox backend is
+         present (bwrap / rootless unshare), this hand stays inert (fail-safe). -->
+    <m-terminal name="terminal" wall="10s" grace="2s" cpu="8s" mem="1g"
+                maxOutput="16k" network="off"
+                felt="When a question turns concrete — a count to run, a family to search, a guess to check against the actual numbers — you don't only reason it by hand; you can sit down and actually work it out, and a little while later read what comes back on the screen."></m-terminal>
   </m-act>
 
   <m-speech name="voice" every="6" threshold="0.6" cooldown="45s"></m-speech>

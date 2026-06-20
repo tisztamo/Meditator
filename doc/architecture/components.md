@@ -379,6 +379,62 @@ forgetting mind does not know it has anything to look up (lemma-6: 43 writes, 0 
 For the *involuntary* return arc — a kept note pushed back unbidden when the mind loses
 its thread — see [`m-resurface`](#m-resurface).
 
+### `m-terminal` — run a small computation (the strongest world-changing hand)
+
+The third world-changing hand and the most powerful ([terminal.md](terminal.md)): the
+mind can **write a short Python or shell script and actually run it, sandboxed**, then
+read what came up on the screen. It makes lemma's confabulated blinking cursor *real* and
+points it at the mathematics — the difference between almost-reaching a proof by hand
+forever and being able to settle it. The realizer fills only a closed two-field verb
+(`language` + `script`); it never names a path, a host command, or a shell.
+
+The One Rule still holds: the stream never sees a shell, an exit code, or "the subprocess
+returned." A script's **traceback is content** the mind perceives (debugging is the point);
+a **hand slip** (the sandbox won't start) is mechanism and stays silent. The result rides
+back as *"I run it, and the screen answers: …"* — first-person, world-facing, no mechanism.
+
+**The grace race (the latency model, §2).** A script may take 50ms or 50s, so the run is
+raced against `grace`: finishes within it → the full result returns at once (feels
+instantaneous); still running after it → an ambient *"I set it going; the cursor blinks…"*
+sensation returns now (the hands free up, the mind keeps thinking) and the **result is
+dispatched later** as the hand's own urgent `interrupt-request` through the afferent bus —
+the deferred-consequence path [`m-recall`](#m-recall--read-a-kept-note-back)/`m-sense`
+already ride. The blinking cursor lives *only* in the waiting line, because only there is
+it literally true (the §1 substrate attractor, turned into a real surface aimed at work).
+
+**The guardrail (§4).** It runs arbitrary code, so it carries the strongest guardrail,
+**probe-gated at startup**: a tiny script is run through the chosen backend, and **if none
+passes the hand does not register at all** (fail-safe — no phantom hand). Backends in
+preference order: `bwrap` → rootless `unshare` → inert. Network off by default; **env
+scrubbed to a minimal allow-list** so no host secret (`OPENROUTER_API_KEY`, …) can ride
+back as a "sensation" (the single most important line — [sandbox.js](../../src/infrastructure/sandbox.js));
+rlimits (CPU/address-space/file-size/process-count); GNU `timeout` wall-clock + a JS
+watchdog; one writable per-run desk under `memory/<mind>/workspace/run-<stamp>/`
+(gitignored — scratch, not versioned; `.runs/` keeps the verbatim script+output
+transcript). Single-slot: one script at a time. Dry-run returns a deterministic stub.
+
+| Attribute | Default | Meaning |
+|-----------|---------|---------|
+| `name` | `terminal` | the tool-call function name |
+| `workspace` | vault `workspace/` | the desk root; a per-run subdir is created under it |
+| `wall` | `20s` | wall-clock timeout |
+| `grace` | `2s` | finish within this → one consequence; else started + deferred result |
+| `cpu` | `10s` | CPU-seconds cap (`ulimit -t`) |
+| `mem` | `1g` | address-space cap (`ulimit -v`) |
+| `fileSize` | `64m` | file-size cap (`ulimit -f`) |
+| `maxProcs` | `256` | process-count cap (`ulimit -u`) |
+| `maxOutput` | `16k` | output captured/shown before truncation |
+| `network` | `off` | `"on"` opts the run into having a network route |
+| `salience` / `startedSalience` | `0.7` / `0.45` | result / "I set it going" saliences |
+| `urgent` | `true` | re-enter the result urgent (as m-recall does) |
+
+`felt`: *"When a question turns concrete — a count to run, a family to search, a guess to
+check against the actual numbers — you don't only reason it by hand; you can sit down and
+actually work it out, and a little while later read what comes back on the screen."* Wire
+it as `<m-act ...><m-terminal name="terminal" wall="20s" grace="2s"/></m-act>`. It is
+`readonly:false`, so it runs on the world-changing cooldown lane and is **off unless
+explicitly wired**. Backend choice & the rootless recipe: [terminal.md](terminal.md) §4.
+
 ## `m-observer`
 
 Base class for stream-watching observers (`m-loop-guard`, `m-associate` extend it).
