@@ -51,13 +51,24 @@ stderr, so you can debug a mind without a console). The input box at the bottom
 sends your words as an *urgent stimulus*, exactly as the [WebSocket API](websocket-api.md)
 does — there is no reply turn; you hear the mind think about what you said.
 
-The stream header has a **flow / raw** toggle (remembered in `localStorage`):
+The stream header has a **fold / flow / raw** toggle (a click cycles through them,
+remembered in `localStorage`):
 
-- **flow** (default) — the mind thinks in discrete bursts on a fixed tick, but the
-  Studio buffers each burst and reveals it at a metered rate that drains over about
-  one tick (learned from the `mind/pace` telemetry). The text trickles out
-  continuously instead of dumping, and the burst boundary becomes a barely-visible
-  inline seam — so what you watch reads as one unbroken monologue.
+- **fold** (default) — a mind thinks faster than you can read, so an unbroken run of
+  thinking gathers into one **fixed-height block that holds its place** instead of
+  scrolling the column past you. While the run is live the fold shows its **opening**
+  (anchored, so the top never moves) and the **latest words ghosting** along the
+  bottom, with a breathing marker and a running `bursts · words · time` count. When a
+  landmark closes it, it settles to its **beginning** — and, for a longer run, its
+  **end** — drawn verbatim from the run's own words (no model call, nothing
+  paraphrased); click it to read the whole run. **Speech, stimuli and images never
+  fold** — they stay full size, so one glance down the column tells you where the mind
+  spoke and what reached it. This is the calm way to watch a fast mind.
+- **flow** — the mind thinks in discrete bursts on a fixed tick, but the Studio
+  buffers each burst and reveals it at a metered rate that drains over about one tick
+  (learned from the `mind/pace` telemetry). The text trickles out continuously instead
+  of dumping, and the burst boundary becomes a barely-visible inline seam — so what you
+  watch reads as one unbroken monologue.
 - **raw** — fragments append the instant they arrive and each boundary is a
   full-width divider. The unsmoothed truth, useful for debugging cadence.
 

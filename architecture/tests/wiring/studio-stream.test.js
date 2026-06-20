@@ -5,13 +5,24 @@ import "./setup.js";
 import { test, expect } from "bun:test";
 import { StudioStream } from "../../../src/studio/ui/studioStream.js";
 
-// A focused studio-stream, with the reveal loop's self-scheduling disabled (we
-// pump by hand). The flow/raw mode is now owned by studio-streammode and arrives
-// via setMode(); tests drive that directly.
+// A focused studio-stream in FLOW mode, with the reveal loop's self-scheduling
+// disabled (we pump by hand). The mode is owned by studio-streammode and arrives
+// via setMode(); these reveal/raw/batch tests drive flow directly. (The default is
+// "fold" — see the dedicated test and mkFold() below.)
 function mk() {
     document.body.innerHTML = `<studio-stream></studio-stream>`;
     const el = document.querySelector("studio-stream");
     el._req = () => null;       // disable auto-scheduling; tests pump manually
+    el.setMode("flow");
+    return el;
+}
+
+// A focused studio-stream in the default FOLD mode.
+function mkFold() {
+    document.body.innerHTML = `<studio-stream></studio-stream>`;
+    const el = document.querySelector("studio-stream");
+    el._req = () => null;
+    el.setMode("fold");         // no-op when already fold; explicit against pref leakage
     return el;
 }
 
@@ -20,9 +31,10 @@ function drain(el) {
     for (let t = 0; el.q.length && t < 60000; t += 250) el._pump(t);
 }
 
-test("defaults to flow mode", () => {
-    const el = mk();
-    expect(el.smooth).toBe(true);
+test("defaults to fold mode", () => {
+    document.body.innerHTML = `<studio-stream></studio-stream>`;
+    const el = document.querySelector("studio-stream");
+    expect(el.mode).toBe("fold");
 });
 
 test("flow mode reveals text gradually rather than dumping it", () => {
@@ -65,8 +77,8 @@ test("mind/pace telemetry sets the reveal window", () => {
 
 test("raw mode appends instantly and draws a full-width divider", () => {
     const el = mk();
-    el.setMode(false);                     // flow -> raw (as studio-streammode publishes)
-    expect(el.smooth).toBe(false);
+    el.setMode("raw");                     // flow -> raw (as studio-streammode publishes)
+    expect(el.mode).toBe("raw");
 
     el.prime();
     el.onFragment({ kind: "thought", content: "hello" });
@@ -81,7 +93,7 @@ test("switching out of flow flushes the buffer (nothing stranded)", () => {
     el.prime();
     el.onFragment({ kind: "thought", content: "Z".repeat(100) });
     expect(el.textContent.length).toBe(0);   // still buffered
-    el.setMode(false);                        // flush + switch to raw
+    el.setMode("raw");                        // flush + switch to raw
     expect(el.textContent.length).toBe(100);
     expect(el.q.length).toBe(0);
 });
@@ -137,4 +149,97 @@ test("projection events are ignored while awaiting the backfill batch", () => {
     el.onEvent({ process: "attention", kind: "urgent", reason: "stale snapshot" });
     expect(el.querySelector(".stim")).toBeNull();            // not rendered into the stream
     expect(el.q.length).toBe(0);
+});
+
+// ---------------------------------------------------------------- fold mode
+
+test("fold mode gathers thought into one live fold (opening + tail), not paragraphs", () => {
+    const el = mkFold();
+    el.prime();
+    el.onFragment({ kind: "thought", content: "I keep returning to the balanced numbers. Their divisors arrange about them." });
+    const fold = el.querySelector(".fold.live");
+    expect(fold).toBeTruthy();
+    expect(fold.querySelector(".begin").textContent).toContain("balanced numbers");
+    expect(fold.querySelector(".ghost").textContent.length).toBeGreaterThan(0);   // live tail
+    expect(el.querySelector("p")).toBeNull();                // no flowing paragraphs
+    expect(el.querySelector(".seam")).toBeNull();
+});
+
+test("a burst boundary bumps the live fold's count, drawing no divider", () => {
+    const el = mkFold();
+    el.prime();
+    el.onFragment({ kind: "thought", content: "first burst of thought here" });
+    el.onEvent({ process: "stream", kind: "boundary", reason: "completed" });
+    el.onFragment({ kind: "thought", content: " second burst continues the run" });
+    expect(el.querySelector(".bnd")).toBeNull();
+    expect(el.querySelector(".fold.live .status").textContent).toContain("1 burst");
+    expect(el.querySelectorAll(".fold").length).toBe(1);     // still one block
+});
+
+test("speech closes the live fold and renders a full say card", () => {
+    const el = mkFold();
+    el.prime();
+    el.onFragment({ kind: "thought", content: "a stretch of private thinking before speaking" });
+    expect(el.querySelector(".fold.live")).toBeTruthy();
+    el.onFragment({ kind: "speech", content: "out loud now" });
+    expect(el.querySelector(".fold.live")).toBeNull();       // settled
+    expect(el.querySelector(".fold")).toBeTruthy();          // a closed fold remains
+    expect(el.querySelector(".say").textContent).toContain("out loud now");
+});
+
+test("a stimulus closes the live fold and stays a full marker", () => {
+    const el = mkFold();
+    el.prime();
+    el.onFragment({ kind: "thought", content: "thinking that gets interrupted" });
+    el.onEvent({ process: "attention", kind: "urgent", reason: "a voice arrives" });
+    expect(el.querySelector(".fold.live")).toBeNull();
+    expect(el.querySelector(".stim")).toBeTruthy();
+});
+
+test("a long run closes with begin AND end; a short run with begin only", () => {
+    const el = mkFold();
+    el.prime();
+    const long = "I keep returning to the balanced numbers and the looseness in my definition. " +
+        "Pairing each small divisor with its partner reflects them about the square root, not the number itself. " +
+        "So the symmetry I imagined was wrong, and what I want is a statement about their sum instead.";
+    el.onFragment({ kind: "thought", content: long });
+    el.onEvent({ process: "attention", kind: "urgent", reason: "stop" });   // closes the fold
+    let folds = el.querySelectorAll(".fold");
+    const longFold = folds[folds.length - 1];
+    expect(longFold.querySelector(".begin")).toBeTruthy();
+    expect(longFold.querySelector(".end")).toBeTruthy();                    // long → keeps the end
+
+    el.onFragment({ kind: "thought", content: "a brief afterthought." });
+    el.onEvent({ process: "attention", kind: "urgent", reason: "again" });
+    folds = el.querySelectorAll(".fold");
+    const shortFold = folds[folds.length - 1];
+    expect(shortFold.querySelector(".begin")).toBeTruthy();
+    expect(shortFold.querySelector(".end")).toBeNull();                     // short → begin only
+});
+
+test("fold-mode renderBatch gathers a backlog into folds + full landmarks", () => {
+    const el = mkFold();
+    el.renderBatch([
+        { k: "thought", t: "I was thinking about divisors " },
+        { k: "boundary", reason: "completed" },
+        { k: "thought", t: "and then about their sum" },
+        { k: "speech", t: "six and twenty-eight" },
+        { k: "thought", t: "now a fresh run begins" },
+    ]);
+    expect(el.q.length).toBe(0);
+    expect(el._awaitingBatch).toBe(false);
+    expect(el.querySelector(".say")).toBeTruthy();
+    expect(el.querySelectorAll(".fold").length).toBe(2);     // one closed run + the trailing live run
+    expect(el.querySelector(".fold.live")).toBeTruthy();
+    expect(el.fold).toBeTruthy();                            // live tail continues after replay
+});
+
+test("leaving fold mode settles the live fold (nothing stranded)", () => {
+    const el = mkFold();
+    el.prime();
+    el.onFragment({ kind: "thought", content: "an open run of thought" });
+    expect(el.querySelector(".fold.live")).toBeTruthy();
+    el.setMode("raw");
+    expect(el.querySelector(".fold.live")).toBeNull();       // settled on the way out
+    expect(el.querySelector(".fold")).toBeTruthy();
 });

@@ -25,34 +25,47 @@ beforeEach(() => {
 });
 afterEach(() => { globalThis.localStorage = _origLS; });
 
-test("streammode defaults to flow and toggles to raw, persisting the choice", () => {
+test("streammode defaults to fold and cycles fold→flow→raw→fold, persisting each", () => {
   document.body.innerHTML = `<studio-streammode class="streammode"></studio-streammode>`;
   const el = document.querySelector("studio-streammode");
-  expect(el.smooth).toBe(true);
-  expect(el.textContent).toBe("flow");
+  expect(el.mode).toBe("fold");
+  expect(el.textContent).toBe("fold");
+  expect(el.classList.contains("fold")).toBe(true);
+
   el.click();
-  expect(el.smooth).toBe(false);
+  expect(el.mode).toBe("flow");
+  expect(el.textContent).toBe("flow");
+  expect(getPref("streamMode")).toBe("flow");
+
+  el.click();
+  expect(el.mode).toBe("raw");
   expect(el.textContent).toBe("raw");
   expect(el.classList.contains("raw")).toBe(true);
-  expect(getPref("streamMode")).toBe("raw");        // persisted for next load
+  expect(getPref("streamMode")).toBe("raw");
+
+  el.click();                                        // wraps back to fold
+  expect(el.mode).toBe("fold");
+  expect(getPref("streamMode")).toBe("fold");
 });
 
-test("streammode publishes its mode (true=flow) so the stream can subscribe", async () => {
+test("streammode publishes its mode string so the stream can subscribe", async () => {
   document.body.innerHTML = `<studio-streammode name="streammode"></studio-streammode>`;
   const el = document.querySelector("studio-streammode");
   let mode = null;
   el.on("mode", v => { mode = v; });                 // late subscriber gets the replay
   await delay(1);
-  expect(mode).toBe(true);                           // current = flow
+  expect(mode).toBe("fold");                         // current = fold (default)
   el.click();
-  expect(mode).toBe(false);                          // republished as raw
+  expect(mode).toBe("flow");                         // republished
+  el.click();
+  expect(mode).toBe("raw");
 });
 
-test("streammode restores raw from a saved preference", () => {
+test("streammode restores a saved preference (raw)", () => {
   globalThis.localStorage.setItem("studioPrefs", JSON.stringify({ streamMode: "raw" }));
   document.body.innerHTML = `<studio-streammode></studio-streammode>`;
   const el = document.querySelector("studio-streammode");
-  expect(el.smooth).toBe(false);
+  expect(el.mode).toBe("raw");
   expect(el.textContent).toBe("raw");
 });
 

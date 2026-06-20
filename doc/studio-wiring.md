@@ -78,7 +78,9 @@ supervisor and the focus state, and it talks to the panes two ways:
 above (`studio-header`, `studio-tree`, `studio-log`, `studio-toast`,
 `studio-stream`) are clean subscribers. The controls that once sat as loose markup
 in the colheads are now their own mesh components: `studio-streammode` (the
-flow/raw toggle, publishing `/streammode/mode`), `studio-refresh` (the rail's ⟳,
+fold/flow/raw toggle, publishing the mode string on `/streammode/mode`;
+`studio-stream` renders folds via the leaf widget `ui/studioFold.js`),
+`studio-refresh` (the rail's ⟳,
 dispatching `refresh`), and `studio-panes` (the mobile column switcher, on
 `/conn/focused`). With the command path inverted, the field-reads gone, and the
 controls folded in, no pane reaches across the DOM.
@@ -141,8 +143,8 @@ Mirror the mind side exactly.
   with no WebSocket), the same swappability the mind migration won for `m-memory`.
 
 - **A stray control becomes part of the mesh** — promoted to a tiny component that
-  publishes/dispatches like any other pane. `studio-streammode` owns the flow/raw
-  preference and publishes `/streammode/mode`; `studio-refresh` dispatches the
+  publishes/dispatches like any other pane. `studio-streammode` owns the
+  fold/flow/raw preference and publishes `/streammode/mode`; `studio-refresh` dispatches the
   `refresh` command; `studio-panes` subscribes to `/conn/focused`. (The doc once
   weighed "rendered by the owning pane" for the toggle and ⟳, but a uniform
   tiny-component split keeps the colhead layout pixel-identical and the wiring

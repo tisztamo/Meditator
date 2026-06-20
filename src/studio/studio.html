@@ -52,7 +52,8 @@
   .streammode{cursor:pointer;color:var(--cyan);border:1px solid rgba(127,224,240,.35);border-radius:99px;
               padding:1px 9px;user-select:none;transition:background .15s,color .15s,border-color .15s}
   .streammode:hover{background:rgba(127,224,240,.12)}
-  .streammode.raw{color:var(--faint);border-color:var(--line)}
+  .streammode.fold{background:rgba(127,224,240,.1)}
+  .streammode.raw{color:var(--faint);border-color:var(--line);background:none}
 
   /* ---------- roster rail ---------- */
   .rail .scroll{flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-color:#2a3040 transparent}
@@ -126,6 +127,39 @@
   .seam.warn{background:var(--amber);opacity:.55}
   .caret{display:inline-block;width:8px;height:1.05em;vertical-align:-.16em;background:var(--amber);
          margin-left:1px;animation:blink 1.06s steps(1) infinite;border-radius:1px}
+  /* ---------- thought folds (fold mode) ---------- */
+  /* A run of thinking, gathered into one fixed-height block that holds its place.
+     Live: anchored opening + breathing status + ghosting tail. Closed: beginning,
+     and (for a long run) its end, with the transcript a click away. */
+  .fold{margin:.55em 0;border:1px solid var(--line);border-radius:11px;background:var(--surface2);
+        padding:9px 13px 8px;position:relative;transition:border-color .18s}
+  .fold.thinned{opacity:.66}
+  .fold:hover{border-color:rgba(183,156,240,.4)}
+  .fold .glyph{position:absolute;left:11px;top:10px;font-family:var(--mono);font-size:.78rem;color:var(--faint);
+               cursor:pointer;user-select:none;transition:transform .18s,color .15s}
+  .fold:hover .glyph{color:var(--violet)}
+  .fold.open .glyph{transform:rotate(90deg)}
+  .fold .begin{font-family:var(--serif);font-size:.99rem;line-height:1.55;color:#cdcabf;padding-left:21px;cursor:pointer}
+  .fold .end{font-family:var(--serif);font-size:.94rem;line-height:1.5;color:var(--dim);padding-left:21px;margin-top:3px;display:flex;gap:7px}
+  .fold .end .lead{color:var(--faint);flex:none}
+  .fold .meta{font-family:var(--mono);font-size:.69rem;color:var(--faint);padding-left:21px;margin-top:7px;
+              display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .fold .meta .b{color:var(--dim)}
+  .fold.live{border-color:rgba(127,224,240,.42);background:linear-gradient(180deg,rgba(127,224,240,.05),var(--surface2))}
+  .fold.live .glyph{color:var(--cyan)}
+  .fold .status{display:flex;align-items:center;gap:8px;padding-left:21px;margin-top:7px;
+                font-family:var(--mono);font-size:.69rem;color:var(--faint);flex-wrap:wrap}
+  .fold .status .think{color:var(--cyan);display:flex;align-items:center;gap:7px}
+  .fold .pdot{width:7px;height:7px;border-radius:50%;background:var(--cyan);flex:none;
+              box-shadow:0 0 8px rgba(127,224,240,.7);animation:breathe 1.5s ease-in-out infinite}
+  .fold .ghost{font-family:var(--serif);font-style:italic;font-size:.92rem;line-height:1.5;color:var(--faint);opacity:.72;
+               padding-left:21px;margin-top:5px;-webkit-mask-image:linear-gradient(90deg,transparent,#000 6%);mask-image:linear-gradient(90deg,transparent,#000 6%)}
+  .fold .ghost .gcaret{display:inline-block;width:6px;height:.95em;vertical-align:-.13em;background:var(--cyan);
+                       margin-left:2px;border-radius:1px;animation:blink 1.06s steps(1) infinite}
+  .fold .full{display:none;padding-left:21px;margin-top:9px;border-top:1px dotted var(--line);padding-top:9px}
+  .fold .full p{color:#d4d1c8}
+  .fold.open .full{display:block}
+  .fold.open .begin,.fold.open .end{color:var(--faint)}
   .placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;
                color:var(--faint);font-family:var(--sans);text-align:center;gap:8px;padding:30px}
   .placeholder .big{font-size:1.1rem;color:var(--dim)}
@@ -223,6 +257,10 @@
 
   @keyframes blink{50%{opacity:0}}
   @keyframes pulse{50%{opacity:.45}}
+  @keyframes breathe{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.8)}}
+  @media (prefers-reduced-motion:reduce){
+    .caret,.fold .pdot,.fold .ghost .gcaret,.badge.waking{animation:none}
+  }
   @media (max-width:900px){
     .panebar{display:flex;flex:none;padding:7px 10px;border-bottom:1px solid var(--line);background:var(--bg2)}
     main{grid-template-columns:1fr}
@@ -268,7 +306,7 @@
 
       <!-- focused mind: stream -->
       <div class="col left">
-        <div class="colhead"><span>stream of consciousness</span><span class="hdr-right"><span class="legend">thought · 🗣 speech · ⟂ stimulus</span><studio-streammode name="streammode" class="streammode">flow</studio-streammode></span></div>
+        <div class="colhead"><span>stream of consciousness</span><span class="hdr-right"><span class="legend">thought · 🗣 speech · ⟂ stimulus</span><studio-streammode name="streammode" class="streammode fold">fold</studio-streammode></span></div>
         <studio-stream id="stream"></studio-stream>
         <studio-speak class="foot"></studio-speak>
       </div>
