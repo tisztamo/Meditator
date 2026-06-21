@@ -19,4 +19,4 @@ source "$ENV_FILE"
 set +a
 
 cd "$ROOT"
-exec bun studio.js
+exec bun studio.js "$@"
