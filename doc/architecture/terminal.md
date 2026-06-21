@@ -387,6 +387,11 @@ vivid mind doesn't picture typing; (2) **cadence/dedup** — a *refined* reach (
 confabulated run; consider whether a cooled/deduped reach should yield a gentle "not
 yet" instead of nothing. Re-validate on the seedling, then wire `lemma`.
 
+This run also surfaced something larger than the terminal — a mind cannot tell what it
+actually did from what it only imagined doing, and the One Rule is part of why. That
+general problem and its design space are written up separately:
+[Real hands, imagined results](../research/confabulation-and-real-tools.md).
+
 ---
 
 ## 9. Implementation map
