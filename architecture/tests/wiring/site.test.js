@@ -33,19 +33,17 @@ test("docs/index.html replays and interactive chrome works", async () => {
     expect(stimCount).toBeGreaterThanOrEqual(1);
     expect(doc.querySelector("#stream .caret")).toBeTruthy();
 
-    const awakeCode = doc.querySelector("#view-awake pre").textContent;
-    expect(awakeCode.includes("<m-mind")).toBe(true);
-    expect(awakeCode.includes("m-loop-guard")).toBe(true);
-    expect(doc.querySelector("#view-owl pre").textContent.includes("night-owl")).toBe(true);
+    // Single code panel (replaced the old two-tab awake/owl layout)
+    const mindCode = doc.querySelector("#view-src pre").textContent;
+    expect(mindCode.includes("<m-mind")).toBe(true);
+    expect(mindCode.includes("m-loop-guard")).toBe(true);
 
-    const card = doc.querySelector(".flipcard");
+    // Flip card: pick one whose back contains actual component markup
+    const card = doc.querySelector('.flipcard[data-snip="observers"]');
     expect(card.querySelector(".card-back pre").textContent.includes("<m-")).toBe(true);
     card.click();
     expect(card.classList.contains("flipped")).toBe(true);
     card.click();
     expect(card.classList.contains("flipped")).toBe(false);
 
-    doc.querySelectorAll(".tab")[1].click();
-    expect(doc.getElementById("view-owl").style.display).toBe("block");
-    expect(doc.getElementById("view-awake").style.display).toBe("none");
 }, { timeout: 15_000 });
