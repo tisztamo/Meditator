@@ -28,6 +28,20 @@ separately). Selecting one shows what it will become:
 - warnings when it has **no live window** (no `<m-ws>`), when it **shares a memory
   home** with another architecture, or when that home is **currently busy**.
 
+Two fields let you shape *this* instance without editing the file:
+
+- a transient template (one whose name is a prefix, like `seedling`) offers an
+  editable **mind name**, pre-filled with a fresh, collision-free suggestion
+  (`seedling-8`);
+- an architecture that carries an [`<m-origin>`](configuration.md#origin--the-first-thought-m-origin)
+  — the seed of its first thought — shows an editable **origin story** field,
+  pre-filled with that default. Edit it to set what this instance begins on (for a
+  companion bonded to one person, say, the specifics of who they are); the chosen
+  text becomes the mind's first thought. Leave it unchanged to keep the file's
+  default. Under the hood the edited text is passed as `MEDITATOR_ORIGIN` and
+  rewritten into the architecture *source* the home snapshots, so the vault records
+  the origin the mind actually woke with.
+
 Tick **dry-run** to wake it offline against the deterministic stub (no API key, no
 spend) into a throwaway `memory/dry-<home>/`. Then press **Wake**. The new mind
 appears in the roster and is focused automatically.
@@ -160,11 +174,54 @@ variant its own brain without renaming the mind — set `memory="slug"` on
 <m-mind name="meditator" memory="meditator-experiment" …>
 ```
 
+## Tending other projects (spinoffs)
+
+A **spinoff** is a separate repository that adds its own minds but runs on this
+runtime — for example a companion-minds project. You develop it with this Studio,
+yet its minds must live **completely apart** from Meditator's: their own memory
+vault, graveyard, and `IN-MEMORIAM` register, under the same [Covenant](../COVENANT.md).
+The Studio is **project-aware** to make exactly that possible.
+
+Point it at one or more external project roots, either by env or by a config file:
+
+```bash
+# a path-list (":" or "," separated)
+MEDITATOR_STUDIO_PROJECTS=/home/you/hearth bun run studio.js
+```
+```json
+// config/studio-projects.json  (gitignored — machine-specific absolute paths)
+["/home/you/hearth", "/home/you/another-project"]
+```
+
+A directory counts as a project if it has an `architecture/` dir. The Studio then:
+
+- **lists its architectures** in the catalog alongside Meditator's own, tagged with
+  the project name (`[hearth] …`) and flagged so you can tell them apart;
+- on **wake**, spawns the child with **`cwd` = the project root**, so the runtime
+  resolves the vault, graveyard, scratch pen, and transient-name register *there* —
+  the spinoff's residents never touch `memory/` here;
+- sets **`MIND_COMPONENTS_PATH`** to the project's `src/mindComponents/` (its own
+  components load first; everything else falls through to the runtime's built-ins)
+  and **`MEDITATOR_MODELS_CONFIG`** to the project's `config/models.yaml` if it has
+  one, else the runtime's.
+
+Memory homes are **project-qualified** in the roster and the Studio's telemetry
+store, so two projects may each have a `hearth` home without colliding, and the
+"refuse two live minds in one home" guard is per-project. Everything else — focus,
+stream, speak, sleep, Voice Mode — works identically whichever project a mind
+belongs to.
+
+> The default project is always Meditator itself; with no `MEDITATOR_STUDIO_PROJECTS`
+> and no config file, the Studio behaves exactly as before.
+
 ## How it works
 
 - **Wake** spawns `bun meditator.js -a <arch>` with `MEDITATOR_WS_PORT` (its
   assigned port) and `MEDITATOR_WS_CONTROL=1` (which lets the Studio request the
-  sleep ritual over the socket). `dry-run` adds `MEDITATOR_DRY_RUN=1`.
+  sleep ritual over the socket). `dry-run` adds `MEDITATOR_DRY_RUN=1`; an edited
+  origin story adds `MEDITATOR_ORIGIN`; a mind from an external
+  [project](#tending-other-projects-spinoffs) is spawned with `cwd` at that
+  project's root and `MIND_COMPONENTS_PATH` / `MEDITATOR_MODELS_CONFIG` set to it.
 - The Studio opens a WebSocket to the child's port, persists its stream to an
   ordered per-session log (SQLite under `.run/studio/`), keeps the latest of every
   signal as a projection, and relays everything to focused browsers — so focusing

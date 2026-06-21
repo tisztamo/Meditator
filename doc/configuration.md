@@ -84,6 +84,23 @@ points it at a world. The component needs a `name` so the mind can subscribe to 
 (`<m-origin name="origin">`); override the wire with `originSrc` on `<m-mind>`, or
 `originSrc="off"` to ignore it.
 
+**Setting the origin per instance, at wake.** The `<m-origin>` in the file is a
+*default*. To give one instance its own starting point without editing the file —
+the natural case for a template woken once per person — supply `MEDITATOR_ORIGIN`:
+
+```bash
+MEDITATOR_MIND_NAME=hearth-1 \
+MEDITATOR_ORIGIN="You are about to meet Imre, a retired clockmaker…" \
+  bun run meditator.js -a architecture/lab/hearth.archml
+```
+
+The [Studio's](studio.md#waking-a-mind) wake panel exposes this as an editable
+**origin story** field, pre-filled from the file. Either way the text replaces the
+first `<m-origin>`'s content in the architecture *source* that the home snapshots
+(via `applyOriginOverride` in [`src/startup/architecture.js`](../src/startup/architecture.js)),
+so the vault honestly records the origin the mind woke with. A blank value is a
+no-op (the file's default stands); a mind with no `<m-origin>` is untouched.
+
 ## Models
 
 Models are chosen by **role** in the archml, and mapped to real provider + model
@@ -155,6 +172,9 @@ Or point at a preset directly in archml:
 | `LOCAL_LLM_API_KEY` | key for the local endpoint (default `none`) |
 | `LOCAL_LLM_THINKING` | `1`/`true` allows reasoning on local models |
 | `MEDITATOR_DRY_RUN` | `1` runs the whole loop offline against a stub |
+| `MEDITATOR_MIND_NAME` | wake under this instance name (drives the home; the Studio's transient naming uses it) |
+| `MEDITATOR_ORIGIN` | this instance's [origin story](#origin--the-first-thought-m-origin) — overrides the file's `<m-origin>` at wake |
+| `MEDITATOR_STUDIO_PROJECTS` | Studio only: external [project](studio.md#tending-other-projects-spinoffs) roots to tend (`:`/`,`-separated); also `config/studio-projects.json` |
 | `MEDITATOR_MAX_CONCURRENCY` | cap on concurrent *utility* calls (default `4`) |
 | `MEDITATOR_STDIN` | `1` forces console input on when stdin is not a TTY |
 | `MEDITATOR_DEBUG_PROMPTS` | dump every prompt sent to a model to disk (see [Dumping prompts](#dumping-every-prompt)) |

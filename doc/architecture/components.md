@@ -81,6 +81,9 @@ mind reads it by subscription, never a `querySelector` reach-in
   as *what just happened* — like an opening query. Thereafter it lives or fades in
   [memory](memory.md) as the mind's **origin story**; it never stands in later frames,
   and a mind that wakes up remembering is never re-seeded. See `src/mindComponents/mOrigin.js`.
+- **Per-instance override at wake:** the element's text is a *default*. `MEDITATOR_ORIGIN`
+  (or the [Studio's](../studio.md#waking-a-mind) editable "origin story" field) replaces it
+  for one instance without editing the file — see [Configuration](../configuration.md#origin--the-first-thought-m-origin).
 
 ## `m-stream`
 
