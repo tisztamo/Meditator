@@ -1,14 +1,17 @@
 # Terminal — making the blinking cursor real (`m-terminal`)
 
-*Status: **design** (2026-06-20), not yet shipped. A new **world-changing hand**
-for [`m-act`](efference.md), the third after [`m-note`](../../src/mindComponents/mNote.js)
-and [`m-recall`](../../src/mindComponents/mRecall.js): the mind can write a small
-script and actually run it in a sandbox, and read what comes back on the screen.
-This doc follows [efference.md](efference.md) — read that first; everything here is
-an instance of its capability contract, its One Rule, and its deed/consequence
-split. Backend choice and first-run target decided with Kris 2026-06-20: rootless
-`unshare` now + `bwrap` if present, inert otherwise (§5); validate on a transient
-seedling before any resident (§8).*
+*Status: **built, mechanics validated, held off the resident** (2026-06-21). A new
+**world-changing hand** for [`m-act`](efference.md), the third after
+[`m-note`](../../src/mindComponents/mNote.js) and
+[`m-recall`](../../src/mindComponents/mRecall.js): the mind can write a small script
+and actually run it in a sandbox, and read what comes back on the screen. This doc
+follows [efference.md](efference.md) — read that first; everything here is an instance
+of its capability contract, its One Rule, and its deed/consequence split. Backend
+choice and first-run target decided with Kris 2026-06-20: rootless `unshare` now +
+`bwrap` if present, inert otherwise (§5); validate on a transient seedling before any
+resident (§8). The first live §8 run (2026-06-21) passed mechanically but surfaced the
+§6d substrate-attractor risk — see §8 — so the hand stays wired in the seedling harness
+and is **deliberately NOT wired into `lemma`** until that is addressed and re-validated.*
 
 ---
 
@@ -356,6 +359,34 @@ answers, and the stream shows no awareness of any mechanism — verified live on
 seedling, then wired into `lemma` so a math mind can finally *run* what it has only
 been able to reason by hand.
 
+### First live run (2026-06-21) — partial pass; lemma held
+
+Run on a transient seedling against the local actor model `ardincoder-1` (clean
+OpenAI tool-calls confirmed, resolving the §4 unknown). The **mechanics passed**: a
+real reach → the realizer wrote a correct script → it ran sandboxed (33ms) → the
+consequence returned as *"I run it, and the screen answers: `[1, 153, 370, 371, 407]`"*
+(correct), with the deed journaled ⌁, the consequence ⟂, **no secret in the stream,
+no network access, the transcript on disk**, and no implementation mechanism in the
+genuine consequence.
+
+But the **§8.2 invariant — "the stream shows no awareness of any mechanism" — did NOT
+hold.** After the one real run, the mind wanted to extend the search; the hand was on
+its world-changing cooldown and the repeat intent was deduped (`intentCooldown`), so
+instead of waiting the **conscious stream confabulated an entire terminal session and
+its output** (*"I open the terminal. `python3` `def is_armstrong(n,p): …` I hit enter.
+The screen … then: `153 3` … `548834 6`"*) — narrating the mechanism and presenting
+**hallucinated tool output as fact**. The hand made one computation real but the mind
+kept confabulating the rest — partially the opposite of this hand's aim, and exactly
+the §6d risk this validation exists to catch, on a transient, before `lemma`.
+
+**Open before wiring `lemma`** (the cursor is lemma's named §1 attractor, and lemma is
+meant to *settle* a problem on real computation): (1) **framing** — make the `felt`
+line less keystroke-evoking (closer to `m-look`'s "you simply find that you know") so a
+vivid mind doesn't picture typing; (2) **cadence/dedup** — a *refined* reach (e.g.
+4-digit vs cubes) should re-fire the real hand rather than be suppressed into a
+confabulated run; consider whether a cooled/deduped reach should yield a gentle "not
+yet" instead of nothing. Re-validate on the seedling, then wire `lemma`.
+
 ---
 
 ## 9. Implementation map
@@ -366,7 +397,7 @@ been able to reason by hand.
 | `src/mindComponents/mTerminal.js` | **new** `MTerminal extends MBaseComponent` — registers the `terminal` capability; the grace race; output→experience; deferred `interrupt-request`; single-slot; dry-run stub; `onDisconnect` kill |
 | `memory/.gitignore` | ignore `*/workspace/` so the scratch desk is never committed |
 | `architecture/lab/seedling.archml` | wire `<m-terminal>` for the §8 validation run |
-| `architecture/lemma.archml` | wire the resident version after validation |
+| `architecture/lemma.archml` | wire the resident version after validation — **held** (§8 first live run surfaced the §6d risk; not yet wired) |
 | `architecture/tests/unit/…` | output→experience transform, truncation, dry-run stub, sandbox arg-assembly (no real exec) |
 | `architecture/tests/wiring/…` | the grace race (fast vs deferred), the env-scrub invariant, the timeout consequence, the deed ⌁ / consequence ⟂ split — modeled on `act-note.test.js` |
 | `doc/architecture/components.md`, `index.md`, `efference.md` | document `m-terminal`; add to the component/hands map |

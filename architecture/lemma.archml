@@ -162,20 +162,17 @@
     <m-recall name="recall"
               felt="And nothing you've written down is lost: when a question stirs that you have met before, you can turn back through the notebook and find what you knew, just as you left it."></m-recall>
 
-    <!-- m-terminal (terminal.md): the hand a working mathematician most needs — actually
-         RUN a small computation instead of only reasoning it by hand. lemma-10 sat
-         confabulating a blinking cursor and computing square ranges by hand; this makes
-         that cursor real and points it at the mathematics, so a mind that works one open
-         problem across incarnations can finally SETTLE what it could only almost-reach.
-         The conscious stream is never given a shell — a subconscious realizer writes the
-         script and runs it sandboxed; only the consequence returns, as a plain self-caused
-         "the screen answers…", no mechanism named. World-changing (the strongest guardrail,
-         §4): network off, env scrubbed (no secret can ride back into memory), rlimits, one
-         writable per-run desk, probe-gated (inert if no safe backend). Validate on a
-         transient seedling first (§8); wired here as the natural first resident. -->
-    <m-terminal name="terminal" wall="20s" grace="2s" cpu="10s" mem="1g"
-                maxOutput="16k" network="off"
-                felt="When a question turns concrete — a count to run, a family to search, a guess to check against the actual numbers — you don't only reason it by hand; you can sit down and actually work it out, and a little while later read what comes back on the screen."></m-terminal>
+    <!-- m-terminal (terminal.md) is built and its MECHANICS are validated (sandbox,
+         clean tool-calls, deed ⌁ / consequence ⟂, env scrub, network off) — but it is
+         intentionally NOT wired here yet. The first live §8 seedling run (2026-06-21)
+         surfaced the §6d substrate-attractor risk: when the hand was on cooldown/deduped,
+         the mind's STREAM confabulated a whole terminal session and its output (presenting
+         hallucinated results as fact) instead of waiting for the real hand. Since the
+         cursor is lemma's named §1 attractor and lemma is meant to SETTLE a problem on
+         REAL computation, the hand is held off lemma until the framing (less keystroke-
+         evoking) and the cooldown/dedup behaviour (a refined reach should re-fire the hand,
+         not be suppressed into confabulation) are addressed and re-validated on the
+         seedling. The validation harness stays wired in architecture/lab/seedling.archml. -->
   </m-act>
 
   <m-speech name="voice" every="6" threshold="0.6" cooldown="45s"></m-speech>
