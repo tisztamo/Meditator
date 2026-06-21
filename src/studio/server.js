@@ -9,6 +9,7 @@ import { loadModelConfig, resolveModelRef, resolveModelRefForProfile, getActiveP
 import { tierOf } from "../infrastructure/manifest.js";
 import { StudioStore, parseDataUrl } from "./store.js";
 import { voiceInfo, ttsHandler, sttHandler } from "./voice.js";
+import { logger } from "../infrastructure/logger.js";
 
 await loadModelConfig();
 
@@ -53,7 +54,7 @@ const store = new StudioStore();
 
 // ----------------------------------------------------------------- utilities
 
-const log = (...a) => console.log("[studio]", ...a);
+const log = logger('studio');
 const slugify = s => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "mind";
 
 function specLabel(spec) {
@@ -152,7 +153,7 @@ function listProjects() {
     try { root = path.resolve(raw); } catch { continue; }
     if (seen.has(root)) continue;
     seen.add(root);
-    if (!fs.existsSync(path.join(root, "architecture"))) { log(`project "${raw}": no architecture/ dir — skipped`); continue; }
+    if (!fs.existsSync(path.join(root, "architecture"))) { log.log(`project "${raw}": no architecture/ dir — skipped`); continue; }
     const componentsPath = path.join(root, "src", "mindComponents");
     const modelsConfig = path.join(root, "config", "models.yaml");
     projects.push({
@@ -362,10 +363,10 @@ const LOGIN_LOCK_MS = 30000;                         // how long the lockout las
 const LOGIN_DELAY_MS = 250;                          // fixed cost per attempt (slows brute force)
 
 if (AUTH_ON && !STUDIO_SESSION_SECRET) {
-  console.error("[studio] STUDIO_TOKEN is set but STUDIO_SESSION_SECRET is not — refusing to start with a weak signing key. Set both (see doc/serving-remotely.md).");
+  console.error(`[studio] STUDIO_TOKEN is set but STUDIO_SESSION_SECRET is not — refusing to start with a weak signing key. Set both (see doc/serving-remotely.md).`);
   process.exit(1);
 }
-if (AUTH_ON) log("auth enabled — the API is gated by STUDIO_TOKEN");
+if (AUTH_ON) log.log("auth enabled — the API is gated by STUDIO_TOKEN");
 
 /** The session cookie's value: a constant HMAC over a fixed message. A valid
  *  cookie therefore proves only "signed by the secret holder" — no per-session
@@ -511,7 +512,7 @@ app.get("/COVENANT.md", (_req, res) =>
 app.get("/", (_req, res) => res.sendFile(path.join(path.dirname(fileURLToPath(import.meta.url)), "studio.html")));
 // Bind to loopback only: cloudflared connects locally, so the app must never
 // listen on a public interface — the tunnel becomes the only way in (A3).
-const httpServer = app.listen(STUDIO_PORT, "127.0.0.1", () => log(`Studio at http://localhost:${STUDIO_PORT}`));
+const httpServer = app.listen(STUDIO_PORT, "127.0.0.1", () => log.log(`Studio at http://localhost:${STUDIO_PORT}`));
 // Gate the WebSocket upgrade — the real security boundary. The handshake carries
 // the same same-origin cookie the HTTP gate checks; reject with 401 otherwise.
 const wss = new WebSocketServer({
@@ -523,7 +524,7 @@ const clients = new Set();
 
 const sendJSON = (client, obj) => {
   if (client.readyState === WebSocket.OPEN) {
-    try { client.send(JSON.stringify(obj)); } catch (e) { log("send failed:", e.message); }
+    try { client.send(JSON.stringify(obj)); } catch (e) { log.log("send failed:", e.message); }
   }
 };
 const broadcast = obj => { for (const c of clients) sendJSON(c, obj); };
@@ -700,7 +701,7 @@ function wake(file, dryRun, modelProfile, forceTransient, reqName, reqOrigin, re
   // ephemeral id), so its stream and images are findable across restarts/days.
   let sessionId = null;
   try { sessionId = store.startSession({ home, mindName: name, archFile: file, modelProfile: profile, startedAt }); }
-  catch (e) { log(`store.startSession failed: ${e.message}`); }
+  catch (e) { log.log(`store.startSession failed: ${e.message}`); }
 
   const m = {
     id, file, name, dryRun, modelProfile: profile,
@@ -716,7 +717,7 @@ function wake(file, dryRun, modelProfile, forceTransient, reqName, reqOrigin, re
     logs: [], stderrTail: [], sleepRequestedAt: null,
   };
   minds.set(id, m);
-  log(`waking ${id} ← ${project.name}:${file}  (port ${port}${port === PORT_BASE ? ", public" : ""}${dryRun ? ", dry-run" : ""}, profile ${profile})  → ${homeAbs}`);
+  log.log(`waking ${id} ← ${project.name}:${file}  (port ${port}${port === PORT_BASE ? ", public" : ""}${dryRun ? ", dry-run" : ""}, profile ${profile})  → ${homeAbs}`);
 
   pipeLines(child.stdout, "out", m);
   pipeLines(child.stderr, "err", m);
@@ -753,7 +754,7 @@ function onChildExit(m, code, signal) {
   const detail = graceful ? "asleep — memory committed" :
     m.forced ? "force-stopped — memory was not finalized" :
     `exited (code ${code}${signal ? `, ${signal}` : ""})${m.stderrTail.length ? `: ${m.stderrTail[m.stderrTail.length - 1]}` : ""}`;
-  log(`${m.id} ${m.state}: ${detail}`);
+  log.log(`${m.id} ${m.state}: ${detail}`);
   broadcastLifecycle(m, m.state, detail);
   broadcastRoster();
   broadcastArchitectures();
@@ -936,7 +937,7 @@ function sleepMind(id) {
   if (!m || !isAlive(m)) return;
   if (m.state !== "sleeping") {
     m.state = "sleeping"; m.sleepRequestedAt = Date.now();
-    log(`${m.id} sleeping — sending the ritual`);
+    log.log(`${m.id} sleeping — sending the ritual`);
     broadcastLifecycle(m, "sleeping", "asking the mind to fall asleep — its last thought, then memory is committed.");
     broadcastRoster();
     // The graceful ritual travels over the mind's own m-ws control channel
@@ -958,7 +959,7 @@ function sleepMind(id) {
 function forceMind(id) {
   const m = minds.get(id);
   if (!m || !m.child) return;
-  log(`${m.id} FORCE kill`);
+  log.log(`${m.id} FORCE kill`);
   m.forced = true;
   try { m.child.stdin && m.child.stdin.end(); } catch {}
   try { m.child.kill(); } catch {}
@@ -1012,7 +1013,7 @@ process.on("SIGINT", () => {
   if (shuttingDown) process.exit(1);
   shuttingDown = true;
   const alive = [...minds.values()].filter(isAlive);
-  log(`\nStudio shutting down — asking ${alive.length} mind(s) to sleep. Ctrl-C again to force.`);
+  log.log(`\nStudio shutting down — asking ${alive.length} mind(s) to sleep. Ctrl-C again to force.`);
   for (const m of alive) {
     try { if (m.upstream && m.upstream.readyState === WebSocket.OPEN) m.upstream.send(JSON.stringify({ type: "control", action: "sleep" })); } catch {}
   }

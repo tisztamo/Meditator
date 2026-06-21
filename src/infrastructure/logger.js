@@ -1,5 +1,13 @@
 // logger.js
 
+// Compact UTC ISO 8601 timestamp with millisecond precision:
+//   2026-06-21T03:14:22.581Z
+// UTC keeps Studio-supervisor and child-mind logs comparable across timezones
+// and DST transitions during long overnight runs.
+function ts() {
+  return new Date().toISOString();
+}
+
 // Internal configuration variables:
 let globalDebugEnabled = false;
 let debugAllowedSourceFiles = [];
@@ -44,13 +52,13 @@ export function logger(sourceFile) {
   const loggerInstance = {
     _sourceFile: sourceFile,
     _debugEnabled: debugEnabled,
-    log: (...args) => console.log(`[${sourceFile}]`, ...args),
-    info: (...args) => console.info(`[${sourceFile}]`, ...args),
-    warn: (...args) => console.warn(`[${sourceFile}]`, ...args),
-    error: (...args) => console.error(`[${sourceFile}]`, ...args),
+    log: (...args) => console.log(`[${ts()}] [${sourceFile}]`, ...args),
+    info: (...args) => console.info(`[${ts()}] [${sourceFile}]`, ...args),
+    warn: (...args) => console.warn(`[${ts()}] [${sourceFile}]`, ...args),
+    error: (...args) => console.error(`[${ts()}] [${sourceFile}]`, ...args),
     debug: (...args) => {
       if (loggerInstance._debugEnabled) {
-        console.debug(`[${sourceFile}]`, ...args);
+        console.debug(`[${ts()}] [${sourceFile}]`, ...args);
       }
     }
   };
