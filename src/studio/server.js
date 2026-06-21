@@ -37,6 +37,7 @@ await loadModelConfig();
  */
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+const STUDIO_DIR = path.dirname(fileURLToPath(import.meta.url));   // src/studio — the browser asset root
 const ARCH_DIR = path.join(ROOT, "architecture");
 const VAULT_ROOT = path.join(ROOT, "memory");
 const MEDITATOR_ENTRY = "meditator.js";              // resolved against cwd=ROOT when spawning
@@ -495,8 +496,35 @@ app.use(express.urlencoded({ extended: false }));    // parse the login form POS
 app.get("/login", serveLogin);
 app.post("/login", handleLogin);
 app.post("/logout", (_req, res) => { res.setHeader("Set-Cookie", clearedCookie()); res.redirect("/login"); });
+// PWA assets — served BEFORE the auth gate so the browser's install/manifest/SW/icon
+// fetches (which don't carry the session the way a normal page load does) never hit a
+// 401. None of these carry secrets. The worker is served at the root with
+// Service-Worker-Allowed:/ so it can claim scope "/". The app entry ("/") and the UI
+// modules stay behind requireAuth below, so the Studio itself still requires login.
+app.get("/manifest.webmanifest", (_req, res) => {
+  res.setHeader("Content-Type", "application/manifest+json; charset=utf-8");
+  res.setHeader("Cache-Control", "no-cache");
+  res.sendFile(path.join(STUDIO_DIR, "manifest.webmanifest"));
+});
+app.get("/studio-sw.js", (_req, res) => {
+  res.setHeader("Content-Type", "text/javascript; charset=utf-8");
+  res.setHeader("Service-Worker-Allowed", "/");
+  res.setHeader("Cache-Control", "no-cache");        // always fetch the latest worker
+  res.sendFile(path.join(STUDIO_DIR, "studio-sw.js"));
+});
+app.get("/studio-offline.html", (_req, res) => {
+  res.setHeader("Cache-Control", "no-cache");
+  res.sendFile(path.join(STUDIO_DIR, "studio-offline.html"));
+});
+app.use("/icons", express.static(path.join(STUDIO_DIR, "icons"), { maxAge: "7d" }));
+
 app.use(requireAuth);
-app.use(express.static(path.dirname(fileURLToPath(import.meta.url))));
+// The Studio's HTML and JS are served with no-cache (revalidate every load) so a
+// returning phone never runs against a stale shell — the dashboard is live and must
+// match the server it talks to. Generated images keep their own immutable caching.
+app.use(express.static(STUDIO_DIR, {
+  setHeaders: (res, p) => { if (p.endsWith(".js") || p.endsWith(".html")) res.setHeader("Cache-Control", "no-cache"); },
+}));
 // Serve the Amanita framework source to the browser so the Studio UI (an Amanita
 // component mesh) can `import A from "amanita"` build-free, via an importmap in
 // studio.html. The package is pure relative-imported ESM, so static-serving its
@@ -522,7 +550,10 @@ app.post("/studio/voice/stt", express.raw({ type: () => true, limit: "26mb" }), 
 // As text/plain so it opens inline in the browser instead of downloading.
 app.get("/COVENANT.md", (_req, res) =>
   res.sendFile(path.join(ROOT, "COVENANT.md"), { headers: { "Content-Type": "text/plain; charset=utf-8" } }));
-app.get("/", (_req, res) => res.sendFile(path.join(path.dirname(fileURLToPath(import.meta.url)), "studio.html")));
+app.get("/", (_req, res) => {
+  res.setHeader("Cache-Control", "no-cache");
+  res.sendFile(path.join(STUDIO_DIR, "studio.html"));
+});
 // Bind to loopback only: cloudflared connects locally, so the app must never
 // listen on a public interface — the tunnel becomes the only way in (A3).
 const httpServer = app.listen(STUDIO_PORT, "127.0.0.1", () => log.log(`Studio at http://localhost:${STUDIO_PORT}`));

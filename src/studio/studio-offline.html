@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Studio — offline</title>
+<style>
+  html,body{height:100%;margin:0}
+  body{background:#0a0d13;color:#e9e7e2;
+       font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+       display:flex;flex-direction:column;align-items:center;justify-content:center;
+       gap:18px;padding:24px;text-align:center}
+  .mark{color:#b79cf0;font-size:2.6rem;line-height:1}
+  h1{font-weight:600;font-size:1.2rem;margin:0}
+  p{color:#99a1b4;max-width:32ch;line-height:1.6;margin:0;font-size:.95rem}
+  button{background:rgba(183,156,240,.16);border:1px solid rgba(183,156,240,.45);color:#cdbcf6;
+         border-radius:10px;padding:12px 22px;font-size:1rem;cursor:pointer;min-height:44px}
+  button:hover{background:rgba(183,156,240,.28)}
+</style>
+</head>
+<body>
+  <div class="mark">⟂</div>
+  <h1>You're offline</h1>
+  <p>The Studio is a live view of the minds — it needs a connection to the supervisor.
+     This is <b>not</b> a saved copy; reconnect to see the current state.</p>
+  <button type="button" onclick="location.reload()">Reload</button>
+  <script>
+    // Come back automatically the moment the network returns.
+    addEventListener("online", () => location.reload());
+    setInterval(() => { if (navigator.onLine) location.reload(); }, 4000);
+  </script>
+</body>
+</html>

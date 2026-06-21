@@ -26,3 +26,11 @@ import "./studioVoice.js";
 import "./studioToast.js";
 import "./studioPanes.js";
 import "./studioCovenant.js";
+
+// Make the Studio installable to the home screen. The worker (studio-sw.js) caches
+// no app state — it only enables install and an honest offline page — so it can't
+// strand a phone on a stale view. Secure-context only (https / localhost); a
+// plain-IP LAN dev origin simply skips registration.
+if ("serviceWorker" in navigator && window.isSecureContext) {
+  addEventListener("load", () => navigator.serviceWorker.register("/studio-sw.js").catch(() => {}));
+}

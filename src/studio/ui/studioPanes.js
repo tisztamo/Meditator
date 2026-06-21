@@ -25,7 +25,11 @@ export class StudioPanes extends A(HTMLElement) {
     });
     this.setPane(getPref("pane", "minds"), false);
     // Focusing a mind jumps to the Stream pane so the selector stops blocking it.
+    // /conn/focused covers a focus *change* (incl. reload-restore); /conn/revealStream
+    // also fires when re-tapping the already-focused mind (which focus() dedups), so a
+    // tap in the Minds pane always lands on that mind's stream.
     this.sub("/conn/focused", id => { if (id) this.setPane("stream", true); }, 12);
+    this.sub("/conn/revealStream", () => this.setPane("stream", true), 12);
   }
 
   setPane(p, persist) {

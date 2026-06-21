@@ -55,8 +55,14 @@ export class StudioConn extends A(HTMLElement) {
     // Tell the stream when the tab is hidden so it stops the rAF reveal (which a
     // background tab throttles to ~0 Hz, letting the queue grow unbounded) and
     // appends live text instantly instead. Returning needs no animated catch-up.
-    this._onVis = () => this.pub("hidden", typeof document !== "undefined" && document.hidden === true);
+    // Coming back also kicks a reconnect (see resume()) so the view isn't stale.
+    this._onVis = () => { this.pub("hidden", typeof document !== "undefined" && document.hidden === true); this.resume(); };
+    // pageshow with persisted=true is a back/forward-cache restore: the socket was
+    // closed entering the cache, so force it gone before reconnecting.
+    this._onShow = e => { if (e && e.persisted && this.ws) { try { this.ws.close(); } catch { /* gone */ } this.ws = null; } this.resume(); };
+    this._onOnline = () => this.resume();
     if (typeof document !== "undefined") document.addEventListener("visibilitychange", this._onVis);
+    if (typeof window !== "undefined") { window.addEventListener("pageshow", this._onShow); window.addEventListener("online", this._onOnline); }
     this.pub("hidden", typeof document !== "undefined" && document.hidden === true);
   }
 
@@ -64,7 +70,26 @@ export class StudioConn extends A(HTMLElement) {
     this.manualClose = true;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     if (this._onVis && typeof document !== "undefined") document.removeEventListener("visibilitychange", this._onVis);
+    if (typeof window !== "undefined") { window.removeEventListener("pageshow", this._onShow); window.removeEventListener("online", this._onOnline); }
     try { this.ws && this.ws.close(); } catch { /* already gone */ }
+  }
+
+  /** Resume hook (tab shown again / bfcache restore / network returned). A frozen
+   *  mobile tab usually has a dead socket while its reconnect timer was frozen too,
+   *  so the dashboard looks stale; drop the dead socket and reconnect *now*. The
+   *  supervisor then resends the roster and re-runs the focus backfill, so live
+   *  state catches up at once instead of waiting out the backoff. */
+  resume() {
+    if (typeof document !== "undefined" && document.hidden) return;          // still hidden — wait
+    if (this.ws && this.ws.readyState !== WebSocket.OPEN && this.ws.readyState !== WebSocket.CONNECTING) {
+      try { this.ws.close(); } catch { /* already gone */ }
+      this.ws = null;                                                        // a CLOSED socket would block connect()'s guard
+    }
+    if (!this.ws) {
+      if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null; }
+      this.reconnectDelay = 250;
+      this.connect();
+    }
   }
 
   // ----------------------------------------------------- connection lifecycle
@@ -198,7 +223,10 @@ export class StudioConn extends A(HTMLElement) {
       case "sleep":   this.sleep(d.id); break;
       case "force":   this.force(d.id); break;
       case "dismiss": this.dismiss(d.id); break;
-      case "focus":   this.focus(d.id); break;
+      // Every focus *command* (a roster tap) pulses revealStream so the mobile pane
+      // switcher can jump to the Stream — even when the tapped mind is already the
+      // focused one (focus() below dedups same-id, so /conn/focused wouldn't re-fire).
+      case "focus":   if (d.id) this.pub("revealStream", d.id); this.focus(d.id); break;
     }
   }
 
