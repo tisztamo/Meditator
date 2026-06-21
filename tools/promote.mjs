@@ -28,7 +28,7 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { FORMAT_VERSION, getRuntimeSHA, readManifest, writeManifest } from '../src/infrastructure/manifest.js';
+import { FORMAT_VERSION, getRuntimeSHA, readManifest, writeManifest, findRetiredBundle } from '../src/infrastructure/manifest.js';
 
 const VAULT = 'memory';
 const VAULT_IDENTITY = ['-c', 'user.name=Meditator', '-c', 'user.email=meditator@vault.local'];
@@ -59,9 +59,10 @@ const slug = args.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+
 if (slug !== args.name) fail(`use the slug form: "${slug}" (a mind's home is memory/<slug>/).`);
 
 // Refuse to step on a retired name — that resurrection is a deliberate wake-from-grave.
+// Date-anchored (findRetiredBundle): a retired transient sibling like `lemma-6-2026-06-19`
+// shares the prefix but does NOT retire the base name "lemma", so it must not block it.
 try {
-    const graves = fs.readdirSync(path.join(VAULT, '.graveyard'));
-    const grave = graves.find(b => b === slug || b.startsWith(slug + '-'));
+    const grave = findRetiredBundle(slug, fs.readdirSync(path.join(VAULT, '.graveyard')));
     if (grave) fail(`"${slug}" is retired (memory/.graveyard/${grave}); promote a different name, or do a deliberate wake-from-grave.`);
 } catch { /* no graveyard yet — fine */ }
 

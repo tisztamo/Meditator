@@ -45,6 +45,18 @@ test("a mind with no <m-origin> is left untouched", () => {
   expect(applyOriginOverride(src, "anything")).toBe(src);
 });
 
+test("ignores a <m-origin> mentioned inside a comment and rewrites the real one", () => {
+  // A design note that names <m-origin> in prose must not be mistaken for the element
+  // (the bug that made lemma's editable origin read "): the identity stands…").
+  const src = `<!-- the seed of thought lives in <m-origin>, held apart from the identity -->\n<m-mind name="lemma">\n  You are a mind.\n  <m-origin name="origin">the real seed</m-origin>\n</m-mind>`;
+  const out = applyOriginOverride(src, "a chosen seed");
+  expect(out).toContain(`<m-origin name="origin">\na chosen seed\n</m-origin>`);
+  expect(out).not.toContain("the real seed");
+  // The comment is untouched and the mind body survives.
+  expect(out).toContain("<!-- the seed of thought lives in <m-origin>, held apart from the identity -->");
+  expect(out).toContain("You are a mind.");
+});
+
 test("touches only the first m-origin and leaves surrounding source intact", () => {
   const src = `<m-mind name="seedling">\n  You are a mind.\n  <m-origin name="origin" prompt="an opening question"></m-origin>\n  <m-stream/>\n</m-mind>`;
   const out = applyOriginOverride(src, "a different opening");

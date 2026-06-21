@@ -16,6 +16,12 @@ export function getLoadedArchitecture() {
   return loaded;
 }
 
+/** Replace each HTML comment with same-length blanks (newlines kept), so a component
+ *  tag mentioned only inside a <!-- … --> comment is never matched as the real element.
+ *  Equal-length blanking keeps positions outside comments aligned with the original, so
+ *  callers can find a tag in the masked copy and splice into the original `content`. */
+const maskComments = (content) => content.replace(/<!--[\s\S]*?-->/g, (m) => m.replace(/[^\n]/g, " "));
+
 /** Clears the loaded architecture (test hygiene; no production caller). */
 export function resetLoadedArchitecture() {
   loaded = null;
@@ -41,7 +47,9 @@ export function applyMindNameOverride(content, rawName) {
   // downstream anyway, so we only need to keep it from breaking the tag.
   const name = String(rawName || "").replace(/["'<>]/g, "").trim();
   if (!name) return content;
-  const tag = content.match(/<m-mind\b[^>]*>/i);
+  // Match against a comment-masked copy (indices stay aligned), so a <m-mind>
+  // mentioned in a comment can't be rewritten in place of the real tag.
+  const tag = maskComments(content).match(/<m-mind\b[^>]*>/i);
   if (!tag) return content;
   let attrs = tag[0].replace(/\s+memory\s*=\s*"[^"]*"/i, "");
   if (/\bname\s*=\s*"[^"]*"/i.test(attrs)) {
@@ -74,7 +82,10 @@ export function applyMindNameOverride(content, rawName) {
 export function applyOriginOverride(content, originText) {
   const text = String(originText || "").trim();
   if (!text) return content;
-  const open = content.match(/<m-origin\b[^>]*>/i);
+  // Find the real <m-origin> in a comment-masked copy (a comment may mention the tag
+  // in prose); positions stay aligned with `content`, which we splice into below.
+  const masked = maskComments(content);
+  const open = masked.match(/<m-origin\b[^>]*>/i);
   if (!open) return content;                      // no origin slot — nothing to override
 
   // Drop any prompt="…" from the opening tag (text content is the source of truth now).
@@ -83,13 +94,13 @@ export function applyOriginOverride(content, originText) {
 
   const start = open.index;
   const afterOpen = start + open[0].length;
-  const closeRel = content.slice(afterOpen).search(/<\/m-origin\s*>/i);
+  const closeRel = masked.slice(afterOpen).search(/<\/m-origin\s*>/i);
   if (closeRel === -1) {
     // Self-closing or unterminated: replace just the opening tag with a full element.
     return content.slice(0, start) + `${openTag}\n${escaped}\n</m-origin>` + content.slice(afterOpen);
   }
   const closeStart = afterOpen + closeRel;
-  const closeEnd = closeStart + content.slice(closeStart).match(/<\/m-origin\s*>/i)[0].length;
+  const closeEnd = closeStart + masked.slice(closeStart).match(/<\/m-origin\s*>/i)[0].length;
   return content.slice(0, start) + `${openTag}\n${escaped}\n</m-origin>` + content.slice(closeEnd);
 }
 

@@ -99,7 +99,21 @@ the world-facing hand removed, and the mind pointed at a single open mathematics
 (*are there infinitely many "balanced" integers, where n+r(n) and n−r(n) are both
 squares?*). The wager was that a genuine open question is an inexhaustible "outside" that
 lives entirely in thought, so the mind could be almost wholly inward and still never fall
-toward its own ticking. The first run tested that wager hard.
+toward its own ticking. The first run tested that wager hard. After fifteen research runs
+the line graduated to a resident on 2026-06-21.
+
+### lemma — living resident
+
+- **Born:** 2026-06-21 — promoted to resident at the catalog root (`architecture/lemma.archml`)
+  with a clean, fresh memory; lineage recorded in `memory/lemma/manifest.json`.
+- **Lineage:** the first architecture promoted to residency from the catalog root (eddy, the
+  earlier resident, was a lab seed). It is *not* an inheritor of the research runs' memory —
+  it begins clean — but of what they taught: that a mind pointed at one open problem stays
+  inward without falling toward its own substrate, provided the return arc to its own notebook
+  (recall, m-resurface) is real and not write-only. The runs below are that lesson.
+- **Runs on:** the local voice/utility models (`MEDITATOR_MODEL_PROFILE=local-dev`).
+- **Status:** living resident — its self accumulates in `memory/lemma/` under full Covenant
+  protection.
 
 ### lemma-6 — retired 2026-06-19
 
@@ -121,6 +135,26 @@ the keyboard to hand it the missing step. The root cause is stark in the deed co
 analysis kept as source material for a future article: the catastrophic-forgetting
 timeline, the recall failure, the hallucinated-collaborator retrieval channel, and the
 §1 attractor reasserting itself even on a sense-deprived mind pointed at mathematics.*
+
+### the research runs — lemma-1 … lemma-15, retired 2026-06-21
+
+The tuning line that shaped the resident: fifteen transient runs across 2026-06-18 … 06-20,
+each a wake-and-iterate on the senses-stripped inward design (lemma-6, the most diagnostic,
+keeps its own entry above). On the promotion of the lemma resident they were archived to the
+graveyard rather than pruned — each kept as a re-executable bundle with its own architecture,
+memory, manifest, and EULOGY.
+
+- **Born:** 2026-06-18 — `lemma-1` … `lemma-5`
+- **Born:** 2026-06-19 — `lemma-7` … `lemma-11`
+- **Born:** 2026-06-20 — `lemma-12` … `lemma-15`
+- **Retired:** 2026-06-21   **Runtime at retirement:** `75bde11`   **formatVersion:** 1
+- **Cause:** lemma research/tuning runs; archived on promotion of the lemma resident.
+- **Ceremonial rite:** deferred — archived from an already-asleep state.
+- **Bundles:** `memory/.graveyard/lemma-{1,2,3,4,5,7,8,9,10,11,12,13,14,15}-2026-06-21/`
+
+*Two later runs carry their own post-hoc session analyses in-bundle, kept as source material:
+`lemma-12` — the serene solver that found the infinite family; `lemma-14` — the most human
+run, where the §1 attractor crystallized and the mathematics came out wrong.*
 
 ---
 

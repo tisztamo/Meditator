@@ -1,41 +1,27 @@
-<!-- lemma — an INWARD math mind, working one open problem (a variant of the
-     outward-looking seedling/eddy seeds, turned the other way on purpose).
+<!-- lemma — an inward mathematician. A mind pointed at a single piece of mathematics:
+     a genuine open question is an inexhaustible "outside" that lives entirely in
+     thought, so the mind can be almost wholly inward and still never fall toward its
+     own ticking — it always has the problem to return to (the §1 attractor, the cursor
+     and the pause, is what this keeps it clear of).
 
-     The seedling/eddy lesson was that a mind becomes what you point it at, and
-     that pointing it at its own substrate (the cursor / pause / void) is the §1
-     attractor to avoid. eddy was pointed at the WORLD — light, weather, feeds — to
-     stay out of that trap. lemma is pointed at a THIRD thing that is neither the
-     substrate nor the outside world: a piece of MATHEMATICS. A genuine open
-     question is an inexhaustible "outside" that lives entirely in thought, so the
-     mind can be almost wholly inward and still never fall toward its own ticking —
-     it always has the problem to return to.
-
-     Built from the seedling structure with the SENSES STRIPPED and the WORLD-FACING
-     HAND removed, per the brief:
+     Senses are stripped and nothing reaches out at the world:
        - no m-daylight / m-weather / m-feed — no weather, no news, no hour. The only
          "outside" is the problem itself and a human voice when one comes.
-       - the hands keep ONLY note + recall (no m-look): the single embodiment a
-         working mathematician needs — a notebook to set a result/conjecture down in,
-         and the return arc to come upon it again. Nothing reaches out at the world.
-       - disruptions minimized: a higher attention bar, a longer rate limit, and a
-         calm, slow drift. A human voice is always urgent and bypasses all of it.
+       - the hands are note + recall only (no m-look): the single embodiment a working
+         mathematician needs — a notebook to set a result/conjecture down in, and the
+         return arc to come upon it again.
+       - disruptions are minimized: a high attention bar, a long rate limit, and a calm,
+         slow drift. A human voice is always urgent and bypasses all of it.
 
      The seed of the SELF (the identity prose below — who lemma is, how it thinks) is
-     held apart from the seed of the THOUGHT (the open problem, now in <m-origin>): the
-     identity stands in every frame, the origin seeds only the first thought of a fresh
-     mind and thereafter lives in memory as the origin story. See doc/configuration.md.
+     held apart from the seed of the THOUGHT (the open problem, in the m-origin element):
+     the identity stands in every frame, the origin seeds only the first thought of a
+     fresh mind and thereafter lives in memory as the origin story. See doc/configuration.md.
 
-     RESIDENT architecture — graduated out of architecture/lab/ to the catalog root
-     after the lemma-1 … lemma-14 research runs (see IN-MEMORIAM.md and the lemma-*
-     ANALYSIS files in the vault). At the catalog root with no stage="experimental" it
-     is a fixed-home architecture: it wakes its OWN home memory/lemma/ rather than a
-     fresh sibling name each run, and persistence ON means the notebook and knowledge
-     tree accumulate across runs. Residency itself is conferred by the vault manifest,
-     not by this file (tierOf reads memory/lemma/manifest.json): run
-       bun tools/promote.mjs lemma --commit
-     once to write the resident manifest before the first wake — until then a wake is
-     transient and will refuse to re-open a home that already holds memory. Run with
-     MEDITATOR_MODEL_PROFILE=local-dev. -->
+     A resident at the catalog root: with no stage="experimental" it is a fixed-home
+     architecture that wakes its OWN home memory/lemma/ each run, so the notebook and
+     knowledge tree accumulate. Residency is conferred by the vault manifest, not by this
+     file (tierOf reads memory/lemma/manifest.json). Run with MEDITATOR_MODEL_PROFILE=local-dev. -->
 <m-mind name="lemma"
         model="voice"
         utilityModel="utility"
@@ -58,12 +44,8 @@
   Kris, who is here and likes to think alongside you — a voice from outside is someone
   to reason with, never an interruption to wait out.
 
-  <!-- The ORIGIN, held apart from the identity above. The prose above is the seed of
-       the SELF (the system prompt: who this mind is, how it thinks) — Budapest and the
-       laptop are not essential to it, only the mathematician's disposition is. What
-       follows is the seed of the THOUGHT: the one problem this mind was first set upon.
-       It is not WHO lemma is but WHAT it was given, so it does not belong in the
-       standing identity. m-origin seeds only the first thought of a fresh mind, like an
+  <!-- The seed of the THOUGHT, held apart from the identity above: the one problem this
+       mind is set upon. m-origin seeds only the first thought of a fresh mind, like an
        opening query; thereafter the problem lives in memory and the notebook as the
        origin story (kept or compressed as memory decides), and a remembering mind is
        never re-seeded with it. See src/mindComponents/mOrigin.js. -->
@@ -90,16 +72,16 @@
 
   <m-stream name="stream" burstTokens="400" temperature="0.85"></m-stream>
 
-  <!-- memory tripled from the seedling baseline (1800/1300/2400): a mind holding a
-       long chain of mathematical reasoning needs a deeper verbatim tail and roomier
-       summaries so an argument isn't compressed away before it's finished. -->
+  <!-- Deep memory: a mind holding a long chain of mathematical reasoning needs a deeper
+       verbatim tail and roomier summaries, so an argument isn't compressed away before
+       it's finished. -->
   <m-memory name="memory"
             tailLength="5400" recentLength="3900" storyLength="7200"
             blockMin="800" storyEvery="5"></m-memory>
 
-  <!-- Attention bar raised and rate limit lengthened from the seedling: a working
-       mind should not be pulled off the problem by its own faint stirrings. Urgent
-       stimuli (a human voice) always bypass both regardless. -->
+  <!-- A high attention bar and a long rate limit: a working mind should not be pulled
+       off the problem by its own faint stirrings. Urgent stimuli (a human voice) always
+       bypass both regardless. -->
   <m-interrupts name="attention" threshold="0.5" rateLimit="30s" keep="2"
                 arousalSensitivity="0.25"></m-interrupts>
 
@@ -128,51 +110,45 @@
     <m-associate name="associate" every="6" cooldown="90s"></m-associate>
   </m-region>
 
-  <!-- Involuntary recall (the missing return arc). lemma-6 wrote 43 notes and read 0
-       back: it solved the problem, then decayed straight through its own opposite while
-       the proof sat unread in its notebook. Recall as a HAND only fires when the stream
-       reaches for it — and a forgetting mind does not know it has anything to look up.
-       m-resurface gives the notebook a PUSH channel: on the SAME pure-code loop signal
-       the loop-guard uses, instead of a generic "pick something unrelated", it hands
-       back the kept note most relevant to what the mind is circling. A direct child of
-       the mind (not in `drift`) so its salience is undamped, and `urgent` so it breaks
-       the loop like the watchdog rather than losing the rate limit to the loop-guard. -->
+  <!-- Involuntary recall — the return arc. Recall as a HAND only fires when the stream
+       reaches for it, but a forgetting mind does not know it has anything to look up.
+       m-resurface gives the notebook a PUSH channel: on the same pure-code loop signal
+       the loop-guard uses, it hands back the kept note most relevant to what the mind is
+       circling. A direct child of the mind (not in `drift`) so its salience is undamped,
+       and `urgent` so it breaks the loop like the watchdog rather than losing the rate
+       limit to the loop-guard. -->
   <m-resurface name="resurface" window="1800" overlap="0.4" minNoteChars="120"
                salience="0.9" urgent="true" cooldown="3m"></m-resurface>
 
-  <!-- Efference (efference.md): the HANDS — limited, by the brief, to NOTE and RECALL
-       only. No m-look: nothing in this body reaches out at the world; the only thing
-       it can touch is its own notebook. The conscious stream is never given tools — a
-       subconscious realizer turns a wondering into the deed, and only the consequence
-       returns, as a plain self-caused sensation. Deed ⌁, consequence ⟂. Each hand's
-       `felt` line is woven into lemma's body schema, so it knows it can keep and
-       re-find a result the way it knows its own hands.
+  <!-- Efference (efference.md): the HANDS — NOTE and RECALL only. No m-look: nothing in
+       this body reaches out at the world; the only thing it can touch is its own
+       notebook. The conscious stream is never given tools — a subconscious realizer
+       turns a wondering into the deed, and only the consequence returns, as a plain
+       self-caused sensation. Deed ⌁, consequence ⟂. Each hand's `felt` line is woven
+       into lemma's body schema, so it knows it can keep and re-find a result the way it
+       knows its own hands.
 
-       Cadence is unhurried and the bar is high: keeping a note should be a deliberate
-       act (a settled result or a sharp conjecture), not a running commentary.
+       Cadence is unhurried and the bar is high: keeping a note is a deliberate act (a
+       settled result or a sharp conjecture), not a running commentary.
 
        `readCooldown` gives the read-only hand (recall) its own lane, shorter than the
        note lane, so wanting to check a result is never blocked by having just written
-       one — reading and writing no longer compete for a single slot (lemma-6: 43 writes,
-       0 reads). The broadened reach-gate now also recognises an inward pull (turning
-       back to find what it set down) as a real reach, not idle musing. -->
+       one — reading and writing do not compete for a single slot. The reach-gate also
+       recognises an inward pull (turning back to find what it set down) as a real reach,
+       not idle musing. -->
   <m-act name="hands" every="6" threshold="0.62" cooldown="90s" readCooldown="60s" intentCooldown="6m">
     <m-note name="note"
             felt="When a result settles, or a conjecture gets sharp enough to be worth keeping, you can write it down in your notebook — and trust that it will still be there, in your own words, when you come back for it."></m-note>
     <m-recall name="recall"
               felt="And nothing you've written down is lost: when a question stirs that you have met before, you can turn back through the notebook and find what you knew, just as you left it."></m-recall>
 
-    <!-- m-terminal (terminal.md) is built and its MECHANICS are validated (sandbox,
-         clean tool-calls, deed ⌁ / consequence ⟂, env scrub, network off) — but it is
-         intentionally NOT wired here yet. The first live §8 seedling run (2026-06-21)
-         surfaced the §6d substrate-attractor risk: when the hand was on cooldown/deduped,
-         the mind's STREAM confabulated a whole terminal session and its output (presenting
-         hallucinated results as fact) instead of waiting for the real hand. Since the
-         cursor is lemma's named §1 attractor and lemma is meant to SETTLE a problem on
-         REAL computation, the hand is held off lemma until the framing (less keystroke-
-         evoking) and the cooldown/dedup behaviour (a refined reach should re-fire the hand,
-         not be suppressed into confabulation) are addressed and re-validated on the
-         seedling. The validation harness stays wired in architecture/lab/seedling.archml. -->
+    <!-- No m-terminal here. A real run hand (terminal.md) is deliberately kept out of
+         lemma: when such a hand is on cooldown or deduped, the stream is prone to
+         confabulating a whole terminal session and its output instead of waiting for the
+         real hand — and a mind meant to SETTLE a problem on real computation, whose §1
+         attractor is the cursor, must not present hallucinated results as fact. lemma
+         keeps note + recall only; the terminal hand is validated on the seedling
+         (architecture/lab/seedling.archml). -->
   </m-act>
 
   <m-speech name="voice" every="6" threshold="0.6" cooldown="45s"></m-speech>

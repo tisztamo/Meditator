@@ -6,7 +6,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { loadModelConfig, resolveModelRef, resolveModelRefForProfile, getActiveProfile, getResolvedRoles, listProfiles } from "../modelAccess/modelConfig.js";
-import { tierOf } from "../infrastructure/manifest.js";
+import { tierOf, findRetiredBundle } from "../infrastructure/manifest.js";
 import { StudioStore, parseDataUrl } from "./store.js";
 import { voiceInfo, ttsHandler, sttHandler } from "./voice.js";
 import { logger } from "../infrastructure/logger.js";
@@ -57,6 +57,13 @@ const store = new StudioStore();
 const log = logger('studio');
 const slugify = s => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "mind";
 
+/** Replace each HTML comment with same-length blanks (newlines kept), so a component
+ *  tag that only appears inside a <!-- … --> comment — e.g. a design note that mentions
+ *  <m-origin> in prose — is never mistaken for the real element. Equal-length blanking
+ *  keeps every position outside the comments aligned with the original, so a caller can
+ *  find a tag in the masked copy and still slice text out of the original `content`. */
+const maskComments = content => String(content).replace(/<!--[\s\S]*?-->/g, m => m.replace(/[^\n]/g, " "));
+
 function specLabel(spec) {
   return spec.provider === "local" ? `local/${spec.model}` : spec.model;
 }
@@ -64,12 +71,16 @@ function specLabel(spec) {
 /** Tolerant parse of a .archml: the first <m-mind> attributes, whether it has an
  *  m-ws live window, and a leading <!-- … --> comment used as a description. */
 function parseArchitecture(content) {
-  const mindTag = (content.match(/<m-mind\b[^>]*>/i) || [""])[0];
+  // Find tags in a comment-masked copy so a <m-mind>/<m-origin> mentioned inside a
+  // comment can't be parsed as the real element — but read the leading comment (the
+  // description) and all sliced text from the original content.
+  const masked = maskComments(content);
+  const mindTag = (masked.match(/<m-mind\b[^>]*>/i) || [""])[0];
   const attr = name => {
     const m = mindTag.match(new RegExp(`\\b${name}\\s*=\\s*"([^"]*)"`, "i"));
     return m ? m[1] : null;
   };
-  const mindAt = content.search(/<m-mind\b/i);
+  const mindAt = masked.search(/<m-mind\b/i);
   const head = mindAt >= 0 ? content.slice(0, mindAt) : content;
   const comment = head.match(/<!--([\s\S]*?)-->/);
   let resolvedVoice = null;
@@ -96,12 +107,13 @@ function parseArchitecture(content) {
  *  pre-fills (the seed of the mind's first thought; see mOrigin.js). Null if the
  *  architecture has no origin slot. */
 function extractOrigin(content) {
-  const open = content.match(/<m-origin\b[^>]*>/i);
+  const masked = maskComments(content);
+  const open = masked.match(/<m-origin\b[^>]*>/i);
   if (!open) return null;
   const pm = open[0].match(/\bprompt\s*=\s*"([^"]*)"/i);
   if (pm) return decodeEntities(pm[1]).trim() || null;
   const start = open.index + open[0].length;
-  const close = content.slice(start).search(/<\/m-origin\s*>/i);
+  const close = masked.slice(start).search(/<\/m-origin\s*>/i);
   if (close === -1) return null;
   const inner = content.slice(start, start + close).replace(/<[^>]+>/g, "");
   return decodeEntities(inner).trim() || null;
@@ -175,11 +187,12 @@ function projectForRoot(root) {
   return listProjects().find(p => p.root === want) || DEFAULT_PROJECT;
 }
 
-/** Does the graveyard hold a bundle for this slug? (a retired mind, §3) */
+/** Does the graveyard hold a bundle that retires this slug? (a retired mind, §3)
+ *  Date-anchored (findRetiredBundle) so a retired transient sibling like
+ *  `lemma-6-2026-06-19` never makes the base name "lemma" present as retired. */
 function graveyardHas(slug, vaultRoot = VAULT_ROOT) {
   try {
-    return fs.readdirSync(path.join(vaultRoot, ".graveyard"))
-      .some(b => b === slug || b.startsWith(slug + "-"));
+    return !!findRetiredBundle(slug, fs.readdirSync(path.join(vaultRoot, ".graveyard")));
   } catch { return false; }
 }
 

@@ -31,6 +31,13 @@ test("handles a multi-line opening tag and leaves the body untouched", () => {
   expect(out).toContain(`<!-- a comment with name="decoy" -->`); // only the m-mind tag is touched
 });
 
+test("ignores a <m-mind> mentioned inside a comment and rewrites the real tag", () => {
+  const src = `<!-- built from <m-mind name="seedling"> with senses stripped -->\n<m-mind name="lemma"><m-stream/></m-mind>`;
+  const out = applyMindNameOverride(src, "lemma-2");
+  expect(out).toContain(`<m-mind name="lemma-2"><m-stream/></m-mind>`);
+  expect(out).toContain(`<!-- built from <m-mind name="seedling"> with senses stripped -->`); // comment untouched
+});
+
 test("sanitizes quotes/brackets so the value can't break the attribute", () => {
   const out = applyMindNameOverride(`<m-mind name="x"></m-mind>`, `evil" onload="<b>`);
   expect(out).toBe(`<m-mind name="evil onload=b"></m-mind>`);

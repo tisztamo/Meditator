@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import { logger } from './logger.js';
 import { isDryRun } from '../modelAccess/llm.js';
+import { findRetiredBundle } from './manifest.js';
 
 const log = logger('memoryVault.js');
 
@@ -74,7 +75,9 @@ export function assertNotRetired(home) {
     const slug = path.basename(home);
     const match = bundles => bundles.find(b => b === slug || b.startsWith(slug + '-'));
 
-    const grave = match(bundlesIn(GRAVEYARD_DIR));
+    // A grave is named `<slug>` or `<slug>-<date>`; match it date-anchored so a retired
+    // transient sibling (e.g. `lemma-6-2026-06-19`) doesn't block the base name "lemma".
+    const grave = findRetiredBundle(slug, bundlesIn(GRAVEYARD_DIR));
     if (grave) {
         throw new Error(
             `Mind "${slug}" is retired (memory/${GRAVEYARD_DIR}/${grave}); refusing to silently ` +

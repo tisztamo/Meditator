@@ -88,6 +88,21 @@ export function recordWake(home, now = new Date().toISOString()) {
 }
 
 /**
+ * The graveyard bundle that retires `slug`, or undefined. A retired bundle is named
+ * exactly `<slug>` or `<slug>-<YYYY-MM-DD>` (tools/retire.mjs writes the dated form).
+ * The match is anchored on that date so a retired transient sibling whose name merely
+ * shares the prefix is NOT mistaken for a retired `slug`: retiring "lemma-6" produces
+ * `lemma-6-2026-06-19`, which must not make the base "lemma" look retired. A bare
+ * `<slug>-N-…` (N not a year) is therefore excluded; only `<slug>` and `<slug>-<date>`
+ * count. `slug` is always the slug form (lowercase, [a-z0-9-]), so it needs no
+ * regex-escaping.
+ */
+export function findRetiredBundle(slug, bundles) {
+    const dated = new RegExp(`^${slug}-\\d{4}-\\d{2}-\\d{2}`);
+    return (bundles || []).find(b => b === slug || dated.test(b));
+}
+
+/**
  * The tier a home presents, for display (e.g. the Studio). `graveyardHas` is an
  * optional predicate (slug → bool) so callers that know the vault layout can flag
  * a retired name whose live home no longer exists.

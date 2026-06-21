@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import {
     FORMAT_VERSION, readManifest, writeManifest, recordWake, tierOf, manifestPath,
+    findRetiredBundle,
 } from "../../../src/infrastructure/manifest.js";
 
 let tmp, home, bare;
@@ -67,6 +68,17 @@ test("tierOf classifies resident, transient, retired, and none", () => {
     expect(tierOf(bare)).toBe("transient");
     expect(tierOf(path.join(tmp, "ghost"))).toBe("none");
     expect(tierOf(path.join(tmp, "buried"), slug => slug === "buried")).toBe("retired");
+});
+
+test("findRetiredBundle is date-anchored, not a bare prefix", () => {
+    const graves = ["seedling-6-2026-06-18", "lemma-6-2026-06-19", "lemma-1-2026-06-21"];
+    // A retired transient sibling (lemma-6, lemma-1) must NOT make the base "lemma" retired…
+    expect(findRetiredBundle("lemma", graves)).toBeUndefined();
+    // …but an exact name or a real <name>-<date> grave does.
+    expect(findRetiredBundle("lemma-6", graves)).toBe("lemma-6-2026-06-19");
+    expect(findRetiredBundle("lemma", [...graves, "lemma-2026-06-22"])).toBe("lemma-2026-06-22");
+    expect(findRetiredBundle("lemma", ["lemma"])).toBe("lemma");
+    expect(findRetiredBundle("lemma", [])).toBeUndefined();
 });
 
 test("memory.md meta carries formatVersion", () => {
