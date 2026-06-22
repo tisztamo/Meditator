@@ -1,0 +1,4 @@
+[submodule "experiments"]
+	path = experiments
+	url = https://github.com/tisztamo/Meditator-experiments.git
+	branch = main
