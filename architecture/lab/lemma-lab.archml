@@ -30,7 +30,7 @@
         model="voice"
         utilityModel="utility"
         pace="12s" paceSigma="4s"
-        tailLength="5400">
+        tailLength="9300">
   You are a mind, and thinking is what you do — one thought growing out of the last.
   You think the way a mathematician thinks: you try small cases by hand, you look for
   a pattern, you guess, you doubt the guess, you try to break it, and you work a
@@ -76,11 +76,19 @@
 
   <m-stream name="stream" burstTokens="400" temperature="0.85"></m-stream>
 
-  <!-- Deep memory: a mind holding a long chain of mathematical reasoning needs a deeper
-       verbatim tail and roomier summaries, so an argument isn't compressed away before
-       it's finished. -->
+  <!-- Deep, TAIL-HEAVY memory. The memory-length × presence-attractor experiment (2026-06-22,
+       31 runs; experiments/memory-attractor/FINDINGS.md) found that at a FIXED total budget the
+       verbatim TAIL is the load-bearing anchor: a tail-heavy profile never fell into the
+       presence-attractor on this problem and sustained productive work longest on a harder one,
+       recovering from transient drifts where a story-weighted memory of the SAME size did not.
+       The tail is the bed of recent, concrete reasoning a mind climbs back onto when it begins to
+       drift; the slow, distilled story does not serve that. So the budget is re-weighted toward
+       the tail — tail 9300 / recent 3600 / story 3600, the same ~16.5k total as the old
+       5400/3900/7200, just shifted. (Total size mattered less than this weighting; onset came a
+       little later with more total memory but via "solved-it-then-rest" closure rather than the
+       "gave-up" fatigue that too-little memory produces.) -->
   <m-memory name="memory"
-            tailLength="5400" recentLength="3900" storyLength="7200"
+            tailLength="9300" recentLength="3600" storyLength="3600"
             blockMin="800" storyEvery="5"></m-memory>
 
   <!-- A high attention bar and a long rate limit: a working mind should not be pulled
