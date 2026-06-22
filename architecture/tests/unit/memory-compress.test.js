@@ -145,14 +145,28 @@ test("an empty later response falls back to the best prior attempt — never tru
     expect(out.length).toBe(2000);
 });
 
-test("maxTokens is a generous guard sized off the input — never a tight cap", async () => {
+test("maxTokens guard is sized off the input in TOKENS — generous, never a tight cap", async () => {
     const established = "m".repeat(4000), fresh = "n".repeat(2000);
     const { generate, calls } = fakeGenerator([1000]);
     await compressToFit({ established, fresh, targetChars: 1000, generate });
-    // combined = 4000 + "\n\n" + 2000 = 6002; guard = 6002 + 512 = 6514 — far above
-    // targetChars/3 (≈333), so a correctly sized (or even input-length) output is never cut short.
-    expect(calls[0].maxTokens).toBe(6514);
+    // combined = 4000 + "\n\n" + 2000 = 6002 CHARS; the guard is a TOKEN budget (max_tokens),
+    // ≈ source/3 + 256 = ceil(6002/3)+256 = 2257 — enough to echo the whole input if needed,
+    // far above targetChars/3 (≈333), so a faithful output is never cut short. (It used to be
+    // source.length+512=6514, i.e. CHARS-as-tokens — the bug that 400'd on bloated buffers.)
+    expect(calls[0].maxTokens).toBe(Math.ceil(6002 / 3) + 256);
     expect(calls[0].maxTokens).toBeGreaterThan(Math.ceil(1000 / 3));
+});
+
+test("maxTokens guard is capped below the context window so a bloated buffer can't 400", async () => {
+    // A hugely bloated buffer (what a degenerate loop produces). Char-as-token sizing would
+    // request ~300k/3-plus tokens and blow past the window; the guard must stay under it.
+    const established = "m".repeat(900000), fresh = "";
+    const { generate, calls } = fakeGenerator([1000]);
+    await compressToFit({ established, fresh, targetChars: 1000, generate });
+    const CTX = Number(process.env.LLM_CONTEXT_LIMIT || 180000);
+    // guard + an honest prompt-token estimate must leave headroom under the window.
+    expect(calls[0].maxTokens).toBeLessThan(CTX);
+    expect(calls[0].maxTokens).toBeGreaterThan(0);
 });
 
 // --- the prompt: a flat block with a hard character ceiling -----------------

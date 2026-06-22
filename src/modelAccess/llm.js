@@ -404,7 +404,23 @@ export async function chatStream(opts) {
   let stream, openTimedOut = false;
   const openTimer = stallMs ? setTimeout(() => { openTimedOut = true; controller.abort(); }, stallMs) : null;
   try {
-    stream = await client.chat.completions.create(request, { signal: controller.signal });
+    try {
+      stream = await client.chat.completions.create(request, { signal: controller.signal });
+    } catch (error) {
+      // vLLM sometimes rejects the assistant-prefill continuation with a 400 — "continue_final_message
+      // is set but the final message does not appear in the chat after applying the chat template" —
+      // when its chat template trims the prefill (e.g. an empty/whitespace tail). Rather than lose the
+      // whole burst, retry ONCE as a fresh assistant turn. (Bug fix 2026-06-22.)
+      const msg = String(error?.message || error || '');
+      if (!openTimedOut && request.continue_final_message && /continue_final_message/i.test(msg)) {
+        log.debug(`stream prefill rejected by chat template; retrying as a fresh turn (${provider.key} model="${provider.model}")`);
+        delete request.continue_final_message;
+        delete request.add_generation_prompt;
+        stream = await client.chat.completions.create(request, { signal: controller.signal });
+      } else {
+        throw error;
+      }
+    }
   } catch (error) {
     // An open that times out or fails under load is not treated as an error here: no
     // error count, debug-only. The throw still ends the burst so the mind reschedules

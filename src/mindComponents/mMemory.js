@@ -750,11 +750,22 @@ export async function compressToFit({ established, fresh, targetChars, tier, gen
 
     for (let pass = 1; pass <= maxPasses; pass++) {
         const source = draft || combined
-        const guard = source.length + 512                       // anti-truncation; never the budget
         // Overlap context is for the initial pass only — a re-drive tightens the model's
         // own draft, which has clean edges and needs no surrounding stream.
         const prompt = buildCompressionPrompt({ tier, text: combined, draft, targetChars,
             contextBefore: draft ? "" : contextBefore, contextAfter: draft ? "" : contextAfter })
+        // Anti-truncation guard, expressed in TOKENS (it becomes max_tokens). Big enough for
+        // a faithful summary — even a near-verbatim echo of the source — but capped so that
+        // prompt+output can never exceed the model's context window. A bloated buffer used to
+        // blow past it because source.length is CHARACTERS (≈3 per token for this dense
+        // math/LaTeX text) and was passed straight through as a token budget; that requested
+        // ~150k output tokens and 400'd as ContextWindowExceeded. Never the budget itself;
+        // over-budget output is accepted (nearestToTarget), never truncated.
+        const ctxLimit = Number(process.env.LLM_CONTEXT_LIMIT || 180000)
+        const promptTokens = Math.ceil(prompt.length / 3)
+        const guard = Math.max(256, Math.min(
+            Math.ceil(source.length / 3) + 256,
+            ctxLimit - promptTokens - 512))
         // Dedupe the model's output too: it may echo verbatim repeats straight back.
         const out = dedupeExact((await generate(prompt, guard) || "").trim())
 
