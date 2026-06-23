@@ -72,7 +72,7 @@ export class MTimeout extends MBaseComponent {
             urgent: this.attr("urgent") === "true",
         })
         log.debug(`[${this.attr("name")}] fires: ${record}`)
-        this.dispatchEvent(new CustomEvent("interrupt-request", { bubbles: true, detail: record }))
+        this.fire("interrupt-request", record)
 
         this._lastActivity = Date.now()
         this._schedule(this._nextDelay())

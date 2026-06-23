@@ -65,14 +65,15 @@ test("a `prompt=\"…\"` attribute overrides the text content", async () => {
 // ----------------------------------------------------------------- consumer
 
 /** A minimal stand-in for a connected m-mind: just the fields _seedIfFresh reads,
- *  plus a dispatchEvent that records what it raises. No DOM, no loop, no model. */
+ *  plus a fire() that records what it raises (Amanita's fire dispatches a CustomEvent
+ *  whose detail is the payload). No DOM, no loop, no model. */
 function fakeMind(over = {}) {
     const raised = [];
     return {
         _seeded: false,
         _memTail: "", _memRecent: "", _memStory: "",
         _originText: "",
-        dispatchEvent(e) { raised.push(e); return true; },
+        fire(name, detail) { const e = new CustomEvent(name, { detail, bubbles: true }); raised.push(e); return e; },
         _raised: raised,
         ...over,
     };

@@ -28,7 +28,7 @@ const log = logger('mKb.js');
  *   - dir: knowledge base directory (default "knowledge")
  *   - model: librarian model (default ancestor utilityModel)
  *   - maxOps: max file operations per run (default 4)
- *   - src (default "..m-mind/stream/chunk"), boundarySrc (default "..m-mind/stream/boundary")
+ *   - src (default "..m-mind/stream/chunk"), boundarySrc (default "..m-mind/stream/@boundary")
  *   - window: chars of verbatim recent thought kept for distillation (default 2000)
  *   - compressedSrc (default: the mind's m-memory `<name>/compressed`, auto-discovered;
  *     "off" disables): the compressed "recently" summary folded into the distill prompt
@@ -43,7 +43,7 @@ export class MKb extends MBaseComponent {
     _recent = ""
 
     onConnect() {
-        this.sub(this.attr("boundarySrc") || "..m-mind/stream/boundary", this._onBoundary)
+        this.sub(this.attr("boundarySrc") || "..m-mind/stream/@boundary", e => this._onBoundary(e.detail))
 
         // The verbatim "recent thoughts" come from the scribe's OWN rolling stream
         // window (like an observer), not by reaching into m-memory for its tail.
@@ -58,7 +58,7 @@ export class MKb extends MBaseComponent {
         const mem = this.closest("m-mind")?.querySelector("m-memory[name]")
         const compressedSrc = explicitCompressedSrc || (mem ? `..m-mind/${mem.getAttribute("name")}/compressed` : null)
         if (compressedSrc && compressedSrc !== "off") {
-            this.sub(compressedSrc, c => { if (c) this._recent = c.recent || "" }, 12)
+            this.sub(compressedSrc, c => { if (c) this._recent = c.recent || "" })
         }
     }
 
@@ -122,11 +122,11 @@ Rules: group related ideas into topic files (e.g. attention/interruption.md); ev
             log.info(`Scribe ${op.kind}: ${path.join(dir, op.file)}`)
         }
         if (ops.length) {
-            // Announce the filing on the `filed` topic and stop there. The scribe
+            // Fire the filing as a transient `filed` event and stop there. The scribe
             // is subconscious — the mind never perceives its filing — so a memory
-            // subscribes and journals it as an unseen (⌁) backstage note itself,
-            // rather than the scribe reaching in to write that note.
-            this.pub("filed", { files: ops.map(o => o.file) })
+            // subscribes (`@filed`) and journals it as an unseen (⌁) backstage note
+            // itself, rather than the scribe reaching in to write that note.
+            this.fire("filed", { files: ops.map(o => o.file) })
         }
     }
 

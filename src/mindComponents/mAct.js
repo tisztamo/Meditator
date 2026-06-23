@@ -91,7 +91,7 @@ export class MAct extends MObserver {
         // economy's arousal exactly as the arbiter does; with no economy the topic
         // never publishes and arousal stays 1, so a mind without a metabolism reaches
         // freely (efference.md §6b).
-        this.sub("..m-mind/economy/arousal", value => { if (typeof value === "number") this._arousal = value }, 12)
+        this.sub("..m-mind/economy/arousal", value => { if (typeof value === "number") this._arousal = value }).catch(() => {})
     }
 
     /**
@@ -314,9 +314,9 @@ export class MAct extends MObserver {
 
         const experience = ok && out && typeof out.experience === "string" ? out.experience.trim() : ""
 
-        // The DEED — published for a memory to journal BACKSTAGE (⌁). The mind never
+        // The DEED — fired for a memory to journal BACKSTAGE (⌁). The mind never
         // sees this; it is recorded for us. (efference.md §5.3.)
-        this.pub("acted", {
+        this.fire("acted", {
             intent: decision.gist || null,
             capability: name,
             args,
@@ -347,7 +347,7 @@ export class MAct extends MObserver {
                 urgent: !!(out && out.urgent),
             })
             log.debug(`consequence of "${name}": ${record}`)
-            this.dispatchEvent(new CustomEvent("interrupt-request", { bubbles: true, detail: record }))
+            this.fire("interrupt-request", record)
         }
     }
 

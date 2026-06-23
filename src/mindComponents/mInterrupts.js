@@ -64,7 +64,7 @@ export class MInterrupts extends MBaseComponent {
         // so a tired mind raises its own bar. Gated, so minds without an economy
         // — or that don't want this — raise no errors and behave exactly as before.
         if (!this._region && Number(this.attr("arousalSensitivity") || 0) > 0) {
-            this.sub("..m-mind/economy/arousal", value => { this._arousal = value }, 12)
+            this.sub("..m-mind/economy/arousal", value => { this._arousal = value })
         }
     }
 
@@ -121,7 +121,7 @@ export class MInterrupts extends MBaseComponent {
         this._publishDecision(record, true, record.urgent ? "urgent" : "accepted")
 
         if (record.urgent) {
-            this.dispatchEvent(new CustomEvent("interrupt", { bubbles: true, detail: record }))
+            this.fire("interrupt", record)
         }
     }
 

@@ -18,7 +18,7 @@ const log = logger('mObserver.js');
  *
  * @interface
  * Attributes:
- *   - src (default "..m-mind/stream/chunk"), boundarySrc (default "..m-mind/stream/boundary")
+ *   - src (default "..m-mind/stream/chunk"), boundarySrc (default "..m-mind/stream/@boundary")
  *   - window: chars of stream kept in this.window (default 1600)
  *   - cooldown: minimum time between two raises by this observer (default "60s")
  *   - salience: default salience for raise() (default 0.6)
@@ -33,7 +33,7 @@ export class MObserver extends MBaseComponent {
             this.window = (this.window + chunk).slice(-this.windowSize)
             this.onStreamChunk(chunk)
         })
-        this.sub(this.attr("boundarySrc") || "..m-mind/stream/boundary", boundary => this.onBoundary(boundary))
+        this.sub(this.attr("boundarySrc") || "..m-mind/stream/@boundary", e => this.onBoundary(e.detail))
         this.onObserverConnect()
     }
 
@@ -63,7 +63,7 @@ export class MObserver extends MBaseComponent {
             urgent: !!opts.urgent,
         })
         log.debug(`[${this.attr("name") || this.localName}] raises: ${record}`)
-        this.dispatchEvent(new CustomEvent("interrupt-request", { bubbles: true, detail: record }))
+        this.fire("interrupt-request", record)
         return true
     }
 }

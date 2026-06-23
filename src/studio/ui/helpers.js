@@ -34,4 +34,4 @@ export const scrollDown = el => { el.scrollTop = el.scrollHeight; };
  *  surface stays declared (greppable) and a second listener — a logger, a confirm
  *  gate — can interpose for free. `detail` is optional (e.g. a bare "refresh"). */
 export const command = (el, cmd, detail) =>
-  el.dispatchEvent(new CustomEvent("studio-command", { bubbles: true, detail: { cmd, ...detail } }));
+  el.fire("studio-command", { cmd, ...detail });

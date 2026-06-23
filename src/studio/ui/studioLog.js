@@ -18,8 +18,8 @@ export class StudioLog extends A(HTMLElement) {
     this.logEl = this.querySelector("#log");
     this.hintEl = this.querySelector("#logHint");
     this.errEl = this.querySelector("#logErr");
-    this.sub("/conn/focusReset", () => this.reset(), 12);
-    this.sub("/conn/log", d => { if (d) this.append(d.stream, d.line); }, 12);
+    this.sub("/conn/@focusReset", () => this.reset()).catch(() => {});
+    this.sub("/conn/@log", e => { const d = e.detail; if (d) this.append(d.stream, d.line); }).catch(() => {});
   }
 
   reset() {

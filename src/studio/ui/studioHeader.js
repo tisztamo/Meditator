@@ -35,14 +35,14 @@ export class StudioHeader extends A(HTMLElement) {
     this.pill = this.querySelector("[data-pill]");
     this.connMeta = this.querySelector("[data-connmeta]");
 
-    this.sub("/conn/connState", on => this.dot.classList.toggle("live", !!on), 12);
-    this.sub("/conn/connMeta", txt => { if (txt != null) this.connMeta.textContent = txt; }, 12);
-    this.sub("/conn/publicPort", p => { this.publicPort = p || 7627; }, 12);
-    this.sub("/conn/roster", arr => this.onRoster(arr), 12);
-    this.sub("/conn/focused", id => this.onFocused(id), 12);
-    this.sub("/conn/lifecycle", d => this.onLifecycle(d), 12);
-    this.sub("/conn/streamState", s => { this.streamState = (s === "streaming") ? "thinking" : "idle"; this.updatePill(); }, 12);
-    this.sub("/conn/event", d => this.onEvent(d), 12);
+    this.sub("/conn/connState", on => this.dot.classList.toggle("live", !!on));
+    this.sub("/conn/connMeta", txt => { if (txt != null) this.connMeta.textContent = txt; });
+    this.sub("/conn/publicPort", p => { this.publicPort = p || 7627; });
+    this.sub("/conn/roster", arr => this.onRoster(arr));
+    this.sub("/conn/focused", id => this.onFocused(id));
+    this.sub("/conn/@lifecycle", e => this.onLifecycle(e.detail));
+    this.sub("/conn/streamState", s => { this.streamState = (s === "streaming") ? "thinking" : "idle"; this.updatePill(); });
+    this.sub("/conn/@event", e => this.onEvent(e.detail)).catch(() => {});
   }
 
   onRoster(arr) {

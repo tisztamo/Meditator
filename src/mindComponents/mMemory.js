@@ -36,7 +36,7 @@ const log = logger('mMemory.js');
  *   - persist (default "state"): directory for memory.md; "off" disables
  *   - journal (default "journal"): directory for session journals; "off" disables
  *   - model: compression model (defaults to ancestor utilityModel, then utility default)
- *   - src (default "..m-mind/stream/chunk"), boundarySrc (default "..m-mind/stream/boundary"):
+ *   - src (default "..m-mind/stream/chunk"), boundarySrc (default "..m-mind/stream/@boundary"):
  *     mind-relative so memory binds to its own mind's stream (see m-observer).
  *   - spokenSrc (default: the mind's m-speech `<name>/spoken` topic, auto-discovered;
  *     "off" disables): an aloud utterance is recorded by subscribing here, not by the
@@ -70,10 +70,6 @@ export class MMemory extends MBaseComponent {
     _compressing = false
     _finalized = false
     _savedAt = null
-    _lastSpokenAt = 0
-    _lastFiled = null
-    _lastActed = null
-    _lastAttended = null
 
     onConnect() {
         this.tailLength = Number(this.attr("tailLength") || 1500)
@@ -83,44 +79,44 @@ export class MMemory extends MBaseComponent {
         this.storyEvery = Number(this.attr("storyEvery") || 5)
 
         this.sub(this.attr("src") || "..m-mind/stream/chunk", this._onChunk)
-        this.sub(this.attr("boundarySrc") || "..m-mind/stream/boundary", this._onBoundary)
+        this.sub(this.attr("boundarySrc") || "..m-mind/stream/@boundary", this._onBoundary)
         const explicitImageSrc = this.attr("imageSrc")
         const image = this.closest("m-mind")?.querySelector("m-image[name]")
         const imageSrc = explicitImageSrc || (image ? `..m-mind/${image.getAttribute("name")}/generated` : null)
-        if (imageSrc && imageSrc !== "off") this.sub(imageSrc, image => this.imageGenerated(image), 12)
+        if (imageSrc && imageSrc !== "off") this.sub(imageSrc, image => this.imageGenerated(image))
 
-        // The voice's aloud utterances arrive as a topic, not a method call into
-        // us: we point at whatever speaks (auto-discovered, or an explicit
-        // `spokenSrc`, or "off"). The voice stays ignorant of memory, so memory
-        // can be swapped or run several-at-once just by changing the architecture.
+        // The voice's aloud utterances arrive as a transient event, not a method call
+        // into us: we point at whatever speaks (auto-discovered, or an explicit
+        // `spokenSrc`, or "off"). The voice stays ignorant of memory, so memory can be
+        // swapped or run several-at-once just by changing the architecture.
         const explicitSpokenSrc = this.attr("spokenSrc")
         const voice = this.closest("m-mind")?.querySelector("m-speech[name]")
-        const spokenSrc = explicitSpokenSrc || (voice ? `..m-mind/${voice.getAttribute("name")}/spoken` : null)
-        if (spokenSrc && spokenSrc !== "off") this.sub(spokenSrc, this._onSpoken, 12)
+        const spokenSrc = explicitSpokenSrc || (voice ? `..m-mind/${voice.getAttribute("name")}/@spoken` : null)
+        if (spokenSrc && spokenSrc !== "off") this.sub(spokenSrc, this._onSpoken)
 
-        // The scribe's filings arrive on its `filed` topic (auto-discovered,
-        // explicit, or "off"); we journal them as a backstage note ourselves
-        // rather than the scribe reaching in to call note().
+        // The scribe's filings arrive as a transient `@filed` event (auto-discovered,
+        // explicit, or "off"); we journal them as a backstage note ourselves rather
+        // than the scribe reaching in to call note().
         const explicitFiledSrc = this.attr("filedSrc")
         const scribe = this.closest("m-mind")?.querySelector("m-kb[name]")
-        const filedSrc = explicitFiledSrc || (scribe ? `..m-mind/${scribe.getAttribute("name")}/filed` : null)
-        if (filedSrc && filedSrc !== "off") this.sub(filedSrc, this._onFiled, 12)
+        const filedSrc = explicitFiledSrc || (scribe ? `..m-mind/${scribe.getAttribute("name")}/@filed` : null)
+        if (filedSrc && filedSrc !== "off") this.sub(filedSrc, this._onFiled)
 
-        // The hands' deeds arrive on m-act's `acted` topic (auto-discovered,
+        // The hands' deeds arrive as m-act's transient `@acted` event (auto-discovered,
         // explicit, or "off"); we journal each as a backstage (⌁) note ourselves —
         // the mind never perceived the reaching. The CONSEQUENCE comes back the
-        // ordinary way (an External stimulus → `attended` → a perceived (⟂) note),
+        // ordinary way (an External stimulus → `@attended` → a perceived (⟂) note),
         // so deed and consequence land on opposite sides of the mechanism.
         const explicitActedSrc = this.attr("actedSrc")
         const hands = this.closest("m-mind")?.querySelector("m-act[name]")
-        const actedSrc = explicitActedSrc || (hands ? `..m-mind/${hands.getAttribute("name")}/acted` : null)
-        if (actedSrc && actedSrc !== "off") this.sub(actedSrc, this._onActed, 12)
+        const actedSrc = explicitActedSrc || (hands ? `..m-mind/${hands.getAttribute("name")}/@acted` : null)
+        if (actedSrc && actedSrc !== "off") this.sub(actedSrc, this._onActed)
 
-        // The mind publishes the stimuli that entered each frame on `attended`; we
-        // journal them as perceived (⟂) notes here, rather than the mind reaching
+        // The mind fires the stimuli that entered each frame as an `@attended` event;
+        // we journal them as perceived (⟂) notes here, rather than the mind reaching
         // in to call note() per stimulus.
         if (this.attr("attendedSrc") !== "off") {
-            this.sub(this.attr("attendedSrc") || "..m-mind/attended", this._onAttended, 12)
+            this.sub(this.attr("attendedSrc") || "..m-mind/@attended", this._onAttended)
         }
 
         const dir = this._persistDir()
@@ -235,36 +231,32 @@ export class MMemory extends MBaseComponent {
         }
     }
 
-    // An utterance the voice spoke, arriving on its `spoken` topic rather than as
-    // a method call into us. Dedupe on the timestamp so a retained-value replay —
-    // Amanita replays a topic's last value to a late/re-subscriber (e.g. after a
-    // reRender) — cannot record the same utterance twice.
-    _onSpoken = s => {
-        if (!s || !s.text || s.at === this._lastSpokenAt) return
-        this._lastSpokenAt = s.at
+    // An utterance the voice spoke, arriving as its transient `@spoken` event rather
+    // than a method call into us. An event is never replayed, so a late or re-subscriber
+    // hears only genuine new utterances — no dedupe needed.
+    _onSpoken = e => {
+        const s = e.detail
+        if (!s || !s.text) return
         this.spoke(s.text)
     }
 
-    // The scribe's filings, arriving on its `filed` topic rather than a note()
-    // call into us. The scribe is subconscious, so this is a backstage (⌁) note
-    // the mind never perceives. Dedupe on object identity so a retained-value
-    // replay (e.g. after a reRender re-subscribe) cannot journal the same filing
-    // twice — a genuine new filing is always a fresh object.
-    _onFiled = f => {
-        if (!f || !f.files || !f.files.length || f === this._lastFiled) return
-        this._lastFiled = f
+    // The scribe's filings, arriving as its transient `@filed` event rather than a
+    // note() call into us. The scribe is subconscious, so this is a backstage (⌁) note
+    // the mind never perceives.
+    _onFiled = e => {
+        const f = e.detail
+        if (!f || !f.files || !f.files.length) return
         this.note(`The scribe filed thoughts into: ${f.files.join(", ")}`, { perceived: false })
     }
 
-    // A deed the hands performed, arriving on m-act's `acted` topic rather than a
-    // note() call into us. The hands are subconscious — the mind never saw the
-    // reaching — so this is a backstage (⌁) note. The deed records THAT it reached
-    // and with which hand; the consequence (the experience) returns separately and is
-    // journaled perceived (⟂). Dedupe on object identity against a retained-value
-    // replay; a genuine new deed is always a fresh object.
-    _onActed = a => {
-        if (!a || !a.capability || a === this._lastActed) return
-        this._lastActed = a
+    // A deed the hands performed, arriving as m-act's transient `@acted` event rather
+    // than a note() call into us. The hands are subconscious — the mind never saw the
+    // reaching — so this is a backstage (⌁) note. The deed records THAT it reached and
+    // with which hand; the consequence (the experience) returns separately and is
+    // journaled perceived (⟂).
+    _onActed = e => {
+        const a = e.detail
+        if (!a || !a.capability) return
         const intent = a.intent ? `: “${a.intent}”` : ""
         const note = a.ok
             ? `The hands reached out into the world via ${a.capability}${intent}.`
@@ -272,13 +264,11 @@ export class MMemory extends MBaseComponent {
         this.note(note, { perceived: false })
     }
 
-    // The stimuli that entered a frame, arriving on the mind's `attended` topic
-    // rather than a note() call per stimulus. Each is a perceived (⟂) note. Dedupe
-    // on object identity against a retained-value replay (the mind publishes a
-    // fresh array per frame).
-    _onAttended = lines => {
-        if (!Array.isArray(lines) || !lines.length || lines === this._lastAttended) return
-        this._lastAttended = lines
+    // The stimuli that entered a frame, arriving as the mind's transient `@attended`
+    // event rather than a note() call per stimulus. Each is a perceived (⟂) note.
+    _onAttended = e => {
+        const lines = e.detail
+        if (!Array.isArray(lines) || !lines.length) return
         for (const line of lines) this.note(line)
     }
 
@@ -478,16 +468,13 @@ export class MMemory extends MBaseComponent {
                 // resolves, so the bubbling request lands; the mind drains it (with
                 // takePending) on its first burst, which it gates on `loaded`.
                 const ago = this._savedAt ? this._describeGap(Date.now() - new Date(this._savedAt).getTime()) : null
-                this.dispatchEvent(new CustomEvent("interrupt-request", {
-                    bubbles: true,
-                    detail: new InterruptRecord({
-                        source: 'Internal',
-                        type: 'Waking',
-                        reason: ago
-                            ? `I am waking up; about ${ago} has passed since my last thought.`
-                            : `I am waking up again after a gap I cannot measure.`,
-                        salience: 1,
-                    }),
+                this.fire("interrupt-request", new InterruptRecord({
+                    source: 'Internal',
+                    type: 'Waking',
+                    reason: ago
+                        ? `I am waking up; about ${ago} has passed since my last thought.`
+                        : `I am waking up again after a gap I cannot measure.`,
+                    salience: 1,
                 }))
                 log.info(`Memory loaded (story ${this.story.length}, recent ${this.recent.length}, tail ${this.tail.length} chars).`)
             }

@@ -1,6 +1,7 @@
 // Studio panes derive their state from /conn/ topics, never from the hub's fields
-// (S2). Driven against the fake hub: we pub topics and assert the pane reacts,
-// without the hub ever calling focus()/onMsg() to populate its own focusedId.
+// (S2). Driven against the fake hub: we pub state topics (roster, focused) and fire
+// events (lifecycle) and assert the pane reacts, without the hub ever calling
+// focus()/onMsg() to populate its own focusedId.
 import "./setup.js";
 import { test, expect } from "bun:test";
 import { delay } from "./setup.js";
@@ -39,7 +40,7 @@ test("speak re-disables when the focused mind sleeps (lifecycle topic)", async (
   hub.pub("focused", "m1");
   await settle();
   expect(el.input.disabled).toBe(false);
-  hub.pub("lifecycle", { id: "m1", state: "sleeping" });
+  hub.fire("lifecycle", { id: "m1", state: "sleeping" });
   await settle();
   expect(el.input.disabled).toBe(true);
 });
@@ -49,10 +50,10 @@ test("toast shows a crash notice only for the focused mind (focus from topic)", 
   await settle();
   hub.pub("focused", "m1");
   await settle();
-  hub.pub("lifecycle", { id: "m2", state: "crashed" });   // a different mind
+  hub.fire("lifecycle", { id: "m2", state: "crashed" });   // a different mind
   await settle();
   expect(el.classList.contains("show")).toBe(false);
-  hub.pub("lifecycle", { id: "m1", state: "crashed" });   // the focused mind
+  hub.fire("lifecycle", { id: "m1", state: "crashed" });   // the focused mind
   await settle();
   expect(el.classList.contains("show")).toBe(true);
   expect(el.textContent).toContain("crashed");

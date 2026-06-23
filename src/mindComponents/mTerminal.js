@@ -240,10 +240,7 @@ export class MTerminal extends MBaseComponent {
     // arbiter exactly like a push-sense (the deferred-consequence path, terminal.md §2).
     _dispatch({ experience, salience, urgent, type }) {
         // Build a minimal record the arbiter understands; reuse the same shape m-act does.
-        this.dispatchEvent(new CustomEvent("interrupt-request", {
-            bubbles: true,
-            detail: { source: "External", type, reason: experience, salience, urgent },
-        }))
+        this.fire("interrupt-request", { source: "External", type, reason: experience, salience, urgent })
         log.debug(`deferred consequence dispatched: ${experience.slice(0, 80)}`)
     }
 

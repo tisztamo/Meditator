@@ -14,8 +14,8 @@ export class StudioRoster extends A(HTMLElement) {
   minds = []; focusedId = null;
 
   onConnect() {
-    this.sub("/conn/roster", arr => { this.minds = arr || []; this.render(); }, 12);
-    this.sub("/conn/focused", id => { this.focusedId = id; this.render(); }, 12);
+    this.sub("/conn/roster", arr => { this.minds = arr || []; this.render(); });
+    this.sub("/conn/focused", id => { this.focusedId = id; this.render(); });
     this.addEventListener("click", e => this.onClick(e));
   }
 

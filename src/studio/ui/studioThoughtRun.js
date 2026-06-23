@@ -48,11 +48,13 @@ export class StudioThoughtRun extends A(HTMLElement) {
     // Amanita parent; el() resolves the parent stream, or null, without throwing).
     const parent = this.el("../");
     this.renderMode(parent ? parent.mode : null);
+    // Re-render in the new mode whenever the parent stream republishes it. This is the
+    // whole fix: rendering is a function of (this run's data, the current mode), so a
+    // switch repaints settled AND in-flight runs alike. Explicit (not an auto-sub field)
+    // so a part mounted with no Amanita parent — as in unit tests — swallows the
+    // unresolved-ref rejection instead of leaking it as an unhandled error.
+    this.sub("../mode", m => this.renderMode(m)).catch(() => {});
   }
-  // Re-render in the new mode whenever the parent stream republishes it. This is the
-  // whole fix: rendering is a function of (this run's data, the current mode), so a
-  // switch repaints settled AND in-flight runs alike.
-  "../mode" = m => this.renderMode(m);
 
   /** Logical size of the run, for studio-stream's prune budget. */
   get weight() { return this.record.text.length || 1; }

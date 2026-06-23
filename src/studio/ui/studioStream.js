@@ -81,20 +81,20 @@ export class StudioStream extends A(HTMLElement) {
     this.clear("Wake a mind, or focus one, to watch its stream.");
     // The fold/flow/raw toggle is its own mesh component (studio-streammode) in the
     // column header; we react to the mode it publishes and re-publish it for our parts.
-    this.sub("/streammode/mode", m => this.setMode(m), 12);
+    this.sub("/streammode/mode", m => this.setMode(m)).catch(() => {});
 
     // Track the focused id from its topic, so lifecycle messages can be matched
     // to the mind we are showing without reading the hub.
-    this.sub("/conn/focused", id => { this.focusedId = id; }, 12);
+    this.sub("/conn/focused", id => { this.focusedId = id; });
     // Fresh focus: clear and await the backfill batch. Reconnect: keep what is
     // shown, settle the live tail, and await the delta batch.
-    this.sub("/conn/focusReset", () => { this.clear("reconstituting this mind"); this._awaitingBatch = true; }, 12);
-    this.sub("/conn/replayResume", () => { this._awaitingBatch = true; this.prime(); this.sealRun(); this.sealSpeech(); }, 12);
-    this.sub("/conn/backfill", entries => this.renderBatch(entries || []), 12);
-    this.sub("/conn/hidden", h => this.setHidden(!!h), 12);
-    this.sub("/conn/streamFragment", f => { if (f) this.onFragment(f); }, 12);
-    this.sub("/conn/event", d => this.onEvent(d), 12);
-    this.sub("/conn/lifecycle", d => this.onLifecycle(d), 12);
+    this.sub("/conn/@focusReset", () => { this.clear("reconstituting this mind"); this._awaitingBatch = true; }).catch(() => {});
+    this.sub("/conn/replayResume", () => { this._awaitingBatch = true; this.prime(); this.sealRun(); this.sealSpeech(); });
+    this.sub("/conn/backfill", entries => this.renderBatch(entries || []));
+    this.sub("/conn/hidden", h => this.setHidden(!!h));
+    this.sub("/conn/@streamFragment", e => { const f = e.detail; if (f) this.onFragment(f); });
+    this.sub("/conn/@event", e => this.onEvent(e.detail)).catch(() => {});
+    this.sub("/conn/@lifecycle", e => this.onLifecycle(e.detail));
   }
 
   clear(msg) {

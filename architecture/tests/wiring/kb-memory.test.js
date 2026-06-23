@@ -1,7 +1,8 @@
 // The scribe↔memory wires live in the architecture, not in either component:
 // the scribe (m-kb) reads its context from topics (its own stream window + memory's
-// `compressed`) and announces work on `filed`; a memory subscribes to `filed` and
-// journals it. Neither names the other, so memory can be replaced or doubled freely.
+// `compressed`) and announces work as a transient `filed` event; a memory subscribes
+// to `@filed` and journals it. Neither names the other, so memory can be replaced or
+// doubled freely. An event is never replayed, so memory needs no dedupe.
 import { test, expect, beforeAll, afterAll } from "bun:test";
 import A from "amanita";
 import os from "node:os";
@@ -50,23 +51,26 @@ test("the scribe reads context from topics, not by reaching into memory", async 
     expect(scribe._recent.includes("boredom and patience")).toBe(true); // summary, via topic
 });
 
-test("a filing is journaled by memory via the `filed` topic (note inversion)", async () => {
-    scribe.pub("filed", { files: ["attention/slow.md", "self/values.md"] });
+test("a filing is journaled by memory via the `filed` event (note inversion)", async () => {
+    scribe.fire("filed", { files: ["attention/slow.md", "self/values.md"] });
     await delay(40);
-    expect(memory._lastFiled?.files).toContain("attention/slow.md");
     const day = new Date().toISOString().slice(0, 10);
     const journal = fs.readFileSync(path.join(journalDir, `${day}.md`), "utf8");
     expect(journal.includes("The scribe filed thoughts into: attention/slow.md")).toBe(true);
     expect(journal.includes("⌁")).toBe(true); // the backstage (unseen) marker
 });
 
-test("a replayed filing (same object) is journaled only once", async () => {
-    const f = { files: ["once/only.md"] };
-    scribe.pub("filed", f);
+test("the filed event is transient — a late subscriber is not replayed", async () => {
+    scribe.fire("filed", { files: ["past/filing.md"] });
+    await delay(10);
+    // A listener attached only now must not receive the past filing: an event, unlike
+    // a topic, has no retained value to replay — which is exactly why memory needs no
+    // dedupe guard against a re-subscribe. It does receive a genuinely new filing.
+    let replays = 0;
+    scribe.addEventListener("filed", () => { replays++; });
     await delay(20);
-    scribe.pub("filed", f); // same object identity → dedupe guard
-    await delay(40);
-    const day = new Date().toISOString().slice(0, 10);
-    const journal = fs.readFileSync(path.join(journalDir, `${day}.md`), "utf8");
-    expect(journal.split("once/only.md").length - 1).toBe(1);
+    expect(replays).toBe(0);
+    scribe.fire("filed", { files: ["new/filing.md"] });
+    await delay(10);
+    expect(replays).toBe(1);
 });

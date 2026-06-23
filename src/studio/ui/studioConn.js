@@ -159,12 +159,12 @@ export class StudioConn extends A(HTMLElement) {
       case "architectures": this.pub("architectures", (m.data && m.data.list) || []); break;
       case "roster":        this.roster = (m.data && m.data.minds) || []; this.pub("roster", this.roster); this._maybeRestoreFocus(); break;
       case "woke":          if (m.data && m.data.id) this.focus(m.data.id); break;
-      case "lifecycle":     this.pub("lifecycle", m.data || {}); break;
+      case "lifecycle":     this.fire("lifecycle", m.data || {}); break;
       case "state":         this.onState(m.data); break;
       case "backfill":      this.onBackfill(m.data); break;
       case "mind":          this.onMindMsg(m.data); break;
-      case "log":           if (m.data && m.data.id === this.focusedId) this.pub("log", { stream: m.data.stream, line: m.data.line }); break;
-      case "error":         this.pub("error", (m.data && m.data.message) || "error"); break;
+      case "log":           if (m.data && m.data.id === this.focusedId) this.fire("log", { stream: m.data.stream, line: m.data.line }); break;
+      case "error":         this.fire("error", (m.data && m.data.message) || "error"); break;
     }
   }
 
@@ -175,7 +175,7 @@ export class StudioConn extends A(HTMLElement) {
     if (!d || d.id !== this.focusedId) return;
     if (d.structure) this.pub("structure", d.structure);
     if (d.status) this.pub("streamState", d.status);
-    for (const ev of d.snapshots || []) this.pub("event", ev);
+    for (const ev of d.snapshots || []) this.fire("event", ev);
   }
 
   /** The ordered stream timeline (tail on a fresh load, delta on reconnect). The
@@ -199,10 +199,10 @@ export class StudioConn extends A(HTMLElement) {
     if (!msg) return;
     switch (msg.type) {
       case "structure":        this.pub("structure", (msg.data && msg.data.tree) || null); break;
-      case "thought_fragment": this.pub("streamFragment", { kind: "thought", content: (msg.data && msg.data.content) || "" }); break;
-      case "speech_fragment":  this.pub("streamFragment", { kind: "speech", content: (msg.data && msg.data.content) || "" }); break;
+      case "thought_fragment": this.fire("streamFragment", { kind: "thought", content: (msg.data && msg.data.content) || "" }); break;
+      case "speech_fragment":  this.fire("streamFragment", { kind: "speech", content: (msg.data && msg.data.content) || "" }); break;
       case "status":           if (msg.data && msg.data.state) this.pub("streamState", msg.data.state); break;
-      case "event":            this.pub("event", msg.data || {}); break;
+      case "event":            this.fire("event", msg.data || {}); break;
     }
   }
 
@@ -238,7 +238,7 @@ export class StudioConn extends A(HTMLElement) {
   force(id) { this.send({ type: "force", data: { id } }); }
 
   dismiss(id) {
-    if (id === this.focusedId) { this.focusedId = null; this.highestSeq = null; this.pub("focused", null); this.pub("focusReset", null); this._remember(null); }
+    if (id === this.focusedId) { this.focusedId = null; this.highestSeq = null; this.pub("focused", null); this.fire("focusReset", null); this._remember(null); }
     this.send({ type: "dismiss", data: { id } });
   }
 
@@ -246,7 +246,7 @@ export class StudioConn extends A(HTMLElement) {
     const t = (text || "").toString().trim();
     if (!t || !this.focusedId) return;
     this.send({ type: "input", data: { id: this.focusedId, message: t } });
-    this.pub("youSaid", t);
+    this.fire("youSaid", t);
   }
 
   focus(id) {
@@ -263,7 +263,7 @@ export class StudioConn extends A(HTMLElement) {
   refocus(id) {
     this.focusedId = id;
     this.pub("focused", id);
-    if (this.highestSeq == null) this.pub("focusReset", id);   // fresh: clear + repaint tail
+    if (this.highestSeq == null) this.fire("focusReset", id);   // fresh: clear + repaint tail
     else this.pub("replayResume", id);                          // reconnect: keep + append delta
     this.send({ type: "focus", data: { id, sinceSeq: this.highestSeq } });
   }

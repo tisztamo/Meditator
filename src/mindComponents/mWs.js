@@ -29,7 +29,7 @@ const log = logger("mWs.js");
  *   - src / stateSrc: override which topics feed thought_fragment / status
  *
  * Subscriptions (transport): "/stream/chunk", "/stream/state"
- * Subscriptions (instrument, guarded): "../prompt", "/stream/boundary",
+ * Subscriptions (instrument, guarded): "../prompt", "/stream/@boundary",
  *   "../@interrupt-request", "../@interrupt", "/<arbiter>/decision",
  *   "/<economy>/energy", "/<memory>/compressed", "/<scribe>/filed",
  *   "/<hands>/intent", "/<hands>/acted",
@@ -78,8 +78,8 @@ export class MWs extends MBaseComponent {
       // Subscribe to stream chunks and state changes (absolute refs so this
       // component can live anywhere in the mind). These power the classic,
       // backward-compatible thought_fragment / status messages.
-      this.sub(this.attr("src") || "/stream/chunk", this.onChunk, 12);
-      this.sub(this.attr("stateSrc") || "/stream/state", this.onState, 12);
+      this.sub(this.attr("src") || "/stream/chunk", this.onChunk);
+      this.sub(this.attr("stateSrc") || "/stream/state", this.onState);
 
       // Subscribe to the rest of the mind's signals for the dashboard.
       this._instrument();
@@ -249,7 +249,7 @@ export class MWs extends MBaseComponent {
       }
     });
 
-    this.dispatchEvent(new CustomEvent("interrupt-request", { bubbles: true, detail: interrupt }));
+    this.fire("interrupt-request", interrupt);
   }
 
   /**
@@ -355,8 +355,8 @@ export class MWs extends MBaseComponent {
       });
     });
 
-    // Burst boundaries, plus a memory snapshot taken at each boundary.
-    this._subProp(mind.querySelector("m-stream"), "boundary", boundary => {
+    // Burst boundaries (a transient `@boundary` event), plus a memory snapshot taken at each.
+    this._subEvent(mind.querySelector("m-stream"), "boundary", boundary => {
       if (!boundary) return;
       this._emit("stream", "boundary", {
         reason: boundary.reason,
@@ -414,15 +414,15 @@ export class MWs extends MBaseComponent {
       storyPreview: (c.story || "").slice(0, 400),
     }));
 
-    // The scribe filing knowledge.
-    this._subProp(mind.querySelector("m-kb"), "filed",
+    // The scribe filing knowledge (a transient `@filed` event, not a topic).
+    this._subEvent(mind.querySelector("m-kb"), "filed",
       f => f && this._emit("scribe", "filed", { files: f.files || [] }));
 
     // The hands reaching out (present only when <m-act> is in the mind). `intent`
     // is every decide (for observability, like speech's impulse); `acted` is a deed.
     const act = mind.querySelector("m-act");
     this._subProp(act, "intent", i => i && this._emit("act", "intent", i));
-    this._subProp(act, "acted", a => a && this._emit("act", "acted", {
+    this._subEvent(act, "acted", a => a && this._emit("act", "acted", {
       capability: a.capability, intent: a.intent, ok: !!a.ok,
       experience: a.experience, args: a.args, data: a.data,
     }));
@@ -454,7 +454,20 @@ export class MWs extends MBaseComponent {
       log.debug(`Cannot instrument <${(el.tagName || "").toLowerCase()}>: no name attribute`);
       return;
     }
-    this.sub(`/${name}/${prop}`, cb, 12);
+    this.sub(`/${name}/${prop}`, cb);
+  }
+
+  /** Subscribe to a transient DOM event fired by a (possibly absent) named sibling.
+   *  The callback receives the event payload (e.detail) directly, mirroring _subProp's
+   *  value — so the relay lambdas above read the same way whether topic or event. */
+  _subEvent(el, name, cb) {
+    if (!el) return;
+    const elName = el.getAttribute("name");
+    if (!elName) {
+      log.debug(`Cannot instrument <${(el.tagName || "").toLowerCase()}>: no name attribute`);
+      return;
+    }
+    this.sub(`/${elName}/@${name}`, e => cb(e && e.detail));
   }
 
   /** Broadcast one telemetry event and remember it as the latest of its kind. */

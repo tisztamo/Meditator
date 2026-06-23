@@ -42,7 +42,7 @@ test("m-memory and m-loop-guard bind to the mind stream", async () => {
 
 test("m-economy binds to stream boundaries and publishes arousal", async () => {
     const text = "the quick brown fox jumps over the lazy dog";
-    stream.pub("boundary", { reason: "completed", burstIndex: 1, burstChars: text.length });
+    stream.fire("boundary", { reason: "completed", burstIndex: 1, burstChars: text.length });
     await delay(10);
     expect(typeof economy.arousal).toBe("number");
     expect(arousalSeen).not.toBeNull();

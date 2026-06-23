@@ -2,7 +2,7 @@
 // the wake stimulus instead of the mind pulling them. Memory publishes `tail`
 // (on load and every change) and `compressed` (on load), raises the wake stimulus
 // onto the attention spine as a bubbling interrupt-request, and journals the
-// stimuli the mind says it `attended`. With these, the mind never reaches in.
+// stimuli the mind fires as `attended`. With these, the mind never reaches in.
 //
 // m-mind is stubbed here, as in every wiring test (the real one starts a thinking
 // loop). The real mind's consuming side — mirroring these topics into the frame —
@@ -101,8 +101,13 @@ test("waking is raised onto the attention spine, not parked for a pull", () => {
 });
 
 test("the mind's `attended` stimuli are journaled by memory via subscription", async () => {
-    mind.pub("attended", ["A bell rang somewhere in the fog."]);
+    // attended is journaled via note() (perceived ⟂), which writes to the journal, not
+    // the verbatim tail; spy on note() to confirm the wire routes each line into memory.
+    const notes = [];
+    const origNote = memory.note.bind(memory);
+    memory.note = (text, opts) => { notes.push(text); return origNote(text, opts); };
+    mind.fire("attended", ["A bell rang somewhere in the fog."]);
     await delay(10);
-    expect(Array.isArray(memory._lastAttended)).toBe(true);
-    expect(memory._lastAttended.some(line => line.includes("bell rang"))).toBe(true);
+    memory.note = origNote;
+    expect(notes.some(line => line.includes("bell rang"))).toBe(true);
 });

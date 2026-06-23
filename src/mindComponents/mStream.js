@@ -165,7 +165,7 @@ export class MStream extends MBaseComponent {
     _finishBurst(boundary) {
         this._changeState("idle")
         process.stdout.write("\n")
-        this.pub("boundary", boundary)
+        this.fire("boundary", boundary)
     }
 
     _emitChunk(text) {

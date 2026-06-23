@@ -42,7 +42,7 @@ export class MConsole extends MBaseComponent {
                 salience: 1,
                 urgent: true,
             })
-            this.dispatchEvent(new CustomEvent("interrupt-request", { bubbles: true, detail: record }))
+            this.fire("interrupt-request", record)
         })
         log.debug("Console input ready — type to speak to the mind, /sleep to put it to bed.")
     }

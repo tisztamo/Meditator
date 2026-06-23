@@ -108,7 +108,7 @@ export class MSense extends MBaseComponent {
             urgent: false,                      // a sense is ambient, never commandeers a burst
         })
         log.debug(`[${this.attr("name") || this.localName}]${key != null ? ` ${key}` : ""}: ${record}`)
-        this.dispatchEvent(new CustomEvent("interrupt-request", { bubbles: true, detail: record }))
+        this.fire("interrupt-request", record)
         return record
     }
 }

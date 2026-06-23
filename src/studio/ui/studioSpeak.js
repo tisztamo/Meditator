@@ -37,16 +37,17 @@ export class StudioSpeak extends A(HTMLElement) {
     this.input.addEventListener("keydown", e => { if (e.key === "Enter") this.speak(); });
     this.mic.addEventListener("click", () => this.toggleMic());
 
-    this.sub("/conn/voice", v => { this.voiceOn = !!(v && v.enabled) && micSupported(); this.refresh(); }, 12);
+    this.sub("/conn/voice", v => { this.voiceOn = !!(v && v.enabled) && micSupported(); this.refresh(); });
     this.sub("/conn/focused", id => {
       this.focusedId = id;
       const m = this.roster.find(x => x.id === id);
       this.focusState = id ? (m ? m.state : "waking") : null;
       this.refresh();
     }, 12);
-    this.sub("/conn/lifecycle", d => {
+    this.sub("/conn/@lifecycle", e => {
+      const d = e.detail;
       if (d && d.id === this.focusedId) { this.focusState = d.state; this.refresh(); }
-    }, 12);
+    });
     this.sub("/conn/roster", arr => {
       this.roster = arr || [];
       const m = this.roster.find(x => x.id === this.focusedId);

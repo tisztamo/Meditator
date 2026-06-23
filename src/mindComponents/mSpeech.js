@@ -119,8 +119,8 @@ export class MSpeech extends MObserver {
         for (let i = 0; i < 100; i++) {
             const mind = this.closest('m-mind')
             if (mind && mind.on) {
-                this.sub("../@interrupt-request", this._onAddressed, 12)
-                this.sub("../@interrupt", this._onUrgent, 12)
+                this.sub("../@interrupt-request", this._onAddressed)
+                this.sub("../@interrupt", this._onUrgent)
                 return
             }
             await new Promise(resolve => setTimeout(resolve, 50))
@@ -254,11 +254,12 @@ export class MSpeech extends MObserver {
             const utterance = said.trim()
             this.pub("speech-boundary", { chars: utterance.length, reason, text: utterance })
             if (utterance && reason !== "error") {
-                // Hand the completed utterance off as a topic, not a method call.
-                // The voice publishes that it spoke and stays ignorant of who (if
-                // anyone) records it; a memory subscribes via its own `spokenSrc`,
-                // and any number of memories may listen to the same topic.
-                this.pub("spoken", { text: utterance, at: this._lastSpokeAt })
+                // Hand the completed utterance off as a transient event, not a
+                // method call. The voice fires that it spoke and stays ignorant of
+                // who (if anyone) records it; a memory subscribes via its own
+                // `spokenSrc` (an `@spoken` event ref). An event is never replayed, so
+                // a late or re-subscriber cannot double-record the same utterance.
+                this.fire("spoken", { text: utterance })
                 process.stdout.write(`\n\x1b[33m🗣 ${utterance}\x1b[0m\n`)
             }
         }

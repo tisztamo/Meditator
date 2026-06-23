@@ -61,19 +61,22 @@ export function fillInterlocutor(text, name) {
     const who = (name || "").trim() || "whoever comes to talk with you"
     return (text || "").replace(/\{\{\s*interlocutor\s*\}\}/gi, who)
 }
-/** Resolves on the first boundary AFTER the given burst index (the property
- *  subscription replays the previous boundary, which must be ignored). */
+/** Resolves on the first boundary event AFTER the given burst index. boundary is now a
+ *  transient DOM event (never replayed), so we just listen for the next one; the
+ *  burstIndex guard still selects the boundary of the burst we started, not an earlier one. */
 function onceBoundary(stream, afterIndex, timeoutMs) {
     return new Promise(resolve => {
         let settled = false
-        const attention = stream.on("boundary", boundary => {
+        const onBoundary = e => {
+            const boundary = e.detail
             if (settled || !boundary || boundary.burstIndex <= afterIndex) return
             settled = true
-            stream.off(attention)
+            stream.removeEventListener("boundary", onBoundary)
             resolve(boundary)
-        })
+        }
+        stream.addEventListener("boundary", onBoundary)
         setTimeout(() => {
-            if (!settled) { settled = true; stream.off(attention); resolve(null) }
+            if (!settled) { settled = true; stream.removeEventListener("boundary", onBoundary); resolve(null) }
         }, timeoutMs)
     })
 }
@@ -95,7 +98,7 @@ export class MMind extends MBaseComponent {
     _originReady = false     // whether the origin mirror has been delivered at least once
 
     onConnect() {
-        // "stream/boundary" and "@interrupt" fields are auto-subscribed by Amanita.
+        // "stream/@boundary" and "@interrupt" fields are auto-subscribed by Amanita.
         // If the mind has a speaking voice, follow its "speaking" flag so thinking
         // can be thinned (fewer tokens, slower pace) while it talks — true limited
         // parallelism: the verbal effort goes to speech, but thought never stops.
@@ -113,9 +116,9 @@ export class MMind extends MBaseComponent {
         const memName = mem?.getAttribute('name')
         const tailSrc = this.attr('tailSrc') || (memName ? `..m-mind/${memName}/tail` : null)
         const compressedSrc = this.attr('compressedSrc') || (memName ? `..m-mind/${memName}/compressed` : null)
-        if (tailSrc && tailSrc !== 'off') this.sub(tailSrc, t => { this._memTail = t || "" }, 12)
+        if (tailSrc && tailSrc !== 'off') this.sub(tailSrc, t => { this._memTail = t || "" })
         if (compressedSrc && compressedSrc !== 'off') {
-            this.sub(compressedSrc, c => { if (c) { this._memRecent = c.recent || ""; this._memStory = c.story || "" } }, 12)
+            this.sub(compressedSrc, c => { if (c) { this._memRecent = c.recent || ""; this._memStory = c.story || "" } })
         }
 
         // Mirror the hands' BODY SCHEMA from m-act's `embodiment` topic, the same way
@@ -126,7 +129,7 @@ export class MMind extends MBaseComponent {
         const hands = this.querySelector('m-act[name]')
         const handsName = hands?.getAttribute('name')
         const embodimentSrc = this.attr('embodimentSrc') || (handsName ? `..m-mind/${handsName}/embodiment` : null)
-        if (embodimentSrc && embodimentSrc !== 'off') this.sub(embodimentSrc, e => { this._embodiment = e || "" }, 12)
+        if (embodimentSrc && embodimentSrc !== 'off') this.sub(embodimentSrc, e => { this._embodiment = e || "" })
 
         // Mirror the ORIGIN — the matter this mind was first set thinking about — the
         // same decoupled way: m-origin publishes its text on `prompt`, we mirror it
@@ -138,7 +141,7 @@ export class MMind extends MBaseComponent {
         const originName = origin?.getAttribute('name')
         const originSrc = this.attr('originSrc') || (originName ? `..m-mind/${originName}/prompt` : null)
         this._hasOrigin = !!(originSrc && originSrc !== 'off')
-        if (this._hasOrigin) this.sub(originSrc, o => { this._originText = o || ""; this._originReady = true }, 12)
+        if (this._hasOrigin) this.sub(originSrc, o => { this._originText = o || ""; this._originReady = true })
 
         this._begin()
     }
@@ -189,14 +192,11 @@ export class MMind extends MBaseComponent {
         const origin = (this._originText || "").trim()
         if (!origin) return
         log.info(`Seeding the first thought from <m-origin> (${origin.length} chars).`)
-        this.dispatchEvent(new CustomEvent("interrupt-request", {
-            bubbles: true,
-            detail: new InterruptRecord({
-                source: 'Internal',
-                type: 'Origin',
-                reason: origin,
-                salience: 1,
-            }),
+        this.fire("interrupt-request", new InterruptRecord({
+            source: 'Internal',
+            type: 'Origin',
+            reason: origin,
+            salience: 1,
         }))
     }
 
@@ -218,8 +218,9 @@ export class MMind extends MBaseComponent {
         throw new Error("stream/memory components did not come up in time")
     }
 
-    "stream/boundary" = boundary => {
+    "stream/@boundary" = e => {
         if (this._sleeping) return
+        const boundary = e.detail
         if (boundary.reason === "error") {
             this.backoff = Math.min(this.backoff * 2, 8)
             log.warn(`Burst failed, backing off x${this.backoff}`)
@@ -373,9 +374,11 @@ export class MMind extends MBaseComponent {
         const story = this._memStory
         const recent = this._memRecent
 
-        // Publish the stimuli that are entering this frame; a memory journals them
-        // as perceived (⟂) notes by subscribing, rather than us calling note() in.
-        if (stimuli.length) this.pub("attended", stimuli.map(s => s.renderForFrame()))
+        // Fire the stimuli that are entering this frame as a transient event; a memory
+        // journals them as perceived (⟂) notes by subscribing (`@attended`), rather
+        // than us calling note() in. An event is never replayed, so each frame's fresh
+        // array is recorded once, with no dedupe.
+        if (stimuli.length) this.fire("attended", stimuli.map(s => s.renderForFrame()))
 
         // The bridge: one small model call that writes the turn itself. It is
         // both emitted into the visible stream (prefix) and appended to the

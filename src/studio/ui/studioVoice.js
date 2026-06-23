@@ -83,15 +83,15 @@ export class StudioVoice extends A(HTMLElement) {
     this.launch = (typeof document !== "undefined") ? document.getElementById("voicebtn") : null;
     if (this.launch) this.launch.addEventListener("click", () => this.toggle());
 
-    this.sub("/conn/voice", v => this.onVoiceInfo(v), 12);
-    this.sub("/conn/focused", id => this.onFocused(id), 12);
-    this.sub("/conn/roster", arr => this.onRoster(arr), 12);
-    this.sub("/conn/lifecycle", d => this.onLifecycle(d), 12);
-    this.sub("/conn/focusReset", () => { if (this.active) this.resetConvo(); }, 12);
-    this.sub("/conn/streamState", s => { this.streaming = (s === "streaming"); this.renderStatus(); }, 12);
-    this.sub("/conn/streamFragment", f => this.onFragment(f), 12);
-    this.sub("/conn/event", d => this.onEvent(d), 12);
-    this.sub("/conn/youSaid", t => { if (this.active) this.addYou(t); }, 12);
+    this.sub("/conn/voice", v => this.onVoiceInfo(v));
+    this.sub("/conn/focused", id => this.onFocused(id));
+    this.sub("/conn/roster", arr => this.onRoster(arr));
+    this.sub("/conn/@lifecycle", e => this.onLifecycle(e.detail));
+    this.sub("/conn/@focusReset", () => { if (this.active) this.resetConvo(); }).catch(() => {});
+    this.sub("/conn/streamState", s => { this.streaming = (s === "streaming"); this.renderStatus(); });
+    this.sub("/conn/@streamFragment", e => this.onFragment(e.detail));
+    this.sub("/conn/@event", e => this.onEvent(e.detail)).catch(() => {});
+    this.sub("/conn/@youSaid", e => { if (this.active) this.addYou(e.detail); });
   }
 
   onDisconnect() {
@@ -286,7 +286,7 @@ export class StudioVoice extends A(HTMLElement) {
     this.rec = null;
     try {
       const text = blob ? await transcribe(blob) : "";
-      if (text) this.dispatchEvent(new CustomEvent("studio-command", { bubbles: true, detail: { cmd: "speak", text } }));
+      if (text) this.fire("studio-command", { cmd: "speak", text });
       else this.hint("I didn't catch that — tap and try again.");
     } catch {
       this.hint("Couldn't hear that just now — please try again.");

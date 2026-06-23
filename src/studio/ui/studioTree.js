@@ -19,9 +19,9 @@ export class StudioTree extends A(HTMLElement) {
   lastFrame = null;
 
   onConnect() {
-    this.sub("/conn/focusReset", () => this.reset(), 12);
-    this.sub("/conn/structure", tree => this.renderStructure(tree), 12);
-    this.sub("/conn/event", d => this.onEvent(d), 12);
+    this.sub("/conn/@focusReset", () => this.reset()).catch(() => {});
+    this.sub("/conn/structure", tree => this.renderStructure(tree)).catch(() => {});
+    this.sub("/conn/@event", e => this.onEvent(e.detail)).catch(() => {});
   }
 
   reset() { this.innerHTML = ""; this.nodes = { byId: {}, byName: {}, byTag: {} }; this.lastFrame = null; }
