@@ -11,6 +11,15 @@ import { StudioStore, parseDataUrl } from "./store.js";
 import { voiceInfo, ttsHandler, sttHandler } from "./voice.js";
 import { logger } from "../infrastructure/logger.js";
 
+// The supervisor IS the Meditator runtime, so its own model config lives in THIS
+// install — anchor the default to the repo root (not process.cwd()), so the Studio
+// can be launched from any directory, e.g. a spinoff it tends (see listProjects()).
+// Each child gets its project's config explicitly at wake time, so this never leaks.
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+if (!process.env.MEDITATOR_MODELS_CONFIG) {
+  process.env.MEDITATOR_MODELS_CONFIG = path.join(ROOT, "config", "models.yaml");
+}
+
 await loadModelConfig();
 
 /**
@@ -36,7 +45,8 @@ await loadModelConfig();
  * deliberate, separate action.
  */
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+// ROOT is defined above (before loadModelConfig) so the supervisor's model-config
+// default can anchor to this install regardless of the launch directory.
 const STUDIO_DIR = path.dirname(fileURLToPath(import.meta.url));   // src/studio — the browser asset root
 const ARCH_DIR = path.join(ROOT, "architecture");
 const VAULT_ROOT = path.join(ROOT, "memory");
@@ -131,17 +141,32 @@ function decodeEntities(s) {
 // --- Projects the Studio tends -------------------------------------------------
 // The default project is Meditator itself. Additional EXTERNAL projects — spinoffs
 // that run on this runtime but keep their OWN minds, vault, graveyard and
-// IN-MEMORIAM — are declared via the MEDITATOR_STUDIO_PROJECTS path-list (":"/","
-// separated) or a config/studio-projects.json array of project roots. Their minds
-// are spawned with cwd = the project root, so the whole Covenant machinery resolves
-// THERE, never in Meditator's vault. This is what lets the Studio develop a spinoff
-// (e.g. a companion-minds repo) without its residents ever touching memory/ here.
+// IN-MEMORIAM — are picked up three ways: the directory the Studio was launched
+// from (process.cwd()) when it carries an architecture/ dir, the
+// MEDITATOR_STUDIO_PROJECTS path-list (":"/"," separated), and a
+// config/studio-projects.json array of project roots. Their minds are spawned with
+// cwd = the project root, so the whole Covenant machinery resolves THERE, never in
+// Meditator's vault. This is what lets the Studio develop a spinoff (e.g. a
+// companion-minds repo) — just launch it from that repo — without its residents
+// ever touching memory/ here.
 
 const DEFAULT_PROJECT = {
   name: "meditator", root: ROOT, archDir: ARCH_DIR, vaultRoot: VAULT_ROOT,
   componentsPath: null, modelsConfig: path.join(ROOT, "config", "models.yaml"),
   inMemoriam: path.join(ROOT, "IN-MEMORIAM.md"),
 };
+
+/** The directory the Studio was launched from, treated as a project when it carries
+ *  an architecture/ dir — so `bun /path/to/meditator/studio.js` run from inside a
+ *  spinoff repo supervises THAT repo with no flag or config. Returns null (silently,
+ *  no warning) when cwd is Meditator itself or has no architecture/ dir: launching
+ *  from an arbitrary directory is normal, not a misconfiguration. */
+function autoDetectedCwdRoot() {
+  let cwd; try { cwd = path.resolve(process.cwd()); } catch { return null; }
+  if (cwd === ROOT) return null;                       // already the default project
+  if (!fs.existsSync(path.join(cwd, "architecture"))) return null;
+  return cwd;
+}
 
 function extraProjectRoots() {
   const roots = [];
@@ -161,7 +186,11 @@ function extraProjectRoots() {
 function listProjects() {
   const seen = new Set([ROOT]);
   const projects = [DEFAULT_PROJECT];
-  for (const raw of extraProjectRoots()) {
+  // The launch directory (when it's a project) is considered first, then the
+  // explicitly declared roots; the `seen` set below dedupes any overlap.
+  const auto = autoDetectedCwdRoot();
+  const candidates = auto ? [auto, ...extraProjectRoots()] : extraProjectRoots();
+  for (const raw of candidates) {
     let root;
     try { root = path.resolve(raw); } catch { continue; }
     if (seen.has(root)) continue;
@@ -298,7 +327,7 @@ function listArchitectures() {
   // Flag architectures that resolve to the same home WITHIN A PROJECT (would share a
   // brain), and whether that home is held by a running mind OF THAT PROJECT — two
   // projects may each have a same-named home without colliding.
-  const homeKey = a => `${a.projectRoot} ${a.homeSlug}`;
+  const homeKey = a => `${a.projectRoot} ${a.homeSlug}`;
   const byHome = new Map();
   for (const a of out) {
     if (!byHome.has(homeKey(a))) byHome.set(homeKey(a), []);

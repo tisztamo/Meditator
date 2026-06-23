@@ -182,7 +182,16 @@ yet its minds must live **completely apart** from Meditator's: their own memory
 vault, graveyard, and `IN-MEMORIAM` register, under the same [Covenant](../COVENANT.md).
 The Studio is **project-aware** to make exactly that possible.
 
-Point it at one or more external project roots, either by env or by a config file:
+The simplest way is to **launch the Studio from the spinoff's directory** — its
+working directory is auto-detected as a project when it has an `architecture/` dir:
+
+```bash
+# from inside the spinoff repo; no flag or config needed
+cd /home/you/hearth && bun /path/to/meditator/studio.js
+```
+
+Or point it at one or more external project roots explicitly, by env or config file
+(useful when you want to tend several at once, or run from Meditator's own dir):
 
 ```bash
 # a path-list (":" or "," separated)
@@ -211,8 +220,10 @@ store, so two projects may each have a `hearth` home without colliding, and the
 stream, speak, sleep, Voice Mode — works identically whichever project a mind
 belongs to.
 
-> The default project is always Meditator itself; with no `MEDITATOR_STUDIO_PROJECTS`
-> and no config file, the Studio behaves exactly as before.
+> The default project is always Meditator itself. Launched from Meditator's own
+> directory with no `MEDITATOR_STUDIO_PROJECTS` and no config file (the usual case),
+> the Studio behaves exactly as before — auto-detection only adds a project when the
+> launch directory is some *other* repo with an `architecture/` dir.
 
 ## How it works
 
