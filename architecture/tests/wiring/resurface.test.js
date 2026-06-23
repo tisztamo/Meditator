@@ -114,7 +114,7 @@ test("a content-free loop (digit-spam) still resurfaces the freshest substantive
     expect(raised[0].urgent).toBe(true);
 });
 
-test("with nothing set down yet, a loop resurfaces nothing (no afference)", async () => {
+test("with nothing set down yet, a loop raises a generic LoopGuard fallback (no notes to resurface)", async () => {
     const emptyDir = path.join(os.tmpdir(), "med-resurface-empty-" + Date.now());
     resurface.setAttribute("dir", emptyDir);
     raised.length = 0;
@@ -122,7 +122,14 @@ test("with nothing set down yet, a loop resurfaces nothing (no afference)", asyn
     resurface.window = LOOP;
     resurface.onBoundary({ reason: "completed" });
     await delay(60);
-    expect(raised.length).toBe(0);
+    // With no notes or filed knowledge to resurface, m-resurface falls back to the
+    // generic change-of-direction stimulus (the same message m-loop-guard raises),
+    // so the loop is still broken even with an empty notebook.
+    expect(raised.length).toBe(1);
+    expect(raised[0].type).toBe("LoopGuard");
+    expect(raised[0].reason).toMatch(/going in circles/);
+    expect(raised[0].suggestion).toMatch(/deliberately pick something unrelated/);
+    expect(raised[0].urgent).toBe(true);
     resurface.setAttribute("dir", notesDir);   // restore
 });
 
