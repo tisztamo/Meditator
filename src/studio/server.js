@@ -939,9 +939,17 @@ function streamTimelineKind(d) {
 function stimTextFor(d) {
   const route = `${d.process}/${d.kind}`;
   if (route === "image/error") return `Image generation failed: ${d.message || "error"}`;
-  if (route === "attention/urgent") return d.reason || "urgent stimulus";
-  if (route === "attention/decision") return d.reason || d.type || "stimulus";
-  return d.reason || "";
+  // Prefer the canonical rendered text (renderForFrame()) — the same string the model
+  // saw in its frame and the journal recorded. Fall back to reason / type for
+  // backward compatibility with older events lacking `text`.
+  // Exception: for UserInput, show the raw words the person typed, not the
+  // internal narrative framing (which lives in d.text via renderForFrame()).
+  if (route === "attention/urgent" || route === "attention/decision") {
+    if (d.type === "UserInput") return d.reason || "stimulus";
+    return d.text || d.reason || "stimulus";
+  }
+  if (d.type === "UserInput") return d.reason || "";
+  return d.text || d.reason || "";
 }
 
 function onUpstreamEvent(m, msg) {

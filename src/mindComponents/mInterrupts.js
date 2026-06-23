@@ -132,6 +132,7 @@ export class MInterrupts extends MBaseComponent {
             source: record.source,
             type: record.type,
             reason: record.reason,
+            text: record.renderForFrame(),
             salience: record.salience,
             urgent: !!record.urgent,
             accepted,

@@ -198,6 +198,9 @@ export class StudioVoice extends A(HTMLElement) {
     if (!t) return;
     this.sealMind();                                // your turn closes any open spoken passage
     this.emptyEl.hidden = true;
+    // Show the raw words the user spoke, not the internal narrative framing.
+    // The model sees "A voice arrives from outside: ..." via renderForFrame(),
+    // but the user reads their own words in the bubble.
     const row = mk("div", "voice-row you");
     row.appendChild(mk("div", "voice-lbl", "You"));
     row.appendChild(mk("div", "voice-bubble", t));

@@ -322,3 +322,53 @@ test("end to end: the header toggle re-renders the live run through the mesh", a
         expect(stream.textContent).toContain("a thought arriving");
     });
 });
+
+// ----------------------------------- honesty: stimulus text fidelity (A1 / A2)
+// A stimulus now carries its canonical rendered text (renderForFrame() = reason +
+// suggestion) as `d.text`; the stream shows THAT — the exact string the model saw
+// and the journal recorded — not the bare `reason` it used to slice down to.
+// (fold mode is non-smooth, so _applyStim runs synchronously — no pump needed.)
+
+test("an accepted stimulus shows its full rendered text, suggestion included (A1)", () => {
+    const el = mkFold();
+    el.prime();
+    el.onEvent({
+        process: "attention", kind: "decision",
+        type: "LoopGuard", accepted: true, urgent: false,
+        reason: "I notice I am going in circles.",
+        text: "I notice I am going in circles. Enough of this thread for now — I will pick something unrelated.",
+    });
+    const stim = el.querySelector(".stim");
+    expect(stim).toBeTruthy();
+    // The steering half — the `suggestion` — used to be dropped; it must be present now.
+    expect(stim.textContent).toContain("Enough of this thread for now");
+});
+
+test("a stimulus with no `text` falls back to its reason — older events (A1)", () => {
+    const el = mkFold();
+    el.prime();
+    el.onEvent({
+        process: "attention", kind: "decision",
+        type: "Observer-self", accepted: true, urgent: false,
+        reason: "an older event that predates the canonical text field",
+    });
+    expect(el.querySelector(".stim").textContent).toContain("an older event that predates");
+});
+
+test("your typed words show as your own words, not the model's framing (A2/B2/B3)", () => {
+    const el = mkFold();
+    el.prime();
+    // The mind frames user input as 'A voice arrives from outside: "…"' (in d.text);
+    // the stream must show the raw words (d.reason) and style them as a "you" turn —
+    // the same string the persisted timeline replays, so live == reload.
+    el.onEvent({
+        process: "attention", kind: "urgent",
+        type: "UserInput",
+        reason: "how are you feeling",
+        text: 'A voice arrives from outside: "how are you feeling"',
+    });
+    const stim = el.querySelector(".stim.you");
+    expect(stim).toBeTruthy();
+    expect(stim.textContent).toContain("how are you feeling");
+    expect(stim.textContent).not.toContain("A voice arrives from outside");
+});

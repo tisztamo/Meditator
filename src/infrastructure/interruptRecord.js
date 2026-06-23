@@ -45,10 +45,21 @@ export class InterruptRecord {
   /**
    * Renders the interrupt as a short first-person stimulus line for the
    * attention frame — what the mind experiences, not a bureaucratic record.
+   *
+   * For `UserInput` type, wraps the raw `reason` in narrative framing so the
+   * model perceives it as an external voice event. The raw `reason` remains
+   * unadorned on the record itself, so UI consumers can display the user's
+   * actual words without the internal narrative wrapper.
    * @returns {string}
    */
   renderForFrame() {
-    const parts = [this.reason];
+    let text = this.reason;
+    // Narrative framing for external voice — the model perceives the user's
+    // words as a voice arriving from outside, not a bare string.
+    if (this.type === 'UserInput') {
+      text = `A voice arrives from outside: "${this.reason}"`;
+    }
+    const parts = [text];
     if (this.suggestion) parts.push(this.suggestion);
     return parts.join(' ');
   }

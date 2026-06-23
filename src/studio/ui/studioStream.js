@@ -95,7 +95,6 @@ export class StudioStream extends A(HTMLElement) {
     this.sub("/conn/streamFragment", f => { if (f) this.onFragment(f); }, 12);
     this.sub("/conn/event", d => this.onEvent(d), 12);
     this.sub("/conn/lifecycle", d => this.onLifecycle(d), 12);
-    this.sub("/conn/youSaid", t => this.stim(`You said: "${t}"`, "you"), 12);
   }
 
   clear(msg) {
@@ -145,8 +144,8 @@ export class StudioStream extends A(HTMLElement) {
     if (this.smooth && !this.hidden) {
       switch (route) {
         case "stream/boundary":    this.prime(); this.enqueue({ t: "bnd", d }); break;
-        case "attention/urgent":   this.enqueue({ t: "stim", text: d.reason || "urgent stimulus" }); break;
-        case "attention/decision": if (d.accepted && !d.urgent) this.enqueue({ t: "stim", text: d.reason || d.type }); break;
+        case "attention/urgent":   this.enqueue({ t: "stim", text: d.type === "UserInput" ? d.reason : (d.text || d.reason || "urgent stimulus"), cls: d.type === "UserInput" ? "you" : null }); break;
+        case "attention/decision": if (d.accepted && !d.urgent) this.enqueue({ t: "stim", text: d.type === "UserInput" ? d.reason : (d.text || d.reason || d.type), cls: d.type === "UserInput" ? "you" : null }); break;
         case "speech/speaking":    this.enqueue({ t: "speaking", on: d.speaking }); break;
         case "image/generated":    this.prime(); this.enqueue({ t: "image", d }); break;
         case "image/error":        this.enqueue({ t: "stim", text: `Image generation failed: ${d.message || "error"}`, cls: "warn" }); break;
@@ -155,8 +154,8 @@ export class StudioStream extends A(HTMLElement) {
     }
     switch (route) {
       case "stream/boundary":    this._applyBoundary(d); break;
-      case "attention/urgent":   this._applyStim(d.reason || "urgent stimulus"); break;
-      case "attention/decision": if (d.accepted && !d.urgent) this._applyStim(d.reason || d.type); break;
+      case "attention/urgent":   this._applyStim(d.type === "UserInput" ? d.reason : (d.text || d.reason || "urgent stimulus"), d.type === "UserInput" ? "you" : null); break;
+      case "attention/decision": if (d.accepted && !d.urgent) this._applyStim(d.type === "UserInput" ? d.reason : (d.text || d.reason || d.type), d.type === "UserInput" ? "you" : null); break;
       case "speech/speaking":    this._applySpeaking(d.speaking); break;
       case "image/generated":    this._applyImage(d); break;
       case "image/error":        this._applyStim(`Image generation failed: ${d.message || "error"}`, "warn"); break;

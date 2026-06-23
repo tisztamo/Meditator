@@ -120,7 +120,7 @@ export class StudioTree extends A(HTMLElement) {
       case "mind/frame":         this.onFrame(d); break;
       case "stream/boundary":    this.pushNode(this.byTag("m-stream"), this.evLine(`burst #${d.burstIndex} · ${d.burstChars}c · ${d.reason}`, d.reason === "completed" ? "good" : d.reason === "error" ? "bad" : "")); this.setNodeStat(this.byTag("m-stream"), `#${d.burstIndex} ${d.reason}`); break;
       case "attention/bid":      this.onBid(d); break;
-      case "attention/urgent":   this.pushNode(this.byTag("m-interrupts"), this.evLine(`URGENT ${d.type}: ${d.reason || ""}`, "warn")); break;
+      case "attention/urgent":   this.pushNode(this.byTag("m-interrupts"), this.evLine(`URGENT ${d.type}: ${d.type === "UserInput" ? d.reason : (d.text || d.reason || "")}`, "warn")); break;
       case "attention/decision": this.onDecision(d); break;
       case "economy/energy":     this.onEnergy(d); break;
       case "memory/state":       this.setNodeStat(this.byTag("m-memory"), `tail ${fmt(d.tailLen)} · rec ${fmt(d.recentLen)} · sto ${fmt(d.storyLen)}`); break;
@@ -130,7 +130,7 @@ export class StudioTree extends A(HTMLElement) {
       case "act/acted":          this.onActed(d); break;
       case "speech/speaking":    this.pushNode(this.byTag("m-speech"), this.evLine(d.speaking ? "started speaking" : "stopped speaking", d.speaking ? "warn" : "")); break;
       case "speech/impulse":     this.onImpulse(d); break;
-      case "speech/boundary":    this.pushNode(this.byTag("m-speech"), this.evLine(`said ${d.chars || 0}c · ${d.reason || ""}`, "good")); break;
+      case "speech/boundary":    this.pushNode(this.byTag("m-speech"), this.evLine(`said ${d.chars || 0}c · ${d.reason || ""}${d.text ? ` · "${d.text.slice(0, 120)}"` : ""}`, "good")); break;
       case "image/generating":   this.pushNode(this.byTag("m-image"), this.evLine(d.generating ? "started image generation" : "finished image generation", d.generating ? "warn" : "")); break;
       case "image/impulse":      this.onImageImpulse(d); break;
       case "image/generated":    this.pushNode(this.byTag("m-image"), this.evLine(`generated ${d.size || "image"} · ${d.model || ""}`, "good")); this.setNodeStat(this.byTag("m-image"), d.size || "generated"); break;
@@ -144,14 +144,19 @@ export class StudioTree extends A(HTMLElement) {
     this.pulse(mind); this.setNodeStat(mind, `frame: ${d.frameKind}`);
     let box = mind.feed.querySelector(".framebox");
     if (!box) { box = document.createElement("div"); box.className = "framebox"; mind.feed.prepend(box); }
-    const sys = d.system ? `<span class="sys">— system —\n${esc(d.system)}\n\n— frame (${d.frameKind}) —\n</span>` : "";
-    box.innerHTML = sys + esc(d.frame || "");
+    const sys = d.system ? `<span class="sys">— system —\n${esc(d.system)}\n\n</span>` : "";
+    const instr = d.instruction ? `<span class="instr">— user (instruction) —\n${esc(d.instruction)}\n\n</span>` : "";
+    const frame = d.frame ? `<span class="frame">— assistant (continuing) —\n${esc(d.frame)}</span>` : "";
+    box.innerHTML = sys + instr + frame;
   }
   onBid(d) {
     const sal = typeof d.salience === "number" ? d.salience.toFixed(2) : "?";
-    const line = `${d.urgent ? "⚡" : ""}${esc(d.type || "?")} <span class="sal">${sal}</span> — ${esc(d.reason || "")}`;
+    // Use the canonical rendered text (renderForFrame()) — the same string the model saw.
+    // Exception: for UserInput, show the raw words the person typed, not the internal narrative.
+    const displayText = d.type === "UserInput" ? d.reason : (d.text || d.reason || "");
+    const line = `${d.urgent ? "⚡" : ""}${esc(d.type || "?")} <span class="sal">${sal}</span> — ${esc(displayText)}`;
     this.pushNode(this.byTag("m-interrupts"), `<span class="t">${clock()}</span> ${line}`);
-    const o = this.originNode(d.type); if (o && o !== this.byTag("m-interrupts")) this.pushNode(o, this.evLine(`bid ${sal}: ${d.reason || ""}`));
+    const o = this.originNode(d.type); if (o && o !== this.byTag("m-interrupts")) this.pushNode(o, this.evLine(`bid ${sal}: ${displayText}`));
   }
   onDecision(d) {
     const sal = typeof d.salience === "number" ? d.salience.toFixed(2) : "?";
@@ -178,7 +183,9 @@ export class StudioTree extends A(HTMLElement) {
     const sal = typeof d.salience === "number" ? d.salience.toFixed(2) : "?";
     const cls = d.accepted ? "warn" : "drop";
     const tag = d.addressed ? "↩ " : "";
-    const why = d.accepted ? "✓ speak" : `— quiet (${d.reason || "none"})`;
+    // B1: Relabel the impulse gist as intent, not utterance. The actual spoken words
+    // appear in the speech/boundary line, not here.
+    const why = d.accepted ? "✓ wanted to say" : `— quiet (${d.reason || "none"})`;
     this.pushNode(this.byTag("m-speech"), this.evLine(`${tag}impulse ${sal} ${why}${d.gist ? ": " + d.gist : ""}`, cls));
     this.setNodeStat(this.byTag("m-speech"), `${tag}${sal} ${d.accepted ? "✓" : "✕"}`);
   }

@@ -75,12 +75,12 @@ process that produced it:
 
 | process | kind | payload |
 |---|---|---|
-| `mind` | `frame` | `{frameKind, system, frame, prefix}` — the assembled attention frame for a burst |
+| `mind` | `frame` | `{frameKind, system, instruction, frame, prefix}` — the assembled attention frame as three chat turns: `system` (identity + memory + stimuli), `instruction` (the user-turn directive), `frame` (the assistant prefill the model continues) |
 | `mind` | `pace` | `{tickMs}` — the current burst tick, so a viewer can pace its display |
 | `stream` | `boundary` | `{reason, burstIndex, burstChars}` |
-| `attention` | `bid` | `{source, type, reason, salience, urgent}` — every bid for attention |
-| `attention` | `urgent` | `{type, reason}` — an urgent stimulus that superseded the burst |
-| `attention` | `decision` | `{type, reason, salience, urgent, accepted, why}` — the arbiter's verdict |
+| `attention` | `bid` | `{source, type, reason, text, salience, urgent}` — every bid for attention; `text` is the canonical rendered form (`renderForFrame()`) |
+| `attention` | `urgent` | `{type, reason, text}` — an urgent stimulus that superseded the burst; `text` is the canonical rendered form |
+| `attention` | `decision` | `{type, reason, text, salience, urgent, accepted, why}` — the arbiter's verdict; `text` is the canonical rendered form |
 | `economy` | `energy` | `{energy, spent, paceFactor}` |
 | `memory` | `state` | `{tailLen, recentLen, storyLen}` (at each boundary) |
 | `memory` | `compressed` | `{recentLen, storyLen, recentPreview, storyPreview}` |

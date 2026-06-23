@@ -64,7 +64,7 @@ supervisor and the focus state, and it talks to the panes two ways:
   | `event` | every tagged internal signal | stream, tree, header |
   | `lifecycle` | a mind's state transition | header, stream, toast, speak |
   | `log` | the child's stdout/stderr line | log, toast |
-  | `youSaid` / `error` / `hidden` | local echo, errors, tab visibility | stream, toast |
+  | `youSaid` / `error` / `hidden` | local echo, errors, tab visibility | voice, toast |
 
 - **UP — commands, as bubbling events ([S1](#slices), done).** A pane dispatches a
   bubbling `studio-command` (via the [`command(el, cmd, …)`](#the-pattern) helper in
@@ -79,7 +79,7 @@ above (`studio-header`, `studio-tree`, `studio-log`, `studio-toast`,
 `studio-stream`) are clean subscribers. The controls that once sat as loose markup
 in the colheads are now their own mesh components: `studio-streammode` (the
 fold/flow/raw toggle, publishing the mode string on `/streammode/mode`;
-`studio-stream` renders folds via the leaf widget `ui/studioFold.js`),
+`studio-stream` renders thought runs via the leaf widget `ui/studioThoughtRun.js`,
 `studio-refresh` (the rail's ⟳,
 dispatching `refresh`), and `studio-panes` (the mobile column switcher, on
 `/conn/focused`). With the command path inverted, the field-reads gone, and the

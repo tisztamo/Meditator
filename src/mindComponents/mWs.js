@@ -232,11 +232,14 @@ export class MWs extends MBaseComponent {
       }
     });
 
-    // Create an urgent external stimulus and put it on the interrupt bus
+    // Create an urgent external stimulus and put it on the interrupt bus.
+    // Store the raw user input in `reason` — the framing "A voice arrives from
+    // outside:" is added by `InterruptRecord.renderForFrame()` for the model's frame.
+    // This keeps the raw words available for the UI to display (A2/B2/B3).
     const interrupt = new InterruptRecord({
       source: "WebSocketClient",
       type: "UserInput",
-      reason: `A voice arrives from outside: "${input}"`,
+      reason: input,
       salience: 1,
       urgent: true,
       context: {
@@ -340,14 +343,12 @@ export class MWs extends MBaseComponent {
         return;
       }
       // The frame is now three turns: system, the instruction (a user turn), and the
-      // thought in progress (the assistant prefill the model continues). The studio
-      // panel only renders `system`/`frame`/`prefix`, so fold the instruction into the
-      // displayed system block and surface the prefill as the `frame` (the tail being
-      // continued). Display-only — the actual request keeps them as separate turns.
-      const sysDisplay = [payload.system, payload.instruction].filter(Boolean).join("\n\n");
+      // thought in progress (the assistant prefill the model continues). Emit them as
+      // distinct fields so the inspector can label each role faithfully (A3).
       this._emit("mind", "frame", {
         frameKind: payload.kind || "continue",
-        system: sysDisplay.slice(0, 8000),
+        system: (payload.system || "").slice(0, 8000),
+        instruction: (payload.instruction || "").slice(0, 8000),
         frame: (payload.prefill || payload.frame || "").slice(0, 8000),
         prefix: payload.prefix || null,
       });
@@ -380,12 +381,16 @@ export class MWs extends MBaseComponent {
       const r = (e && e.detail) || {};
       this._emit("attention", "bid", {
         source: r.source, type: r.type, reason: r.reason,
+        text: r.renderForFrame?.(),
         salience: r.salience, urgent: !!r.urgent,
       });
     });
     this.sub("../@interrupt", e => {
       const r = (e && e.detail) || {};
-      this._emit("attention", "urgent", { type: r.type, reason: r.reason });
+      this._emit("attention", "urgent", {
+        type: r.type, reason: r.reason,
+        text: r.renderForFrame?.(),
+      });
     });
 
     // The arbiter's accept/drop verdict.
