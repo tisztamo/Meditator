@@ -467,6 +467,14 @@ Repetition detector (extends `m-observer`). No model cost.
 Plus all `m-observer` attributes. Acts at boundaries once the window holds ≥ 700
 chars; raises `type: LoopGuard` and clears its window on a hit.
 
+> **Relation to `m-resurface`:** `m-loop-guard` and [`m-resurface`](#m-resurface) share the same
+> pure-code loop detector (`loopScore`) and, when wired with identical `window` and `overlap`,
+> will detect the same loop at the same boundary. `m-resurface` is the richer handler — it
+> surfaces a relevant kept note rather than issuing a generic redirect — and when wired as a
+> direct child of the mind with `urgent="true"`, it always wins the interrupt arbiter over a
+> co-firing loop-guard. In practice, running both together is redundant: resurface subsumes
+> loop-guard's detection and provides a superior payload. See [`m-resurface`](#m-resurface).
+
 ## `m-associate`
 
 Associative observer (extends `m-observer`) — the internal source of direction
@@ -509,9 +517,20 @@ reads per hit; no model cost to decide *or* act.
 
 Plus all `m-observer` attributes. Raises `type: Recall`, first-person and self-caused
 ("I realize I have been going over the same ground. I turn back to something I set
-down…"), naming no mechanism. Wire it as a **direct child of the mind** (not inside the
-`drift` region) so its salience is undamped by a region gain, and so its `urgent` raise
-is not lost to the global rate limit a co-firing loop-guard would otherwise win.
+down…"), naming no mechanism. When the notebook and knowledge base are empty (nothing to
+resurface), it falls back to the same generic change-of-direction stimulus used by
+[`m-loop-guard`](#m-loop-guard), ensuring the loop is still broken even early in a session.
+Wire it as a **direct child of the mind** (not inside the `drift` region) so its salience
+is undamped by a region gain, and so its `urgent` raise is not lost to the global rate limit
+a co-firing loop-guard would otherwise win.
+
+> **Relation to `m-loop-guard`:** `m-resurface` and [`m-loop-guard`](#m-loop-guard) share the
+> same pure-code loop detector (`loopScore`). When both are wired with identical `window` and
+> `overlap`, they detect the same loop at the same boundary -- but resurface always wins the
+> interrupt arbiter (it is `urgent` and undamped by region gain). Because resurface subsumes
+> loop-guard's detection and provides a richer payload (a relevant kept note, or a generic
+> fallback when the notebook is empty), running both together is redundant. See
+> [`m-loop-guard`](#m-loop-guard).
 
 ## `m-speech`
 

@@ -82,7 +82,21 @@ export class MResurface extends MObserver {
 
         // Both stores in one pool, oldest-first; pure file reads, never a model call.
         const kept = await readKept({ notesDir, kbDir })
-        if (!kept.length) return   // nothing set down or filed yet — leave it to the loop-guard
+        if (!kept.length) {
+            // Nothing to resurface — fall back to the generic change-of-direction stimulus,
+            // the same message m-loop-guard raises, so the loop is still broken.
+            const raised = this.raise(
+                "I notice I am going in circles, repeating the same thoughts in different words.",
+                {
+                    salience: Number(this.attr("salience") || 0.9),
+                    urgent: this.attr("urgent") !== "false",
+                    suggestion: "Enough of this thread for now — I will deliberately pick something unrelated that I have been carrying, and start there.",
+                    type: "LoopGuard",
+                }
+            )
+            if (raised) this.window = ""
+            return
+        }
 
         const note = this._pickRelevant(kept)
         if (!note) return
