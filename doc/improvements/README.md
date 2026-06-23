@@ -17,3 +17,7 @@ not necessarily acted on yet. Each note states its status at the top.
   rendered twice, independently — dropped stimulus `suggestion`s, "You said:" ≠ the
   model's wording, the voice pane showing the impulse gist instead of the spoken
   utterance, the utility-written bridge journaled as the mind's own thought.
+- [interlocutor-per-message.md](interlocutor-per-message.md) — the wake-time
+  `interlocutor` (shipped) frames a voice as `Kris says:` instead of an unsettling
+  "voice from outside"; the deferred enhancement is per-message attribution, so the
+  framing follows whoever is actually speaking (e.g. Voice Mode for a second person).

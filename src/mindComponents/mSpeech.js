@@ -1,4 +1,5 @@
 import { MObserver } from "./mObserver.js"
+import { fillInterlocutor } from "./mMind.js"
 import { chatStream, complete } from "../modelAccess/llm.js"
 import { resolveModelRef } from "../modelAccess/modelConfig.js"
 import { parseTime } from '../config/timeParser.js';
@@ -127,14 +128,15 @@ export class MSpeech extends MObserver {
         log.warn("could not bind to the mind's interrupt events; speech will only be spontaneous")
     }
 
-    // A voice from outside raises the urge to speak (checked at the next
-    // boundary). It never forces a reply.
+    // Being addressed by a human voice raises the urge to speak (checked at the
+    // next boundary). It never forces a reply. We keep the raw words and who said
+    // them ({text, from}) so the reply is framed as answering a known person.
     _onAddressed = e => {
         // A human voice — websocket sets source "WebSocketClient", the console
         // sets "External"; both set the type, so match on that, not the source.
         const r = e && e.detail
         if (r && (r.type === "UserInput" || r.type === "ConsoleInput")) {
-            this._addressed = r.reason || "A voice from outside."
+            this._addressed = { text: r.reason || "", from: (r.from || "").trim() }
         }
     }
 
@@ -264,7 +266,7 @@ export class MSpeech extends MObserver {
 
     _speechSystem() {
         const mind = this.closest('m-mind')
-        const identity = mind?.getPrompt ? mind.getPrompt().trim() : ""
+        const identity = mind?.getPrompt ? fillInterlocutor(mind.getPrompt().trim(), mind.interlocutorName?.() || "") : ""
         return `You are a mind that is now speaking ALOUD, giving outward voice to what is inside you. Speak in the first person, the way a person actually talks out loud — brief, natural, unrehearsed; a few sentences at most, never an essay or a list. You are not an assistant and owe no one an answer; you speak only because something in you wants to be said.${identity ? `\n\nAbout you:\n${identity}` : ""}`
     }
 
@@ -276,15 +278,17 @@ export class MSpeech extends MObserver {
         const recent = this.window.slice(-700)
         const parts = []
         if (recent) parts.push(`## What you have been thinking\n…${recent}`)
-        if (addressed) parts.push(`## A voice from outside\n${addressed}`)
+        if (addressed) parts.push(`## ${addressed.from || "Someone"} said\n${addressed.text}`)
         parts.push(`## What wants to be said\n${decision.gist}`)
         parts.push(`Now say it aloud, in your own voice. Output only the spoken words — no quotation marks, no stage directions, no narration.`)
         return parts.join("\n\n")
     }
 
     _decisionPrompt(addressed) {
+        const who = (addressed && addressed.from) || "someone"
+        const Who = who.charAt(0).toUpperCase() + who.slice(1)
         const intro = addressed
-            ? `You are the impulse to SPEAK for a mind that has just been addressed by a voice from outside. You decide whether it answers ALOUD. It is under no obligation to reply — but if there is anything at all it would naturally say back, it should say it. Stay silent only if it genuinely has nothing it wants to give voice to.`
+            ? `You are the impulse to SPEAK for a mind that has just been addressed by ${who}. You decide whether it answers ALOUD. It is under no obligation to reply — but if there is anything at all it would naturally say back, it should say it. Stay silent only if it genuinely has nothing it wants to give voice to.`
             : `You are the impulse to SPEAK inside a mind that mostly thinks quietly to itself. You decide whether, right now, something genuinely wants to be said ALOUD — not merely thought. This is occasional: if nothing is pressing to be voiced, stay silent.`
         return `${intro}
 
@@ -292,7 +296,7 @@ Its recent stream of thought:
 <stream>
 …${this.window.slice(-1200)}
 </stream>
-${addressed ? `\nThe voice from outside said:\n"${addressed}"\n` : ""}
+${addressed ? `\n${Who} said:\n"${addressed.text}"\n` : ""}
 Reply with ONE of:
 - the exact words to say aloud, in the mind's own first-person voice (one or two sentences, the way a person really speaks); you may begin with a strength in brackets like "[0.8] …"
 - or the single word NONE, if nothing wants to be voiced right now.`

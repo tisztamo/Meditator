@@ -233,13 +233,14 @@ export class MWs extends MBaseComponent {
     });
 
     // Create an urgent external stimulus and put it on the interrupt bus.
-    // Store the raw user input in `reason` — the framing "A voice arrives from
-    // outside:" is added by `InterruptRecord.renderForFrame()` for the model's frame.
-    // This keeps the raw words available for the UI to display (A2/B2/B3).
+    // Store the raw user input in `reason`, and the mind's companion as `from`:
+    // the framing "<from> says: …" is added by `InterruptRecord.renderForFrame()`
+    // for the model's frame, while the raw words stay available for the UI (A2/B2/B3).
     const interrupt = new InterruptRecord({
       source: "WebSocketClient",
       type: "UserInput",
       reason: input,
+      from: this._mind()?.interlocutorName?.() || null,
       salience: 1,
       urgent: true,
       context: {

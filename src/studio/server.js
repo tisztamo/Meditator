@@ -110,6 +110,9 @@ function parseArchitecture(content) {
     hasWs: /<m-ws\b/i.test(content),
     description: comment ? comment[1].trim().replace(/\s+/g, " ").slice(0, 200) : null,
     origin: extractOrigin(content),
+    // The mind's companion (the person it talks with) — the editable default the
+    // wake panel pre-fills; null when the architecture names no companion.
+    interlocutor: attr("interlocutor") || null,
   };
 }
 
@@ -288,7 +291,7 @@ function listArchitectures() {
         const rel = path.relative(project.archDir, full).split(path.sep).join("/");
         let meta;
         try { meta = parseArchitecture(fs.readFileSync(full, "utf-8")); }
-        catch { meta = { name: null, memory: null, model: null, utilityModel: null, resolvedVoice: null, resolvedUtility: null, pace: null, stage: null, hasWs: false, description: null, origin: null }; }
+        catch { meta = { name: null, memory: null, model: null, utilityModel: null, resolvedVoice: null, resolvedUtility: null, pace: null, stage: null, hasWs: false, description: null, origin: null, interlocutor: null }; }
         const slug = slugify(meta.memory || meta.name || "mind");
         // A mind is experimental if it lives under lab/ or marks itself so. The tag
         // is authoritative, so the flag survives a file being copied out of lab/.
@@ -310,6 +313,7 @@ function listArchitectures() {
           pace: meta.pace, stage: meta.stage,
           hasWs: meta.hasWs, description: meta.description,
           origin: meta.origin,
+          interlocutor: meta.interlocutor,
           homeSlug: slug,
           home: isDefault ? `memory/${slug}` : `${project.name}/memory/${slug}`,
           homeInfo: homeInfo(slug, project.vaultRoot),
@@ -630,7 +634,7 @@ wss.on("connection", client => {
 function handleClientMessage(client, msg) {
   const d = msg.data || {};
   switch (msg.type) {
-    case "wake":    try { const id = wake(d.file, !!d.dryRun, d.modelProfile, !!d.forceTransient, d.name, d.origin, d.projectRoot); sendJSON(client, { type: "woke", data: { id, file: d.file } }); } catch (e) { sendJSON(client, { type: "error", data: { message: e.message } }); } break;
+    case "wake":    try { const id = wake(d.file, !!d.dryRun, d.modelProfile, !!d.forceTransient, d.name, d.origin, d.projectRoot, d.interlocutor); sendJSON(client, { type: "woke", data: { id, file: d.file } }); } catch (e) { sendJSON(client, { type: "error", data: { message: e.message } }); } break;
     case "sleep":   sleepMind(d.id); break;
     case "force":   forceMind(d.id); break;
     case "dismiss": dismissMind(d.id); break;
@@ -692,7 +696,7 @@ function focusClient(client, id, sinceSeq) {
 
 // ------------------------------------------------------------------- waking
 
-function wake(file, dryRun, modelProfile, forceTransient, reqName, reqOrigin, reqProjectRoot) {
+function wake(file, dryRun, modelProfile, forceTransient, reqName, reqOrigin, reqProjectRoot, reqInterlocutor) {
   const profile = modelProfile || getActiveProfile();
   if (!listProfiles().includes(profile)) throw new Error(`unknown model profile: ${profile}`);
   // Which project this architecture belongs to: the default (Meditator) unless the
@@ -760,6 +764,9 @@ function wake(file, dryRun, modelProfile, forceTransient, reqName, reqOrigin, re
       // The editable origin story (the seed of the mind's first thought), when the
       // panel sent one different from the file's default — see applyOriginOverride.
       ...(reqOrigin && String(reqOrigin).trim() ? { MEDITATOR_ORIGIN: String(reqOrigin) } : {}),
+      // The companion this mind talks with, when the panel set one different from
+      // the file's default — folds into identity + voice framing (applyInterlocutorOverride).
+      ...(reqInterlocutor && String(reqInterlocutor).trim() ? { MEDITATOR_INTERLOCUTOR: String(reqInterlocutor) } : {}),
     },
     stdio: ["pipe", "pipe", "pipe"],
     windowsHide: true,

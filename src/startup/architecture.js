@@ -61,6 +61,40 @@ export function applyMindNameOverride(content, rawName) {
 }
 
 /**
+ * Sets the first <m-mind>'s `interlocutor="…"` attribute to `name`, returning the
+ * new source. This is how an instance's COMPANION — the person the mind is in
+ * conversation with — is supplied at wake without editing the file: the archml
+ * carries a default (e.g. interlocutor="Kris") and uses {{interlocutor}} in its
+ * identity prose, the Studio shows the name in an editable field, and the chosen
+ * name is injected into the child via MEDITATOR_INTERLOCUTOR. The name folds into
+ * BOTH the identity prose (m-mind fills {{interlocutor}}) and the framing of an
+ * incoming voice ("<name> says: …", stamped onto the stimulus record), so the two
+ * can never disagree.
+ *
+ * We substitute into the SOURCE (mirroring applyMindNameOverride) so the
+ * architecture snapshot in the home records the companion the mind actually woke
+ * with (lifecycle.md §2 re-executability). A blank/whitespace override is a no-op
+ * (→ the file's own default stands), and content with no <m-mind> is untouched.
+ */
+export function applyInterlocutorOverride(content, rawName) {
+  // Attribute-safe: the value lands inside interlocutor="…"; only keep it from
+  // breaking the tag (the mind trims it downstream).
+  const name = String(rawName || "").replace(/["'<>]/g, "").trim();
+  if (!name) return content;
+  // Match against a comment-masked copy (indices stay aligned), so a <m-mind>
+  // mentioned in a comment can't be rewritten in place of the real tag.
+  const tag = maskComments(content).match(/<m-mind\b[^>]*>/i);
+  if (!tag) return content;
+  let attrs = tag[0];
+  if (/\binterlocutor\s*=\s*"[^"]*"/i.test(attrs)) {
+    attrs = attrs.replace(/\binterlocutor\s*=\s*"[^"]*"/i, `interlocutor="${name}"`);
+  } else {
+    attrs = attrs.replace(/^<m-mind\b/i, `<m-mind interlocutor="${name}"`);
+  }
+  return content.slice(0, tag.index) + attrs + content.slice(tag.index + tag[0].length);
+}
+
+/**
  * Rewrites the first <m-origin>'s content onto `originText`, returning the new
  * source. This is how an instance's ORIGIN STORY — the seed of the *thought*, what
  * this particular mind was set upon (mOrigin.js) — is supplied at wake without
@@ -142,6 +176,14 @@ export async function readArchitectureFile() {
     if (originOverride && originOverride.trim()) {
       content = applyOriginOverride(content, originOverride);
       log.info(`Applied MEDITATOR_ORIGIN override (${originOverride.trim().length} chars)`);
+    }
+    // A wake-time interlocutor override (the Studio's editable companion name, or
+    // MEDITATOR_INTERLOCUTOR by hand) names the person this instance talks with,
+    // without editing the file — see applyInterlocutorOverride.
+    const interlocutorOverride = process.env.MEDITATOR_INTERLOCUTOR;
+    if (interlocutorOverride && interlocutorOverride.trim()) {
+      content = applyInterlocutorOverride(content, interlocutorOverride);
+      log.info(`Applied MEDITATOR_INTERLOCUTOR override → interlocutor="${interlocutorOverride.trim()}"`);
     }
     loaded = { path: filePath, content };
     return content;

@@ -21,7 +21,7 @@ test("a redirect frame renders three role-labeled turns, not one folded system b
     const el = mk();
     el.onFrame({
         process: "mind", kind: "frame", frameKind: "redirect",
-        system: 'You are a mind thinking to itself.\n\n## This just happened\n- A voice arrives from outside: "hi"',
+        system: 'You are a mind thinking to itself.\n\n## This just happened\n- Kris says: "hi"',
         instruction: "Your inner monologue is already underway; continue it from exactly where it leaves off.",
         frame: "…the tail of the thought I was already having, then the bridge sentence.",
     });

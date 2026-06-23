@@ -51,6 +51,16 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
 export function tickDelay(tickMs, sinceStartMs) {
     return Math.max(0, tickMs - sinceStartMs)
 }
+/** Fill the {{interlocutor}} placeholder in identity prose with the mind's
+ *  companion name (m-mind's `interlocutor` attribute, set in the file or at wake
+ *  via MEDITATOR_INTERLOCUTOR). With no name it falls back to a warm generic so
+ *  the sentence still reads — though an architecture that uses the placeholder
+ *  should give an `interlocutor="…"` default. Shared with m-speech so the
+ *  spoken-voice system prompt resolves the same name the thinking frame does. */
+export function fillInterlocutor(text, name) {
+    const who = (name || "").trim() || "whoever comes to talk with you"
+    return (text || "").replace(/\{\{\s*interlocutor\s*\}\}/gi, who)
+}
 /** Resolves on the first boundary AFTER the given burst index (the property
  *  subscription replays the previous boundary, which must be ignored). */
 function onceBoundary(stream, afterIndex, timeoutMs) {
@@ -432,8 +442,17 @@ export class MMind extends MBaseComponent {
         return payload
     }
 
+    /** The companion this mind is in conversation with — the name woven into the
+     *  identity's {{interlocutor}} placeholder and into how an external voice is
+     *  framed ("<name> says: …"). The file's `interlocutor="…"` default,
+     *  overridden at wake by MEDITATOR_INTERLOCUTOR (folded into the attribute by
+     *  applyInterlocutorOverride). Empty string when there is no named companion. */
+    interlocutorName() {
+        return (this.attr("interlocutor") || "").trim()
+    }
+
     _identity() {
-        const self = this.getPrompt().trim()
+        const self = fillInterlocutor(this.getPrompt().trim(), this.interlocutorName())
         // The body schema, woven in softly: the mind knows what it can reach the way
         // it knows its own hands — felt, world-facing, never a tool to invoke. This is
         // what lets a capability be USED on purpose and rediscovered when it fires,

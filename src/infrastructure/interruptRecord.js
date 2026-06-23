@@ -22,6 +22,7 @@ export class InterruptRecord {
     source,
     type,
     reason,
+    from = null,
     salience,
     urgent = false,
     suggestion = null,
@@ -32,6 +33,10 @@ export class InterruptRecord {
     this.source = source;
     this.type = type;
     this.reason = reason;
+    // For an external human voice: who is speaking, when known (the mind's
+    // companion — see m-mind's interlocutor). Left as raw words in `reason`;
+    // `from` only decides how renderForFrame() attributes the voice.
+    this.from = (from && String(from).trim()) || null;
     this.salience = typeof salience === 'number' ? Math.max(0, Math.min(1, salience)) : 0.5;
     this.urgent = !!urgent;
     this.suggestion = suggestion;
@@ -46,18 +51,21 @@ export class InterruptRecord {
    * Renders the interrupt as a short first-person stimulus line for the
    * attention frame — what the mind experiences, not a bureaucratic record.
    *
-   * For `UserInput` type, wraps the raw `reason` in narrative framing so the
-   * model perceives it as an external voice event. The raw `reason` remains
-   * unadorned on the record itself, so UI consumers can display the user's
-   * actual words without the internal narrative wrapper.
+   * For an external human voice (`UserInput` / `ConsoleInput`), wraps the raw
+   * `reason` in narrative framing so the model perceives it as someone
+   * speaking. When the speaker is known (`from`, the mind's companion) the
+   * voice is attributed by name — a known person, not an unsettling source
+   * from nowhere; otherwise it falls back to "Someone says". The raw `reason`
+   * remains unadorned on the record itself, so UI consumers can display the
+   * user's actual words without the internal narrative wrapper.
    * @returns {string}
    */
   renderForFrame() {
     let text = this.reason;
-    // Narrative framing for external voice — the model perceives the user's
-    // words as a voice arriving from outside, not a bare string.
-    if (this.type === 'UserInput') {
-      text = `A voice arrives from outside: "${this.reason}"`;
+    if (this.type === 'UserInput' || this.type === 'ConsoleInput') {
+      text = this.from
+        ? `${this.from} says: "${this.reason}"`
+        : `Someone says: "${this.reason}"`;
     }
     const parts = [text];
     if (this.suggestion) parts.push(this.suggestion);

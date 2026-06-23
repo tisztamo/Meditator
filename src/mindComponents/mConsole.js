@@ -32,10 +32,13 @@ export class MConsole extends MBaseComponent {
                     .finally(() => { log.log("Asleep. Goodbye."); process.exit(0) })
                 return
             }
+            // Raw words in `reason`, the mind's companion as `from`; the framing
+            // "<from> says: …" is added by InterruptRecord.renderForFrame().
             const record = new InterruptRecord({
                 source: 'External',
                 type: 'ConsoleInput',
-                reason: `A voice from outside says: "${text}"`,
+                reason: text,
+                from: this.closest('m-mind')?.interlocutorName?.() || null,
                 salience: 1,
                 urgent: true,
             })
