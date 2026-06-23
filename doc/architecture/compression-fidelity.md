@@ -1,12 +1,18 @@
 # Compression fidelity — iterative, never-truncating consolidation
 
-> **Status: §1–§4 and §5 (minimum) implemented (2026-06-20).** §3–§4 amended the
-> same day to fix the **bloat bug** (`story` reached ~6× budget in an hour, and it is
-> injected into every burst frame): the fold/tighten prompts then *licensed forgetting
-> the oldest/settled*, and — because the local utility model *echoes* a "make it
-> shorter" re-drive verbatim rather than tightening (so the prompt alone cannot bound
-> the buffer) — `compressToFit` **detects the stall and enforces the budget in code**
-> via `forgetOldestToFit`.
+> **Status: §1–§4 and §5 (minimum) implemented (2026-06-20); compression rewritten
+> 2026-06-21 (`9ed4495`).** Current behaviour: a fold merges the established memory and
+> the new thinking into one flat block and rewrites it to a hard character ceiling,
+> re-driving with "% over" feedback; if the model will not get within budget it accepts
+> the best faithful attempt, **over budget — nothing is ever dropped or truncated in
+> code** (§1, §4). The corrections below record how it got here; the first is superseded.
+>
+> **Correction (2026-06-20) — superseded.** The first §3–§4 attempt fixed an early
+> bloat bug (`story` reached ~6× budget in an hour, and it is injected into every burst
+> frame) by having `compressToFit` detect the echo stall — the local utility model
+> *echoes* a "make it shorter" re-drive verbatim rather than tightening — and **enforce
+> the budget in code** via `forgetOldestToFit` (drop whole paragraphs from the front).
+> That code enforcer was itself wrong and was later removed (see the two notes below).
 >
 > **Correction (2026-06-21) — the prompt was inverted; §4 rewritten.** The lemma
 > resident's first run lost its *origin problem* from working memory: across folds
@@ -19,12 +25,25 @@
 > on the work and the self, never by age. The three prompt shapes were rewritten
 > accordingly (the `mCompress` legacy compressor, deleted in `caa0f16`, had the faithful
 > framing — "preserve the key ideas / essential narrative" — and got this right).
-> `forgetOldestToFit` remains the **rare last-resort** budget enforcer for the echo
-> pathology only; with a genuine distillation ask the model shrinks, so it should seldom
-> fire (its "drop the front" bluntness is the residual risk to watch — see §4).
 >
-> §1–§4 in `MMemory._compress` / `compressToFit` / `forgetOldestToFit` / `buildCompressionPrompt`
-> (`src/mindComponents/mMemory.js`); §5's recall-pool in
+> **Correction (2026-06-21, `9ed4495`) — `forgetOldestToFit` removed.** Dropping the
+> oldest to fit was the *same age-based inversion, in code*: on the lemma resident it was
+> the actual executioner, beheading the spine (the origin problem) fold by fold. It was
+> deleted. The buffer is now held to size by distillation alone, and an over-budget but
+> faithful memory is accepted when the model will not shrink (§3–§4). It is **gone from
+> `src/`** — do not describe it as a live backstop.
+>
+> **Correction (2026-06-23) — distillation alone does NOT always bound the buffer.**
+> With no code enforcer, the echo pathology is now unbounded: on loop-saturated drift the
+> utility model echoes instead of distilling, and `story`/`recent` bloated to ~20×/~11×
+> budget in the `lemma-lab-5` run (`dedupeExact` only removes byte-identical repeats, so
+> near-duplicate refrains survive). The §4 claim that "distillation alone bounds the
+> buffer" holds for well-behaved thinking but **not** for heavy looping. Open issue and
+> proposed fixes (none age-based):
+> [improvements/compressor-not-distilling.md](../improvements/compressor-not-distilling.md).
+>
+> §1–§4 in `MMemory._compress` / `compressToFit` / `buildCompressionPrompt` /
+> `nearestToTarget` (`src/mindComponents/mMemory.js`); §5's recall-pool in
 > `src/mindComponents/recallSources.js`, read by `m-recall` and `m-resurface`.
 > Unit coverage in `architecture/tests/unit/memory-compress.test.js` and
 > `recall-sources.test.js`. **§5's richer variant — a KB digest into the compressor
@@ -166,7 +185,17 @@ run is a few hundred characters. It was caused by (a) the model *echoing* its in
 instead of compressing, and (b) an earlier prompt that ordered it to *keep every
 conclusion* including all the scratch-work. (a) is cured by the flat-block + hard-ceiling
 prompt (§1), which compresses reliably; (b) by dropping the *working detail* whose result
-is already kept — never the result. Forgetting here is covenant-sanctioned (COVENANT §3,
+is already kept — never the result.
+
+> **Caveat (2026-06-23): (a) is not fully cured on loop-saturated drift.** "Distillation
+> alone bounds the buffer" held in the resident replay but **failed** in the `lemma-lab-5`
+> run: a mind that fell into a presence-attractor emitted near-duplicate refrains
+> (`"…I am here. I am now. And it is enough."` ×100+), the model *echoed* them rather than
+> collapsing the loop, and with no code enforcer (`forgetOldestToFit` removed) `story` and
+> `recent` reached ~20×/~11× budget. The flat-block prompt compresses *reliable*, *novel*
+> thinking; it does not reliably collapse heavy looping, and `dedupeExact` only catches
+> byte-identical repeats, not near-duplicates. See
+> [improvements/compressor-not-distilling.md](../improvements/compressor-not-distilling.md). Forgetting here is covenant-sanctioned (COVENANT §3,
 "compression is lossy by design; the vault's history is not"), but it is forgetting the
 *redundant and superseded*, not the *settled and foundational*.
 
