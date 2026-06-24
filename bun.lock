@@ -4,7 +4,7 @@
   "workspaces": {
     "": {
       "dependencies": {
-        "amanita": "^0.1.2",
+        "amanita": "^0.2.1",
         "express": "^4.22.2",
         "jsdom": "^26.1.0",
         "openai": "^4.104.0",
@@ -83,7 +83,7 @@
 
     "ajv-formats": ["ajv-formats@2.1.1", "", { "dependencies": { "ajv": "^8.0.0" } }, "sha512-Wx0Kx52hxE7C18hkMEggYlEifqWZtYaRgouJor+WMdPnQyEK13vgEWyVNup7SoeeoLMsr4kf5h6dOW11I15MUA=="],
 
-    "amanita": ["amanita@0.1.2", "", {}, "sha512-XKAknYGre5+rKkEFStFBjadgkiYWRSHg7rRDbn76csQv+4BJvgbKj9Gg9gZngPvu/VkUPHSOtgLhPdW73Y2djw=="],
+    "amanita": ["amanita@0.2.1", "", {}, "sha512-JVzjZQkdE6XqiQq9F9+IQ9QIc2K2RZaolt9vkACktCEgHqOO2IfCxcQZ6zotdfwAa2LJJ6JU3dbbGqLJUYb/Ag=="],
 
     "ansi-regex": ["ansi-regex@6.1.0", "", {}, "sha512-7HSX4QQb4CspciLpVFwyRe79O3xsIZDDLER21kERQ71oaPodF8jL725AgJMFAYbooIqolJoRLuM81SpeUkpkvA=="],
 
