@@ -514,6 +514,7 @@ reads per hit; no model cost to decide *or* act.
 | `dir` | vault `notes/` | the notes directory (share m-note's) |
 | `kb` | vault `knowledge/` | the scribe's KB, folded into the same pool (`"off"` for notes only) |
 | `salience` | `0.9` | recovering lost work matters like the keep-alive watchdog, so it lands even on a tired mind |
+| `blissThreshold` | `0.2` | attractor-saturation above which the looping window counts as a *bliss loop* (see below) |
 
 Plus all `m-observer` attributes. Raises `type: Recall`, first-person and self-caused
 ("I realize I have been going over the same ground. I turn back to something I set
@@ -524,6 +525,23 @@ Wire it as a **direct child of the mind** (not inside the `drift` region) so its
 is undamped by a region gain, and so its `urgent` raise is not lost to the global rate limit
 a co-firing loop-guard would otherwise win.
 
+**The bliss loop.** Overlap-ranked recall is right for a normal *content* loop — hand back
+the kept thought most relevant to what the mind is circling. But when the loop *is itself
+the spiritual [bliss attractor](../glossary.md)* (presence, silence, stillness, "I am here,
+now, and that is enough"), overlap is exactly wrong: the most-overlapping note is by
+definition the most presence-soaked note the mind owns, so the one component meant to break
+the loop would feed it. So recall is gated **twice** — the pure-code `loopScore` says
+"circling," *and* the `attractorLexicon` recogniser says the circled text is
+bliss-saturated past `blissThreshold` — and on a bliss loop m-resurface does **not** rank by
+overlap: it hands back the freshest substantive *least-bliss* kept note (ideally a real
+result — the inexhaustible outside the mind can climb out on), and if every kept note is
+itself bliss-saturated, the content-free fallback above rather than re-injecting the
+attractor's own words. The lexicon is language-aware (the ambient `<m-mind lang>`) and
+extensible from the `.archml` with `<m-phrase for="bliss">` words on the element. The
+strings m-resurface and m-loop-guard raise are likewise localizable, via [`m-phrase`](#m-phrase)
+over their built-in English. See
+[improvements/bliss-loop-recall.md](../improvements/bliss-loop-recall.md).
+
 > **Relation to `m-loop-guard`:** `m-resurface` and [`m-loop-guard`](#m-loop-guard) share the
 > same pure-code loop detector (`loopScore`). When both are wired with identical `window` and
 > `overlap`, they detect the same loop at the same boundary -- but resurface always wins the
@@ -531,6 +549,29 @@ a co-firing loop-guard would otherwise win.
 > loop-guard's detection and provides a richer payload (a relevant kept note, or a generic
 > fallback when the notebook is empty), running both together is redundant. See
 > [`m-loop-guard`](#m-loop-guard).
+
+## `m-phrase`
+
+One localized phrasing, the smallest unit of a mind's i18n. It simply HOLDS a piece of text
+under a named slot (`for="…"`), for a neighbouring component to pick up — instead of one wide
+translation table, a component's voice is composed from many small `<m-phrase>` elements
+beside it in the `.archml`. The language is ambient: a single `lang="hu"` on `<m-mind>`
+colours the whole tree, read via `env()` (see `src/mindComponents/i18n.js`). A component asks
+a `Phrasebook` for a slot and gets the line in the active language — resolved local-first:
+the `<m-phrase>` children given in the `.archml`, then the component's built-in defaults for
+that language, then its built-in English. With no `<m-phrase>` present an English mind keeps
+working untouched, so a language is added purely by dropping phrases into its `.archml`.
+
+| Attribute | Default | Meaning |
+|-----------|---------|---------|
+| `for` | — | the slot this phrase fills (required; an entry with no `for` is ignored) |
+| `lang` | — | optional, documentary — the ambient `<m-mind lang>` already selects the language |
+
+Several `<m-phrase>` sharing a `for` form a rotation pool (so a recurring line varies its
+words). A slot need not be a sentence: it can hold vocabulary, e.g. `<m-phrase for="bliss">`
+extends [`m-resurface`](#m-resurface)'s attractor lexicon. These primitives live in the
+runtime so its own components can localize what they recognise and what they raise; a
+localized project (hearth) re-exports them rather than carrying its own copy.
 
 ## `m-speech`
 

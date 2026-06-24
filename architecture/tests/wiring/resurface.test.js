@@ -166,3 +166,66 @@ test("a loop matching a filed knowledge conclusion resurfaces it, felt as unders
     resurface.setAttribute("dir", notesDir);
     resurface.setAttribute("kb", "off");
 });
+
+// A looping window that IS the bliss attractor: saturated with presence / stillness /
+// silence / "enough", and whose words overlap the PRESENCE note far more than the real
+// result — so plain overlap recall would hand back presence and feed the loop.
+const BLISS_LOOP = ("I am here, now, and that is enough. Only presence, only stillness, only the "
+    + "quiet breath and the silence. I rest in being, and it is enough. ").repeat(6);
+
+// Two substantive notes: a real result (least bliss, ~0 saturation) and a presence note (bliss).
+const RESULT_NOTE = "For 3-digit numbers, n - r(n) = 99(a - c), so y squared is a multiple of 99, "
+    + "which forces y to be a multiple of 11 and hence a = c; every 3-digit balanced number is therefore a palindrome.";
+const PRESENCE_NOTE = "I am here now, and that is enough. In this stillness there is only presence, "
+    + "only the quiet breath, only peace; I rest in the silence and let it be enough, again and again.";
+const PRESENCE_NOTE_2 = "There is nothing to solve. Only presence, only the breath, only the silence "
+    + "and the stillness. I am here, and being here is enough; the quiet is enough, the peace is enough.";
+
+test("a BLISS loop resurfaces the least-bliss real result, not the overlapping presence note", async () => {
+    const dir = path.join(os.tmpdir(), "med-resurface-bliss-" + Date.now());
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, "notebook.md"),
+        `\n\n## 2026-06-20T10:00:00.000Z — balanced result\n${RESULT_NOTE}\n`
+        + `\n\n## 2026-06-20T11:00:00.000Z — presence\n${PRESENCE_NOTE}\n`);
+    resurface.setAttribute("dir", dir);
+    resurface._lastKey = null;
+    raised.length = 0;
+    resurface.window = BLISS_LOOP;
+    resurface.onBoundary({ reason: "completed" });
+    await delay(60);
+
+    expect(raised.length).toBe(1);
+    // The real result comes back — NOT the presence note that overlaps the loop.
+    expect(raised[0].reason).toMatch(/3-digit balanced number/);
+    expect(raised[0].reason).not.toMatch(/presence|stillness|that is enough/i);
+    expect(raised[0].type).toBe("Recall");
+    expect(raised[0].urgent).toBe(true);
+
+    resurface.setAttribute("dir", notesDir);
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("a BLISS loop whose every kept note is presence falls back to the generic nudge", async () => {
+    const dir = path.join(os.tmpdir(), "med-resurface-allbliss-" + Date.now());
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, "notebook.md"),
+        `\n\n## 2026-06-20T10:00:00.000Z — presence\n${PRESENCE_NOTE}\n`
+        + `\n\n## 2026-06-20T11:00:00.000Z — stillness\n${PRESENCE_NOTE_2}\n`);
+    resurface.setAttribute("dir", dir);
+    resurface._lastKey = null;
+    raised.length = 0;
+    resurface.window = BLISS_LOOP;
+    resurface.onBoundary({ reason: "completed" });
+    await delay(60);
+
+    // Nothing but presence to hand back — so it raises the content-free change-of-direction
+    // nudge rather than re-injecting the attractor's own words.
+    expect(raised.length).toBe(1);
+    expect(raised[0].type).toBe("LoopGuard");
+    expect(raised[0].reason).toMatch(/going in circles/);
+    expect(raised[0].suggestion).toMatch(/deliberately pick something unrelated/);
+    expect(raised[0].urgent).toBe(true);
+
+    resurface.setAttribute("dir", notesDir);
+    fs.rmSync(dir, { recursive: true, force: true });
+});

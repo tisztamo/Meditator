@@ -1,10 +1,32 @@
 import { MObserver } from "./mObserver.js"
-import { loopScore, contentStems, containment } from "./mLoopGuard.js"
+import { loopScore, contentStems, containment, LOOP_PHRASES } from "./mLoopGuard.js"
+import { blissStemSet, blissSaturation } from "./attractorLexicon.js"
+import { makePhrasebook } from "./i18n.js"
 import { readKept } from "./recallSources.js"
 import { mindHome } from '../infrastructure/memoryVault.js';
 import { logger } from '../infrastructure/logger.js';
 
 const log = logger('mResurface.js');
+
+/**
+ * What m-resurface says, as localizable phrases (i18n.js). The English defaults are
+ * verbatim what it has always raised; a non-English mind overrides any slot from the
+ * .archml with <m-phrase for="…"> on the element. It shares the loop-guard's `notice`
+ * and `redirect` slots for the content-free floor, and adds its own for the recalled
+ * note: `ground` opens it, `turn-note` / `turn-knowledge` say how the thought was met
+ * (set down vs. come to understand — the One Rule), and `about` names it. The note's own
+ * words and the quotation marks are assembled in code, around these slots.
+ */
+const RESURFACE_PHRASES = {
+    en: {
+        notice: LOOP_PHRASES.en.notice,
+        redirect: LOOP_PHRASES.en.redirect,
+        ground: ["I realize I have been going over the same ground."],
+        "turn-note": ["I turn back to something I set down before"],
+        "turn-knowledge": ["I turn back to something I came to understand"],
+        about: [", about {title}"],
+    },
+}
 
 /**
  * m-resurface — INVOLUNTARY recall. When the mind loses its thread (circles the
@@ -55,6 +77,24 @@ const log = logger('mResurface.js');
  *     mind's vault home `knowledge/`, matching m-kb; "off" to draw from notes only)
  *   - salience: salience of the resurfaced note (default 0.9 — recovering lost work is
  *     as important as the keep-alive watchdog, so it lands even on a tired mind)
+ *   - blissThreshold: attractor-saturation 0..1 above which the looping window counts as a
+ *     *bliss loop* rather than a normal content loop (default 0.2; see below and
+ *     attractorLexicon.js). The lexicon is language-aware (the ambient <m-mind lang>) and
+ *     extensible from the .archml with <m-phrase for="bliss"> words on this element.
+ *
+ * THE BLISS LOOP. Overlap-ranked recall is right for a normal content loop — hand back the
+ * kept thought most relevant to what the mind is circling. But when the loop *is itself the
+ * spiritual bliss attractor* (presence, silence, stillness, "I am here, now, and that is
+ * enough"; doc/improvements/bliss-loop-recall.md), overlap is exactly wrong: the
+ * most-overlapping note is by definition the most presence-soaked note the mind owns, so
+ * the one component meant to break the loop would feed it. So this is a DOUBLE GATE — the
+ * pure-code loop detector says "circling," AND attractorLexicon says the circled text is
+ * bliss-saturated — and on a bliss loop m-resurface does NOT rank by overlap: it hands back
+ * the freshest substantive *least-bliss* kept note (ideally a real result — the
+ * inexhaustible outside the mind can climb out on), never the attractor's own words. If
+ * every kept note is itself bliss-saturated, it falls through to the same content-free
+ * change-of-direction nudge it raises with an empty notebook — never silent, never
+ * re-injecting presence.
  */
 export class MResurface extends MObserver {
     _busy = false
@@ -83,33 +123,31 @@ export class MResurface extends MObserver {
         // Both stores in one pool, oldest-first; pure file reads, never a model call.
         const kept = await readKept({ notesDir, kbDir })
         if (!kept.length) {
-            // Nothing to resurface — fall back to the generic change-of-direction stimulus,
-            // the same message m-loop-guard raises, so the loop is still broken.
-            const raised = this.raise(
-                "I notice I am going in circles, repeating the same thoughts in different words.",
-                {
-                    salience: Number(this.attr("salience") || 0.9),
-                    urgent: this.attr("urgent") !== "false",
-                    suggestion: "Enough of this thread for now — I will deliberately pick something unrelated that I have been carrying, and start there.",
-                    type: "LoopGuard",
-                }
-            )
-            if (raised) this.window = ""
+            // Nothing to resurface — fall back to the generic change-of-direction stimulus.
+            this._raiseFloor()
             return
         }
 
-        const note = this._pickRelevant(kept)
-        if (!note) return
+        // The double gate: the loop is already confirmed (above); is the circled text the
+        // *bliss attractor* rather than real content? If so, overlap-ranking would feed the
+        // loop, so hand back the least-bliss substantive note instead (a real result if the
+        // mind has one) — and if even that is presence-soaked, fall through to the nudge.
+        const threshold = Number(this.attr("blissThreshold") || 0.2)
+        const blissy = blissSaturation(this.window, this._blissStems()) >= threshold
+        const note = blissy ? this._pickLeastBliss(kept, threshold) : this._pickRelevant(kept)
+        if (!note) {
+            this._raiseFloor()   // a bliss loop whose every kept note is itself bliss
+            return
+        }
 
         const text = note.text.length > 400 ? note.text.slice(0, 400).trimEnd() + "…" : note.text
         // Felt by where it came from, never how it was stored (the One Rule): a note was
         // deliberately "set down"; filed knowledge is something the mind "came to understand".
-        const turn = note.source === "knowledge"
-            ? "I turn back to something I came to understand"
-            : "I turn back to something I set down before"
+        const book = this._book()
+        const turn = book.line(note.source === "knowledge" ? "turn-knowledge" : "turn-note")
+        const about = note.title ? book.line("about", { title: note.title.toLowerCase() }) : ""
         const raised = this.raise(
-            `I realize I have been going over the same ground. ${turn}`
-            + `${note.title ? `, about ${note.title.toLowerCase()}` : ""}: “${text}”`,
+            `${book.line("ground")} ${turn}${about}: “${text}”`,
             {
                 salience: Number(this.attr("salience") || 0.9),
                 urgent: this.attr("urgent") !== "false",
@@ -119,8 +157,38 @@ export class MResurface extends MObserver {
         if (raised) {
             this._lastKey = note.key
             this.window = ""   // start fresh so the same loop does not re-fire next boundary
-            log.info(`resurfaced kept ${note.source} (loop ${(score * 100).toFixed(0)}%)${note.title ? `: ${note.title}` : ""}`)
+            log.info(`resurfaced ${blissy ? "least-bliss " : ""}kept ${note.source} (loop ${(score * 100).toFixed(0)}%${blissy ? ", bliss" : ""})${note.title ? `: ${note.title}` : ""}`)
         }
+    }
+
+    /**
+     * The generic, content-free change-of-direction stimulus — the same message
+     * m-loop-guard raises. The safe floor: used when there is nothing kept to resurface,
+     * and when a bliss loop's every kept note is itself bliss-saturated (so re-injecting
+     * any of them would feed the attractor). Never silent, never presence words.
+     */
+    _raiseFloor() {
+        const book = this._book()
+        const raised = this.raise(book.line("notice"), {
+            salience: Number(this.attr("salience") || 0.9),
+            urgent: this.attr("urgent") !== "false",
+            suggestion: book.line("redirect"),
+            type: "LoopGuard",
+        })
+        if (raised) this.window = ""
+        return raised
+    }
+
+    /** This mind's localized phrases for what resurface says (i18n.js). Fixed after
+     *  connect — the <m-phrase> children do not change — so built once. */
+    _book() {
+        return (this.__book ||= makePhrasebook(this, RESURFACE_PHRASES))
+    }
+
+    /** The mind's attractor stem-set: its language's built-in bliss words plus any
+     *  <m-phrase for="bliss"> the .archml added. Fixed after connect, so computed once. */
+    _blissStems() {
+        return (this.__blissStems ||= blissStemSet(this))
     }
 
     /**
@@ -156,6 +224,37 @@ export class MResurface extends MObserver {
             const score = relevance + i * 1e-4
             if (score > bestScore) { bestScore = score; best = n }
         }
+        return best
+    }
+
+    /**
+     * Pick the kept note to hand a mind in a BLISS loop: the *least* bliss-saturated
+     * substantive note, so what comes back is the most "outside" thing the mind owns — a
+     * real result (saturation ~0) wins over a presence note. Deliberately the opposite of
+     * _pickRelevant's overlap ranking, because on a bliss loop the most-overlapping note is
+     * the most presence-soaked one. Recency breaks ties (prefer the newer). Returns null
+     * when even the least-bliss substantive note is itself at or above the bliss threshold —
+     * the notebook is all presence, so the caller raises the content-free floor rather than
+     * re-injecting the attractor. Pure code — no model call.
+     */
+    _pickLeastBliss(notes, threshold) {
+        const minNoteChars = Number(this.attr("minNoteChars") || 120)
+        const stems = this._blissStems()
+
+        const fresh = notes.filter(n => n.key !== this._lastKey)
+        const pool = fresh.length ? fresh : notes
+        const substantive = pool.filter(n => n.text.length >= minNoteChars)
+        const candidates = substantive.length ? substantive : pool
+
+        let best = null, bestSat = Infinity
+        for (let i = 0; i < candidates.length; i++) {
+            const n = candidates[i]
+            const sat = blissSaturation(`${n.title || ""} ${n.text}`, stems)
+            // lowest saturation wins; <= lets a later (newer) note win an exact tie
+            if (sat <= bestSat) { bestSat = sat; best = n }
+        }
+        // If even the least-bliss note is itself bliss-saturated, do not re-inject it.
+        if (!best || bestSat >= threshold) return null
         return best
     }
 }

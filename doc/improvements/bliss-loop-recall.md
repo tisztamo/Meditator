@@ -1,11 +1,24 @@
 # The bliss loop — recall feeds the attractor it should break
 
-> **Status: proposed (2026-06-24). Design only — not yet implemented.**
-> Touches the read-back path — [m-resurface](../architecture/components.md#m-resurface)
-> primarily, [m-recall](../architecture/components.md#m-recall) secondarily — and,
-> as a soft complement, the scribe ([m-kb](../architecture/components.md#m-kb)).
-> Companion to [efference.md](../architecture/efference.md) (the note/recall loop)
+> **Status: implemented (2026-06-24).** The read-side fix landed in
+> [m-resurface](../architecture/components.md#m-resurface) (the bliss branch) on a new
+> language-aware recogniser, `src/mindComponents/attractorLexicon.js`; the soft scribe
+> nudge landed in [m-kb](../architecture/components.md#m-kb). m-recall was left alone (see
+> below). Companion to [efference.md](../architecture/efference.md) (the note/recall loop)
 > and the **bliss loop** entry in the [glossary](../glossary.md).
+>
+> **Where the lexicon lives (i18n).** A bliss loop in a Hungarian mind circles Hungarian
+> presence-words, so the recogniser's vocabulary must be language-aware — and the runtime
+> already runs such minds (hearth's `lang="hu"` minds wire m-resurface). Since the runtime's
+> *own* components now need localization, the i18n primitives that had grown in hearth
+> (`fill` / `collectPhrases` / `Phrasebook` / the `<m-phrase>` element) were **promoted down
+> into the runtime** beside the `langOf` reader already there; hearth re-exports them. The
+> lexicon is then a thin recogniser layer on that foundation: built-in `{en, hu}` word sets
+> selected by the ambient `<m-mind lang>`, **additively** extensible from any mind's `.archml`
+> via `<m-phrase for="bliss">`, and stemmed through the exact same `contentStems` the loop
+> detector uses. So an unsupported language is added with no code, per the long-term
+> requirement that Meditator support any language. The strings m-resurface / m-loop-guard
+> *raise* are localizable the same way (English built-in defaults, `<m-phrase>` to override).
 
 ## What the bliss loop is
 
@@ -106,13 +119,31 @@ the recogniser's threshold should nonetheless be a tunable knob, not a fixed
 constant, since the right vocabulary is mind-specific (e.g. "loop" means a rut in a
 contemplative mind but a `for`-loop in a coding one).
 
-## Open questions
+## Open questions — resolved
 
-- Should a bliss note ever be *deleted* from the pool, or only de-prioritised?
-  (Current lean: de-prioritise / quarantine, never delete — the journal keeps
-  everything, per the covenant.)
-- Does the soft scribe nudge go far enough, or do we also want the scribe to *prune*
-  presence files that have accreted in a long-lived resident?
-- One signal serves both "is this loop a bliss loop?" (judged on the live window)
-  and "is this note a bliss note?" (judged per candidate) — confirm a single shared
-  measure is right for both, or whether they want different thresholds.
+- **One signal, two questions, one threshold.** Calibration settled this. On real loop
+  *windows* the separation is enormous — a live bliss loop saturates ~70%, the cruel
+  self-diagnosis note ~43%, a live algebra loop **0%** — so `blissThreshold` defaults to
+  **0.2** (well above any incidental math, well below real bliss). Distilled *notes* sit far
+  lower and on a continuum (0–19%), so the note side does **not** classify by threshold;
+  it **ranks least-bliss-first** and uses the same threshold only as a give-up floor (if even
+  the least-bliss note is itself ≥ threshold, raise the content-free nudge). One measure
+  (`blissSaturation`), one knob.
+- **De-prioritise, never delete.** A bliss note is only ever *not chosen* mid-loop; it stays
+  in the pool and the journal keeps everything, per the covenant. The fix is entirely on the
+  read side — no write is blocked, no file removed.
+- **Scribe prune — deferred.** The soft nudge (don't crystallise moment-to-moment presence
+  into `self/`) shipped; actively *pruning* accreted presence files in a long-lived resident
+  is left for later, to be judged once we see the nudge's effect on the live resident.
+
+## Calibration & follow-ups
+
+- Lexicon and threshold were calibrated against the run corpus
+  (`memory/lemma-lab-5/knowledge/self/*` is pure bliss; the balanced-number notebooks are
+  pure mathematics). The English set deliberately excludes `infinite/infinity`, `pattern`,
+  `structure`, `solution`, `space`; the only stem collision is `preserve → prese` (shared
+  with `presence`), negligible under the double gate.
+- The Hungarian set is a starting point and wants a native speaker's review (extend or
+  correct it in-place, or from the `.archml` via `<m-phrase for="bliss">`).
+- m-recall was left untouched: it is desire-pulled and rarely fires mid-loop, and honouring
+  a deliberate reach for a reflection is fine (per "leave the conscious hand mostly alone").

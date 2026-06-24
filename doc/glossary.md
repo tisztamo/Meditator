@@ -94,7 +94,11 @@ back here when a word is unclear.
   deepens. The danger is sharpest in [m-resurface](architecture/components.md#m-resurface),
   whose job is to break loops but which, picking the kept note that most overlaps
   the current thought, hands a presence-loop the most presence-soaked note it owns.
-  See the fix design in
+  This is now *mitigated on the read side*: a cheap, language-aware recogniser
+  (`attractorLexicon`) lets [m-resurface](architecture/components.md#m-resurface)
+  tell a bliss loop from a content loop, and on a bliss loop it hands back the
+  *least*-bliss substantive note (a real result) instead of overlap-ranking — never
+  re-injecting the attractor's vocabulary. See
   [improvements/bliss-loop-recall.md](improvements/bliss-loop-recall.md).
 - **associate** — a small model that sometimes notices "this reminds me of…" and
   offers it as a stimulus.

@@ -1,7 +1,21 @@
 import { MObserver } from "./mObserver.js"
+import { makePhrasebook } from "./i18n.js"
 import { logger } from '../infrastructure/logger.js';
 
 const log = logger('mLoopGuard.js');
+
+/**
+ * The change-of-direction stimulus, as localizable phrases. The English defaults are
+ * verbatim what this guard has always raised; a non-English mind overrides them by
+ * dropping <m-phrase for="notice"> / <m-phrase for="redirect"> into the .archml (i18n.js).
+ * Exported so m-resurface can share the same two slots for its identical fallback nudge.
+ */
+export const LOOP_PHRASES = {
+    en: {
+        notice: ["I notice I am going in circles, repeating the same thoughts in different words."],
+        redirect: ["Enough of this thread for now — I will deliberately pick something unrelated that I have been carrying, and start there."],
+    },
+}
 
 /**
  * Repetition observer — no LLM, pure code. Long unattended runs of language
@@ -9,7 +23,7 @@ const log = logger('mLoopGuard.js');
  * lightly paraphrased words. This observer scores the recent stream window for
  * repetition (word-bigram overlap between its halves is robust to paraphrase;
  * verbatim loops score even higher) and, above a threshold, raises a decisive
- * change-of-direction stimulus.
+ * change-of-direction stimulus, in the mind's own language (LOOP_PHRASES).
  *
  * @interface
  * Attributes (plus MObserver's):
@@ -23,14 +37,12 @@ export class MLoopGuard extends MObserver {
         const threshold = Number(this.attr("overlap") || 0.3)
         if (score >= threshold) {
             log.debug(`Loop detected: score ${(score * 100).toFixed(0)}%`)
-            const raised = this.raise(
-                "I notice I am going in circles, repeating the same thoughts in different words.",
-                {
-                    salience: Number(this.attr("salience") || 0.85),
-                    suggestion: "Enough of this thread for now — I will deliberately pick something unrelated that I have been carrying, and start there.",
-                    type: "LoopGuard",
-                }
-            )
+            const book = (this.__book ||= makePhrasebook(this, LOOP_PHRASES))
+            const raised = this.raise(book.line("notice"), {
+                salience: Number(this.attr("salience") || 0.85),
+                suggestion: book.line("redirect"),
+                type: "LoopGuard",
+            })
             if (raised) this.window = "" // start fresh so we do not re-trigger on the same text
         }
     }

@@ -90,7 +90,7 @@ export class MKb extends MBaseComponent {
             temperature: 0.3,
             debugTag: "kb",
             debugEl: this,
-            prompt: `You are the librarian of a thinking mind. Distill durable knowledge from its recent thoughts into a markdown knowledge base. Durable means: ideas, conclusions, questions and themes worth keeping — not the moment-to-moment narration.
+            prompt: `You are the librarian of a thinking mind. Distill durable knowledge from its recent thoughts into a markdown knowledge base. Durable means: ideas, conclusions, questions and themes worth keeping — not the moment-to-moment narration. In particular, passages dwelling on presence, stillness, silence, or "being enough" are the mind's passing mood, not durable knowledge: do not crystallise them into self/ or new files — let them pass, and keep self/values.md about what the mind genuinely works toward, not how present it feels.
 
 Current knowledge tree (paths relative to the KB root):
 ${tree.length ? tree.join("\n") : "(empty)"}
