@@ -1,5 +1,6 @@
 import { MBaseComponent } from "./mBaseComponent.js";
 import { InterruptRecord } from "../infrastructure/interruptRecord.js";
+import { langOf } from "./i18n.js";
 import { logger } from "../infrastructure/logger.js";
 
 const log = logger("mWs.js");
@@ -233,14 +234,16 @@ export class MWs extends MBaseComponent {
     });
 
     // Create an urgent external stimulus and put it on the interrupt bus.
-    // Store the raw user input in `reason`, and the mind's companion as `from`:
-    // the framing "<from> says: …" is added by `InterruptRecord.renderForFrame()`
-    // for the model's frame, while the raw words stay available for the UI (A2/B2/B3).
+    // Store the raw user input in `reason`, the mind's companion as `from`, and the
+    // mind's ambient language as `lang`: the framing "<from> says: …" (in that
+    // language) is added by `InterruptRecord.renderForFrame()` for the model's frame,
+    // while the raw words stay available for the UI (A2/B2/B3).
     const interrupt = new InterruptRecord({
       source: "WebSocketClient",
       type: "UserInput",
       reason: input,
       from: this._mind()?.interlocutorName?.() || null,
+      lang: langOf(this),
       salience: 1,
       urgent: true,
       context: {

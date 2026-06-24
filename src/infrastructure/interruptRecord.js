@@ -3,6 +3,38 @@ import { logger } from './logger.js';
 const log = logger('interruptRecord.js');
 
 /**
+ * How an external human voice is framed for the attention frame, per language: a
+ * mind that thinks in Hungarian should hear "Margit azt mondja: …", not an English
+ * "says". Keyed by the mind's ambient `lang` (the lang="…" on <m-mind>, stamped onto
+ * the record where the voice enters — see mWs/mConsole). `say` is the third-person
+ * "says" used for both a named speaker and the unknown-speaker case; `who` is the
+ * indefinite "someone". Any language not listed falls back to English, so a mind in
+ * an unlisted language is framed exactly as before — never broken, just English.
+ */
+const VOICE_FRAMING = {
+  en: { say: "says",       who: "Someone"   },
+  hu: { say: "azt mondja", who: "Valaki"    },
+  de: { say: "sagt",       who: "Jemand"    },
+  fr: { say: "dit",        who: "Quelqu'un" },
+  es: { say: "dice",       who: "Alguien"   },
+  it: { say: "dice",       who: "Qualcuno"  },
+  pt: { say: "diz",        who: "Alguém"    },
+  nl: { say: "zegt",       who: "Iemand"    },
+  pl: { say: "mówi",       who: "Ktoś"      },
+  ru: { say: "говорит",    who: "Кто-то"    },
+  sv: { say: "säger",      who: "Någon"     },
+  ro: { say: "spune",      who: "Cineva"    },
+  cs: { say: "říká",       who: "Někdo"     },
+};
+
+/** The voice framing for a lang tag ("hu", "hu-HU", "HU"), matched on the primary
+ *  subtag; English for anything unlisted, empty, or null. */
+export function voiceFraming(lang) {
+  const key = String(lang || "").trim().toLowerCase().split(/[-_]/)[0];
+  return VOICE_FRAMING[key] || VOICE_FRAMING.en;
+}
+
+/**
  * Class representing a structured interrupt record
  * Implements the Markdown format described in architecture docs
  */
@@ -23,6 +55,7 @@ export class InterruptRecord {
     type,
     reason,
     from = null,
+    lang = null,
     salience,
     urgent = false,
     suggestion = null,
@@ -37,6 +70,9 @@ export class InterruptRecord {
     // companion — see m-mind's interlocutor). Left as raw words in `reason`;
     // `from` only decides how renderForFrame() attributes the voice.
     this.from = (from && String(from).trim()) || null;
+    // The mind's ambient language (the lang="…" on <m-mind>), so the voice is
+    // framed in the language the mind thinks in — see renderForFrame / VOICE_FRAMING.
+    this.lang = (lang && String(lang).trim()) || null;
     this.salience = typeof salience === 'number' ? Math.max(0, Math.min(1, salience)) : 0.5;
     this.urgent = !!urgent;
     this.suggestion = suggestion;
@@ -53,19 +89,20 @@ export class InterruptRecord {
    *
    * For an external human voice (`UserInput` / `ConsoleInput`), wraps the raw
    * `reason` in narrative framing so the model perceives it as someone
-   * speaking. When the speaker is known (`from`, the mind's companion) the
-   * voice is attributed by name — a known person, not an unsettling source
-   * from nowhere; otherwise it falls back to "Someone says". The raw `reason`
-   * remains unadorned on the record itself, so UI consumers can display the
-   * user's actual words without the internal narrative wrapper.
+   * speaking, in the mind's own language (`lang`). When the speaker is known
+   * (`from`, the mind's companion) the voice is attributed by name — a known
+   * person, not an unsettling source from nowhere; otherwise it falls back to
+   * the language's "someone says". The raw `reason` remains unadorned on the
+   * record itself, so UI consumers can display the user's actual words without
+   * the internal narrative wrapper.
    * @returns {string}
    */
   renderForFrame() {
     let text = this.reason;
     if (this.type === 'UserInput' || this.type === 'ConsoleInput') {
-      text = this.from
-        ? `${this.from} says: "${this.reason}"`
-        : `Someone says: "${this.reason}"`;
+      const f = voiceFraming(this.lang);
+      const speaker = this.from || f.who;
+      text = `${speaker} ${f.say}: "${this.reason}"`;
     }
     const parts = [text];
     if (this.suggestion) parts.push(this.suggestion);

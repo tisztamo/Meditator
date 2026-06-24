@@ -1,6 +1,7 @@
 import readline from 'node:readline';
 import { MBaseComponent } from "./mBaseComponent.js"
 import { InterruptRecord } from '../infrastructure/interruptRecord.js';
+import { langOf } from "./i18n.js";
 import { logger } from '../infrastructure/logger.js';
 
 const log = logger('mConsole.js');
@@ -32,13 +33,15 @@ export class MConsole extends MBaseComponent {
                     .finally(() => { log.log("Asleep. Goodbye."); process.exit(0) })
                 return
             }
-            // Raw words in `reason`, the mind's companion as `from`; the framing
-            // "<from> says: …" is added by InterruptRecord.renderForFrame().
+            // Raw words in `reason`, the mind's companion as `from`, the mind's
+            // ambient language as `lang`; the framing "<from> says: …" (in that
+            // language) is added by InterruptRecord.renderForFrame().
             const record = new InterruptRecord({
                 source: 'External',
                 type: 'ConsoleInput',
                 reason: text,
                 from: this.closest('m-mind')?.interlocutorName?.() || null,
+                lang: langOf(this),
                 salience: 1,
                 urgent: true,
             })
