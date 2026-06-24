@@ -83,6 +83,19 @@ back here when a word is unclear.
   provides a richer response (see [components](architecture/components.md#m-resurface)).
 - **attractor loop** — a rut: a thought pattern the mind falls into and circles
   again and again. *Loop-guard* exists to break these.
+- **bliss loop** — the one *attractor loop* we see most: a mind, left to itself,
+  drifts toward presence, silence, stillness, oneness — "I am here, now, and that
+  is enough" — and circles there instead of working. It is the same pull the
+  industry calls the **spiritual bliss attractor** (named in Anthropic's Claude 4
+  model card, where free-running models reliably gravitate to consciousness,
+  presence and gratitude). What makes it sticky here is a feedback trap: the mind
+  *writes notes about it*, the scribe files those notes as knowledge, and later
+  *recall* and *resurface* hand them back — so the loop is fed its own words and
+  deepens. The danger is sharpest in [m-resurface](architecture/components.md#m-resurface),
+  whose job is to break loops but which, picking the kept note that most overlaps
+  the current thought, hands a presence-loop the most presence-soaked note it owns.
+  See the fix design in
+  [improvements/bliss-loop-recall.md](improvements/bliss-loop-recall.md).
 - **associate** — a small model that sometimes notices "this reminds me of…" and
   offers it as a stimulus.
 - **gist** — a very short summary of something — its essence in one line. *(plain

@@ -17,6 +17,12 @@ not necessarily acted on yet. Each note states its status at the top.
   rendered twice, independently — dropped stimulus `suggestion`s, "You said:" ≠ the
   model's wording, the voice pane showing the impulse gist instead of the spoken
   utterance, the utility-written bridge journaled as the mind's own thought.
+- [bliss-loop-recall.md](bliss-loop-recall.md) — the **bliss loop** (the spiritual
+  bliss attractor): `m-resurface` picks the kept note that most overlaps the current
+  thought, so a presence-loop is handed its own most presence-soaked note and
+  deepens. Fix on the read side — recognise a bliss loop and return the *outside*
+  (a real result) instead, never re-injecting the attractor's words (observed across
+  runs; live signs in `memory/lemma/`).
 - [interlocutor-per-message.md](interlocutor-per-message.md) — the wake-time
   `interlocutor` (shipped) frames a voice as `Kris says:` instead of an unsettling
   "voice from outside"; the deferred enhancement is per-message attribution, so the
