@@ -188,7 +188,10 @@ bubbling events — that is what keeps the command surface declared and the hub
 swappable. Reading `conn.roster` / `conn.focusedId` (S2) has no such defence: those
 are already topics.
 
-A declarative `<m-wire from to>` connector (the Amanita-level idea
+A declarative `<a-wire from to>` connector (the Amanita-level idea
 [deferred on the mind side](architecture/decoupling.md#remaining--deferred)) would
 also work here, but the subscriber-ref + command-event pattern covers every case
-and fits the grain — so it stays deferred for the Studio too.
+and fits the grain. It stays **deferred until a concrete adapter need appears**
+(e.g. spawned subminds, third-party Studio panes speaking mismatched topic
+vocabularies). The `*Src` attribute pattern already provides overridable,
+greppable, per-instance wiring without the ceremony of a new element type.

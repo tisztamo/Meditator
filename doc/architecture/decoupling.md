@@ -98,11 +98,14 @@ direct calls, on the same footing as the arbiter's documented `takePending()`:
   outside the transport. Small, independent slice: have `m-economy` publish a
   retained `paceFactor` (it already publishes `energy`/`arousal`), and let
   `m-mind` mirror it. Not yet done.
-- **A declarative `<m-wire from to>` connector** (Amanita-level) — would let
-  *neither* side name the other and make routes legible in one place. Only worth it
-  as an adapter/rename between mismatched vocabularies; the subscriber-ref pattern
-  covers every current case and fits the "prefer structural-relative refs" grain.
-  **Deferred** until a concrete adapter need appears.
+- **A declarative `<a-wire from to>` connector** (Amanita-level) — would let
+  *neither* side name the other and make routes legible in one place. The
+  subscriber-ref pattern covers every current case and fits the
+  "prefer structural-relative refs" grain, so this stays **deferred until a
+  concrete adapter need appears** (e.g. spawned subminds that fold results
+  upward, or third-party components speaking mismatched topic vocabularies).
+  The `*Src` attribute pattern already provides overridable, greppable,
+  per-instance wiring without the ceremony of a new element type.
 
 ## The same principle, in the browser
 
