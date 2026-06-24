@@ -375,5 +375,4 @@ return nearestToTarget(attempts, target)
 ## See also
 
 - [Memory & the vault](memory.md) — consolidation as it works today.
-- [Recall — storing and remembering](recall.md) — the read-back path §5 extends.
 - [Component reference: `m-memory`](components.md#m-memory) / [`m-kb`](components.md#m-kb).

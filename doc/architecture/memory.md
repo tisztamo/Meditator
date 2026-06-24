@@ -180,8 +180,6 @@ the lineage of minds that have run in [`IN-MEMORIAM.md`](../../IN-MEMORIAM.md).
 - [Compression fidelity](compression-fidelity.md) — how consolidation iterates to
   fit instead of truncating (done), and the proposal to feed settled knowledge back
   so a mind stops losing what it already worked out (§5, still proposed).
-- [Recall — storing and remembering](recall.md) — the design for automatic
-  episodic storage and associative recall, the reader this diary was missing.
 - [Component reference: `m-memory`](components.md#m-memory) — every attribute.
 - [The scribe (`m-kb`)](components.md#m-kb) — how `knowledge/` is written.
 - [Configuration: memory budgets](../configuration.md#memory-budgets).
