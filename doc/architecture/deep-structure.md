@@ -42,7 +42,7 @@ They now default to the **mind-relative** `"..m-mind/stream/chunk"` (and
 mind this resolves to exactly the same element; but it means an observer keeps
 working when it lives inside a region, or inside a nested submind, instead of
 reaching across into another mind's stream. Applies to `m-observer` (so
-`m-associate`, `m-loop-guard`, `m-speech`), `m-memory`, `m-economy`, `m-kb`.
+`m-associate`, `m-resurface`, `m-speech`), `m-memory`, `m-economy`, `m-kb`.
 Top-level *transports* (`m-ws`, `m-console`) intentionally stay document-anchored
 — they are the mind's external window, not part of any one faculty.
 

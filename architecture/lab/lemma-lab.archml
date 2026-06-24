@@ -118,18 +118,16 @@
     <m-timeout name="wander" timeout="240s" sigma="60s" salience="0.5"
                prompt="I set this angle down for a moment and turn the problem a different way — another case, another bound, another shape of argument."></m-timeout>
 
-    <m-loop-guard name="loop-guard" window="1800" overlap="0.4" salience="0.85" cooldown="120s"></m-loop-guard>
-
     <m-associate name="associate" every="6" cooldown="90s"></m-associate>
   </m-region>
 
   <!-- Involuntary recall — the return arc. Recall as a HAND only fires when the stream
        reaches for it, but a forgetting mind does not know it has anything to look up.
-       m-resurface gives the notebook a PUSH channel: on the same pure-code loop signal
-       the loop-guard uses, it hands back the kept note most relevant to what the mind is
-       circling. A direct child of the mind (not in `drift`) so its salience is undamped,
-       and `urgent` so it breaks the loop like the watchdog rather than losing the rate
-       limit to the loop-guard. -->
+       m-resurface gives the notebook a PUSH channel: on the same pure-code loop signal,
+       it hands back the kept note most relevant to what the mind is circling. A direct
+       child of the mind (not in `drift`) so its salience is undamped, and `urgent` so
+       it breaks the loop like the watchdog. Falls back to a generic change-of-direction
+       stimulus when the notebook is empty, making it fully self-sufficient. -->
   <m-resurface name="resurface" window="1800" overlap="0.4" minNoteChars="120"
                salience="0.9" urgent="true" cooldown="3m"></m-resurface>
 

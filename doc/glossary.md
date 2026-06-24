@@ -78,7 +78,9 @@ back here when a word is unclear.
 - **watchdog** — a timer that only fires after real silence, to wake the mind back
   up so it never freezes. (Same component as *wander*, different setting.)
 - **loop-guard** — an observer that notices when the mind keeps repeating itself
-  and nudges it out. Pure code, no model cost.
+  and nudges it out. Pure code, no model cost. In minds that also have
+  *resurface*, it is redundant — `m-resurface` uses the same detector and
+  provides a richer response (see [components](architecture/components.md#m-resurface)).
 - **attractor loop** — a rut: a thought pattern the mind falls into and circles
   again and again. *Loop-guard* exists to break these.
 - **associate** — a small model that sometimes notices "this reminds me of…" and

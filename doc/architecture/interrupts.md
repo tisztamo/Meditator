@@ -13,7 +13,7 @@ attention, and the observers that generate stimuli.
 
 ```
 generators ──interrupt-request──▶ m-interrupts (arbiter) ──▶ queue
-(timeout, loop-guard,                    │                     │
+(timeout, resurface,                       │                     │
  associate, console, ws)                 │ urgent?             │ at next boundary
                                          ▼                     ▼
                                   ──interrupt──▶ m-mind ◀── takePending()
@@ -108,6 +108,13 @@ a decisive, high-salience change-of-direction stimulus ("I notice I am going in
 circles…") with a suggestion to pick something unrelated, then clears its window
 so it does not immediately re-trigger. For calibration: flowing prose scores
 around 0.16, a paraphrase loop around 0.45.
+
+> **Subsumed by `m-resurface`:** [`m-resurface`](components.md#m-resurface) shares
+> the same loop detector and, when the notebook or knowledge base has content,
+> surfaces a relevant kept note instead of a generic redirect. When the notebook
+> is empty it falls back to the same stimulus `m-loop-guard` raises. Running both
+> together is redundant — `m-resurface` always wins the interrupt arbiter. Use
+> `m-loop-guard` standalone only in minds without `m-resurface`.
 
 ### `m-associate`
 

@@ -123,7 +123,7 @@ mirrors how a person can't think one sentence while speaking a different one, ye
 their subconscious keeps working: while the voice is speaking it publishes
 `speaking=true`, and `m-mind` **thins** the thinking stream (fewer `burstTokens`,
 slower `pace`) so the verbal effort goes mostly to the utterance — but thought
-never stops, and the non-verbal observers (associations, loop-guard, timers,
+never stops, and the non-verbal observers (associations, resurface, timers,
 memory, economy, scribe) keep running untouched. When the utterance ends, the voice
 publishes it on its `spoken` topic; a memory subscribes (via `spokenSrc`) and splices
 it into the tail as a marked `(aloud) "…"` block, so the next thought continues
@@ -164,7 +164,7 @@ The example mind (`architecture/lab/seedling.archml`) wires:
 | [`m-memory`](memory.md) | three memory tiers, compression, persistence, journal |
 | [`m-interrupts`](interrupts.md) | the salience **arbiter** — mechanical, no LLM |
 | [`m-timeout`](interrupts.md#m-timeout-wander-and-watchdog) | wander (drift) and watchdog (keep-alive) |
-| [`m-loop-guard`](interrupts.md#m-loop-guard) | detects repetition loops — pure code, no LLM |
+| [`m-resurface`](components.md#m-resurface) | involuntary recall — surfaces a kept note on loop detection; subsumes `m-loop-guard` |
 | [`m-associate`](interrupts.md#m-associate) | a small model noticing "this reminds me of…" |
 | [`m-speech`](components.md#m-speech) | the voice — occasionally speaks a thought aloud, in parallel with thinking |
 | [`m-act` (+ `m-look`/`m-note`/`m-recall`/`m-terminal`)](components.md#the-hands-m-act--m-look) | the hands — reaches out (tool-blind) to look at the world, keep a note, recall one, or run a sandboxed computation and read the screen; the mind carries a felt body schema of what it can reach |

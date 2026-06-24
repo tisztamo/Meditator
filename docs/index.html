@@ -520,7 +520,8 @@
   <m-timeout name="watchdog" timeout="120s" reset="/stream/chunk" urgent="true"
              prompt="I notice I have been silent a while; I gather myself and continue."></m-timeout>
 
-  <m-loop-guard name="loop-guard" overlap="0.45" salience="0.85"></m-loop-guard>
+  <m-resurface name="resurface" overlap="0.4" minNoteChars="120"
+               salience="0.9" urgent="true" cooldown="3m"></m-resurface>
   <m-associate name="associate" every="5"></m-associate>
 
   <!-- speaking: gives a thought outward voice, in parallel with thinking -->
@@ -923,8 +924,8 @@ next burst continues the tail
 <!-- bounded forever:
      older layers are compressed -->`,
   observers:
-`<m-loop-guard overlap="0.45"
-              salience="0.85"></m-loop-guard>
+`<m-resurface overlap="0.4" minNoteChars="120"
+              salience="0.9" urgent="true" cooldown="3m"></m-resurface>
 
 <m-associate every="5"></m-associate>
 

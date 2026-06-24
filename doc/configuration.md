@@ -28,7 +28,7 @@ every attribute on every component, see the [component reference](architecture/c
              prompt="My mind drifts toward something else I have been carrying."></m-timeout>
   <m-timeout name="watchdog" timeout="120s" reset="/stream/chunk" salience="0.9" urgent="true"
              prompt="I notice I have been silent for a while; I gather myself and continue."></m-timeout>
-  <m-loop-guard name="loop-guard" overlap="0.45" salience="0.85" cooldown="90s"></m-loop-guard>
+  <m-resurface  name="resurface" overlap="0.4" minNoteChars="120" salience="0.9" urgent="true" cooldown="3m"></m-resurface>
   <m-associate  name="associate" every="5" cooldown="60s"></m-associate>
 
   <m-kb      name="scribe"  every="15"></m-kb>
@@ -245,8 +245,10 @@ The observers that *generate* stimuli:
   **watchdog** mode (`reset="/stream/chunk"`) fires only after that long a
   silence, and keeps the mind alive. `salience`, `urgent`, and a first-person
   `prompt` describe what the mind experiences when it fires.
-- `<m-loop-guard>` — `overlap` (`0.3`) is the repetition-score threshold; raise
-  it to be more tolerant of circling. No model cost.
+- `<m-resurface>` — `overlap` (`0.4`) is the loop-score threshold; when triggered it
+  surfaces the most relevant kept note, or falls back to a generic change-of-direction
+  stimulus when the notebook is empty. Subsumes `<m-loop-guard>`: running both together
+  is redundant (see [components](architecture/components.md#m-resurface)). No model cost.
 - `<m-associate>` — `every` (`4`) boundaries it asks a small model whether the
   stream reminds it of something genuinely different.
 

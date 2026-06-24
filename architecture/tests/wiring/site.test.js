@@ -36,7 +36,7 @@ test("docs/index.html replays and interactive chrome works", async () => {
     // Single code panel (replaced the old two-tab awake/owl layout)
     const mindCode = doc.querySelector("#view-src pre").textContent;
     expect(mindCode.includes("<m-mind")).toBe(true);
-    expect(mindCode.includes("m-loop-guard")).toBe(true);
+    expect(mindCode.includes("m-resurface")).toBe(true);
 
     // Flip card: pick one whose back contains actual component markup
     const card = doc.querySelector('.flipcard[data-snip="observers"]');

@@ -22,7 +22,7 @@ Because the tail is always carried forward verbatim, the thought survives every 
 **Interrupts** are bubbling DOM events. Any generator — `m-timeout`, observers, websocket, console — dispatches an `interrupt-request` carrying a salience-scored record; the `m-interrupts` arbiter applies thresholds and rate limits mechanically (the generator knows why it fired, so it brings its own salience). Accepted stimuli wait for the next burst boundary; *urgent* ones (a human speaking) supersede the running burst immediately. There is no reply concept — you hear the mind think about what you said.
 
 **Observers** watch the stream independently:
-- `m-loop-guard` — detects attractor loops (paraphrased self-repetition) with bigram/vocabulary overlap, no LLM cost
+- `m-resurface` — involuntary recall: detects attractor loops and surfaces a relevant kept note (falls back to generic redirect); subsumes `m-loop-guard`
 - `m-associate` — a tiny model that occasionally notices "this reminds me of…" and bids for attention
 - `m-timeout` — wander mode (spontaneous drift) or watchdog mode (`reset` attribute: fires only after true silence)
 
