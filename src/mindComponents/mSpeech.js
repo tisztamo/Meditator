@@ -115,17 +115,12 @@ export class MSpeech extends MObserver {
         this._bindMindEvents()
     }
 
-    async _bindMindEvents() {
-        for (let i = 0; i < 100; i++) {
-            const mind = this.closest('m-mind')
-            if (mind && mind.on) {
-                this.sub("../@interrupt-request", this._onAddressed)
-                this.sub("../@interrupt", this._onUrgent)
-                return
-            }
-            await new Promise(resolve => setTimeout(resolve, 50))
-        }
-        log.warn("could not bind to the mind's interrupt events; speech will only be spontaneous")
+    _bindMindEvents() {
+        // Bind the mind's bubbling interrupt events on our parent; sub()'s backoff covers
+        // ref resolution, and an @event ref needs no upgraded parent (rejects only if absent).
+        const warn = () => log.warn("could not bind to the mind's interrupt events; speech will only be spontaneous")
+        this.sub("../@interrupt-request", this._onAddressed).catch(warn)
+        this.sub("../@interrupt", this._onUrgent).catch(warn)
     }
 
     // Being addressed by a human voice raises the urge to speak (checked at the

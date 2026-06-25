@@ -1,3 +1,4 @@
+import A from "amanita"
 import { MBaseComponent } from "./mBaseComponent.js"
 import { readKept } from "./recallSources.js"
 import { mindHome } from '../infrastructure/memoryVault.js';
@@ -61,15 +62,7 @@ export class MRecall extends MBaseComponent {
             execute: async args => this._recall(args),
         }
 
-        for (let i = 0; i < 100; i++) {
-            const act = this.closest("m-act")
-            if (act && typeof act.registerCapability === "function") {
-                act.registerCapability(spec)
-                return
-            }
-            await new Promise(resolve => setTimeout(resolve, 50))
-        }
-        log.warn(`[${name}] found no parent <m-act> to register with; this hand is inert.`)
+        this.offerCapability(spec)
     }
 
     /**
@@ -130,4 +123,4 @@ export class MRecall extends MBaseComponent {
     }
 }
 
-if (!customElements.get('m-recall')) customElements.define('m-recall', MRecall);
+A.define('m-recall', MRecall);

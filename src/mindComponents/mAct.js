@@ -42,10 +42,10 @@ const log = logger('mAct.js');
  *     `experience` string, first-person and world-facing: never JSON, never a
  *     capability name, never "the tool returned."
  *
- * Capabilities are wired INSIDE m-act (e.g. <m-act><m-look/></m-act>) and register
- * themselves on connect via registerCapability(). The menu is CLOSED: the realizer
- * can only ever call a registered hand with schema-validated args — it cannot invent
- * one. A mind has exactly the hands its .archml gives it, the way a body plan does.
+ * Capabilities are wired INSIDE m-act (e.g. <m-act><m-look/></m-act>) and offer themselves
+ * on connect with a bubbling "capability" event m-act listens for (no hand names m-act).
+ * The menu is CLOSED: the realizer can only ever call a registered hand with schema-validated
+ * args — it cannot invent one. A mind has exactly the hands its .archml gives it, like a body plan.
  *
  * @interface  (plus MObserver's window/cooldown/salience)
  * Attributes:
@@ -92,19 +92,16 @@ export class MAct extends MObserver {
         // never publishes and arousal stays 1, so a mind without a metabolism reaches
         // freely (efference.md §6b).
         this.sub("..m-mind/economy/arousal", value => { if (typeof value === "number") this._arousal = value }).catch(() => {})
+
+        // Each hand announces itself with a bubbling "capability" event; one self-listener
+        // catches them all (incl. hands added later). Synchronous listener — see decoupling.md.
+        this.addEventListener("capability", e => this._registerCapability(e?.detail))
     }
 
-    /**
-     * A capability announces itself to its parent m-act on connect (efference.md §3).
-     * spec: { name, description, parameters (JSON Schema), felt?, readonly?, execute(args) }.
-     *   - `description`/`parameters` are MACHINE-facing — the realizer's tool schema.
-     *   - `felt` is WORLD-facing — a first-person, no-mechanism sense of the affordance,
-     *     in the mind's own voice ("when X tugs at you, you can simply turn and find…"),
-     *     assembled into the mind's body schema (see _publishEmbodiment).
-     * Returns false (and warns) on a malformed spec rather than throwing — a broken
-     * hand must never crash the mind's wake.
-     */
-    registerCapability(spec) {
+    // Register a hand from its "capability" event detail (efference.md §3). Returns false
+    // (and warns) on a malformed spec rather than throwing — a broken hand must not crash a wake.
+    // spec: { name, description, parameters (JSON Schema), felt?, readonly?, execute(args) }.
+    _registerCapability(spec) {
         if (!spec || typeof spec.name !== "string" || typeof spec.execute !== "function") {
             log.warn(`ignoring a malformed capability registration: ${JSON.stringify(spec?.name)}`)
             return false

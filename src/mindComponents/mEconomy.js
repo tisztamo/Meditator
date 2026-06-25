@@ -20,6 +20,7 @@ const log = logger('mEconomy.js');
  * Topics published:
  *   - "energy" (0..1) — budget head-room, the metabolic reading
  *   - "spent" (USD)
+ *   - "paceFactor" (≥1) — the inter-burst pause multiplier (derived from energy); m-mind mirrors it
  *   - "arousal" (0..1) — the mind's standing READINESS, published as a retained
  *     value other faculties can subscribe to and modulate themselves by (e.g. a
  *     tired mind raises its interrupt threshold). It currently tracks energy;
@@ -50,6 +51,7 @@ export class MEconomy extends MBaseComponent {
         this.arousal = this.energy
         this.pub("energy", this.energy)
         this.pub("spent", this.spent)
+        this.pub("paceFactor", this.paceFactor())
         this.pub("arousal", this.arousal)
 
         this._boundaries += 1

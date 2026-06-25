@@ -1,3 +1,4 @@
+import A from "amanita"
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { MBaseComponent } from "./mBaseComponent.js"
@@ -63,16 +64,7 @@ export class MNote extends MBaseComponent {
             execute: async args => this._note(args),
         }
 
-        // Same retry-register as m-look: component upgrade order is not guaranteed.
-        for (let i = 0; i < 100; i++) {
-            const act = this.closest("m-act")
-            if (act && typeof act.registerCapability === "function") {
-                act.registerCapability(spec)
-                return
-            }
-            await new Promise(resolve => setTimeout(resolve, 50))
-        }
-        log.warn(`[${name}] found no parent <m-act> to register with; this hand is inert.`)
+        this.offerCapability(spec)
     }
 
     /**
@@ -129,4 +121,4 @@ export function parseNotebook(md) {
     return entries
 }
 
-if (!customElements.get('m-note')) customElements.define('m-note', MNote);
+A.define('m-note', MNote);

@@ -1,3 +1,4 @@
+import A from "amanita";
 import { getUnregisteredCustomElements } from "./getUnregisteredCustomElements.js";
 import { getMindComponentsPaths } from '../config/componentLoading.js';
 import { logger } from '../infrastructure/logger';
@@ -36,9 +37,13 @@ export async function loadMindComponents(dom) {
   // Get all custom element tag names that are not yet registered (in document order).
   const customTags = getUnregisteredCustomElements(dom);
 
-  // Phase 1 — import every module concurrently. This is the slow part (some
-  // modules, e.g. m-stream, pull in the model/openai stack), so we let them
-  // race here without side effects: nothing is registered yet.
+  // Hold A.define's auto-flush: we import across async ticks, where the microtask flush
+  // could fire mid-import and define a hand before its m-act ancestor. Phase 2 + A.settle()
+  // (in the finally) then define the whole batch once, in document order.
+  A.deferDefines();
+
+  // Phase 1 — import every module concurrently. A.define() only queues while deferred, so
+  // this has no registration side effects: it really is just imports.
   const descriptors = await Promise.all(
     customTags.map((tag) => importModuleForTag(tag, dom))
   );
@@ -85,6 +90,7 @@ export async function loadMindComponents(dom) {
     }
   } finally {
     window.removeEventListener('error', captureConnectError);
+    A.settle();   // define any queued-but-not-in-document stragglers; clear the queue
   }
 
   // Return an object mapping each tag name to its module (or null if load was skipped).

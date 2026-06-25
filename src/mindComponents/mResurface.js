@@ -1,3 +1,4 @@
+import A from "amanita"
 import { MObserver } from "./mObserver.js"
 import { loopScore, contentStems, containment, LOOP_PHRASES } from "./mLoopGuard.js"
 import { blissStemSet, blissSaturation } from "./attractorLexicon.js"
@@ -259,4 +260,4 @@ export class MResurface extends MObserver {
     }
 }
 
-if (!customElements.get('m-resurface')) customElements.define('m-resurface', MResurface);
+A.define('m-resurface', MResurface);

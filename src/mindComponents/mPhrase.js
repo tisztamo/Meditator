@@ -1,3 +1,4 @@
+import A from "amanita"
 import { MBaseComponent } from "./mBaseComponent.js"
 
 /**
@@ -47,4 +48,4 @@ export class MPhrase extends MBaseComponent {
     }
 }
 
-if (!customElements.get("m-phrase")) customElements.define("m-phrase", MPhrase)
+A.define("m-phrase", MPhrase)

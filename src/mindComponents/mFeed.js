@@ -1,3 +1,4 @@
+import A from "amanita"
 import { MSense } from "./mSense.js"
 import { logger } from '../infrastructure/logger.js';
 
@@ -89,4 +90,4 @@ export function parseFeedTitles(xml) {
     return titles
 }
 
-if (!customElements.get('m-feed')) customElements.define('m-feed', MFeed);
+A.define('m-feed', MFeed);

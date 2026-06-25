@@ -45,7 +45,7 @@ Every cross-component dependency follows the same shape (mirroring the
   a method. The default is overridable per-mind (`spokenSrc="…"`) and disableable
   (`spokenSrc="off"`).
 
-Two Amanita facts make this robust and are worth keeping in mind:
+Three Amanita facts make this robust and are worth keeping in mind:
 
 - **`sub()` retries** (the `12` above) with backoff, so wiring is
   **declaration-order-independent** — a consumer that connects before its producer
@@ -54,6 +54,20 @@ Two Amanita facts make this robust and are worth keeping in mind:
   late or re-subscriber (e.g. after a `reRender`). For event-shaped topics
   (`spoken`, `filed`, `attended`) this can re-deliver the last value, so handlers
   **dedupe** — on a timestamp (`spoken`) or object identity (`filed`, `attended`).
+- **Upgrade order is fixed by deferred registration (`A.define`).**
+  `customElements.define` upgrades existing matching elements synchronously, so when each
+  component self-registers at *import* time the order *between* tags is import-completion
+  order — dependency-graph-driven, *not* tree order. A parent (m-act, which pulls in the
+  model stack) could upgrade *after* a child nested in it, breaking any connect-time
+  rendezvous. The fix lives in Amanita: components register with **`A.define`**, which queues
+  and auto-defines the batch on the next microtask in **document order**, ancestors first.
+  Our loader imports across async ticks, where that microtask flush could fire mid-import, so
+  it holds the flush (`A.deferDefines()`) and `A.settle()`s once after Phase 1 — same result,
+  document order. So a parent always upgrades, and runs its `onConnect`, before its
+  descendants. With order guaranteed you can wire a connect-time rendezvous with a plain
+  bubbling `fire()` + a synchronous ancestor listener (see the efferent menu below); you do
+  **not** need a retry loop — the misleading "upgrade order is not guaranteed, so retry"
+  comment that masked the hands' old `registerCapability` loop was the smell.
 
 ## Status
 
@@ -69,10 +83,24 @@ Two Amanita facts make this robust and are worth keeping in mind:
 | mind: wake notice | `m-memory` raises `interrupt-request` on load | the arbiter → `takePending()` | ✅ done |
 | mind: origin seed | `m-origin` → `prompt` (its content) | `m-mind` `originSrc` → `_seedIfFresh` raises `interrupt-request` | ✅ done |
 | mind: perceived-stimulus journaling | `m-mind` → `attended [lines]` | `m-memory` `attendedSrc` → `note()` | ✅ done |
+| mind: metabolic pace | `m-economy` → `paceFactor` (retained, with `energy`/`arousal`) | `m-mind` `paceFactorSrc` → mirrored, used in `_tickMs` | ✅ done |
+| hands → m-act: the efferent menu | each hand → bubbling `capability` event (`offerCapability`) | `m-act` `addEventListener("capability")` → `_registerCapability` | ✅ done |
 
 After these, **nothing pulls a faculty's *content* by class/method.** Memory is
 swappable: a replacement need only subscribe to the same inputs and publish
 `compressed` + `tail`; a second memory is just a second subscriber.
+
+The **efferent menu** inverts the same way the content pulls do, just fanned *in*: each
+hand fires a bubbling `capability` event and names no one; `m-act`, its ancestor, catches
+every one with a single self-listener (`addEventListener("capability")`, the fan-in mirror
+of `pub()`'s fan-out). It rides the same "intent up the tree" channel a hand already uses
+for its consequence (`fire("interrupt-request")`). A one-shot fire is safe here *because*
+upgrade order is fixed (the deferred-`A.define` fact above): m-act upgrades and attaches
+its listener before any descendant hand upgrades and fires. The same standing listener also
+catches a hand **added at runtime** — that's what makes the menu dynamic, with no rescan and
+no per-hand wiring. The `execute` closure travels in `event.detail` and `m-act` invokes it,
+but that is a *held callback*, not a reach-in: it is declared in the spec, overridable per
+hand, and never found by a class/`querySelector`.
 
 ## Deliberately *not* inverted
 
@@ -94,10 +122,6 @@ direct calls, on the same footing as the arbiter's documented `takePending()`:
 
 ## Remaining / deferred
 
-- **`economy.paceFactor()`** (`m-mind._tickMs`) — the one remaining *content* pull
-  outside the transport. Small, independent slice: have `m-economy` publish a
-  retained `paceFactor` (it already publishes `energy`/`arousal`), and let
-  `m-mind` mirror it. Not yet done.
 - **A declarative `<a-wire from to>` connector** (Amanita-level) — would let
   *neither* side name the other and make routes legible in one place. The
   subscriber-ref pattern covers every current case and fits the

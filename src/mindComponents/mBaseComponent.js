@@ -17,10 +17,15 @@ export class MBaseComponent extends A(HTMLElement) {
         this.pub("prompt", this.getPrompt())
     }
     
+    // Offer a hand up to its assembler (m-act) as a bubbling event; see efference.md / decoupling.md.
+    offerCapability(spec) {
+        this.fire("capability", spec)
+    }
+
     /**
      * Retrieves prompt content from various sources
      * Checks named components, prompt attribute, m-prompt child, or direct text content
-     * 
+     *
      * @param {string} [promptName] - Optional name of a child component to get prompt from
      * @returns {string} The prompt content
      */

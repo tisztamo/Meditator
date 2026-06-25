@@ -1,3 +1,4 @@
+import A from "amanita"
 import { MBaseComponent } from "./mBaseComponent.js"
 import { parseTime } from '../config/timeParser.js';
 import { logger } from '../infrastructure/logger.js';
@@ -79,4 +80,4 @@ export class MTimeout extends MBaseComponent {
     }
 }
 
-if (!customElements.get('m-timeout')) customElements.define('m-timeout', MTimeout);
+A.define('m-timeout', MTimeout);

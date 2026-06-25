@@ -1,3 +1,4 @@
+import A from "amanita"
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { MBaseComponent } from "./mBaseComponent.js"
@@ -116,16 +117,7 @@ export class MTerminal extends MBaseComponent {
             execute: async args => this._terminal(args),
         }
 
-        // Same retry-register as the other hands: component upgrade order is not guaranteed.
-        for (let i = 0; i < 100; i++) {
-            const act = this.closest("m-act")
-            if (act && typeof act.registerCapability === "function") {
-                act.registerCapability(spec)
-                return
-            }
-            await delay(50)
-        }
-        log.warn(`[${name}] found no parent <m-act> to register with; this hand is inert.`)
+        this.offerCapability(spec)
     }
 
     /**
@@ -358,4 +350,4 @@ export function screenToExperience({ screen, exitCode, timedOut, truncated }, { 
     return { kind: "answer", experience: `${open}${fence(text)}` }
 }
 
-if (!customElements.get('m-terminal')) customElements.define('m-terminal', MTerminal);
+A.define('m-terminal', MTerminal);

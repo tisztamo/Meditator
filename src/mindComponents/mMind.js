@@ -93,6 +93,7 @@ export class MMind extends MBaseComponent {
     _memRecent = ""
     _memStory = ""
     _embodiment = ""         // the hands' body schema, mirrored from m-act (not pulled)
+    _paceFactor = 1          // metabolism's inter-burst pace multiplier, mirrored from m-economy
     _originText = ""         // the origin (seed of the first thought), mirrored from m-origin
     _hasOrigin = false       // whether an <m-origin> ref was wired (so we wait for it)
     _originReady = false     // whether the origin mirror has been delivered at least once
@@ -130,6 +131,14 @@ export class MMind extends MBaseComponent {
         const handsName = hands?.getAttribute('name')
         const embodimentSrc = this.attr('embodimentSrc') || (handsName ? `..m-mind/${handsName}/embodiment` : null)
         if (embodimentSrc && embodimentSrc !== 'off') this.sub(embodimentSrc, e => { this._embodiment = e || "" })
+
+        // Mirror m-economy's paceFactor (defaults to 1; no economy / "off" keeps it 1).
+        const econ = this.querySelector('m-economy')
+        const econName = econ ? (econ.getAttribute('name') || 'economy') : null
+        const paceFactorSrc = this.attr('paceFactorSrc') || (econName ? `..m-mind/${econName}/paceFactor` : null)
+        if (paceFactorSrc && paceFactorSrc !== 'off') {
+            this.sub(paceFactorSrc, f => { if (typeof f === 'number' && f > 0) this._paceFactor = f }).catch(() => {})
+        }
 
         // Mirror the ORIGIN — the matter this mind was first set thinking about — the
         // same decoupled way: m-origin publishes its text on `prompt`, we mirror it
@@ -308,8 +317,7 @@ export class MMind extends MBaseComponent {
         const base = this._parseTimeAttr("pace", 8000)
         const sigma = this._parseTimeAttr("paceSigma", base / 4)
         const normal = Math.sqrt(-2 * Math.log(Math.random() || 1e-9)) * Math.cos(2 * Math.PI * Math.random())
-        const economy = this.querySelector('m-economy')
-        const economyFactor = economy?.paceFactor ? economy.paceFactor() : 1
+        const economyFactor = this._paceFactor   // mirrored from m-economy's paceFactor topic (not pulled)
         const speakingFactor = this._speaking ? Number(this.attr("speakingPaceFactor") || 2.5) : 1
         return Math.max(300, (base + normal * sigma) * this.backoff * economyFactor * speakingFactor)
     }

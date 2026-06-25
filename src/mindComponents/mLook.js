@@ -1,3 +1,4 @@
+import A from "amanita"
 import { MBaseComponent } from "./mBaseComponent.js"
 import { describeWeather } from "./mWeather.js"
 import { bandFor } from "./mDaylight.js"
@@ -81,19 +82,7 @@ export class MLook extends MBaseComponent {
             execute: async args => this._look(args),
         }
 
-        // The capability announces itself to its parent m-act. Component upgrade
-        // order is not guaranteed (m-speech hit the same race binding to the mind),
-        // so retry briefly until the parent m-act has upgraded and exposes
-        // registerCapability — rather than silently never registering the hand.
-        for (let i = 0; i < 100; i++) {
-            const act = this.closest("m-act")
-            if (act && typeof act.registerCapability === "function") {
-                act.registerCapability(spec)
-                return
-            }
-            await new Promise(resolve => setTimeout(resolve, 50))
-        }
-        log.warn(`[${name}] found no parent <m-act> to register with; this hand is inert.`)
+        this.offerCapability(spec)
     }
 
     /** The subjects this hand can actually fulfil, given its configuration. */
@@ -208,4 +197,4 @@ const LOOK_LEADS = {
     ],
 }
 
-if (!customElements.get('m-look')) customElements.define('m-look', MLook);
+A.define('m-look', MLook);

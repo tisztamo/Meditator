@@ -1,11 +1,7 @@
-// Studio UI — the entry module loaded by studio.html.
-//
-// Each import below defines one custom element (via A.define at module load).
-// studio-conn is defined first so the store/connection element upgrades before
-// the panes resolve their /conn/ references; the panes also pass a raised
-// trycount to sub(), so resolveRef's retry covers any residual upgrade-order
-// race. The <body> is a declarative Amanita tree (like a .archml mind), so once
-// these are defined the elements upgrade and wire themselves.
+// Studio UI — the entry module loaded by studio.html. Each import registers one custom
+// element via A.define, which auto-defines the batch in document order on the next
+// microtask — so importing them here and declaring the body in studio.html is enough
+// (studio-conn, first in the body, upgrades before the panes that reference it).
 import "./studioConn.js";
 import "./studioHeader.js";
 import "./studioWake.js";

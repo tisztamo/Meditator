@@ -1,3 +1,4 @@
+import A from "amanita"
 import { MSense } from "./mSense.js"
 
 /**
@@ -81,4 +82,4 @@ export function bandFor(hour) {
     ] }
 }
 
-if (!customElements.get('m-daylight')) customElements.define('m-daylight', MDaylight);
+A.define('m-daylight', MDaylight);

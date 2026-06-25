@@ -1,3 +1,4 @@
+import A from "amanita"
 import { MSense } from "./mSense.js"
 import { logger } from '../infrastructure/logger.js';
 
@@ -112,4 +113,4 @@ export function describeWeather({ code, temperature, isDay = true, wind } = {}) 
     return { key, line: `Out there it is ${sky}${tail}.` }
 }
 
-if (!customElements.get('m-weather')) customElements.define('m-weather', MWeather);
+A.define('m-weather', MWeather);
