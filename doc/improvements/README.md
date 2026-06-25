@@ -22,7 +22,16 @@ not necessarily acted on yet. Each note states its status at the top.
   thought, so a presence-loop is handed its own most presence-soaked note and
   deepens. Fix on the read side — recognise a bliss loop and return the *outside*
   (a real result) instead, never re-injecting the attractor's words (observed across
-  runs; live signs in `memory/lemma/`).
+  runs; live signs in `memory/lemma/`). **Superseded by loop-detection-redesign.md**,
+  which lets the LLM detector name the loop's `kind`/`vocabulary` and retires the
+  hand-tuned lexicon.
+- [loop-detection-redesign.md](loop-detection-redesign.md) — ground-up rewrite of loop
+  handling, because `m-resurface` never cleared the tail (the prefill, `mMind.js:426`)
+  so the loop was re-fed every burst. **Sense** (`m-loop-detector`, an LLM call on the
+  tail that only `pub`s a `loop` signal) → **bid** (breakers `raise()` into the existing
+  arbiter) → **break** (a `clear-tail` event reseeds the tail, decoupled). Splits
+  `m-loop-guard`, rewrites `m-resurface` to pick the note *farthest* from the loop
+  vocabulary, retires `attractorLexicon.js`.
 - [interlocutor-per-message.md](interlocutor-per-message.md) — the wake-time
   `interlocutor` (shipped) frames a voice as `Kris says:` instead of an unsettling
   "voice from outside"; the deferred enhancement is per-message attribution, so the

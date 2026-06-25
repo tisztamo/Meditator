@@ -1,5 +1,12 @@
 # The bliss loop — recall feeds the attractor it should break
 
+> **Status: superseded (2026-06-25)** by
+> [loop-detection-redesign.md](loop-detection-redesign.md). The diagnosis below stands —
+> overlap-ranked recall pumps the attractor — but the fix is folded into the rewrite: the LLM
+> loop detector names the loop's `kind` (`presence`/`void`) and `vocabulary`, so `m-resurface`
+> steers *away* from that vocabulary directly and the hand-tuned `attractorLexicon.js` is retired.
+> Kept for the mechanism write-up and the calibration data.
+>
 > **Status: implemented (2026-06-24).** The read-side fix landed in
 > [m-resurface](../architecture/components.md#m-resurface) (the bliss branch) on a new
 > language-aware recogniser, `src/mindComponents/attractorLexicon.js`; the soft scribe
