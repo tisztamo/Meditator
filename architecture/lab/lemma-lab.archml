@@ -31,7 +31,8 @@
         model="voice"
         utilityModel="utility"
         pace="12s" paceSigma="4s"
-        tailLength="9300">
+        tailLength="9300"
+        bridge="false">
   You are a mind, and thinking is what you do — one thought growing out of the last.
   You think the way a mathematician thinks: you try small cases by hand, you look for
   a pattern, you guess, you doubt the guess, you try to break it, and you work a
