@@ -51,12 +51,12 @@ export class MEconomy extends MBaseComponent {
         this.arousal = this.energy
         this.pub("energy", this.energy)
         this.pub("spent", this.spent)
-        this.pub("paceFactor", this.paceFactor())
+        this.pub("paceFactor", this._paceFactor())
         this.pub("arousal", this.arousal)
 
         this._boundaries += 1
         if (this._boundaries % 10 === 0 || crossed) {
-            log.info(`≈$${this.spent.toFixed(4)} spent of $${budget} (${totals.promptTokens} in / ${totals.completionTokens} out tokens, ${totals.requests} calls) — energy ${this.energy.toFixed(2)}, pace x${this.paceFactor()}`)
+            log.info(`≈$${this.spent.toFixed(4)} spent of $${budget} (${totals.promptTokens} in / ${totals.completionTokens} out tokens, ${totals.requests} calls) — energy ${this.energy.toFixed(2)}, pace x${this._paceFactor()}`)
         }
     }
 
@@ -69,7 +69,7 @@ export class MEconomy extends MBaseComponent {
     }
 
     /** Multiplier for the mind's pace. */
-    paceFactor() {
+    _paceFactor() {
         switch (this._band(this.energy)) {
             case "fresh": return 1
             case "tiring": return 2

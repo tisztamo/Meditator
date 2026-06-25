@@ -406,7 +406,7 @@ export class MWs extends MBaseComponent {
     this._subProp(economy, "energy", energy => this._emit("economy", "energy", {
       energy,
       spent: economy ? economy.spent : null,
-      paceFactor: economy && economy.paceFactor ? economy.paceFactor() : 1,
+      paceFactor: typeof economy?.paceFactor === "number" ? economy.paceFactor : 1,
     }));
 
     // Memory consolidation.
