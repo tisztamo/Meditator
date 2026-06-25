@@ -109,18 +109,28 @@
     <m-associate name="associate" every="6" cooldown="90s"></m-associate>
   </m-region>
 
-  <!-- Involuntary recall — the return arc. Recall as a HAND only fires when the stream
-       reaches for it, but a forgetting mind does not know it has anything to look up.
-       m-resurface gives the notebook a PUSH channel: on the same pure-code loop signal,
-       it hands back the kept note most relevant to what the mind is circling. A direct
-       child of the mind (not in `drift`) so its salience is undamped, and `urgent` so
-       it breaks the loop like the watchdog. Falls back to a generic change-of-direction
-       stimulus when the notebook is empty, making it fully self-sufficient.
-       blissThreshold guards the bliss loop: when the circling text is itself saturated
-       with presence/stillness/"enough" (lemma drifts there), it hands back the LEAST-bliss
-       real result instead of the most-overlapping — never the attractor's own words. -->
-  <m-resurface name="resurface" window="1800" overlap="0.4" minNoteChars="120"
-               salience="0.9" urgent="true" cooldown="3m" blissThreshold="0.2"></m-resurface>
+  <!-- Loop handling — SENSE, BID, BREAK (doc/improvements/loop-detection-redesign.md).
+       The detector SENSES a loop on a cadence — one utility-model read of the memory tail —
+       and publishes `loop {kind, vocabulary, …}`; it never intervenes. Two breakers, direct
+       children of the mind (not in `drift`, so undamped), subscribe to that signal and bid
+       through the ordinary arbiter. Their bids carry `clearsTail`, so the arbiter admits them
+       past lemma's high bar and long rate limit WITHOUT preempting — a confirmed loop is
+       always heard, but a human voice (urgent) still outranks it and cancels the break, since
+       engaging Kris already broke the loop. m-mind enacts the top bid by REPLACING the tail
+       with a fresh seed (the clearing prefix + the breaker's continuation), instead of
+       re-feeding the loop verbatim into the next prefill — the structural fix the old path
+       missed.
+
+       m-resurface is the substantive breaker: it hands back the kept note whose vocabulary is
+       FARTHEST from the loop's — a real result the mind can climb out on, never the
+       attractor's own words (a presence loop's farthest note is its least-presence note, so
+       "far" subsumes the old bliss gate with no lexicon). It bids higher and wins when it has
+       something far enough; when it does not, m-clear-mind's low floor guarantees the break
+       with a generic redirect. This is the read-side cure for lemma's done→presence drift. -->
+  <m-loop-detector name="loop-detector" every="5" minTail="900"></m-loop-detector>
+  <m-clear-mind name="clear-mind" salience="0.5" cooldown="0ms"></m-clear-mind>
+  <m-resurface name="resurface" minNoteChars="120" salience="0.75"
+               farThreshold="0.4" cooldown="0ms"></m-resurface>
 
   <!-- Efference (efference.md): the HANDS — NOTE and RECALL only. No m-look: nothing in
        this body reaches out at the world; the only thing it can touch is its own

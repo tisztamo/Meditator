@@ -452,8 +452,9 @@ Gives subclasses a rolling `window`, hooks, a cooldown, and `raise()`.
 | `salience` | `0.6` | default salience for raised stimuli |
 
 - **Overridable:** `onObserverConnect()`, `onStreamChunk(chunk)`, `onBoundary(boundary)`.
-- **Helper:** `raise(reason, {salience, urgent, suggestion, type})` → dispatches an
-  `interrupt-request`; returns `false` if on cooldown.
+- **Helper:** `raise(reason, {salience, urgent, suggestion, type, clearsTail, settle, episode, kind})`
+  → dispatches an `interrupt-request`; returns `false` if on cooldown. (`clearsTail`/`settle`/
+  `episode`/`kind` are the loop-break bid properties — see [`m-loop-detector`](#m-loop-detector).)
 
 ## `m-loop-guard`
 
@@ -465,15 +466,19 @@ Repetition detector (extends `m-observer`). No model cost.
 | `salience` | `0.85` | salience of the change-of-direction stimulus |
 
 Plus all `m-observer` attributes. Acts at boundaries once the window holds ≥ 700
-chars; raises `type: LoopGuard` and clears its window on a hit.
+chars; raises `type: LoopGuard` and clears its window on a hit. Its repetition math now
+lives in the neutral `loopMath.js` util (`loopScore`/`contentStems`/…), imported as a
+library rather than owned here.
 
-> **Relation to `m-resurface`:** `m-loop-guard` and [`m-resurface`](#m-resurface) share the same
-> pure-code loop detector (`loopScore`) and, when wired with identical `window` and `overlap`,
-> will detect the same loop at the same boundary. `m-resurface` is the richer handler — it
-> surfaces a relevant kept note rather than issuing a generic redirect — and when wired as a
-> direct child of the mind with `urgent="true"`, it always wins the interrupt arbiter over a
-> co-firing loop-guard. In practice, running both together is redundant: resurface subsumes
-> loop-guard's detection and provides a superior payload. See [`m-resurface`](#m-resurface).
+> **The simple, all-in-one option.** `m-loop-guard` both *detects* (pure code, no model) and
+> *intervenes* (a generic change-of-direction nudge) in one component. It is the cheap choice
+> for a lab or example mind that wants loop protection with no LLM cost. The richer, decoupled
+> alternative — used by the lemma resident — splits those jobs across
+> [`m-loop-detector`](#m-loop-detector) (an LLM *sense* that only publishes a signal) and one
+> or more *breakers* ([`m-clear-mind`](#m-clear-mind), [`m-resurface`](#m-resurface)) that bid
+> on it, and additionally **clears the tail** so the loop is not re-fed into the next prefill.
+> Use one approach or the other, not both. See
+> [improvements/loop-detection-redesign.md](../improvements/loop-detection-redesign.md).
 
 ## `m-associate`
 
@@ -488,67 +493,92 @@ changes.
 Plus all `m-observer` attributes. Reads the last ~1200 chars; the model answers
 `NONE` or `SALIENCE`/`THOUGHT`; raises `type: Association` at the model's salience.
 
-## `m-resurface`
+## `m-loop-detector`
 
-Involuntary recall (extends `m-observer`) — the **push** half of the note loop, the
-counterpart to the [`m-recall`](#m-recall--read-a-kept-note-back) *pull* hand. Where
-m-associate confabulates a "this reminds me of…" from the model's latent training,
-m-resurface surfaces a **real kept thought**. When the mind loses its thread and circles
-the same ground, it does not wait for the stream to *want* a note: on the same pure-code
-loop signal `m-loop-guard` uses (no model call), it reads its kept thoughts and pushes
-back the one most relevant to what the mind is circling — chosen by cue-overlap, preferring a
-substantive result over a terse meta-note. It draws from **both** the notebook and the
-scribe's `knowledge/` ([compression fidelity §5](compression-fidelity.md)), so a filed
-conclusion can resurface too — felt as *"…something I came to understand"* rather than
-*"…set down"*. Born from lemma-6's write-only memory (43 note-writes, 0 reads: it
-re-derived a proof it had already written, sitting unread); the §5 KB-folding closes the
-twin gap of a conclusion filed to `knowledge/` that nothing read back. A few small file
-reads per hit; no model cost to decide *or* act.
+The **sense** half of decoupled loop handling (extends `m-observer`;
+[loop-detection-redesign.md](../improvements/loop-detection-redesign.md)). On a cadence it
+reads the memory **`tail`** (the text that seeds the next prefill, not a private window) and
+makes **one** utility-model call: *is this circling? score it, name the vocabulary it is
+stuck on, what kind, why.* It parses the reply and does nothing but `pub("loop", …)` — it
+never intervenes. The LLM reading *meaning* retires the pure-code `loopScore` as the
+*decision* (so the conjecture word *infinite* no longer false-trips) and the hand-tuned bliss
+lexicon (the LLM's `kind`/`vocabulary` subsume it).
 
 | Attribute | Default | Meaning |
 |-----------|---------|---------|
-| `overlap` | `0.4` | loop score that counts as "I've lost the thread" |
-| `minWindow` | `700` | min stream chars before it judges a loop |
-| `minNoteChars` | `120` | a note must be this long to count as substantive (a terse meta-note never wins over a real result) |
-| `urgent` | `true` | supersede the looping burst immediately, like the watchdog |
+| `every` | `5` | check at every Nth completed boundary |
+| `minTail` | `700` | min tail chars before it judges |
+| `minScore` | `0.5` | score at/above which a "yes" counts as an active loop |
+| `minArousal` | `0.1` | stand down below this arousal (a near-exhausted mind is not checked) |
+| `tailSrc` | mind's `m-memory/<name>/tail` | the tail topic to read (`"off"` → the stream window) |
+| `model` | inherits `utilityModel` | the detection model |
+
+Publishes the `loop` topic `{active, score, kind, vocabulary[], reasoning, at}` — standing
+state, like `economy/arousal`: one published state, N independent reactions. The `reasoning`
+is the model's judgement *about* the mind (for the dashboard/logs), never first-person and
+never journaled. The dashboard reads `loop` for observability.
+
+## `m-clear-mind`
+
+The **default breaker** / floor (extends `m-observer`). It subscribes to the detector's
+`loop` signal and, when active, bids a **low** salience to clear the mind and pick up another
+thread — guaranteeing a break even when nothing is worth recalling. It owns only its
+generic continuation (`<m-phrase for="redirect">`-localizable); the act of clearing is owned
+by the mechanism (see below).
+
+| Attribute | Default | Meaning |
+|-----------|---------|---------|
+| `salience` | `0.5` | bid salience — low, so a substantive breaker outbids it |
+| `loopSrc` | mind's `m-loop-detector/<name>/loop` | the signal to react to (`"off"` disables) |
+| `cooldown` | `0ms` | the per-episode guard is the real throttle |
+
+## `m-resurface`
+
+A **breaker** (extends `m-observer`) — the **push** half of the note loop, the counterpart
+to the [`m-recall`](#m-recall--read-a-kept-note-back) *pull* hand. When
+[`m-loop-detector`](#m-loop-detector) publishes that the mind is circling, m-resurface bids
+to break the loop by handing back a **real kept thought that pulls AWAY from the rut**: the
+substantive note whose vocabulary is **farthest** from the loop's `vocabulary` (min overlap,
+recency tiebreak). It draws from **both** the notebook and the scribe's `knowledge/`
+([compression fidelity §5](compression-fidelity.md)) — a filed conclusion is felt as *"…something
+I came to understand"* rather than *"…set down"*. A few small file reads per hit; no model
+cost to decide *or* act. Born from lemma-6's write-only memory (43 note-writes, 0 reads: it
+re-derived a proof it had already written, sitting unread).
+
+**Detect ≠ recall ≠ resurface.** The detector senses; [`m-recall`](#m-recall--read-a-kept-note-back)
+is the desire-pulled hand that ranks by **relevance** (overlap); m-resurface is a loop breaker
+that ranks by **distance** (far-from-the-stuck-vocabulary). "Far" subsumes the old least-bliss
+pick with no lexicon: a [bliss](../glossary.md) loop → bliss `vocabulary` → the farthest note
+*is* the least-bliss note; an all-presence notebook → even the farthest note is still presence
+→ too close → it does not bid, and the [`m-clear-mind`](#m-clear-mind) floor takes the cut
+rather than re-injecting the attractor.
+
+| Attribute | Default | Meaning |
+|-----------|---------|---------|
+| `salience` | `0.75` | bid salience — above the floor, below an urgent voice |
+| `minNoteChars` | `120` | a note must be this long to count as substantive |
+| `farThreshold` | `0.4` | if even the farthest note shares ≥ this of the loop's vocabulary, it does not bid (the floor takes it) |
 | `dir` | vault `notes/` | the notes directory (share m-note's) |
 | `kb` | vault `knowledge/` | the scribe's KB, folded into the same pool (`"off"` for notes only) |
-| `salience` | `0.9` | recovering lost work matters like the keep-alive watchdog, so it lands even on a tired mind |
-| `blissThreshold` | `0.2` | attractor-saturation above which the looping window counts as a *bliss loop* (see below) |
+| `loopSrc` | mind's `m-loop-detector/<name>/loop` | the signal to react to (`"off"` disables) |
+| `cooldown` | `0ms` | the per-episode guard is the real throttle |
 
-Plus all `m-observer` attributes. Raises `type: Recall`, first-person and self-caused
-("I realize I have been going over the same ground. I turn back to something I set
-down…"), naming no mechanism. When the notebook and knowledge base are empty (nothing to
-resurface), it falls back to the same generic change-of-direction stimulus used by
-[`m-loop-guard`](#m-loop-guard), ensuring the loop is still broken even early in a session.
-Wire it as a **direct child of the mind** (not inside the `drift` region) so its salience
-is undamped by a region gain, and so its `urgent` raise is not lost to the global rate limit
-a co-firing loop-guard would otherwise win.
+Plus all `m-observer` attributes. Raises `type: Recall` with **`clearsTail`** (the arbiter
+admits it past threshold + rate-limit without preempting) + `episode` (so co-bidding breakers
+resolve to one cut), first-person and self-caused ("I turn back to something I set down
+before…"), naming no mechanism. With an empty notebook, or when every kept note is too close,
+it simply does not bid — the floor breaks the loop. Wire it as a **direct child of the mind**
+(not inside the `drift` region) so its salience is undamped by a region gain.
 
-**The bliss loop.** Overlap-ranked recall is right for a normal *content* loop — hand back
-the kept thought most relevant to what the mind is circling. But when the loop *is itself
-the spiritual [bliss attractor](../glossary.md)* (presence, silence, stillness, "I am here,
-now, and that is enough"), overlap is exactly wrong: the most-overlapping note is by
-definition the most presence-soaked note the mind owns, so the one component meant to break
-the loop would feed it. So recall is gated **twice** — the pure-code `loopScore` says
-"circling," *and* the `attractorLexicon` recogniser says the circled text is
-bliss-saturated past `blissThreshold` — and on a bliss loop m-resurface does **not** rank by
-overlap: it hands back the freshest substantive *least-bliss* kept note (ideally a real
-result — the inexhaustible outside the mind can climb out on), and if every kept note is
-itself bliss-saturated, the content-free fallback above rather than re-injecting the
-attractor's own words. The lexicon is language-aware (the ambient `<m-mind lang>`) and
-extensible from the `.archml` with `<m-phrase for="bliss">` words on the element. The
-strings m-resurface and m-loop-guard raise are likewise localizable, via [`m-phrase`](#m-phrase)
-over their built-in English. See
-[improvements/bliss-loop-recall.md](../improvements/bliss-loop-recall.md).
-
-> **Relation to `m-loop-guard`:** `m-resurface` and [`m-loop-guard`](#m-loop-guard) share the
-> same pure-code loop detector (`loopScore`). When both are wired with identical `window` and
-> `overlap`, they detect the same loop at the same boundary -- but resurface always wins the
-> interrupt arbiter (it is `urgent` and undamped by region gain). Because resurface subsumes
-> loop-guard's detection and provides a richer payload (a relevant kept note, or a generic
-> fallback when the notebook is empty), running both together is redundant. See
-> [`m-loop-guard`](#m-loop-guard).
+**The break.** A winning `clearsTail` bid does not just add a stimulus — [`m-mind`](#m-mind)
+**replaces the tail**: it composes a fresh seed (a localized clearing prefix it owns +
+the breaker's own continuation), fires a `clear-tail` event that [`m-memory`](#m-memory)
+subscribes to (reseed the tail, drop the overflow, journal the ⟂ self-caused cut, re-`pub`
+`tail`), and seeds *this* burst's prefill with it — so the loop is not re-fed verbatim into
+the next prefill, the structural fix the old "raise a stimulus" path missed. A real
+preempting stimulus (a human voice) at the top of the arbiter cancels a pending break —
+engaging already broke the loop. See
+[improvements/loop-detection-redesign.md](../improvements/loop-detection-redesign.md).
 
 ## `m-phrase`
 
@@ -568,10 +598,11 @@ working untouched, so a language is added purely by dropping phrases into its `.
 | `lang` | — | optional, documentary — the ambient `<m-mind lang>` already selects the language |
 
 Several `<m-phrase>` sharing a `for` form a rotation pool (so a recurring line varies its
-words). A slot need not be a sentence: it can hold vocabulary, e.g. `<m-phrase for="bliss">`
-extends [`m-resurface`](#m-resurface)'s attractor lexicon. These primitives live in the
-runtime so its own components can localize what they recognise and what they raise; a
-localized project (hearth) re-exports them rather than carrying its own copy.
+words). A slot need not be a sentence, and it can override a fixed phrase a component
+supplies — e.g. `<m-phrase for="redirect">` localizes [`m-clear-mind`](#m-clear-mind)'s
+loop-break continuation, or `<m-phrase for="clearing">` on `<m-mind>` localizes the clearing
+prefix. These primitives live in the runtime so its own components can localize what they
+raise; a localized project (hearth) re-exports them rather than carrying its own copy.
 
 ## `m-speech`
 

@@ -45,7 +45,7 @@ export class MObserver extends MBaseComponent {
     /**
      * Raises an interrupt request (respecting this observer's own cooldown).
      * @param {string} reason - first-person experience line for the frame
-     * @param {Object} [opts] - {salience, urgent, suggestion, type}
+     * @param {Object} [opts] - {salience, urgent, suggestion, type, clearsTail, settle, episode, kind}
      * @returns {boolean} whether the request was dispatched
      */
     raise(reason, opts = {}) {
@@ -61,6 +61,12 @@ export class MObserver extends MBaseComponent {
             suggestion: opts.suggestion || null,
             salience: opts.salience ?? Number(this.attr("salience") || 0.6),
             urgent: !!opts.urgent,
+            // Loop-break bid properties — passed straight through so a breaker
+            // (m-clear-mind / m-resurface) can ask the mind to start fresh if it wins.
+            clearsTail: !!opts.clearsTail,
+            settle: opts.settle ?? null,
+            episode: opts.episode ?? null,
+            kind: opts.kind ?? null,
         })
         log.debug(`[${this.attr("name") || this.localName}] raises: ${record}`)
         this.fire("interrupt-request", record)

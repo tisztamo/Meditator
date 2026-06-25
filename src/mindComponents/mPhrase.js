@@ -17,10 +17,11 @@ import { MBaseComponent } from "./mBaseComponent.js"
  *     <m-phrase for="back">Visszagondolok valamire, amit {who} egyszer mondott: {text}</m-phrase>
  *   </m-kin>
  *
- * A slot is not always a sentence: it can equally hold vocabulary, e.g. the attractor
- * words the runtime's loop recogniser matches against (see attractorLexicon.js):
+ * A slot is not always a sentence: it can equally hold vocabulary, or override a
+ * fixed phrase a mind component supplies in a non-English mind, e.g. m-clear-mind's
+ * loop-break redirect:
  *
- *   <m-resurface><m-phrase for="bliss">jelenlét csend nyugalom béke elég</m-phrase></m-resurface>
+ *   <m-clear-mind><m-phrase for="redirect">Most leteszem ezt, és egy másik szálat veszek elő.</m-phrase></m-clear-mind>
  *
  * `{name}` placeholders are filled by the consuming component (see i18n.js). Several
  * <m-phrase> with the same `for` form a rotation pool, so a recurring line need not say

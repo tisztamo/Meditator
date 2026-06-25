@@ -1,12 +1,27 @@
 import { MBaseComponent } from "./mBaseComponent.js"
 import { complete } from "../modelAccess/llm.js"
 import { resolveModelRef } from "../modelAccess/modelConfig.js"
+import { makePhrasebook } from "./i18n.js"
+import { parseTime } from '../config/timeParser.js';
 import { logger } from '../infrastructure/logger.js';
 import { InterruptRecord } from '../infrastructure/interruptRecord.js';
 
 const log = logger('mMind.js');
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
+
+/**
+ * The CLEARING PREFIX, owned by the mechanism (not by any breaker), as a localizable phrase
+ * (i18n.js). When a breaker wins a loop-break, m-mind composes the fresh seed as this prefix
+ * + the breaker's own continuation, so every breaker shares the act of clearing and supplies
+ * only its tail — zero phrase-sharing between breakers (loop-detection-redesign.md §break). A
+ * non-English mind overrides it with <m-phrase for="clearing"> on <m-mind>.
+ */
+const CLEAR_PHRASES = {
+    en: {
+        clearing: ["I realize I have been going over the same ground; I set it down, let my mind clear, and come back to it fresh."],
+    },
+}
 
 /**
  * The orchestrator. Owns the rhythm of thinking and the ATTENTION FRAME — the
@@ -97,6 +112,8 @@ export class MMind extends MBaseComponent {
     _originText = ""         // the origin (seed of the first thought), mirrored from m-origin
     _hasOrigin = false       // whether an <m-origin> ref was wired (so we wait for it)
     _originReady = false     // whether the origin mirror has been delivered at least once
+    _lastClearedEpisode = null  // the last loop episode whose tail we cut (dedup: one cut per episode)
+    _settleNextMs = 0        // a one-off longer pause a breaker asked for, applied to the next schedule
 
     onConnect() {
         // "stream/@boundary" and "@interrupt" fields are auto-subscribed by Amanita.
@@ -301,7 +318,13 @@ export class MMind extends MBaseComponent {
         const tick = this._tickMs()
         this.pub("pace", { tickMs: Math.round(tick) })
         const since = this._burstStartedAt ? (Date.now() - this._burstStartedAt) : tick
-        const wait = tickDelay(tick, since)
+        // A breaker may have asked for a beat of quiet around a loop reset (`settle`):
+        // honour it once, as a floor on the next gap, then forget it.
+        let wait = tickDelay(tick, since)
+        if (this._settleNextMs > 0) {
+            wait = Math.max(wait, this._settleNextMs)
+            this._settleNextMs = 0
+        }
         if (wait <= 0) {
             log.debug(`Burst overran tick (${Math.round(since)}ms ≥ ${Math.round(tick)}ms) — next now`)
             this.continueThinking()
@@ -357,6 +380,19 @@ export class MMind extends MBaseComponent {
         // any other, raised by memory onto the attention spine when it loads.
         const stimuli = arbiter?.takePending ? arbiter.takePending() : []
 
+        // LOOP BREAK. If the top bid this frame carries `clearsTail` (and a louder,
+        // preempting stimulus — a human voice — has not displaced it), the cut OWNS this
+        // frame: m-mind is the single enactment authority, so it picks the top such bid
+        // for the open episode, cuts exactly once (deduped by episode), and the fresh seed
+        // REPLACES the tail rather than continuing it. A real interrupt at the top cancels
+        // a pending break — engaging already broke the loop.
+        const breaker = this._selectClear(stimuli)
+        if (breaker) {
+            const payload = await this._assembleClearFrame(breaker)
+            this.pub("prompt", payload)
+            return
+        }
+
         for (const stimulus of stimuli) {
             process.stdout.write(`\n\x1b[36m⟂ ${stimulus.renderForFrame()}\x1b[0m\n`)
         }
@@ -365,6 +401,77 @@ export class MMind extends MBaseComponent {
         // stimuli from there, so the mind no longer calls memory.note() per stimulus.
         const payload = await this.assembleFrame(stimuli)
         this.pub("prompt", payload)
+    }
+
+    /** The top taken stimulus, if it is a not-yet-enacted loop break. Returns null when the
+     *  top stimulus does not clear the tail (e.g. a human voice preempts it) or when this
+     *  episode was already cut. Ordering matches the arbiter's keep sort: urgent first, then
+     *  salience — so an urgent voice naturally outranks a (non-urgent) clearsTail bid. */
+    _selectClear(stimuli) {
+        if (!stimuli.length) return null
+        const top = [...stimuli].sort((a, b) => (b.urgent - a.urgent) || (b.salience - a.salience))[0]
+        if (!top || !top.clearsTail) return null
+        if (top.episode && top.episode === this._lastClearedEpisode) return null
+        return top
+    }
+
+    /**
+     * Enact a loop break: compose the fresh seed (the mechanism's clearing prefix + the
+     * winning breaker's continuation), announce the cut as a `clear-tail` event that memory
+     * owns (it reseeds the tail and re-pubs it), and build a frame whose prefill is that seed
+     * — so the loop breaks THIS burst, with no dependence on the memory round-trip and no
+     * bridge (the cut IS the pivot). The breaker's continuation is consumed into the seed, so
+     * it is not separately journaled via `@attended`; memory journals the cut as the mind's
+     * own felt act (the One Rule). Co-taken lower stimuli are dropped — breaking the loop is
+     * the point of this frame.
+     */
+    async _assembleClearFrame(breaker) {
+        const prefix = this._clearingPrefix()
+        const continuation = (breaker.reason || "").trim()
+        const entry = continuation ? `${prefix} ${continuation}` : prefix
+        this._lastClearedEpisode = breaker.episode || null
+
+        // Optional one-off pause — a real beat of quiet around the reset (the breaker's
+        // `settle`). m-mind owns pace, so it applies it to the next inter-burst gap.
+        if (breaker.settle != null) {
+            const ms = typeof breaker.settle === "number" ? breaker.settle : parseTime(String(breaker.settle))
+            if (Number.isFinite(ms) && ms > 0) this._settleNextMs = ms
+        }
+
+        process.stdout.write(`\n\x1b[36m⟂ ${entry}\x1b[0m\n`)
+        log.info(`loop break (episode ${breaker.episode || "?"}, ${breaker.kind || "?"}) — clearing the tail`)
+
+        // Announce the intent; m-memory subscribes to @clear-tail, reseeds the tail to this
+        // seed, clears its overflow, journals the ⟂ self-caused cut, persists, and re-pubs
+        // `tail`. The downstream "tail changed" fact rides the existing channel — no reach-in.
+        this.fire("clear-tail", { seed: entry, kind: breaker.kind || null })
+
+        const identity = this._identity()
+        const sections = []
+        if (this._memStory) sections.push(`## How I got here (older memory, compressed)\n${this._memStory}`)
+        if (this._memRecent) sections.push(`## Recently (compressed)\n${this._memRecent}`)
+        const system = [identity, ...sections].join("\n\n")
+
+        const instruction = `Your inner monologue is already underway; its most recent words are given as your own turn that follows. Continue it from exactly where it leaves off. Do not repeat or summarize what is already written; write only the continuation.`
+
+        const payload = {
+            system,
+            instruction,
+            prefill: entry,
+            dedupe: entry.slice(-100),
+            kind: "clear",
+        }
+        if (this._speaking) {
+            const base = Number(this.querySelector('m-stream')?.getAttribute("burstTokens") || 350)
+            const factor = Number(this.attr("speakingTokensFactor") || 0.35)
+            payload.burstTokens = Math.max(60, Math.round(base * factor))
+        }
+        return payload
+    }
+
+    /** The mechanism's localized clearing prefix (i18n.js). Fixed after connect, built once. */
+    _clearingPrefix() {
+        return (this.__clearBook ||= makePhrasebook(this, CLEAR_PHRASES)).line("clearing")
     }
 
     /**

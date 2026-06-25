@@ -122,15 +122,16 @@
     <m-associate name="associate" every="6" cooldown="90s"></m-associate>
   </m-region>
 
-  <!-- Involuntary recall — the return arc. Recall as a HAND only fires when the stream
-       reaches for it, but a forgetting mind does not know it has anything to look up.
-       m-resurface gives the notebook a PUSH channel: on the same pure-code loop signal,
-       it hands back the kept note most relevant to what the mind is circling. A direct
-       child of the mind (not in `drift`) so its salience is undamped, and `urgent` so
-       it breaks the loop like the watchdog. Falls back to a generic change-of-direction
-       stimulus when the notebook is empty, making it fully self-sufficient. -->
-  <m-resurface name="resurface" window="1800" overlap="0.4" minNoteChars="120"
-               salience="0.9" urgent="true" cooldown="3m"></m-resurface>
+  <!-- Loop handling — SENSE, BID, BREAK (doc/improvements/loop-detection-redesign.md),
+       mirroring the lemma resident. The detector reads the tail on a cadence and publishes
+       `loop`; the two breakers bid through the arbiter with `clearsTail` (admitted, not
+       preempting), and m-mind enacts the top bid by replacing the tail with a fresh seed.
+       m-resurface hands back the kept note FARTHEST from the loop's vocabulary (subsuming the
+       old bliss gate); m-clear-mind is the generic floor that always guarantees a break. -->
+  <m-loop-detector name="loop-detector" every="5" minTail="900"></m-loop-detector>
+  <m-clear-mind name="clear-mind" salience="0.5" cooldown="0ms"></m-clear-mind>
+  <m-resurface name="resurface" minNoteChars="120" salience="0.75"
+               farThreshold="0.4" cooldown="0ms"></m-resurface>
 
   <!-- Efference (efference.md): the HANDS — NOTE and RECALL only. No m-look: nothing in
        this body reaches out at the world; the only thing it can touch is its own

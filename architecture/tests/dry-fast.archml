@@ -20,5 +20,13 @@
 
   <m-associate name="associate" every="3" cooldown="8s"></m-associate>
 
+  <!-- Loop handling — SENSE, BID, BREAK. The dry-run model reports a presence loop on a
+       cadence, so a fast cycle exercises the whole pipeline: detector pub → breaker bid
+       (clearsTail) → m-mind cuts the tail and seeds fresh → memory reseeds + journals. With
+       no notebook here, m-resurface stays silent and the m-clear-mind floor takes the cut. -->
+  <m-loop-detector name="loop-detector" every="2" minTail="100"></m-loop-detector>
+  <m-clear-mind name="clear-mind" salience="0.5" cooldown="0ms"></m-clear-mind>
+  <m-resurface name="resurface" minNoteChars="120" salience="0.75" cooldown="0ms"></m-resurface>
+
   <m-economy name="economy" budget="1.00"></m-economy>
 </m-mind>

@@ -87,7 +87,14 @@ export class MInterrupts extends MBaseComponent {
         const sensitivity = Number(this.attr("arousalSensitivity") || 0)
         if (sensitivity > 0) threshold = Math.min(0.99, threshold + (1 - this._arousal) * sensitivity)
 
-        if (!record.urgent) {
+        // `urgent` and `clearsTail` both bypass the threshold + rate-limit gate — they are
+        // ADMITTED unconditionally. The difference is downstream: only `urgent` additionally
+        // PREEMPTS (fires "interrupt"). A confirmed loop break (`clearsTail`) is important
+        // enough to always be heard past the bar a tired mind raises and past the rate-limit
+        // that would otherwise drop whichever breaker bids second — but it is not a now-now
+        // interruption (loop-detection-redesign.md §contracts·2). `urgent` ‖ `clearsTail`
+        // splits admit from preempt.
+        if (!record.urgent && !record.clearsTail) {
             if (record.salience < threshold) {
                 log.debug(`drop (salience ${record.salience} < ${threshold.toFixed(2)}): ${record}`)
                 this._publishDecision(record, false, `salience ${record.salience.toFixed(2)} < ${threshold.toFixed(2)}`)
@@ -115,10 +122,13 @@ export class MInterrupts extends MBaseComponent {
             return
         }
 
-        // Global: queue for the mind; urgent additionally interrupts now.
+        // Global: queue for the mind. Only `urgent` additionally interrupts now; a
+        // `clearsTail` bid is admitted but waits to be collected at the next boundary
+        // (admit, not preempt) — the mind enacts the cut there.
         this._enqueue(record)
-        log.debug(`accepted${record.urgent ? " URGENT" : ""}: ${record}`)
-        this._publishDecision(record, true, record.urgent ? "urgent" : "accepted")
+        const note = record.urgent ? " URGENT" : record.clearsTail ? " CLEARS-TAIL" : ""
+        log.debug(`accepted${note}: ${record}`)
+        this._publishDecision(record, true, record.urgent ? "urgent" : record.clearsTail ? "clears-tail" : "accepted")
 
         if (record.urgent) {
             this.fire("interrupt", record)

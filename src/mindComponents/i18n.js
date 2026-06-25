@@ -25,10 +25,10 @@
  * So a new language is added purely by dropping phrases into the .archml — no code in the
  * mind components is language-specific. These primitives live in the RUNTIME (not in any
  * one project) because the runtime's own components need them too: to frame an external
- * human voice in the mind's language (InterruptRecord.renderForFrame), to recognise the
- * mind's attractor vocabulary (attractorLexicon.js), and to phrase the stimuli the runtime
- * raises. A localized project (e.g. hearth) re-exports these rather than carrying its own
- * copy, so the layers can never disagree about what language an element is in.
+ * human voice in the mind's language (InterruptRecord.renderForFrame), to phrase a loop
+ * break (m-mind's clearing prefix, m-clear-mind's redirect), and to phrase the stimuli the
+ * runtime raises. A localized project (e.g. hearth) re-exports these rather than carrying
+ * its own copy, so the layers can never disagree about what language an element is in.
  */
 
 /**

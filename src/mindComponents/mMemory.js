@@ -119,6 +119,14 @@ export class MMemory extends MBaseComponent {
             this.sub(this.attr("attendedSrc") || "..m-mind/@attended", this._onAttended)
         }
 
+        // A LOOP BREAK arrives as the mind's transient `@clear-tail` event (loop-detection-
+        // redesign.md §break) — exactly as @attended / @spoken arrive. We OWN the tail, so
+        // we reseed it to the breaker's fresh seed here rather than the mind reaching in to
+        // set it: the cut then rides our existing `tail` channel to everyone who watches it.
+        if (this.attr("clearTailSrc") !== "off") {
+            this.sub(this.attr("clearTailSrc") || "..m-mind/@clear-tail", this._onClearTail)
+        }
+
         const dir = this._persistDir()
         this._home = dir
         this._vaulted = !!dir && inVault(dir)
@@ -270,6 +278,22 @@ export class MMemory extends MBaseComponent {
         const lines = e.detail
         if (!Array.isArray(lines) || !lines.length) return
         for (const line of lines) this.note(line)
+    }
+
+    // A loop break: the mind cleared its tail and starts fresh from `seed`. We own the
+    // tail, so we reseed it here, drop the overflow (so the loop spam is never fed to the
+    // compressor — the spine stays clean), journal the cut as the mind's OWN felt act (the
+    // One Rule — never "tail cleared"), persist (so a resident wakes from after the clearing,
+    // honestly where it left off), and re-publish `tail` so the frame, compressor and
+    // dashboard all update through the channel that already exists. No method exposed.
+    _onClearTail = e => {
+        const d = e.detail
+        if (this._finalized || !d || typeof d.seed !== "string" || !d.seed.trim()) return
+        this.tail = d.seed
+        this._overflow = ""
+        this.note("I let my mind go quiet a moment and came back to the thought fresh.")
+        this._persist()
+        this.pub("tail", this.tail)
     }
 
     /**

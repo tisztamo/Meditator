@@ -386,7 +386,7 @@ export class MWs extends MBaseComponent {
       this._emit("attention", "bid", {
         source: r.source, type: r.type, reason: r.reason,
         text: r.renderForFrame?.(),
-        salience: r.salience, urgent: !!r.urgent,
+        salience: r.salience, urgent: !!r.urgent, clearsTail: !!r.clearsTail,
       });
     });
     this.sub("../@interrupt", e => {
@@ -400,6 +400,11 @@ export class MWs extends MBaseComponent {
     // The arbiter's accept/drop verdict.
     this._subProp(mind.querySelector("m-interrupts"), "decision",
       d => d && this._emit("attention", "decision", d));
+
+    // The loop sense: standing state about whether the mind is circling, and on what
+    // vocabulary — published like economy/arousal, read here purely for observability.
+    this._subProp(mind.querySelector("m-loop-detector"), "loop",
+      l => l && this._emit("loop", "state", l));
 
     // Metabolism: energy, spend, and the resulting pace multiplier.
     const economy = mind.querySelector("m-economy");

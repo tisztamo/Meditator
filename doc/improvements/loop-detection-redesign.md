@@ -1,6 +1,11 @@
 # Loop detection & recovery — sense, bid, break
 
-> **Status: proposed (2026-06-25).** A ground-up rewrite of loop handling. Splits
+> **Status: IMPLEMENTED (2026-06-25).** Landed as described: `loopMath.js`,
+> `m-loop-detector`, `m-clear-mind`, the rewritten `m-resurface`, `clearsTail`/`clear-tail`
+> in `m-interrupts`/`m-mind`/`m-memory`, `attractorLexicon.js` retired, and `lemma`/`lemma-lab`
+> rewired. `m-loop-guard` is kept as the simple no-LLM all-in-one for the lab/example minds
+> that still use it (its math now imported from `loopMath.js`). A ground-up rewrite of loop
+> handling. Splits
 > `m-loop-guard` into a **sense** (`m-loop-detector`, an LLM call on the tail that only
 > *publishes a signal*) and a **default breaker** (`m-clear-mind`); rewrites
 > [`m-resurface`](../architecture/components.md#m-resurface) as an independent breaker that

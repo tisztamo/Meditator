@@ -59,6 +59,10 @@ export class InterruptRecord {
     salience,
     urgent = false,
     suggestion = null,
+    clearsTail = false,
+    settle = null,
+    episode = null,
+    kind = null,
     context = {},
     additionalData = {}
   }) {
@@ -76,6 +80,18 @@ export class InterruptRecord {
     this.salience = typeof salience === 'number' ? Math.max(0, Math.min(1, salience)) : 0.5;
     this.urgent = !!urgent;
     this.suggestion = suggestion;
+    // Loop-break properties (loop-detection-redesign.md §contracts·2). A `clearsTail`
+    // bid asks the mind to start fresh if it wins: the arbiter ADMITS it past
+    // threshold + rate-limit (so co-bidding breakers compete by salience) but does NOT
+    // preempt the running burst the way `urgent` does — a confirmed loop is always
+    // heard, but it is not a now-now interruption. `settle` is an optional one-off pause
+    // (ms or a time string) the mind honours as a beat of quiet around the reset;
+    // `episode` ties co-bids to one detection so the mind cuts exactly once; `kind` is
+    // the loop's named flavour (presence | void | spam | …), passed on to the cut.
+    this.clearsTail = !!clearsTail;
+    this.settle = settle;
+    this.episode = episode;
+    this.kind = (kind && String(kind).trim()) || null;
     this.context = {
       lastOutput: context.lastOutput || '',
       streamState: context.streamState || 'unknown'

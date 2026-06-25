@@ -613,6 +613,7 @@ let dryUtteranceCounter = 0;
 let drySpeechCounter = 0;
 let dryImageCounter = 0;
 let dryActCounter = 0;
+let dryLoopCounter = 0;
 
 function dryStream(opts = {}) {
   const prompt = (opts.messages || []).map(m => m.content).join('\n');
@@ -653,6 +654,14 @@ function dryComplete({ prompt = '', messages }) {
     reply = dryActCounter % 2 === 0
       ? '[0.78] I find myself wondering what the light is doing outside right now.'
       : 'NONE';
+  } else if (/loop sense of a mind/i.test(text)) {
+    // The loop detector (mLoopDetector): report a presence loop on roughly every third
+    // check, so a dry/smoke run exercises the detect → bid → clear-tail pipeline; otherwise
+    // report no loop.
+    dryLoopCounter += 1;
+    reply = dryLoopCounter % 3 === 0
+      ? 'LOOPING: yes\nSCORE: 0.8\nKIND: presence\nVOCABULARY: presence, stillness, enough, now\nWHY: It keeps restating that being here is enough without a new step.'
+      : 'LOOPING: no\nSCORE: 0.1\nKIND: other\nVOCABULARY:\nWHY: The thought is moving.';
   } else if (/mid-thought transition|attention turns/i.test(text)) {
     reply = 'Hold on — something just shifted, and I want to turn toward it without dropping the thread entirely.';
   } else if (/remind|associat/i.test(text)) {
