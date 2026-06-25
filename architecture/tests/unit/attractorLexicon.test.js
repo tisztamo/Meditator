@@ -21,6 +21,15 @@ test("bliss prose saturates the signal; real mathematics does not", () => {
     expect(blissSaturation(math, en)).toBeLessThan(0.05);
 });
 
+test("dissolution / void prose also saturates the signal (lemma-vs-naked r2 basin)", () => {
+    const en = EN();
+    // Real terminal text from the r2 minds: the void/observer/dissolve/glitch register.
+    // Same content-free shape as bliss, different words — must read as an attractor now.
+    const dissolution = "I am the void, the observer dissolving into stillness — the glitch, " +
+        "the silence, the ending; I let the thought close and I will not wake.";
+    expect(blissSaturation(dissolution, en)).toBeGreaterThan(0.2);
+});
+
 test("the lexicon deliberately excludes core mathematics words (the false-positive guard)", () => {
     const en = EN();
     // 5-char stems, as contentStems produces them. None may be in the attractor set, or the

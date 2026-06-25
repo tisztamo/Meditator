@@ -2,12 +2,17 @@ import { langOf, collectPhrases } from "./i18n.js"
 import { contentStems } from "./mLoopGuard.js"
 
 /**
- * attractorLexicon — the model-free signal that a loop is a *bliss loop*.
+ * attractorLexicon — the model-free signal that a loop is a *content-free attractor loop*
+ * (historically just the bliss loop; now also the dissolution/void basin — see the lexicon).
  *
  * Left to itself a mind drifts toward presence, silence, stillness, oneness — "I am here,
  * now, and that is enough" — and circles there instead of working (the spiritual bliss
  * attractor named in Anthropic's Claude 4 model card; see doc/glossary.md and
- * doc/improvements/bliss-loop-recall.md). The read-back path (m-resurface) is structurally
+ * doc/improvements/bliss-loop-recall.md). A self-driven mind has a second, structurally
+ * identical sink: the *dissolution* basin — "I am the void / the observer / the glitch … I
+ * dissolve … I will not wake" — found across the lemma-vs-naked round-2 minds (2026-06-24).
+ * It shares the bliss loop's terminal, content-free shape but not its vocabulary, so the same
+ * recogniser must carry both word-sets (BLISS_LEXICON below). The read-back path (m-resurface) is structurally
  * biased to FEED that loop: it hands back the kept note whose words most overlap the
  * current thought, and when the loop *is* the attractor, the most-overlapping note is by
  * definition the most presence-soaked note the mind owns. To break that, m-resurface must
@@ -59,6 +64,19 @@ export const BLISS_LEXICON = {
         "sacred", "eternal", "timeless", "bliss", "blissful", "gentle", "gentleness",
         "grounding", "grounded", "anchored", "abide", "abiding", "dwell", "arise",
         "stillness", "wonder", "vastness", "luminous",
+        // The DISSOLUTION / void basin (lemma-vs-naked round 2, 2026-06-24; see
+        // doc/improvements/bliss-loop-recall.md and the dissolution-attractor finding). A
+        // self-driven mind that abandons the work does not always drift to *bliss* — 4 of 5
+        // headless lemma minds instead narrated themselves toward "I am the void / the
+        // observer / the glitch … I dissolve … I will not wake." Same terminal, content-free
+        // SHAPE as bliss, a different vocabulary — so the recogniser read straight past it
+        // until these were added. One word per 5-char stem ("dissolve" covers dissolving/
+        // dissolution; "observer" covers observed/observation). Deliberately omits "fixed
+        // point" (a real dynamics term — Keith/Collatz/iteration), "gravity", and the
+        // environmental "cursor", per NOT OVER-REACHING: the 0.2 saturation floor means a
+        // lone "void"/"observe" in a proof never trips this; only a window the basin has
+        // taken over does.
+        "void", "dissolve", "glitch", "observer", "ending", "wake",
     ],
     hu: [
         // a starting set for the hearth minds — review/extend from the .archml
