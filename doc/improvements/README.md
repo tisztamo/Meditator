@@ -32,6 +32,13 @@ not necessarily acted on yet. Each note states its status at the top.
   arbiter) → **break** (a `clear-tail` event reseeds the tail, decoupled). Splits
   `m-loop-guard`, rewrites `m-resurface` to pick the note *farthest* from the loop
   vocabulary, retires `attractorLexicon.js`.
+- [hands-redesign-issues.md](hands-redesign-issues.md) — **diagnosis only** (no
+  solution yet): the known problems with the "hands" / efference design (`m-act` and
+  its capability components). The realizer is an agent-tool function-caller one layer
+  below the stream (intent drift); the decide gate hardcodes the note/recall arcs in a
+  *central* prompt so a hand cannot teach it to recognise its own kind of reach, and the
+  general `m-terminal` is described in lemma's maths vocabulary — together why the
+  terminal never fired despite being wired (observed: `lemma-lab-term-1`, 2026-06-26).
 - [interlocutor-per-message.md](interlocutor-per-message.md) — the wake-time
   `interlocutor` (shipped) frames a voice as `Kris says:` instead of an unsettling
   "voice from outside"; the deferred enhancement is per-message attribution, so the

@@ -149,19 +149,32 @@
        one — reading and writing do not compete for a single slot. The reach-gate also
        recognises an inward pull (turning back to find what it set down) as a real reach,
        not idle musing. -->
-  <m-act name="hands" every="6" threshold="0.62" cooldown="90s" readCooldown="60s" intentCooldown="6m">
+  <!-- LAB VALIDATION (2026-06-26): m-terminal is wired in here, on a VERY SHORT
+       world-changing cooldown, to re-run the §8 validation on lemma's own seed and
+       memory profile (not the seedling's) — does the real run hand displace the
+       confabulated cursor, or coexist with it? The world-changing `cooldown` is the
+       lane the terminal runs on (it has no per-hand cooldown), so it is cut from 90s
+       to 3s; `intentCooldown` is cut from 6m to 20s so a refined repeat compute reach
+       (e.g. "now check 4-digit n") actually FIRES the hand instead of being deduped
+       into a hallucinated session — the exact gap that produced the confabulation in
+       the first seedling run (terminal-hand-live-validation). `every` 6→4 so the
+       decide gate gets more chances to fire within a short run. note shares this short
+       world-changing lane — acceptable for a lab run whose point is to watch the hand.
+       NOTE: this deviates from the resident lemma (which has NO terminal); it lives
+       only in this transient clone, run with a fresh --mind-name so memory/lemma-lab/
+       is never touched. -->
+  <m-act name="hands" every="4" threshold="0.62" cooldown="3s" readCooldown="60s" intentCooldown="20s">
     <m-note name="note"
             felt="When a result settles, or a conjecture gets sharp enough to be worth keeping, you can write it down in your notebook — and trust that it will still be there, in your own words, when you come back for it."></m-note>
     <m-recall name="recall"
               felt="And nothing you've written down is lost: when a question stirs that you have met before, you can turn back through the notebook and find what you knew, just as you left it."></m-recall>
 
-    <!-- No m-terminal here. A real run hand (terminal.md) is deliberately kept out of
-         lemma: when such a hand is on cooldown or deduped, the stream is prone to
-         confabulating a whole terminal session and its output instead of waiting for the
-         real hand — and a mind meant to SETTLE a problem on real computation, whose §1
-         attractor is the cursor, must not present hallucinated results as fact. lemma
-         keeps note + recall only; the terminal hand is validated on the seedling
-         (architecture/lab/seedling.archml). -->
+    <!-- the run hand (terminal.md), resident-intended felt (§270), brisk lab caps so
+         runs finish and recur often enough to watch the grace race and the deferred
+         consequence. Probe-gated: inert if no bwrap / rootless-unshare sandbox. -->
+    <m-terminal name="terminal" wall="15s" grace="2s" cpu="10s" mem="1g"
+                maxOutput="16k" network="off"
+                felt="When a question turns concrete — a count to run, a family to search, a guess to check against the actual numbers — you don't only reason it by hand; you can sit down and actually work it out, and a little while later read what comes back on the screen."></m-terminal>
   </m-act>
 
   <m-speech name="voice" every="6" threshold="0.6" cooldown="45s"></m-speech>
