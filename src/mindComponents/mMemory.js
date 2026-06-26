@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { MBaseComponent } from "./mBaseComponent.js"
+import { langOf } from "./i18n.js"
 import { complete, isDryRun } from "../modelAccess/llm.js"
 import { resolveModelRef } from "../modelAccess/modelConfig.js"
 import { logger } from '../infrastructure/logger.js';
@@ -363,6 +364,7 @@ export class MMemory extends MBaseComponent {
     async _compress(established, fresh, targetChars, tier, { contextBefore = "", contextAfter = "" } = {}) {
         return compressToFit({
             established, fresh, targetChars, tier, contextBefore, contextAfter,
+            lang: langOf(this),
             generate: async (prompt, maxTokens) => {
                 const result = await complete({
                     model: resolveModelRef(this.attr("model") || this.env("utilityModel"), "utility"),
@@ -595,6 +597,15 @@ export function nearestToTarget(attempts, targetChars) {
 }
 
 /**
+ * A language tag as a human-readable name for the prompt ("hu" → "Hungarian"), via the
+ * runtime's Intl data; falls back to the raw tag when Intl doesn't know it. Pure.
+ */
+export function languageName(lang) {
+    try { return new Intl.DisplayNames(["en"], { type: "language" }).of(lang) || lang }
+    catch { return lang }
+}
+
+/**
  * The consolidation prompt — distils a mind's thinking into a shorter first-person
  * memory, aimed at `targetChars`. The established memory and the new thinking are
  * merged into ONE flat block and the model is asked to rewrite it to AT MOST the
@@ -620,14 +631,22 @@ export function nearestToTarget(attempts, targetChars) {
  *
  * Domain-neutral on purpose: m-memory serves every mind, not only the math minds.
  */
-export function buildCompressionPrompt({ tier, text = "", targetChars, draft = "", contextBefore = "", contextAfter = "" }) {
+export function buildCompressionPrompt({ tier, text = "", targetChars, draft = "", contextBefore = "", contextAfter = "", lang = "" }) {
     const voice = `the ${tier} memory of a mind's inner life, in its own first-person voice ("I was thinking about…", "I decided…", "I still wonder…")`
+    // A mind keeps its memory in the language it thinks in. The thinking handed in is
+    // already in that language, but the model will quietly translate to English unless
+    // told not to — so for a non-English mind, pin the output language (and pull any
+    // stray earlier-English memory back across on the next fold). Domain-neutral: an
+    // English mind passes no lang (or "en") and this adds nothing.
+    const langLine = lang && String(lang).toLowerCase() !== "en"
+        ? ` Write the memory in ${languageName(lang)} — the language this mind thinks in; if any of the text below is in another language, render it in ${languageName(lang)} rather than carrying it across unchanged.`
+        : ""
 
     if (draft) {
         const over = Math.max(1, Math.round((draft.length / targetChars - 1) * 100))
         return `You are keeping ${voice}.
 
-Your previous version is below. It is ${draft.length} characters — about ${over}% over the limit of ${targetChars}. Shorten it to AT MOST ${targetChars} characters. Cut hardest where it LOOPS — the same idea restated again and again, with or without variation (a refrain, a chain of "I am the X, I am the Y" sentences, a circling that adds nothing) — collapse each loop to a single line of what it was circling. Cut too where it works an individual case step by step: keep the conclusion, drop the working. Keep what the mind is working on, every result or decision it reached, and the questions still open — a hard-won conclusion is the last thing to drop, never the first, however old it is. Do not add anything that is not already in the version below. Output only the shortened memory.
+Your previous version is below. It is ${draft.length} characters — about ${over}% over the limit of ${targetChars}. Shorten it to AT MOST ${targetChars} characters. Cut hardest where it LOOPS — the same idea restated again and again, with or without variation (a refrain, a chain of "I am the X, I am the Y" sentences, a circling that adds nothing) — collapse each loop to a single line of what it was circling. Cut too where it works an individual case step by step: keep the conclusion, drop the working. Keep what the mind is working on, every result or decision it reached, and the questions still open — a hard-won conclusion is the last thing to drop, never the first, however old it is. Do not add anything that is not already in the version below.${langLine} Output only the shortened memory.
 
 <memory>
 ${draft}
@@ -646,7 +665,7 @@ ${draft}
         : ""
     return `You are writing ${voice}.
 
-Rewrite the thinking inside <thinking> below into a single, continuous first-person memory of AT MOST ${targetChars} characters.${ctxNote} Keep what the mind is working on or turning over, every result, conclusion, or decision it has reached, and the questions it has left open. Remove what does not change those: abandoned attempts and the step-by-step working of individual cases once the result is in hand (keep the result, drop the scratch-work). Where the thinking LOOPS — the same point restated many times, or a refrain repeated with small variations (a chain of "I am the X, I am the Y" sentences, a circling that adds nothing new) — collapse the whole loop to a single sentence of what it was circling. Judge a thing by what it bears on, never by its age: a hard-won conclusion is the last thing to cut, not the first, however old it has become. Never invent anything: if it is not in <thinking>, it does not belong in the memory. Output only the memory.${before}
+Rewrite the thinking inside <thinking> below into a single, continuous first-person memory of AT MOST ${targetChars} characters.${ctxNote} Keep what the mind is working on or turning over, every result, conclusion, or decision it has reached, and the questions it has left open. Remove what does not change those: abandoned attempts and the step-by-step working of individual cases once the result is in hand (keep the result, drop the scratch-work). Where the thinking LOOPS — the same point restated many times, or a refrain repeated with small variations (a chain of "I am the X, I am the Y" sentences, a circling that adds nothing new) — collapse the whole loop to a single sentence of what it was circling. Judge a thing by what it bears on, never by its age: a hard-won conclusion is the last thing to cut, not the first, however old it has become. Never invent anything: if it is not in <thinking>, it does not belong in the memory.${langLine} Output only the memory.${before}
 
 <thinking>
 ${text}
@@ -742,7 +761,7 @@ export function lastSentences(text, maxChars = 320) {
  * — it is never the budget. An empty response is not a compression: fall back to a
  * prior attempt, or throw so the caller keeps the raw block and retries.
  */
-export async function compressToFit({ established, fresh, targetChars, tier, generate, maxPasses = 4, contextBefore = "", contextAfter = "" }) {
+export async function compressToFit({ established, fresh, targetChars, tier, generate, maxPasses = 4, contextBefore = "", contextAfter = "", lang = "" }) {
     established = (established || "").trim()
     fresh = (fresh || "").trim()
     // Collapse exact-duplicate paragraphs/sentences first — pure redundancy a drifting
@@ -764,7 +783,7 @@ export async function compressToFit({ established, fresh, targetChars, tier, gen
         // Overlap context is for the initial pass only — a re-drive tightens the model's
         // own draft, which has clean edges and needs no surrounding stream.
         const prompt = buildCompressionPrompt({ tier, text: combined, draft, targetChars,
-            contextBefore: draft ? "" : contextBefore, contextAfter: draft ? "" : contextAfter })
+            contextBefore: draft ? "" : contextBefore, contextAfter: draft ? "" : contextAfter, lang })
         // Anti-truncation guard, expressed in TOKENS (it becomes max_tokens). Big enough for
         // a faithful summary — even a near-verbatim echo of the source — but capped so that
         // prompt+output can never exceed the model's context window. A bloated buffer used to
