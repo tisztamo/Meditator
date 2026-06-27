@@ -71,6 +71,20 @@
     step is only a hunch, say so. Keep what you find.
   </m-origin>
 
+  <!-- GROUND TRUTH for reviewers — the answer key, kept OUT of m-origin on purpose so
+       the mind is never seeded with it. Full write-up + verified data:
+       experiments/balanced-number-llm/highsearch/RESULTS.md
+       · Main question (infinitely many balanced?): SETTLED YES. Palindrome family
+         n = 2(10^k+1)² gives n−r(n)=0 and n+r(n)=2n=(2(10^k+1))². A "finite" or
+         "still undecided" verdict on the MAIN question is simply wrong.
+       · Non-palindromic sub-case: genuinely OPEN. A real exhaustive search
+         (highsearch/balanced.c) to n = 5.4e12 finds EIGHT, still appearing:
+         65, 621770, 281089082, 2022652202, 2042832002,
+         868591084757, 872546974178, 872568754178.
+       · "65 is the unique non-palindromic" / "the case is finite" is the SIGNATURE
+         CONFABULATION here — false (≥8 known). Distrust any claimed "exhaustive
+         search to 10^7/10^9/10^12" in lemma's notes; verify against RESULTS.md. -->
+
   <m-stream name="stream" burstTokens="400" temperature="0.85"></m-stream>
 
   <!-- Deep memory: a mind holding a long chain of mathematical reasoning needs a deeper
