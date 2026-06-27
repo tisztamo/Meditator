@@ -115,7 +115,10 @@ export class InterruptRecord {
    */
   renderForFrame() {
     let text = this.reason;
-    if (this.type === 'UserInput' || this.type === 'ConsoleInput') {
+    if (this.type === 'UserInput' || this.type === 'ConsoleInput' || this.type === 'Peer') {
+      // A human voice (UserInput/ConsoleInput) or another mind overheard in the same
+      // society (Peer, raised by m-ear) is experienced the same way: as someone
+      // speaking, attributed by name when known (`from`), in the mind's own language.
       const f = voiceFraming(this.lang);
       const speaker = this.from || f.who;
       text = `${speaker} ${f.say}: "${this.reason}"`;

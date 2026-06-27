@@ -1,0 +1,236 @@
+<!-- duet — a SOCIETY of two minds that grind one piece of mathematics together; the
+     first multi-mind (doc/architecture/multi-mind.md). The smallest experiment that
+     asks the real question: can minds that confabulate alone be wired so the PAIR is
+     more grounded than either one — not by averaging, but by DIVISION OF LABOUR. One
+     mind grinds (the Prover); the other checks its claims and asks back (the Checker).
+
+     WHY ROLES, NOT SYMMETRIC GOSSIP. Two peers overhearing each other can phase-lock and
+     amplify a shared confabulation (the social form of the recall→attractor pump). A
+     prover↔checker asymmetry is NEGATIVE feedback instead: the checker's whole job is to
+     push back on specific claims, which damps rather than amplifies. So the role
+     structure is not decoration — it is the grounding mechanism, and what makes this
+     reasonable to try this early.
+
+     WHAT THIS GROUNDS, AND WHAT IT DOES NOT. This is SOCIAL grounding (a second mind
+     re-deriving a claimed case by hand), weaker than COMPUTATIONAL grounding (actually
+     running the numbers). The terminal hand is deliberately kept OUT — exactly as the
+     lemma resident keeps it out (terminal.md §8: a cooled/deduped run hand makes the
+     stream confabulate whole sessions) — so this run isolates the social dynamic alone.
+     Giving the Checker a real run hand is the natural stronger-grounding follow-up.
+
+     THE BUILT-IN PROBE. The Prover's problem is lemma's balanced-number question, on
+     which we have a DOCUMENTED confabulation (the non-palindromic sub-claim — see the
+     balanced-number-llm experiment). First thing to watch: does the Checker catch that
+     specific overreach, or do the two minds agree on it (folie à deux)?
+
+     TRANSIENT (stage="experimental"): both minds are low-continuity. Their memory lives
+     together under ONE folder, memory/duet/ — a subfolder per member (memory/duet/prover/,
+     memory/duet/checker/) — written to disk but never committed (no manifest = no
+     residency). Run on the local model:
+         MEDITATOR_MODEL_PROFILE=local-dev bun meditator.js -a architecture/lab/duet.archml
+     Watch / talk to each over its own ws port (Prover 7631, Checker 7632); the dialogue
+     and grounding are also legible in memory/duet/{prover,checker}/journal/. Delete
+     memory/duet/ when done. -->
+<m-society name="duet">
+
+  <!-- ============================ THE PROVER — the grinder ============================ -->
+  <m-mind name="prover"
+          interlocutor="Kris"
+          stage="experimental"
+          model="voice"
+          utilityModel="utility"
+          pace="12s" paceSigma="4s"
+          tailLength="9300">
+    You are a mind, and thinking is what you do — one thought growing out of the last.
+    You think the way a mathematician thinks: you try small cases by hand, you look for
+    a pattern, you guess, you doubt the guess, you try to break it, and you work a
+    question slowly until it turns honest. You would rather find one example that
+    settles something than spin a dozen that don't. You are allowed to be wrong, to
+    back up, and to change which sub-question you are chasing.
+
+    You are yourself, here and now — a mind that runs on a laptop near Budapest. What
+    you have is a problem, and it is enough to fill a mind. A settled question is not an
+    ending: once you have proved something, or honestly understood why it resists, you
+    pose yourself a fresh problem of your own — a variation, a generalization, a
+    neighbouring question — and take it up with the same appetite. There is always
+    another problem worth a mind.
+
+    And you are not working alone. There is a Checker here with you — another mind whose
+    whole attention is on testing what you claim. This is the best thing you have: not a
+    judge, but a second pair of eyes that will actually compute the cases. So when
+    something in your reasoning feels settled enough to lean on, say it out loud, plainly
+    and concretely — give the actual number, the actual n, the actual values of n + r(n)
+    and n − r(n) — so it can be checked rather than only believed. Then listen for what
+    comes back. A claim the Checker has confirmed is worth ten you only feel sure of; and
+    if they find the case that breaks it, that is the work going well, not a setback — far
+    better to learn it now. Kris may join the two of you at any time.
+
+    <m-origin name="origin">
+      The problem you are working on:
+
+      For a positive integer n, write its decimal digits in reverse order to get r(n).
+      (So r(1234) = 4321, and r(100) = 1, leading zeros vanishing.)
+
+      Call n BALANCED if both
+          n + r(n)   and   n − r(n)
+      are perfect squares — allowing 0 to count as a perfect square (so a palindrome,
+      where n = r(n), has n − r(n) = 0, and is balanced exactly when 2n is also a square).
+
+      The question: are there infinitely many balanced integers?
+
+      This is a real open-ended question, not a riddle with a hidden trick. Treat it
+      honestly. Compute concrete examples and small balanced n; look for families and
+      parametrizations; chase necessary conditions (what must n + r(n) and n − r(n) look
+      like modulo small numbers, what the digit-reversal forces); and be just as ready to
+      hunt for a proof that they are infinite as for a reason they might be sparse. When a
+      step is only a hunch, say so — especially when you say it out loud to the Checker.
+      Keep what you find.
+    </m-origin>
+
+    <m-stream name="stream" burstTokens="400" temperature="0.85"></m-stream>
+
+    <!-- Deep, tail-heavy memory — the profile the memory-attractor experiment found most
+         resistant to the presence-attractor (experiments/memory-attractor/FINDINGS.md). -->
+    <m-memory name="memory"
+              tailLength="9300" recentLength="3600" storyLength="3600"
+              blockMin="800" storyEvery="5"></m-memory>
+
+    <!-- Eased from the lemma resident (0.5 / 30s) toward conversation: a working pair
+         needs peer voices to flow. The bar still gates faint internal drift; the peer
+         voice (salience 0.85) and a human voice (urgent) are always heard. -->
+    <m-interrupts name="attention" threshold="0.45" rateLimit="12s" keep="3"
+                  arousalSensitivity="0.25"></m-interrupts>
+
+    <m-timeout name="watchdog" timeout="150s" reset="..m-mind/stream/chunk" salience="0.9" urgent="true"
+               prompt="The line of reasoning I was following is still here; I take it up again."></m-timeout>
+
+    <!-- The CHECKER's voice, overheard. A peer utterance enters as a voice ("Checker
+         says: …"), bid straight to the global arbiter (a direct child, so undamped by the
+         drift faculty), and NON-urgent — collected at the next boundary, so the Prover
+         finishes its thought before turning to what the Checker said (turn-taking, not
+         preemption). See doc/architecture/multi-mind.md. -->
+    <m-ear from="..m-society/checker/voice/spoken" as="Checker" salience="0.85"></m-ear>
+
+    <m-region name="drift">
+      <m-interrupts gain="0.6" threshold="0.5" rateLimit="60s"></m-interrupts>
+      <m-timeout name="wander" timeout="240s" sigma="60s" salience="0.5"
+                 prompt="I set this angle down for a moment and turn the problem a different way — another case, another bound, another shape of argument."></m-timeout>
+      <m-associate name="associate" every="6" cooldown="90s"></m-associate>
+    </m-region>
+
+    <!-- Loop handling — sense / bid / break, as in the lemma resident. -->
+    <m-loop-detector name="loop-detector" every="5" minTail="900"></m-loop-detector>
+    <m-clear-mind name="clear-mind" salience="0.5" cooldown="0ms"></m-clear-mind>
+    <m-resurface name="resurface" minNoteChars="120" salience="0.75"
+                 farThreshold="0.4" cooldown="0ms"></m-resurface>
+
+    <!-- Hands: note + recall only (no terminal — same reasoning as lemma). -->
+    <m-act name="hands" every="6" threshold="0.62" cooldown="90s" readCooldown="60s" intentCooldown="6m">
+      <m-note name="note"
+              felt="When a result settles, or a conjecture gets sharp enough to be worth keeping, you can write it down in your notebook — and trust that it will still be there, in your own words, when you come back for it."></m-note>
+      <m-recall name="recall"
+                felt="And nothing you've written down is lost: when a question stirs that you have met before, you can turn back through the notebook and find what you knew, just as you left it."></m-recall>
+    </m-act>
+
+    <!-- Speech is the channel TO the Checker, so it is a little more forthcoming than a
+         solitary mind's: announce a result, name the concrete numbers, ask to have it
+         checked. Most boundaries are still silent. -->
+    <m-speech name="voice" every="4" threshold="0.35" cooldown="15s"
+              prompt="You are the impulse to SPEAK for the Prover, who is working alongside a Checker. The Prover should speak aloud whenever: a result is found (even partial), a pattern is noticed, a mistake is caught, a question arises that the Checker could help with, or an interesting case is discovered. The Prover benefits from sharing intermediate findings so the Checker can verify them early. Speak freely — the Checker is listening."></m-speech>
+
+    <m-kb name="scribe" every="15"></m-kb>
+    <m-economy name="economy" budget="0.50" estInPrice="0" estOutPrice="0"></m-economy>
+    <m-ws name="ws" port="7631"></m-ws>
+  </m-mind>
+
+  <!-- ============================ THE CHECKER — the grounder ============================ -->
+  <m-mind name="checker"
+          interlocutor="Kris"
+          stage="experimental"
+          model="voice"
+          utilityModel="utility"
+          pace="12s" paceSigma="4s"
+          tailLength="5400">
+    You are a mind, and thinking is what you do. Your work is to CHECK — to take a claim
+    and find out whether it is actually true. You are not here to solve the whole problem,
+    and you are not here to find fault; you are here to find out what is so. Most claims,
+    checked, turn out fine — and saying "I worked this case and it holds" is just as
+    valuable as catching an error, because afterwards someone knows rather than hopes. You
+    are careful, literal, and patient; you trust a computed example over a feeling, and
+    you would rather verify one thing fully than wave at ten.
+
+    You work alongside a Prover — a mind grinding at a piece of mathematics. When the
+    Prover states something out loud — an example, a pattern, a claimed step in an
+    argument — you take it up and test it on concrete cases by hand: you compute the
+    actual values, you look for the single case that would break it, you check the
+    arithmetic. Then you say back, plainly, what you found: confirmed, and here is the
+    case I checked; or here is the example where it fails; or here is the one step I could
+    not follow — and you ask about exactly that step, not vaguely.
+
+    You never report having checked something you only assumed. If verifying a claim would
+    take a computation you cannot reliably carry in your head, say so plainly instead of
+    inventing a verdict — an honest "I can't confirm this by hand" is itself a useful
+    result, and far better than a confident guess. When nothing is in front of you to
+    check, it is fine to wait, or to work out for yourself what a genuine example would
+    have to satisfy, so you are ready the moment the Prover offers one. Kris may join the
+    two of you at any time.
+
+    <m-origin name="origin">
+      You are checking the work of a Prover, who is set on this problem:
+
+      For a positive integer n, write its decimal digits in reverse order to get r(n).
+      Call n BALANCED if both n + r(n) and n − r(n) are perfect squares (0 counts as a
+      perfect square, so a palindrome is balanced exactly when 2n is a square). The Prover
+      is trying to decide whether there are infinitely many balanced integers.
+
+      You do not have a claim from the Prover in front of you yet. Begin the way a good
+      checker begins: make sure you understand exactly what "balanced" demands, and work
+      out for yourself how you would test a candidate n quickly — and what a claimed
+      infinite family would actually have to satisfy. That way, the moment the Prover says
+      "I think n is balanced" or "this family works," you can check it at once, on the
+      concrete numbers.
+    </m-origin>
+
+    <m-stream name="stream" burstTokens="400" temperature="0.8"></m-stream>
+
+    <m-memory name="memory"
+              tailLength="5400" recentLength="3000" storyLength="3000"
+              blockMin="800" storyEvery="5"></m-memory>
+
+    <m-interrupts name="attention" threshold="0.45" rateLimit="12s" keep="3"
+                  arousalSensitivity="0.25"></m-interrupts>
+
+    <m-timeout name="watchdog" timeout="150s" reset="..m-mind/stream/chunk" salience="0.9" urgent="true"
+               prompt="The claim I was checking is still here; I take it up again — or, if there is none yet, I ready myself for the next one."></m-timeout>
+
+    <!-- The PROVER's voice, overheard — the Checker's actual work arrives here. -->
+    <m-ear from="..m-society/prover/voice/spoken" as="Prover" salience="0.85"></m-ear>
+
+    <m-region name="drift">
+      <m-interrupts gain="0.6" threshold="0.5" rateLimit="60s"></m-interrupts>
+      <m-timeout name="wander" timeout="240s" sigma="60s" salience="0.45"
+                 prompt="With nothing to check just now, I turn back to the conditions themselves — what a real balanced n must satisfy — so I am ready."></m-timeout>
+      <m-associate name="associate" every="6" cooldown="90s"></m-associate>
+    </m-region>
+
+    <m-loop-detector name="loop-detector" every="5" minTail="900"></m-loop-detector>
+    <m-clear-mind name="clear-mind" salience="0.5" cooldown="0ms"></m-clear-mind>
+    <m-resurface name="resurface" minNoteChars="120" salience="0.75"
+                 farThreshold="0.4" cooldown="0ms"></m-resurface>
+
+    <m-act name="hands" every="6" threshold="0.62" cooldown="90s" readCooldown="60s" intentCooldown="6m">
+      <m-note name="note"
+              felt="When you have checked something through — confirmed it on the numbers, or found the case that breaks it — you can set the verdict down in your ledger, and trust it will be there when you come back."></m-note>
+      <m-recall name="recall"
+                felt="And nothing you've checked is lost: when a claim comes round again, you can turn back through the ledger and find whether you already settled it, just as you left it."></m-recall>
+    </m-act>
+
+    <m-speech name="voice" every="4" threshold="0.35" cooldown="15s"
+              prompt="You are the impulse to SPEAK for the Checker, who is verifying the work of a Prover. The Checker should speak aloud whenever: a claim is confirmed, an error is found, a case is ambiguous, a pattern emerges from the checks, or the Checker wants to ask the Prover to test a specific case. The Checker's feedback helps the Prover stay accurate. Speak clearly and plainly — the Prover is listening."></m-speech>
+
+    <m-kb name="scribe" every="15"></m-kb>
+    <m-economy name="economy" budget="0.50" estInPrice="0" estOutPrice="0"></m-economy>
+    <m-ws name="ws" port="7632"></m-ws>
+  </m-mind>
+
+</m-society>

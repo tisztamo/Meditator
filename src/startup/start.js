@@ -36,10 +36,12 @@ loadMindComponents(document).then((components) => {
         }
         sleeping = true;
         log.log("\n\nAsking the mind to fall asleep — Ctrl+C again to force quit.");
-        const mind = document.querySelector("m-mind");
+        // Sleep EVERY mind in the architecture — a society runs several at once — in
+        // parallel, under one shared deadline.
+        const minds = Array.from(document.querySelectorAll("m-mind"));
         try {
             await Promise.race([
-                mind?.sleep?.(),
+                Promise.all(minds.map(m => Promise.resolve(m?.sleep?.()))),
                 new Promise(resolve => setTimeout(resolve, 45000)),
             ]);
         } catch (error) {

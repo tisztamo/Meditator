@@ -35,14 +35,26 @@ export const SCRATCH_DIR = '.scratch';
 
 /** Resolves a mind's home directory inside the vault: memory/<slug>[/sub].
  *  Dry-run minds are prefixed so tests can never touch a resident mind's memory. */
+/** A vault-safe path segment: lowercase, [a-z0-9-], trimmed. */
+function slugify(raw) {
+    return String(raw || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
 export function mindHome(el, sub) {
     // Identity = the mind's name (the covenant's "one home per mind"); an explicit
     // memory="slug" on <m-mind> is a deliberate override to point an architecture
     // at a specific home. Falls back to name, then "mind".
     const mind = el.closest('m-mind');
-    const raw = mind?.getAttribute('memory') || mind?.getAttribute('name') || 'mind';
-    const slug = raw.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'mind';
-    const home = path.join(VAULT_ROOT, (isDryRun() ? 'dry-' : '') + slug);
+    const slug = slugify(mind?.getAttribute('memory') || mind?.getAttribute('name')) || 'mind';
+    // A mind inside an <m-society name="…"> nests its home under the society's folder:
+    // memory/<society>/<mind>. One society, one folder, a subfolder per member — so a
+    // multi-mind system's whole memory lives together. A lone mind is unchanged: memory/<mind>.
+    const society = mind?.closest('m-society');
+    const societySlug = society ? (slugify(society.getAttribute('name')) || 'society') : null;
+    const prefix = isDryRun() ? 'dry-' : '';
+    const home = societySlug
+        ? path.join(VAULT_ROOT, prefix + societySlug, slug)
+        : path.join(VAULT_ROOT, prefix + slug);
     return sub ? path.join(home, sub) : home;
 }
 

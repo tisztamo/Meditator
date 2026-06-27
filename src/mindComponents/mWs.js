@@ -29,7 +29,7 @@ const log = logger("mWs.js");
  *   - port: Port to listen on for WebSocket connections (defaults to 7627)
  *   - src / stateSrc: override which topics feed thought_fragment / status
  *
- * Subscriptions (transport): "/stream/chunk", "/stream/state"
+ * Subscriptions (transport): "..m-mind/stream/chunk", "..m-mind/stream/state"
  * Subscriptions (instrument, guarded): "../prompt", "/stream/@boundary",
  *   "../@interrupt-request", "../@interrupt", "/<arbiter>/decision",
  *   "/<economy>/energy", "/<memory>/compressed", "/<scribe>/filed",
@@ -76,11 +76,13 @@ export class MWs extends MBaseComponent {
       // un-upgraded elements and the short retry window would expire.
       await this._whenReady();
 
-      // Subscribe to stream chunks and state changes (absolute refs so this
-      // component can live anywhere in the mind). These power the classic,
-      // backward-compatible thought_fragment / status messages.
-      this.sub(this.attr("src") || "/stream/chunk", this.onChunk);
-      this.sub(this.attr("stateSrc") || "/stream/state", this.onState);
+      // Subscribe to stream chunks and state changes. Mind-relative refs (..m-mind/…)
+      // so this binds to ITS OWN mind's stream even when several minds run together in
+      // one document (a society); for a lone mind it resolves to the very same element
+      // the old absolute "/stream/chunk" did. These power the classic, backward-
+      // compatible thought_fragment / status messages.
+      this.sub(this.attr("src") || "..m-mind/stream/chunk", this.onChunk);
+      this.sub(this.attr("stateSrc") || "..m-mind/stream/state", this.onState);
 
       // Subscribe to the rest of the mind's signals for the dashboard.
       this._instrument();
@@ -462,7 +464,7 @@ export class MWs extends MBaseComponent {
       log.debug(`Cannot instrument <${(el.tagName || "").toLowerCase()}>: no name attribute`);
       return;
     }
-    this.sub(`/${name}/${prop}`, cb);
+    this.sub(`..m-mind/${name}/${prop}`, cb);
   }
 
   /** Subscribe to a transient DOM event fired by a (possibly absent) named sibling.
@@ -475,7 +477,7 @@ export class MWs extends MBaseComponent {
       log.debug(`Cannot instrument <${(el.tagName || "").toLowerCase()}>: no name attribute`);
       return;
     }
-    this.sub(`/${elName}/@${name}`, e => cb(e && e.detail));
+    this.sub(`..m-mind/${elName}/@${name}`, e => cb(e && e.detail));
   }
 
   /** Broadcast one telemetry event and remember it as the latest of its kind. */
