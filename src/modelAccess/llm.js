@@ -89,19 +89,24 @@ function resolveProvider(spec) {
     if (!baseURL) throw new Error(`local provider needs LOCAL_LLM_BASE_URL (model "${spec.model}")`);
     // Reasoning models (Qwen3 etc.) otherwise spend the whole burst budget on
     // hidden reasoning_content and return finish=length with no visible text —
-    // the mind then has nothing to think. Suppress thinking by default; set
-    // LOCAL_LLM_THINKING=1 to allow it. vLLM reads chat_template_kwargs.enable_thinking
-    // (an unknown key is harmlessly ignored by a template that doesn't use it).
+    // the mind then has nothing to think. Thinking is opt-in (LOCAL_LLM_THINKING=1
+    // → spec.thinking) and, when allowed, applies ONLY to the streamed conscious
+    // voice (chatStream): there the reasoning trace can be surfaced AS the stream.
+    // Non-streamed utility calls (complete / completeWithTools — compression, loop
+    // sensing, tool-choice, bridges) read message.content and would break if the
+    // model spent its budget in reasoning_content, so they ALWAYS suppress thinking,
+    // regardless of the flag. chatStream adds the enable_thinking key per-call from
+    // its own effective decision; the base stream extras carry none. vLLM reads
+    // chat_template_kwargs.enable_thinking (an unknown key is harmlessly ignored).
     const allowThinking = spec.thinking === true;
-    const noThink = allowThinking ? {} : { chat_template_kwargs: { enable_thinking: false } };
     return {
       key: 'local',
       baseURL,
       apiKey: spec.apiKey || 'none',
       model: spec.model,
       thinking: allowThinking,
-      streamExtra: { stream_options: { include_usage: true }, ...noThink },
-      extra: { ...noThink },
+      streamExtra: { stream_options: { include_usage: true } },
+      extra: { chat_template_kwargs: { enable_thinking: false } },
     };
   }
   return {
@@ -376,6 +381,14 @@ export async function chatStream(opts) {
     stream: true,
     ...provider.streamExtra,
   };
+  // Effective thinking for THIS stream: opts.thinking overrides the provider default
+  // (the spoken voice opts out so it speaks cleanly; the conscious stream inherits it).
+  // When on, the model's reasoning trace is surfaced below AS the stream's content.
+  const wantThink = (opts.thinking ?? provider.thinking) === true;
+  if (provider.key === 'local') {
+    request.chat_template_kwargs = { ...(request.chat_template_kwargs || {}), enable_thinking: wantThink };
+  }
+  const surfaceReasoning = wantThink && provider.key === 'local';
   // Assistant prefill: when the last message is the mind's own thought in
   // progress, the model must CONTINUE that turn, not open a fresh one. vLLM has
   // to be told explicitly — otherwise it appends a new assistant header after the
@@ -454,6 +467,9 @@ export async function chatStream(opts) {
       // Per-stream counters so we can see whether a 200 stream actually produced
       // anything thinkable, and where the text went if it didn't.
       let chunks = 0, contentChars = 0, reasoningChars = 0, finish = null;
+      // Thinking mode: once reasoning has been seen, the burst ends the instant the
+      // model stops thinking and switches to its answer channel (see the content branch).
+      let sawReasoning = false, endedAtThinking = false;
       // Inactivity watchdog: aborts the stream if no chunk arrives within stallMs.
       // Re-armed on every chunk, so it measures silence, not total duration.
       let stalled = false, watchdog = null;
@@ -474,9 +490,23 @@ export async function chatStream(opts) {
           const choice = chunk.choices?.[0];
           if (choice?.finish_reason) finish = choice.finish_reason;
           const reasoning = choice?.delta?.reasoning_content ?? choice?.delta?.reasoning;
-          if (reasoning) reasoningChars += reasoning.length;
+          if (reasoning) {
+            reasoningChars += reasoning.length;
+            // Thinking-as-content: the model's reasoning trace IS the mind's stream
+            // this burst (count it as content so the empty-stream warning is correct).
+            if (surfaceReasoning) { contentChars += reasoning.length; sawReasoning = true; yield reasoning; }
+          }
           const content = choice?.delta?.content;
-          if (content) { contentChars += content.length; yield content; }
+          if (content) {
+            // Thinking mode: the reasoning trace IS the burst. The moment the model
+            // finishes thinking and begins its answer channel, the burst ends — the
+            // post-thinking restatement is dropped (it breaks the monologue's flow and,
+            // given room, drifts into meta-narration about the prompt). The break, plus
+            // the abort in `finally`, stops the rest of the generation.
+            if (surfaceReasoning && sawReasoning) { endedAtThinking = true; break; }
+            contentChars += content.length;
+            yield content;
+          }
         }
       } catch (error) {
         // A stall-abort masquerades as an AbortError, so check stalled first. A stall
@@ -495,9 +525,12 @@ export async function chatStream(opts) {
         throw error;
       } finally {
         if (watchdog) clearTimeout(watchdog);
+        // Thinking mode ended the burst at the think→answer transition: abort so the
+        // server stops generating the answer text we are dropping.
+        if (endedAtThinking) { try { controller.abort(); } catch { /* already closed */ } }
         addUsage(burst.usage);
       }
-      log.debug(`stream done: ${chunks} chunks, ${contentChars} content chars, ${reasoningChars} reasoning chars, finish=${finish}, usage=${burst.usage ? JSON.stringify(burst.usage) : 'none'}`);
+      log.debug(`stream done: ${chunks} chunks, ${contentChars} content chars, ${reasoningChars} reasoning chars, finish=${finish}${endedAtThinking ? ' (ended at think→answer transition)' : ''}, usage=${burst.usage ? JSON.stringify(burst.usage) : 'none'}`);
       // A clean 200 stream that yields no visible content: the mind had nothing to
       // think this tick (a concluded thread, or a brief server overload). This is NOT
       // treated as an error — no retry, no error count — the mind just waits for the

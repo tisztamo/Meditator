@@ -96,10 +96,24 @@ export class MStream extends MBaseComponent {
         // thought rather than answering. `frame`/`instruction` are interchangeable
         // labels for the user turn; `frame` is the legacy/string-payload fallback.
         const userTurn = instruction || frame
+        // Thinking mode (LOCAL_LLM_THINKING=1, local provider): the model's reasoning
+        // channel only fires on a FRESH assistant turn — an assistant-prefill
+        // continuation (continue_final_message) suppresses it entirely. So when the
+        // voice thinks, the running thought is folded into the user turn as "the mind's
+        // most recent words" instead of being sent as a trailing assistant prefill, and
+        // the model thinks the monologue onward (its reasoning trace becomes the stream).
+        const voiceModel = resolveModelRef(this.attr("model") || this.env("model"), "voice")
+        const thinking = voiceModel?.thinking === true
+        const continueFinal = Boolean(prefill) && !thinking
+
         const messages = []
         if (system) messages.push({ role: 'system', content: system })
-        if (userTurn) messages.push({ role: 'user', content: userTurn })
-        if (prefill) messages.push({ role: 'assistant', content: prefill })
+        if (prefill && thinking) {
+            messages.push({ role: 'user', content: `${userTurn}\n\nYour most recent words:\n"…${prefill}"` })
+        } else {
+            if (userTurn) messages.push({ role: 'user', content: userTurn })
+            if (prefill) messages.push({ role: 'assistant', content: prefill })
+        }
 
         // The bridge (or any injected text) physically enters the stream:
         // it becomes part of the monologue, the tail, the memory, the journal.
@@ -112,9 +126,9 @@ export class MStream extends MBaseComponent {
         let context = null
         try {
             const burst = await chatStream({
-                model: resolveModelRef(this.attr("model") || this.env("model"), "voice"),
+                model: voiceModel,
                 messages,
-                continueFinal: Boolean(prefill),
+                continueFinal,
                 maxTokens: Number(burstTokens || this.attr("burstTokens") || 350),
                 temperature: Number(this.attr("temperature") || 0.9),
                 debugTag: "stream",
@@ -126,8 +140,10 @@ export class MStream extends MBaseComponent {
             // Models often re-anchor by echoing the last words of the carried
             // tail. Buffer the first ~100 chars and trim the overlap so burst
             // seams read as one continuous text.
+            // In thinking mode the model does not echo the carried tail (it thinks a
+            // fresh continuation), so there is no seam overlap to trim.
             let pending = ""
-            let seamChecked = !dedupe
+            let seamChecked = !dedupe || thinking
             for await (const text of burst) {
                 if (context.superseded) break
                 if (!seamChecked) {

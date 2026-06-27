@@ -170,7 +170,7 @@ Or point at a preset directly in archml:
 | `STUDIO_TTS_INSTRUCTIONS` | how the mind's voice should sound (default: an unhurried, warm, clearly-articulated voice) |
 | `LOCAL_LLM_BASE_URL` | OpenAI-compatible endpoint for the `local` provider |
 | `LOCAL_LLM_API_KEY` | key for the local endpoint (default `none`) |
-| `LOCAL_LLM_THINKING` | `1`/`true` allows reasoning on local models |
+| `LOCAL_LLM_THINKING` | `1`/`true` surfaces a local reasoning model's chain-of-thought **as** the conscious stream (see [Thinking mode](#thinking-mode-local-reasoning-models)) |
 | `MEDITATOR_DRY_RUN` | `1` runs the whole loop offline against a stub |
 | `MEDITATOR_MIND_NAME` | wake under this instance name (drives the home; the Studio's transient naming uses it) |
 | `MEDITATOR_ORIGIN` | this instance's [origin story](#origin--the-first-thought-m-origin) — overrides the file's `<m-origin>` at wake |
@@ -185,9 +185,58 @@ CLI flags: `--models-config` / `-mc`, `--model-profile` / `-mp`.
 escape hatch — they route to `LOCAL_LLM_BASE_URL` with the prefix stripped.
 Prefer presets and profiles for anything you switch often.
 
-OpenRouter requests ask for true usage/cost (`usage.include`) and **disable
-hidden reasoning** — the stream itself is the thinking, and reasoning tokens
-would silently eat the burst budget.
+By default, **hidden reasoning is disabled on every tier**: the stream itself is
+the thinking, so a reasoning model's chain-of-thought would either silently eat the
+burst budget or (on a local vLLM model) land in `reasoning_content` and leave the
+visible burst empty. OpenRouter requests also ask for true usage/cost
+(`usage.include`). The one deliberate exception is **thinking mode** on a local
+model — below.
+
+### Thinking mode (local reasoning models)
+
+Set `LOCAL_LLM_THINKING=1` (the `thinking` field on the `local` provider in
+`config/models.yaml`) to do the opposite of the default: let a local reasoning model
+(e.g. Qwen via vLLM) **think, and surface that thinking _as_ the conscious stream**.
+The mind's stream of consciousness becomes the model's raw `reasoning_content` trace —
+you are reading the model's deliberation directly. This is an experimental mode for
+studying what a reasoning model "looks like from the inside"; it is off by default.
+
+It does **only** that — the rest of the mind keeps working normally — by way of three
+mechanics in `src/modelAccess/llm.js` and `mStream.js`:
+
+1. **Only the conscious stream thinks.** `LOCAL_LLM_THINKING` flips the whole `local`
+   provider, but utility calls (`complete` / `completeWithTools`: memory compression,
+   loop sensing, the scribe, tool-choice, bridges) read `message.content` and would
+   break if the model spent its budget in `reasoning_content` — so they **always** send
+   `enable_thinking:false`. Only `chatStream` honours the flag, and the spoken voice
+   (`m-speech`) opts out too, so speech stays clean. Just the inner monologue thinks.
+
+2. **Each burst is a fresh turn, not a prefill continuation.** The reasoning channel only
+   fires on a fresh assistant turn; vLLM's `continue_final_message` (the assistant-prefill
+   continuation the stream normally uses to extend the last thought token-for-token)
+   **suppresses thinking entirely**. So in thinking mode the carried tail is folded into
+   the *user* turn and the model thinks the monologue *onward* — a fresh deliberation that
+   picks up the thread, rather than a literal continuation of the last sentence.
+
+3. **The burst ends when the thinking ends.** The instant the model finishes its reasoning
+   and switches to its answer channel (the first `content` token after any
+   `reasoning_content`), the burst stops and that answer text is dropped. In thinking mode
+   the reasoning *is* the thought; the post-thinking restatement only breaks the monologue's
+   flow (and, given a large budget, drifts into meta-narration about the prompt).
+
+Give the stream a much larger `burstTokens` than a prose burst — a full chain-of-thought
+pass runs well over a thousand tokens, and a budget too small simply truncates the thinking
+(`finish=length`) and restarts the reasoning preamble every burst. Worked seeds:
+`architecture/lab/lemma-think{,-long,-short}.archml` (burstTokens 1600 / 4000 / 800). Run
+with `LOCAL_LLM_THINKING=1 MEDITATOR_MODEL_PROFILE=local-dev`.
+
+**What to expect.** The stream is *not* a first-person monologue: each burst opens with the
+model's reasoning scaffolding ("Here's a thinking process: 1. Analyze the input…"), refers to
+itself in the third person, and names "the user" and "the prompt". It is characterful and
+often rigorous, but it is the model deliberating, not a mind musing. An observed trade-off:
+**larger bursts buy more completed thoughts but also more confident confabulation** — the
+shortest bursts stayed the most honest. Thinking mode is local-only; the OpenRouter path keeps
+reasoning disabled regardless.
 
 ## Rhythm — how fast it thinks
 

@@ -228,6 +228,9 @@ export class MSpeech extends MObserver {
             const burst = await chatStream({
                 model,
                 messages,
+                // The spoken voice speaks cleanly: never surface the model's reasoning
+                // trace as the utterance, even when the conscious stream is thinking.
+                thinking: false,
                 maxTokens: Number(this.attr("speakTokens") || 200),
                 temperature: Number(this.attr("temperature") || 0.85),
                 debugTag: "speech-voice",
