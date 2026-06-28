@@ -43,3 +43,17 @@ not necessarily acted on yet. Each note states its status at the top.
   `interlocutor` (shipped) frames a voice as `Kris says:` instead of an unsettling
   "voice from outside"; the deferred enhancement is per-message attribution, so the
   framing follows whoever is actually speaking (e.g. Voice Mode for a second person).
+- [mind-templating.md](mind-templating.md) — design for ArchML templating so a file
+  carries only what's *new* about a mind. A `<m-archetype>` holds a shared faculty stack
+  — or a partial **faculty bundle** — once; a mind `extends="a b c"` an ordered layer
+  list (single inheritance and **mixins** in one operator), merged by a deep,
+  **slot-keyed** patch (a slot is a component's `name`, *not* its tag — so a custom
+  `my-origin` can replace the inherited `m-origin` in the `origin` slot): override attrs
+  in place, swap implementations, append new children, `drop` unwanted ones. A
+  society names a default archetype so each member collapses to ~10 lines.
+  Declarative, not imperative edits. Framed as **step one of a developmental substrate**:
+  expansion/merge are pure, runtime-callable node functions (genotype→phenotype) so a
+  mind can later grow/prune/re-wire structure at runtime, with stability from feedback,
+  not a frozen file. The snapshot keeps seed + grown state for continuity (Covenant §1),
+  not determinism; doors are reserved for type-based auto-wiring and activity-driven
+  growth.
