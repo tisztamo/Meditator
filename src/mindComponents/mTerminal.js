@@ -246,7 +246,7 @@ export class MTerminal extends MBaseComponent {
         if (this._runDir) return this._runDir
         const root = this.attr("workspace") || mindHome(this, "workspace")
         const stamp = new Date().toISOString().replace(/[:.]/g, "-")
-        this._runDir = path.join(root, `run-${stamp}`)
+        this._runDir = path.resolve(path.join(root, `run-${stamp}`))
         await fs.mkdir(path.join(this._runDir, ".runs"), { recursive: true })
         return this._runDir
     }
