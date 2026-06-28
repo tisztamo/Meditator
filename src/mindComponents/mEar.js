@@ -32,6 +32,9 @@ const log = logger("mEar.js")
  *   - urgent: "true" to preempt the running burst (default false — wait for the boundary).
  *   - cooldown: minimum time between raised stimuli, so a chatty peer can't bid every
  *               burst (default "0ms").
+ *   - ignoreSelf: "true" to ignore messages whose `speaker` equals this mind's name
+ *                 (for commons/gossip relays).
+ *   - ignoreSpeaker: explicit speaker name to ignore.
  *
  * DOM events: fires "interrupt-request" (bubbling) on each fresh peer utterance.
  */
@@ -43,6 +46,9 @@ export class MEar extends MBaseComponent {
         this._salience = salience == null || salience === "" ? 0.8 : Number(salience)
         this._urgent = this.attr("urgent") === "true"
         this._cooldownMs = parseTime(this.attr("cooldown") || "0ms")
+        this._ignoreSpeaker = this.attr("ignoreSpeaker") || (
+            this.attr("ignoreSelf") === "true" ? this.closest("m-mind")?.getAttribute("name") : null
+        )
         this._lastAt = null
         this._lastHeardAt = 0
         if (!this._from || this._from === "off") {
@@ -59,6 +65,8 @@ export class MEar extends MBaseComponent {
         if (!msg) return
         const text = (typeof msg === "string" ? msg : msg.text) || ""
         const at = typeof msg === "string" ? null : msg.at
+        const speaker = typeof msg === "string" ? null : (msg.as || msg.speaker || msg.from)
+        if (this._ignoreSpeaker && speaker === this._ignoreSpeaker) return
         if (!text.trim()) return                       // an empty utterance is not a voice
         if (at != null && at === this._lastAt) return  // retained-replay / repeat guard
         this._lastAt = at
@@ -70,7 +78,7 @@ export class MEar extends MBaseComponent {
             source: "Peer",
             type: "Peer",
             reason: text,
-            from: this._as,
+            from: speaker || this._as,
             lang: langOf(this),
             salience: this._salience,
             urgent: this._urgent,

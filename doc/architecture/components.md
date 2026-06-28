@@ -639,6 +639,60 @@ Plus all `m-observer` attributes.
   the verbatim tail as a marked `(aloud) "…"` block — so the next thought continues
   knowing what it said aloud. The voice never names memory, and any number may listen.
 
+## Multi-mind (`m-society` / `m-ear` / `m-commons`)
+
+These components wire several minds in one document without reaching into one
+another's interiors. A mind's egress is a topic, usually [`m-speech`](#m-speech)'s
+`spoken`; ingress is always a local, bubbling `interrupt-request` raised inside the
+listener by `m-ear`. See [multi-mind](multi-mind.md).
+
+### `m-society`
+
+A structural container for member minds. It is mostly a marker, like `m-region`:
+`closest("m-society")` is the anchor for society-relative refs such as
+`..m-society/prover/voice/spoken`. Memory homes for member minds are nested under the
+society name (`memory/<society>/<member>/`).
+
+| Attribute | Default | Meaning |
+|-----------|---------|---------|
+| `name` | `society` | society label and shared memory-folder stem |
+
+### `m-ear`
+
+The ingress adapter. Place it inside the listening mind and point `from` at a peer
+egress topic or at a commons relay.
+
+| Attribute | Default | Meaning |
+|-----------|---------|---------|
+| `from` | — | topic ref to hear; `"off"` or empty makes the ear inert |
+| `as` | `someone` | fallback speaker name when the message has no `speaker` / `as` |
+| `salience` | `0.8` | salience of the raised peer-voice stimulus |
+| `urgent` | `false` | whether the peer voice preempts the current burst |
+| `cooldown` | `0ms` | minimum time between raised peer stimuli |
+| `ignoreSelf` | `false` | ignore messages whose `speaker` equals the enclosing mind's name |
+| `ignoreSpeaker` | — | explicit speaker name to ignore |
+
+- **Subscribes:** `from`.
+- **Dispatches:** `interrupt-request` with type `Peer`.
+- **Dedupe:** ignores repeated messages with the same `at` timestamp.
+
+### `m-commons`
+
+A society-local relay for gossip-style mixtures of experts. It subscribes to each
+member's voice and republishes one tagged `gossip` topic, so each expert needs only
+one ear on the commons rather than N-1 direct ears.
+
+| Attribute | Default | Meaning |
+|-----------|---------|---------|
+| `name` | — | relay name used in refs, usually `commons` |
+| `members` | direct named children of the enclosing society | comma/space separated member names to relay |
+| `port` | `voice` | member egress component name |
+| `topic` | `spoken` | member egress topic |
+
+- **Subscribes:** `..m-society/<member>/<port>/<topic>` for each member.
+- **Publishes:** `gossip` — `{speaker, text, at, sourceAt}`.
+- **Dedupe:** per speaker, on the source utterance's `at`.
+
 ## `m-image`
 
 The visual imagination — an observer that occasionally turns recent thought into

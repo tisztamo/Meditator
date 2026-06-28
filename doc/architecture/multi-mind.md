@@ -221,9 +221,9 @@ with the speaker); every member has **one ear on the commons**.
 <m-society>
   <m-commons name="commons"></m-commons>   <!-- relay: any member's voice → tagged gossip -->
 
-  <m-mind name="skeptic"> … <m-ear from="..m-society/commons/gossip" as="(overheard)"></m-ear> …</m-mind>
-  <m-mind name="dreamer"> … <m-ear from="..m-society/commons/gossip" as="(overheard)"></m-ear> …</m-mind>
-  <m-mind name="namer">   … <m-ear from="..m-society/commons/gossip" as="(overheard)"></m-ear> …</m-mind>
+  <m-mind name="skeptic"> … <m-ear from="..m-society/commons/gossip" as="(overheard)" ignoreSelf="true"></m-ear> …</m-mind>
+  <m-mind name="dreamer"> … <m-ear from="..m-society/commons/gossip" as="(overheard)" ignoreSelf="true"></m-ear> …</m-mind>
+  <m-mind name="namer">   … <m-ear from="..m-society/commons/gossip" as="(overheard)" ignoreSelf="true"></m-ear> …</m-mind>
 </m-society>
 ```
 
@@ -286,7 +286,7 @@ power, all available today:
       <m-memory name="memory"></m-memory>
       <m-interrupts name="attention" threshold="0.5"></m-interrupts>
       <m-speech name="voice" every="6"></m-speech>
-      <m-ear from="..m-society/commons/gossip" as="(overheard)"></m-ear>
+      <m-ear from="..m-society/commons/gossip" as="(overheard)" ignoreSelf="true"></m-ear>
     </m-mind>
   </template>
   <m-commons name="commons"></m-commons>
@@ -332,12 +332,12 @@ the interlocutor-voice ingress path; `m-observer`'s overridable `src`; `<templat
 
 | Piece | Size | What it is |
 |-------|------|------------|
-| `m-ear` | tiny | external egress topic → local framed `interrupt-request` |
-| `m-society` | small | marker + address-space + `closest` anchor (like `m-region`) |
-| `m-commons` | small | relay: members' `voice` → tagged `gossip` topic, with dedupe |
-| `m-link` | small | legible edge; realizes itself as an `m-ear` in the target |
-| `m-population` | medium | clone + vary + emit graph (could be a build step first) |
-| `m-fold` | small | hub-collector → compressed stimulus (or reuse `m-memory`) |
+| `m-ear` | tiny, shipped | external egress topic → local framed `interrupt-request` |
+| `m-society` | small, shipped | marker + address-space + `closest` anchor (like `m-region`) |
+| `m-commons` | small, shipped | relay: members' `voice` → tagged `gossip` topic, with dedupe |
+| `m-link` | small, deferred | legible edge; realizes itself as an `m-ear` in the target |
+| `m-population` | medium, deferred | clone + vary + emit graph (could be a build step first) |
+| `m-fold` | small, deferred | hub-collector → compressed stimulus (or reuse `m-memory`) |
 
 **Plumbing that must change (the only real gotchas):**
 
@@ -402,8 +402,9 @@ filter — see the gaps in `src/studio/{server,store}.js` and `studioConn.js`.
 
 The first live run answers what theory can't: does the checker catch the **documented**
 balanced-number confabulation (the non-palindromic sub-claim), or do the two agree on
-it (*folie à deux*)? Only after that: generalize ears → `m-commons` → `m-link` →
-`m-population`.
+it (*folie à deux*)? After that: use the shipped `m-commons` relay for flat expert
+societies, then defer the heavier sugar (`m-link`, `m-population`) until the graph
+needs to be generated rather than authored.
 
 ---
 
