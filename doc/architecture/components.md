@@ -18,6 +18,80 @@ come first; [legacy and demo components](#legacy-and-demo-components) are at the
 - A first-person **prompt** can be given as a `prompt="…"` attribute, a child
   `<m-prompt>`, or the element's text content.
 
+### Templating — archetypes and thin minds
+
+A society's members are usually the same mind written out several times: the same
+faculty stack, copied per member with only a persona and a few scalars changing.
+Templating lets a file carry that skeleton **once** as an `<m-archetype>` and write
+each member as only what makes it itself. It is a load-time text→text expansion run
+*before* the wake-time overrides, so a file with no templating tokens is unchanged and
+the home snapshot records the fully-expanded tree (a home never depends on an archetype
+file). Design rationale: [mind-templating.md](../improvements/mind-templating.md); a
+full worked conversion: `architecture/lab/noosphere-lab.archml`.
+
+```xml
+<m-society name="duet" archetype="thinker">      <!-- every member extends "thinker" by default -->
+
+  <m-archetype name="thinker" model="voice" pace="12s" tailLength="5400">
+    {{persona}}                                  <!-- each member's prose replaces this text -->
+    <m-origin name="origin">{{origin}}</m-origin>
+    <m-stream name="stream" temperature="0.85"></m-stream>
+    <m-memory name="memory" tailLength="5400"></m-memory>
+    <m-loop-detector name="loop-detector" every="5"></m-loop-detector>
+    <m-act name="hands" cooldown="60s">
+      <m-note name="note"></m-note>
+      <m-recall name="recall"></m-recall>
+    </m-act>
+  </m-archetype>
+
+  <m-mind name="prover">
+    You are the Prover. …                                   <!-- replaces {{persona}} -->
+    <m-origin name="origin">Is every even number a sum of two primes?</m-origin>
+    <m-stream name="stream" temperature="0.7"></m-stream>   <!-- tune one scalar, inherit the rest -->
+    <m-act name="hands" cooldown="20s">                     <!-- tune the act… -->
+      <m-terminal name="terminal" wall="15s"></m-terminal>  <!-- …and add a hand; note+recall inherited -->
+    </m-act>
+    <m-ws name="ws" port="7601"></m-ws>
+  </m-mind>
+
+  <m-mind name="checker" drop="loop-detector">              <!-- drop an inherited faculty -->
+    You are the Checker. …
+    <m-ws name="ws" port="7602"></m-ws>
+  </m-mind>
+</m-society>
+```
+
+The merge folds the archetype layer(s) then the member's own body on top. It is keyed
+by **slot — a child's `name` (its role) — not by tag:**
+
+- **A child must be `name`d to be overridable.** A later layer tunes/swaps/`drop`s a
+  base child by matching its `name`. **Unnamed children are layer-local**: inherited
+  and appended verbatim, never a merge target (so two `m-interrupts` in a `drift`
+  region both survive). This is the one gotcha — give a `name` to anything a member
+  should reach.
+- **Attributes deep-merge**, the member winning; omitted ones are inherited. A member's
+  non-whitespace **text replaces** the base's (so `{{persona}}` / `{{origin}}` resolve
+  to each member's prose while the faculty children stay shared).
+- **Same tag in a slot tunes in place; a different tag swaps the implementation** —
+  `<my-origin name="origin">` lands where the inherited `<m-origin name="origin">` was,
+  keeping its inherited config. `fresh="true"` opts a slot *out* of inheritance (keep
+  only its slot and position, reset everything else).
+- **`drop="a b"`** removes inherited children by `name`. New-named or unnamed children
+  the member adds are appended after the inherited ones.
+
+Composition and reuse:
+
+- **`extends="a b c"`** folds a space-separated list of archetypes left→right (mixins);
+  later layers win. Single inheritance is the one-element case. An archetype may itself
+  `extends` another (chains resolve before use; cycles error).
+- **`<m-society archetype="…">`** is the default every member `extends`. A member opts
+  out with **`extends="none"`** or overrides with its own `extends="…"`.
+- **`<m-import src="…">`** pulls archetypes from another file (resolved relative to the
+  importing file, inlined at expansion so the snapshot stays self-contained).
+
+Failures are loud at startup: an unknown `extends` name, an `extends` cycle, a duplicate
+slot `name` within one parent, or a missing/cyclic `<m-import>`.
+
 ---
 
 ## `m-mind`
@@ -656,6 +730,7 @@ society name (`memory/<society>/<member>/`).
 | Attribute | Default | Meaning |
 |-----------|---------|---------|
 | `name` | `society` | society label and shared memory-folder stem |
+| `archetype` | — | authoring-time: the default [archetype](#templating--archetypes-and-thin-minds) every member `extends`; consumed by the expander, never reaches runtime |
 
 ### `m-ear`
 

@@ -212,6 +212,9 @@ You have seen, with your own eyes, every core idea:
 
 - **[Configuration](configuration.md)** — every knob: models, memory budgets,
   observers, economy.
+- **[Templating](architecture/components.md#templating--archetypes-and-thin-minds)** —
+  when several minds share a faculty stack, write the skeleton once as an archetype and
+  thin each member down to what makes it itself.
 - **[The Studio](studio.md)** — run minds from the browser instead of the
   terminal: wake, watch, speak, sleep.
 - **[Architecture](architecture/index.md)** — how it all works underneath.
