@@ -18,6 +18,15 @@ not necessarily acted on yet. Each note states its status at the top.
   Root-caused from the ARC checker confabulating its puzzle after the grids scrolled out
   of the tail and compression hallucinated nonexistent training examples; the data-side
   companion to `perception-not-compressible.md` (observed: `solver` 2026-06-29).
+- [efference-by-reference.md](efference-by-reference.md) — the **efferent twin** of
+  fact-memory: a mind can now *know* a thing verbatim (pinned facts reach the frame) but
+  still cannot *hand it over* verbatim. The realizer (`m-act`) is blind to what the mind
+  knows (`_realizeFrame` sees only a 700-char stream tail) and regenerates each deed **by
+  value** through a 512-token budget, so a script over known grids fabricates them. Fix:
+  **transclusion by reference** — a bus resolver contract any knowing-component implements
+  (`m-facts` first), `«handle»` expansion in the realizer before execute, and a handle-menu
+  in the realizer frame. A general capability for any mind, not the puzzle solver (observed:
+  `solver` 2026-06-29).
 - [memory-persist-race.md](memory-persist-race.md) — `m-memory._persist` writes one
   shared `memory.md.tmp` then renames, but is called un-serialized from
   boundary/clear-tail/finalize; overlapping persists race the rename → `ENOENT`

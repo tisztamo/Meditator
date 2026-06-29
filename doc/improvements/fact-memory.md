@@ -71,7 +71,8 @@ store (recall-fact{key} → whole, verbatim):
 
 ## How it fixes the checker
 
-- The puzzle becomes a **pinned, seeded fact** → in front of the checker every burst, exact → it copies the real grids into its script. No scroll-out, no fabricated Examples 2/3/4, no false "etched in as literals."
+- The puzzle becomes a **pinned, seeded fact** → in front of the checker every burst, exact. No scroll-out, no fabricated Examples 2/3/4, no false "etched in as literals." **Validated 2026-06-29** (second solver run): the `## What I know (verbatim)` block held the full puzzle from seq 12 through seq 500+, the hallucinated examples were gone, and the checker even *resisted the Reader's confabulated description* because its pinned literals contradicted it.
+- **But validation also found the half this note got wrong:** the checker did **not** then "copy the real grids into its script." Knowing the grids in the *frame* does not let the realizer carry them into a *deed* — that boundary regenerates by value through a 512-token budget and fabricates. Pinning is necessary but not sufficient; the deed side needs **transclusion by reference**. See [efference-by-reference.md](efference-by-reference.md), which supersedes this note's overfit "write `puzzle.json` to the workspace" candidate below.
 - Each confirmed result becomes an **earned fact** (`verdict:<rule> → "reproduces ex0, ex1 exactly"`) it can recall by key — giving the negative-feedback loop a durable, exact ledger instead of a paraphrase that drifts. A checker that can *remember what it already proved* stops re-litigating settled rules.
 
 ## Relationship to the scribe and notes
