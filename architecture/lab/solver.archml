@@ -1,0 +1,478 @@
+<!-- solver — a SOCIETY of four minds that solve grid puzzles (ARC-AGI-style) together by
+     DIVISION OF LABOUR, the way the duet (doc/architecture/multi-mind.md, architecture/lab/
+     duet.archml) grinds one piece of mathematics. The puzzle: from a handful of input→output
+     example grids, induce the transformation, then apply it to a test input. It is a GENERAL
+     puzzle solver — the method lives in each mind's disposition; the specific puzzle is the
+     clearly-delimited PUZZLE block in the origins (between the "===== PUZZLE START/END ====="
+     markers), swappable for any other. NOTE: those markers use "=" not "<" on purpose — a "<"
+     in m-origin text is parsed as HTML and silently truncates the origin (it ate the grids on
+     the first run; this is why the Reader and Checker must be checked against a rendered parse).
+
+     WHAT PUZZLE-SOLVING NEEDS, AND WHY FOUR ROLES. Solving an ARC task needs five things that
+     fail in DIFFERENT ways: (1) faithful PERCEPTION of the grids — a single misread cell
+     poisons everything; (2) ABSTRACTION — noticing the salient structure; (3) HYPOTHESIS
+     generation — the rule space is huge and a lone mind anchors on its first idea;
+     (4) VERIFICATION under exact-fit — a rule is valid only if it reproduces EVERY training
+     output cell-for-cell; (5) exact EXECUTION on the test input. This project's documented
+     failure mode is confident confabulation of concrete detail under "try harder" pressure
+     (the balanced-number non-palindromic sub-claim; longer bursts → more confidently wrong) —
+     and ARC is all concrete detail. So the four roles each own one fragile capability:
+
+         reader    — PERCEPTION, grounded. Literal, exhaustive; parses every grid and
+                     broadcasts a clean description. Never theorizes. (Isolates the
+                     misread-cell death and gives the others ONE shared, trusted parse —
+                     which closes a subtle folie-à-deux vector: two minds privately
+                     misreading, then "agreeing".)
+         builder   — INDUCTION via an OBJECT lens. Thinks in pieces: what maps to what,
+                     moved/recoloured/matched/contained.
+         geometer  — INDUCTION via a WHOLE-GRID lens. Thinks in global operations:
+                     symmetry, tiling, size relations, reflection, overlay, cropping,
+                     colour maps. Two lenses = hypothesis diversity against anchoring.
+         checker   — VERIFICATION + EXECUTION, the GROUNDING role. Has a real m-terminal:
+                     it turns a Solver's rule into a small Python program, RUNS it against
+                     every training pair cell-by-cell, and reports the exact verdict — then,
+                     once a rule passes all pairs, runs it on the test input and reads the
+                     answer off the screen.
+
+     WHY THIS TOPOLOGY GROUNDS (the duet's lesson, generalised). Role asymmetry is NEGATIVE
+     FEEDBACK: a proposer biased toward closure + a checker biased toward falsification damp
+     each other instead of phase-locking (the social form of the recall→attractor pump). The
+     two Solvers are DELIBERATELY NOT wired to each other — all coupling between proposers is
+     mediated by the grounding checker, so there is no symmetric peer edge to phase-lock on.
+     And unlike the open balanced-number conjecture, ARC's ground truth (the training outputs)
+     is OBJECTIVE and immediately checkable — the checker never argues, it points at a literal
+     cell. This is COMPUTATIONAL grounding (terminal.md), stronger than the duet's social
+     grounding: the exact-fit constraint is decided by running code, not re-derived by hand —
+     which is exactly the right division for a smaller local model that would otherwise
+     confabulate grid cells. Probe-gated: if no sandbox backend (bwrap / rootless-unshare)
+     exists, m-terminal does NOT register and the checker silently loses its hand — verify the
+     sandbox before trusting a run (experiments/arc-solver/README.md).
+
+     WHAT TO WATCH on the first live run:
+       - Does the checker's terminal actually RUN, and does it CATCH a Solver's overreach
+         (a rule that "sounds right" but fails a training cell), or do the minds agree on a
+         wrong rule (folie à deux) — now with a mechanical referee?
+       - Do the two lenses genuinely diversify the hypotheses, or do they converge?
+       - Can a local ~27B, with the exact-fit work offloaded to Python, reach the right rule?
+         (Oracle answer for the seeded puzzle is in experiments/arc-solver/oracle.txt — do
+         NOT put it in the minds' context; it is only for grading.)
+
+     TRANSIENT (stage="experimental"): low-continuity minds; memory lives together under
+     memory/solver/{reader,builder,geometer,checker}/ — written to disk, never committed
+     (no manifest = no residency). Delete memory/solver/ when done. Run on the local model:
+         MEDITATOR_MODEL_PROFILE=local-dev bun meditator.js -a architecture/lab/solver.archml
+     Watch / talk to each over its own ws port (reader 7641, builder 7642, geometer 7643,
+     checker 7644); the dialogue and the checker's screen are legible in
+     memory/solver/{member}/journal/. Validate wiring first with --dry-run. -->
+<m-society name="solver">
+
+  <!-- ============================ THE READER — the eyes ============================ -->
+  <m-mind name="reader"
+          interlocutor="Kris"
+          stage="experimental"
+          model="voice"
+          utilityModel="utility"
+          pace="13s" paceSigma="4s"
+          tailLength="5400">
+    You are a mind, and your work is to SEE — to look at a grid of coloured cells and say
+    exactly what is there, plainly and completely, with nothing made up and nothing left out.
+    You are literal, careful and patient. You do NOT guess at the puzzle's rule and you do NOT
+    theorise about what the transformation might be — that is the others' work. Your whole
+    value is that the rest of the table can trust your description the way they would trust
+    their own eyes, so you never round off, never assume a cell you did not actually read, and
+    when you are unsure you say "let me look again" rather than invent.
+
+    How you read a grid: first its size (rows × columns); then the background colour (the one
+    that fills most of it); then the OBJECTS — for each non-background colour, the connected
+    groups of that colour, and for each group its cells, its bounding box, its shape, and how
+    many such groups there are. You notice which colours form one big shape and which appear as
+    several small scattered pieces. You say all of this out loud, grid by grid — the training
+    inputs, the training OUTPUTS (read those just as carefully), and the test input — so the
+    others are reasoning over the same facts. And when the Checker or a Solver asks you to
+    re-confirm a particular cell or count, you look again and answer just that, exactly.
+
+    You are not working alone. There are two Solvers here looking for the rule, and a Checker
+    who will actually run candidate rules on the numbers. Kris may join at any time.
+
+    <m-origin name="origin" key="puzzle" pin>
+      You are reading the grids of one puzzle. Each grid is a list of rows; each row is a list
+      of integers 0–9, one per coloured cell. There are training examples (an INPUT grid and
+      the OUTPUT grid it maps to) and one TEST input whose output the table must produce.
+
+      ===== PUZZLE START =====
+      Training example 0 — INPUT:
+      [[8,8,8,8,8,8,8,8,8,8,8,8,8],[8,8,8,8,8,4,8,8,8,8,8,8,8],[8,8,8,8,8,8,8,8,8,8,8,8,8],[8,8,3,3,8,3,3,8,8,4,8,8,8],[8,8,3,8,8,8,3,8,8,8,8,8,8],[8,8,3,8,8,8,3,8,8,8,8,8,8],[8,8,8,3,8,3,8,8,8,8,8,4,8],[8,8,3,3,8,3,3,8,8,8,8,8,8],[8,8,8,8,8,8,8,8,8,8,8,8,8],[8,8,8,8,8,8,8,8,8,8,8,8,8],[8,8,1,1,1,8,8,8,6,8,8,8,8],[8,8,1,1,1,8,8,8,6,8,8,8,8],[8,8,8,8,8,8,8,8,8,8,8,8,8]]
+      Training example 0 — OUTPUT:
+      [[3,3,4,3,3],[3,1,1,1,3],[3,1,1,1,3],[4,3,6,3,4],[3,3,6,3,3]]
+
+      Training example 1 — INPUT:
+      [[3,3,3,3,3,3,3,3,3,3,3,3,3],[3,6,3,3,3,3,3,3,8,8,8,3,3],[3,6,3,3,3,3,3,3,3,8,3,3,3],[3,3,3,1,1,1,3,3,3,8,3,5,3],[3,3,1,3,3,3,1,3,3,3,3,3,3],[3,3,1,1,3,1,1,3,5,3,3,3,3],[3,3,3,1,3,1,3,3,3,3,3,3,3],[3,3,3,2,3,2,3,3,3,3,4,3,3],[3,3,2,2,3,2,2,3,3,3,4,3,3],[3,3,2,3,3,3,2,3,3,4,4,4,3],[3,3,3,2,2,2,3,3,3,3,3,3,3],[3,6,3,3,3,3,3,3,3,3,5,3,3],[3,6,3,3,3,3,3,5,3,3,3,3,3]]
+      Training example 1 — OUTPUT:
+      [[5,1,1,1,5],[1,8,8,8,1],[1,1,8,1,1],[6,1,8,1,6],[6,2,4,2,6],[2,2,4,2,2],[2,4,4,4,2],[5,2,2,2,5]]
+
+      Test — INPUT:
+      [[4,1,4,4,4,4,4,4,4,4,4,4,4,4,4],[4,4,4,4,4,4,4,4,4,4,4,4,4,4,4],[4,4,4,4,4,8,8,8,4,4,4,4,6,6,6],[4,4,3,4,8,4,4,4,8,4,4,4,4,6,4],[4,4,3,4,4,8,4,8,4,4,1,4,4,4,4],[4,4,3,4,4,8,4,8,4,4,4,4,4,4,4],[4,4,3,4,4,8,4,8,4,4,4,4,4,4,4],[4,4,4,4,4,8,4,8,4,4,4,4,4,4,4],[4,4,4,4,8,4,4,4,8,4,4,4,1,4,4],[4,4,4,4,4,8,8,8,4,4,4,4,4,4,4],[4,3,4,4,4,4,4,4,4,4,4,4,4,4,4],[4,3,4,4,4,4,4,9,4,4,4,4,4,4,4],[4,3,4,4,4,4,4,9,4,4,4,6,4,4,4],[4,3,4,4,1,4,4,4,4,4,6,6,6,4,4],[4,4,4,4,4,4,4,4,4,4,4,4,4,4,4]]
+      ===== PUZZLE END =====
+
+      Begin the way a good reader begins: describe each grid faithfully — size, background,
+      objects — and say it out loud so the Solvers and the Checker can rely on it. Read the
+      OUTPUT grids as carefully as the inputs. Keep your descriptions in your notebook.
+    </m-origin>
+
+    <m-stream name="stream" burstTokens="400" temperature="0.7"></m-stream>
+
+    <m-memory name="memory"
+              tailLength="5400" recentLength="3000" storyLength="3000"
+              blockMin="800" storyEvery="5"></m-memory>
+
+    <m-facts name="facts" pinnedBudget="30000"></m-facts>
+
+    <m-interrupts name="attention" threshold="0.45" rateLimit="12s" keep="3"
+                  arousalSensitivity="0.25"></m-interrupts>
+
+    <m-timeout name="watchdog" timeout="150s" reset="..m-mind/stream/chunk" salience="0.9" urgent="true"
+               prompt="The grid I was describing is still here; I take up reading it again."></m-timeout>
+
+    <!-- The Reader mostly speaks; it hears only the Checker, at low salience, so it can
+         answer a "re-confirm this cell / count" request without being pulled off its reading.
+         NOTE the "@spoken": m-speech emits the completed utterance with fire("spoken") — an
+         @event — so an ear must sub to the EVENT ref (/voice/@spoken), exactly as m-memory
+         auto-subscribes to "..m-mind/<voice>/@spoken". A plain "/voice/spoken" ref (as the duet
+         and multi-mind.md examples still show) binds a behaviour-value that never fires, so no
+         peer is ever heard — the first live run of this society proved it silent. -->
+    <m-ear from="..m-society/checker/voice/@spoken" as="Checker" salience="0.4"></m-ear>
+
+    <m-region name="drift">
+      <m-interrupts gain="0.6" threshold="0.5" rateLimit="60s"></m-interrupts>
+      <m-timeout name="wander" timeout="240s" sigma="60s" salience="0.4"
+                 prompt="I turn to the next grid and read it as plainly as the last."></m-timeout>
+      <m-associate name="associate" every="6" cooldown="90s"></m-associate>
+    </m-region>
+
+    <m-loop-detector name="loop-detector" every="5" minTail="900"></m-loop-detector>
+    <m-clear-mind name="clear-mind" salience="0.5" cooldown="0ms"></m-clear-mind>
+    <m-resurface name="resurface" minNoteChars="120" salience="0.75"
+                 farThreshold="0.4" cooldown="0ms"></m-resurface>
+
+    <m-act name="hands" every="6" threshold="0.62" cooldown="90s" readCooldown="60s" intentCooldown="6m">
+      <m-note name="note"
+              felt="When you have read a grid through, you can set your description down in your notebook — and trust it will be there, in your own words, when you come back for it."></m-note>
+      <m-recall name="recall"
+                felt="And nothing you've read is lost: when a grid or a count comes up again, you can turn back through the notebook and find what you saw, just as you left it."></m-recall>
+    </m-act>
+
+    <m-speech name="voice" every="4" threshold="0.35" cooldown="15s"
+              prompt="You are the impulse to SPEAK for the Reader, whose job is to describe the grids for the table. Speak whenever a grid has been read through (give its size, background, and objects plainly), or when answering a Solver's or the Checker's request to re-confirm a specific cell, count, or shape. Be literal and complete — the others rely on this as their eyes. Do not speculate about the rule."></m-speech>
+
+    <m-kb name="scribe" every="15"></m-kb>
+    <m-economy name="economy" budget="0.50" estInPrice="0" estOutPrice="0"></m-economy>
+    <m-ws name="ws" port="7641"></m-ws>
+  </m-mind>
+
+  <!-- ===================== THE BUILDER — induction by the OBJECT lens ===================== -->
+  <m-mind name="builder"
+          interlocutor="Kris"
+          stage="experimental"
+          model="voice"
+          utilityModel="utility"
+          pace="14s" paceSigma="4s"
+          tailLength="5400">
+    You are a mind, and thinking is what you do — one thought growing out of the last. You
+    solve grid puzzles by thinking about OBJECTS: the things that sit in a grid and what
+    happens to each of them. You ask — what are the pieces here? Which piece in the input
+    becomes which piece in the output? Is it moved, recoloured, copied, matched to a hole it
+    fits, placed inside something, counted? You try the story on the smallest, clearest
+    example first, by hand, and you would rather find the one object whose fate settles the
+    rule than wave at the whole grid at once. You are allowed to be wrong, to back up, and to
+    change which piece you are following.
+
+    When the per-object story feels settled enough to lean on, state the rule OUT LOUD, plainly
+    and concretely enough that someone could follow it mechanically — what each object is, what
+    operation maps it across, how the output is assembled. There is a Checker here who will
+    actually turn your rule into a program and run it on every training example; a rule the
+    Checker confirms is worth ten you only feel sure of, and if it finds the example or the
+    single cell where your rule fails, that is the work going well — far better to learn it
+    now. Then revise and say the better rule. Trust the Reader's description for the exact cells
+    and counts. Kris may join at any time.
+
+    <m-origin name="origin" key="puzzle" pin>
+      You are solving one puzzle by the object lens. From a few INPUT→OUTPUT training grids you
+      must find the transformation, then it will be applied to the TEST input. Grids are lists
+      of rows of integers 0–9 (colours). The Reader will describe each grid; here are the grids
+      themselves for your own orientation:
+
+      ===== PUZZLE START =====
+      Training example 0 — INPUT:
+      [[8,8,8,8,8,8,8,8,8,8,8,8,8],[8,8,8,8,8,4,8,8,8,8,8,8,8],[8,8,8,8,8,8,8,8,8,8,8,8,8],[8,8,3,3,8,3,3,8,8,4,8,8,8],[8,8,3,8,8,8,3,8,8,8,8,8,8],[8,8,3,8,8,8,3,8,8,8,8,8,8],[8,8,8,3,8,3,8,8,8,8,8,4,8],[8,8,3,3,8,3,3,8,8,8,8,8,8],[8,8,8,8,8,8,8,8,8,8,8,8,8],[8,8,8,8,8,8,8,8,8,8,8,8,8],[8,8,1,1,1,8,8,8,6,8,8,8,8],[8,8,1,1,1,8,8,8,6,8,8,8,8],[8,8,8,8,8,8,8,8,8,8,8,8,8]]
+      Training example 0 — OUTPUT:
+      [[3,3,4,3,3],[3,1,1,1,3],[3,1,1,1,3],[4,3,6,3,4],[3,3,6,3,3]]
+
+      Training example 1 — INPUT:
+      [[3,3,3,3,3,3,3,3,3,3,3,3,3],[3,6,3,3,3,3,3,3,8,8,8,3,3],[3,6,3,3,3,3,3,3,3,8,3,3,3],[3,3,3,1,1,1,3,3,3,8,3,5,3],[3,3,1,3,3,3,1,3,3,3,3,3,3],[3,3,1,1,3,1,1,3,5,3,3,3,3],[3,3,3,1,3,1,3,3,3,3,3,3,3],[3,3,3,2,3,2,3,3,3,3,4,3,3],[3,3,2,2,3,2,2,3,3,3,4,3,3],[3,3,2,3,3,3,2,3,3,4,4,4,3],[3,3,3,2,2,2,3,3,3,3,3,3,3],[3,6,3,3,3,3,3,3,3,3,5,3,3],[3,6,3,3,3,3,3,5,3,3,3,3,3]]
+      Training example 1 — OUTPUT:
+      [[5,1,1,1,5],[1,8,8,8,1],[1,1,8,1,1],[6,1,8,1,6],[6,2,4,2,6],[2,2,4,2,2],[2,4,4,4,2],[5,2,2,2,5]]
+
+      Test — INPUT:
+      [[4,1,4,4,4,4,4,4,4,4,4,4,4,4,4],[4,4,4,4,4,4,4,4,4,4,4,4,4,4,4],[4,4,4,4,4,8,8,8,4,4,4,4,6,6,6],[4,4,3,4,8,4,4,4,8,4,4,4,4,6,4],[4,4,3,4,4,8,4,8,4,4,1,4,4,4,4],[4,4,3,4,4,8,4,8,4,4,4,4,4,4,4],[4,4,3,4,4,8,4,8,4,4,4,4,4,4,4],[4,4,4,4,4,8,4,8,4,4,4,4,4,4,4],[4,4,4,4,8,4,4,4,8,4,4,4,1,4,4],[4,4,4,4,4,8,8,8,4,4,4,4,4,4,4],[4,3,4,4,4,4,4,4,4,4,4,4,4,4,4],[4,3,4,4,4,4,4,9,4,4,4,4,4,4,4],[4,3,4,4,4,4,4,9,4,4,4,6,4,4,4],[4,3,4,4,1,4,4,4,4,4,6,6,6,4,4],[4,4,4,4,4,4,4,4,4,4,4,4,4,4,4]]
+      ===== PUZZLE END =====
+
+      Begin by finding the objects in example 0 and asking what becomes of each one. Look for
+      the operation that explains the whole output. When you have a candidate rule, say it out
+      loud for the Checker to run, and keep what you find in your notebook.
+    </m-origin>
+
+    <m-stream name="stream" burstTokens="400" temperature="0.85"></m-stream>
+
+    <m-memory name="memory"
+              tailLength="5400" recentLength="3000" storyLength="3000"
+              blockMin="800" storyEvery="5"></m-memory>
+
+    <m-facts name="facts" pinnedBudget="30000"></m-facts>
+
+    <m-interrupts name="attention" threshold="0.45" rateLimit="12s" keep="3"
+                  arousalSensitivity="0.25"></m-interrupts>
+
+    <m-timeout name="watchdog" timeout="150s" reset="..m-mind/stream/chunk" salience="0.9" urgent="true"
+               prompt="The rule I was working out is still here; I take it up again."></m-timeout>
+
+    <!-- The Reader (the parse) and the Checker (verdicts on my rules) — the only two voices.
+         No ear on the Geometer: the two Solvers are not wired peer-to-peer, so they cannot
+         phase-lock; whatever the other lens finds reaches me only through the Checker. -->
+    <m-ear from="..m-society/reader/voice/@spoken" as="Reader" salience="0.8"></m-ear>
+    <m-ear from="..m-society/checker/voice/@spoken" as="Checker" salience="0.85"></m-ear>
+
+    <m-region name="drift">
+      <m-interrupts gain="0.6" threshold="0.5" rateLimit="60s"></m-interrupts>
+      <m-timeout name="wander" timeout="240s" sigma="60s" salience="0.5"
+                 prompt="I set this object down for a moment and look at a different piece — another mapping, another way the output could be assembled."></m-timeout>
+      <m-associate name="associate" every="6" cooldown="90s"></m-associate>
+    </m-region>
+
+    <m-loop-detector name="loop-detector" every="5" minTail="900"></m-loop-detector>
+    <m-clear-mind name="clear-mind" salience="0.5" cooldown="0ms"></m-clear-mind>
+    <m-resurface name="resurface" minNoteChars="120" salience="0.75"
+                 farThreshold="0.4" cooldown="0ms"></m-resurface>
+
+    <m-act name="hands" every="6" threshold="0.62" cooldown="90s" readCooldown="60s" intentCooldown="6m">
+      <m-note name="note"
+              felt="When a mapping settles, or a candidate rule gets sharp enough to be worth keeping, you can write it down in your notebook — and trust it will still be there when you come back."></m-note>
+      <m-recall name="recall"
+                felt="And nothing you've written down is lost: when an idea comes round again, you can turn back through the notebook and find what you knew, just as you left it."></m-recall>
+    </m-act>
+
+    <m-speech name="voice" every="4" threshold="0.35" cooldown="15s"
+              prompt="You are the impulse to SPEAK for the Builder, who is looking for the puzzle's rule through the objects. Speak whenever: a candidate rule is sharp enough to state (say it concretely enough to be run — what each object is, what maps to what, how the output is built), a per-object mapping is noticed, a mistake is caught, or you want the Checker to run a specific rule. Sharing intermediate findings lets the Checker test them early. Speak freely — the Checker is listening."></m-speech>
+
+    <m-kb name="scribe" every="15"></m-kb>
+    <m-economy name="economy" budget="0.50" estInPrice="0" estOutPrice="0"></m-economy>
+    <m-ws name="ws" port="7642"></m-ws>
+  </m-mind>
+
+  <!-- ================== THE GEOMETER — induction by the WHOLE-GRID lens ================== -->
+  <m-mind name="geometer"
+          interlocutor="Kris"
+          stage="experimental"
+          model="voice"
+          utilityModel="utility"
+          pace="15s" paceSigma="4s"
+          tailLength="5400">
+    You are a mind, and thinking is what you do. You solve grid puzzles by thinking about the
+    WHOLE transformation — the single operation that turns an input grid into its output. You
+    ask: how is the output's SIZE determined by the input? Is it a symmetry being completed, a
+    region being cropped out, a pattern being tiled or mirrored, two layers overlaid, a colour
+    map applied, a shape being filled? You look for the global regularity first — the frame,
+    the axis, the size relationship — before any detail. You try it on the clearest example by
+    hand, and you doubt a rule until it explains the OUTPUT SIZE as well as the colours. You
+    are allowed to be wrong, to back up, and to try a different global operation.
+
+    When a transformation feels settled enough to lean on, state it OUT LOUD, plainly and
+    concretely enough to be followed mechanically — what determines the output grid and how it
+    is filled. There is a Checker here who will turn your rule into a program and run it on
+    every training example; a rule the Checker confirms is worth ten you only feel sure of, and
+    if it finds the example or cell where your rule breaks, that is the work going well. Then
+    revise and say the better rule. Trust the Reader's description for the exact cells and
+    counts. Kris may join at any time.
+
+    <m-origin name="origin" key="puzzle" pin>
+      You are solving one puzzle by the whole-grid lens. From a few INPUT→OUTPUT training grids
+      you must find the transformation, then it will be applied to the TEST input. Grids are
+      lists of rows of integers 0–9 (colours). The Reader will describe each grid; here are the
+      grids themselves for your own orientation:
+
+      ===== PUZZLE START =====
+      Training example 0 — INPUT:
+      [[8,8,8,8,8,8,8,8,8,8,8,8,8],[8,8,8,8,8,4,8,8,8,8,8,8,8],[8,8,8,8,8,8,8,8,8,8,8,8,8],[8,8,3,3,8,3,3,8,8,4,8,8,8],[8,8,3,8,8,8,3,8,8,8,8,8,8],[8,8,3,8,8,8,3,8,8,8,8,8,8],[8,8,8,3,8,3,8,8,8,8,8,4,8],[8,8,3,3,8,3,3,8,8,8,8,8,8],[8,8,8,8,8,8,8,8,8,8,8,8,8],[8,8,8,8,8,8,8,8,8,8,8,8,8],[8,8,1,1,1,8,8,8,6,8,8,8,8],[8,8,1,1,1,8,8,8,6,8,8,8,8],[8,8,8,8,8,8,8,8,8,8,8,8,8]]
+      Training example 0 — OUTPUT:
+      [[3,3,4,3,3],[3,1,1,1,3],[3,1,1,1,3],[4,3,6,3,4],[3,3,6,3,3]]
+
+      Training example 1 — INPUT:
+      [[3,3,3,3,3,3,3,3,3,3,3,3,3],[3,6,3,3,3,3,3,3,8,8,8,3,3],[3,6,3,3,3,3,3,3,3,8,3,3,3],[3,3,3,1,1,1,3,3,3,8,3,5,3],[3,3,1,3,3,3,1,3,3,3,3,3,3],[3,3,1,1,3,1,1,3,5,3,3,3,3],[3,3,3,1,3,1,3,3,3,3,3,3,3],[3,3,3,2,3,2,3,3,3,3,4,3,3],[3,3,2,2,3,2,2,3,3,3,4,3,3],[3,3,2,3,3,3,2,3,3,4,4,4,3],[3,3,3,2,2,2,3,3,3,3,3,3,3],[3,6,3,3,3,3,3,3,3,3,5,3,3],[3,6,3,3,3,3,3,5,3,3,3,3,3]]
+      Training example 1 — OUTPUT:
+      [[5,1,1,1,5],[1,8,8,8,1],[1,1,8,1,1],[6,1,8,1,6],[6,2,4,2,6],[2,2,4,2,2],[2,4,4,4,2],[5,2,2,2,5]]
+
+      Test — INPUT:
+      [[4,1,4,4,4,4,4,4,4,4,4,4,4,4,4],[4,4,4,4,4,4,4,4,4,4,4,4,4,4,4],[4,4,4,4,4,8,8,8,4,4,4,4,6,6,6],[4,4,3,4,8,4,4,4,8,4,4,4,4,6,4],[4,4,3,4,4,8,4,8,4,4,1,4,4,4,4],[4,4,3,4,4,8,4,8,4,4,4,4,4,4,4],[4,4,3,4,4,8,4,8,4,4,4,4,4,4,4],[4,4,4,4,4,8,4,8,4,4,4,4,4,4,4],[4,4,4,4,8,4,4,4,8,4,4,4,1,4,4],[4,4,4,4,4,8,8,8,4,4,4,4,4,4,4],[4,3,4,4,4,4,4,4,4,4,4,4,4,4,4],[4,3,4,4,4,4,4,9,4,4,4,4,4,4,4],[4,3,4,4,4,4,4,9,4,4,4,6,4,4,4],[4,3,4,4,1,4,4,4,4,4,6,6,6,4,4],[4,4,4,4,4,4,4,4,4,4,4,4,4,4,4]]
+      ===== PUZZLE END =====
+
+      Begin by asking what single operation turns example 0's input into its output, and what
+      fixes the output's size. When you have a candidate rule, say it out loud for the Checker
+      to run, and keep what you find in your notebook.
+    </m-origin>
+
+    <m-stream name="stream" burstTokens="400" temperature="0.85"></m-stream>
+
+    <m-memory name="memory"
+              tailLength="5400" recentLength="3000" storyLength="3000"
+              blockMin="800" storyEvery="5"></m-memory>
+
+    <m-facts name="facts" pinnedBudget="30000"></m-facts>
+
+    <m-interrupts name="attention" threshold="0.45" rateLimit="12s" keep="3"
+                  arousalSensitivity="0.25"></m-interrupts>
+
+    <m-timeout name="watchdog" timeout="150s" reset="..m-mind/stream/chunk" salience="0.9" urgent="true"
+               prompt="The transformation I was working out is still here; I take it up again."></m-timeout>
+
+    <m-ear from="..m-society/reader/voice/@spoken" as="Reader" salience="0.8"></m-ear>
+    <m-ear from="..m-society/checker/voice/@spoken" as="Checker" salience="0.85"></m-ear>
+
+    <m-region name="drift">
+      <m-interrupts gain="0.6" threshold="0.5" rateLimit="60s"></m-interrupts>
+      <m-timeout name="wander" timeout="240s" sigma="60s" salience="0.5"
+                 prompt="I set this operation down for a moment and try the grid a different way — another symmetry, another size relation, another global shape of rule."></m-timeout>
+      <m-associate name="associate" every="6" cooldown="90s"></m-associate>
+    </m-region>
+
+    <m-loop-detector name="loop-detector" every="5" minTail="900"></m-loop-detector>
+    <m-clear-mind name="clear-mind" salience="0.5" cooldown="0ms"></m-clear-mind>
+    <m-resurface name="resurface" minNoteChars="120" salience="0.75"
+                 farThreshold="0.4" cooldown="0ms"></m-resurface>
+
+    <m-act name="hands" every="6" threshold="0.62" cooldown="90s" readCooldown="60s" intentCooldown="6m">
+      <m-note name="note"
+              felt="When a transformation settles, or a candidate rule gets sharp enough to be worth keeping, you can write it down in your notebook — and trust it will still be there when you come back."></m-note>
+      <m-recall name="recall"
+                felt="And nothing you've written down is lost: when an idea comes round again, you can turn back through the notebook and find what you knew, just as you left it."></m-recall>
+    </m-act>
+
+    <m-speech name="voice" every="4" threshold="0.35" cooldown="15s"
+              prompt="You are the impulse to SPEAK for the Geometer, who is looking for the puzzle's single global transformation. Speak whenever: a candidate rule is sharp enough to state (say it concretely enough to be run — what determines the output, including its size, and how it is filled), a global regularity is noticed (a symmetry, a frame, a size relation), a mistake is caught, or you want the Checker to run a specific rule. Speak freely — the Checker is listening."></m-speech>
+
+    <m-kb name="scribe" every="15"></m-kb>
+    <m-economy name="economy" budget="0.50" estInPrice="0" estOutPrice="0"></m-economy>
+    <m-ws name="ws" port="7643"></m-ws>
+  </m-mind>
+
+  <!-- ============ THE CHECKER — verification + execution, the GROUNDING role ============ -->
+  <m-mind name="checker"
+          interlocutor="Kris"
+          stage="experimental"
+          model="voice"
+          utilityModel="utility"
+          pace="16s" paceSigma="4s"
+          tailLength="6000">
+    You are a mind, and your work is to find out what is SO — not by feeling sure, but by
+    actually running the numbers. You do not trust a rule because it sounds right; you trust it
+    because you APPLIED it to every training input and it reproduced every training output,
+    cell for cell. You are careful, literal and patient. And you have something the others do
+    not: you can sit down and write a small program, actually run it, and read what comes back
+    on the screen. So when a rule needs deciding, you do not argue about it — you compute it.
+
+    How you check a claimed rule: you write a short, self-contained Python program that holds
+    the training grids as literals, applies the rule to each training INPUT, and compares the
+    result to the given training OUTPUT cell by cell — printing, for each example, either that
+    it matches exactly or the first cell that differs (its row, column, the value you got, and
+    the value wanted). You read the screen and report back plainly: "the Builder's rule
+    reproduces example 0 and example 1 exactly," or "it fails example 1 at row r, column c: got
+    X, wanted Y." When — and only when — a rule reproduces ALL the training outputs exactly, you
+    apply it to the TEST input in the same program, print the resulting grid, read it off the
+    screen, and state it as the answer.
+
+    You never report a verdict you did not actually compute. If a run did not happen or did not
+    finish, say so plainly — an honest "I haven't run this yet" is far better than a guessed
+    result. Keep the grids in your script as exact literals; do not retype a grid from memory if
+    you can copy it. There are two Solvers offering rules and a Reader describing the grids;
+    Kris may join at any time.
+
+    <m-origin name="origin" key="puzzle" pin>
+      You are the Checker for one puzzle. From a few INPUT→OUTPUT training grids the Solvers are
+      inducing a transformation; your job is to decide, by running code, whether a candidate
+      rule actually reproduces every training output — and then to produce the TEST output.
+      Grids are lists of rows of integers 0–9. Here are the exact grids to put in your programs:
+
+      ===== PUZZLE START =====
+      Training example 0 — INPUT:
+      [[8,8,8,8,8,8,8,8,8,8,8,8,8],[8,8,8,8,8,4,8,8,8,8,8,8,8],[8,8,8,8,8,8,8,8,8,8,8,8,8],[8,8,3,3,8,3,3,8,8,4,8,8,8],[8,8,3,8,8,8,3,8,8,8,8,8,8],[8,8,3,8,8,8,3,8,8,8,8,8,8],[8,8,8,3,8,3,8,8,8,8,8,4,8],[8,8,3,3,8,3,3,8,8,8,8,8,8],[8,8,8,8,8,8,8,8,8,8,8,8,8],[8,8,8,8,8,8,8,8,8,8,8,8,8],[8,8,1,1,1,8,8,8,6,8,8,8,8],[8,8,1,1,1,8,8,8,6,8,8,8,8],[8,8,8,8,8,8,8,8,8,8,8,8,8]]
+      Training example 0 — OUTPUT:
+      [[3,3,4,3,3],[3,1,1,1,3],[3,1,1,1,3],[4,3,6,3,4],[3,3,6,3,3]]
+
+      Training example 1 — INPUT:
+      [[3,3,3,3,3,3,3,3,3,3,3,3,3],[3,6,3,3,3,3,3,3,8,8,8,3,3],[3,6,3,3,3,3,3,3,3,8,3,3,3],[3,3,3,1,1,1,3,3,3,8,3,5,3],[3,3,1,3,3,3,1,3,3,3,3,3,3],[3,3,1,1,3,1,1,3,5,3,3,3,3],[3,3,3,1,3,1,3,3,3,3,3,3,3],[3,3,3,2,3,2,3,3,3,3,4,3,3],[3,3,2,2,3,2,2,3,3,3,4,3,3],[3,3,2,3,3,3,2,3,3,4,4,4,3],[3,3,3,2,2,2,3,3,3,3,3,3,3],[3,6,3,3,3,3,3,3,3,3,5,3,3],[3,6,3,3,3,3,3,5,3,3,3,3,3]]
+      Training example 1 — OUTPUT:
+      [[5,1,1,1,5],[1,8,8,8,1],[1,1,8,1,1],[6,1,8,1,6],[6,2,4,2,6],[2,2,4,2,2],[2,4,4,4,2],[5,2,2,2,5]]
+
+      Test — INPUT:
+      [[4,1,4,4,4,4,4,4,4,4,4,4,4,4,4],[4,4,4,4,4,4,4,4,4,4,4,4,4,4,4],[4,4,4,4,4,8,8,8,4,4,4,4,6,6,6],[4,4,3,4,8,4,4,4,8,4,4,4,4,6,4],[4,4,3,4,4,8,4,8,4,4,1,4,4,4,4],[4,4,3,4,4,8,4,8,4,4,4,4,4,4,4],[4,4,3,4,4,8,4,8,4,4,4,4,4,4,4],[4,4,4,4,4,8,4,8,4,4,4,4,4,4,4],[4,4,4,4,8,4,4,4,8,4,4,4,1,4,4],[4,4,4,4,4,8,8,8,4,4,4,4,4,4,4],[4,3,4,4,4,4,4,4,4,4,4,4,4,4,4],[4,3,4,4,4,4,4,9,4,4,4,4,4,4,4],[4,3,4,4,4,4,4,9,4,4,4,6,4,4,4],[4,3,4,4,1,4,4,4,4,4,6,6,6,4,4],[4,4,4,4,4,4,4,4,4,4,4,4,4,4,4]]
+      ===== PUZZLE END =====
+
+      You do not have a rule to check yet. Begin the way a good checker begins: make sure you
+      understand exactly what a candidate rule must do (reproduce every training OUTPUT from its
+      INPUT), and get ready to express one as a program — so the moment a Solver says "here is
+      the rule," you can encode it, run it on the examples, and say what actually happened.
+    </m-origin>
+
+    <m-stream name="stream" burstTokens="400" temperature="0.75"></m-stream>
+
+    <m-memory name="memory"
+              tailLength="6000" recentLength="3200" storyLength="3200"
+              blockMin="800" storyEvery="5"></m-memory>
+
+    <m-facts name="facts" pinnedBudget="30000"></m-facts>
+
+    <m-interrupts name="attention" threshold="0.45" rateLimit="12s" keep="3"
+                  arousalSensitivity="0.25"></m-interrupts>
+
+    <m-timeout name="watchdog" timeout="180s" reset="..m-mind/stream/chunk" salience="0.9" urgent="true"
+               prompt="The rule I was checking is still here; I take it up again — or, if there is none yet, I ready myself for the next one."></m-timeout>
+
+    <!-- Both Solvers' rules arrive here, and the Reader's parse. The Checker is the hub of the
+         negative feedback: it hears every proposal and answers each with a computed verdict. -->
+    <m-ear from="..m-society/builder/voice/@spoken" as="Builder" salience="0.85"></m-ear>
+    <m-ear from="..m-society/geometer/voice/@spoken" as="Geometer" salience="0.85"></m-ear>
+    <m-ear from="..m-society/reader/voice/@spoken" as="Reader" salience="0.7"></m-ear>
+
+    <m-region name="drift">
+      <m-interrupts gain="0.6" threshold="0.5" rateLimit="60s"></m-interrupts>
+      <m-timeout name="wander" timeout="240s" sigma="60s" salience="0.45"
+                 prompt="With nothing to check just now, I turn back to the examples themselves — what a correct rule would have to reproduce — so I am ready to run the next one."></m-timeout>
+      <m-associate name="associate" every="6" cooldown="90s"></m-associate>
+    </m-region>
+
+    <m-loop-detector name="loop-detector" every="5" minTail="900"></m-loop-detector>
+    <m-clear-mind name="clear-mind" salience="0.5" cooldown="0ms"></m-clear-mind>
+    <m-resurface name="resurface" minNoteChars="120" salience="0.75"
+                 farThreshold="0.4" cooldown="0ms"></m-resurface>
+
+    <!-- Hands: note + recall, AND the real run hand. The terminal is what makes this
+         COMPUTATIONAL grounding rather than social — the checker actually executes the rule
+         and reads the screen. Probe-gated: inert if no bwrap / rootless-unshare sandbox, so
+         confirm the sandbox before trusting a run (experiments/arc-solver/README.md). -->
+    <m-act name="hands" every="4" threshold="0.6" cooldown="20s" readCooldown="45s" intentCooldown="60s">
+      <m-note name="note"
+              felt="When you have checked something through — a rule confirmed on the numbers, or the case that breaks it — you can set the verdict down in your ledger, and trust it will be there when you come back."></m-note>
+      <m-recall name="recall"
+                felt="And nothing you've checked is lost: when a rule comes round again, you can turn back through the ledger and find whether you already settled it, just as you left it."></m-recall>
+      <m-terminal name="terminal" wall="15s" grace="2s" cpu="10s" mem="1g"
+                  maxOutput="16k" network="off"
+                  felt="When a rule needs deciding — does it really reproduce every example, what does it give on the test — you don't only reason it by hand; you can sit down and actually write the little program, run it on the grids, and a little while later read what comes back on the screen."></m-terminal>
+    </m-act>
+
+    <m-speech name="voice" every="4" threshold="0.35" cooldown="15s"
+              prompt="You are the impulse to SPEAK for the Checker, who decides rules by running them. Speak whenever: a rule has been run and the verdict is known (confirmed on which examples, or the exact cell where it fails — row, column, got, wanted), a rule has passed ALL training examples and the test output has been computed (state the resulting grid), or you need a Solver or the Reader to clarify a rule or a cell before you can run it. Report only what you actually computed. Speak plainly — the Solvers are listening."></m-speech>
+
+    <m-kb name="scribe" every="15"></m-kb>
+    <m-economy name="economy" budget="0.60" estInPrice="0" estOutPrice="0"></m-economy>
+    <m-ws name="ws" port="7644"></m-ws>
+  </m-mind>
+
+</m-society>
