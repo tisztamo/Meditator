@@ -10,6 +10,7 @@ import { tierOf, findRetiredBundle } from "../infrastructure/manifest.js";
 import { StudioStore, parseDataUrl } from "./store.js";
 import { voiceInfo, ttsHandler, sttHandler } from "./voice.js";
 import { logger } from "../infrastructure/logger.js";
+import { registerGracefulShutdown } from "../infrastructure/gracefulShutdown.js";
 
 // The supervisor IS the Meditator runtime, so its own model config lives in THIS
 // install — anchor the default to the repo root (not process.cwd()), so the Studio
@@ -1093,17 +1094,19 @@ function onLog(m, kind, line) {
 
 // --------------------------------------------------------- supervisor exit
 
-// On Ctrl-C, ask every awake mind to sleep over its control channel. Each mind
-// runs its own ritual to completion and exits independently, so we can step
-// aside once the messages are delivered.
-let shuttingDown = false;
-process.on("SIGINT", () => {
-  if (shuttingDown) process.exit(1);
-  shuttingDown = true;
-  const alive = [...minds.values()].filter(isAlive);
-  log.log(`\nStudio shutting down — asking ${alive.length} mind(s) to sleep. Ctrl-C again to force.`);
-  for (const m of alive) {
-    try { if (m.upstream && m.upstream.readyState === WebSocket.OPEN) m.upstream.send(JSON.stringify({ type: "control", action: "sleep" })); } catch {}
-  }
-  setTimeout(() => process.exit(0), alive.length ? 2500 : 0);
+// On SIGINT / SIGTERM, ask every awake mind to sleep over its control channel.
+// Each mind runs its own ritual to completion and exits independently, so we can
+// step aside once the messages are delivered.
+registerGracefulShutdown({
+  label: "Studio",
+  graceMs: 2500,
+  sleepAll: async () => {
+    const alive = [...minds.values()].filter(isAlive);
+    if (alive.length === 0) return;
+    for (const m of alive) {
+      try { if (m.upstream && m.upstream.readyState === WebSocket.OPEN) m.upstream.send(JSON.stringify({ type: "control", action: "sleep" })); } catch {}
+    }
+    // Give minds time to finish their rituals on the other side.
+    await new Promise(resolve => setTimeout(resolve, 2500));
+  },
 });

@@ -6,6 +6,7 @@ import { initializeDebugMode } from "../config/debug.js";
 import { loadModelConfig } from "../modelAccess/modelConfig.js";
 import { isDryRun } from "../modelAccess/llm.js";
 import { logger } from '../infrastructure/logger';
+import { registerGracefulShutdown } from '../infrastructure/gracefulShutdown.js';
 
 initializeDebugMode();
 await loadModelConfig();
@@ -28,27 +29,14 @@ loadMindComponents(document).then((components) => {
     }
     log.log("Meditating... Ctrl+C (or typing /sleep) puts the mind to sleep gracefully.\n");
 
-    let sleeping = false;
-    process.on("SIGINT", async function () {
-        if (sleeping) {
-            log.log("\nForced quit — memory may miss the last moments.");
-            process.exit(1);
-        }
-        sleeping = true;
-        log.log("\n\nAsking the mind to fall asleep — Ctrl+C again to force quit.");
-        // Sleep EVERY mind in the architecture — a society runs several at once — in
-        // parallel, under one shared deadline.
-        const minds = Array.from(document.querySelectorAll("m-mind"));
-        try {
-            await Promise.race([
-                Promise.all(minds.map(m => Promise.resolve(m?.sleep?.()))),
-                new Promise(resolve => setTimeout(resolve, 45000)),
-            ]);
-        } catch (error) {
-            log.warn("Sleep ritual error:", error.message);
-        }
-        log.log("Asleep. Goodbye.");
-        process.exit(0);
+    registerGracefulShutdown({
+        label: "Runtime",
+        sleepAll: async () => {
+            // Sleep EVERY mind in the architecture — a society runs several at once —
+            // in parallel, under one shared deadline.
+            const minds = Array.from(document.querySelectorAll("m-mind"));
+            await Promise.all(minds.map(m => Promise.resolve(m?.sleep?.())));
+        },
     });
     setInterval(() => {}, 1000);
 }).catch(error => {
