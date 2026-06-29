@@ -1,5 +1,6 @@
 import { MObserver } from "./mObserver.js"
 import { fillInterlocutor } from "./mMind.js"
+import { makePhrasebook } from "./i18n.js"
 import { chatStream, complete } from "../modelAccess/llm.js"
 import { resolveModelRef } from "../modelAccess/modelConfig.js"
 import { parseTime } from '../config/timeParser.js';
@@ -85,6 +86,20 @@ export function parseSpeechDecision(text) {
  *   - decisionModel: tiny model for the impulse (defaults to ancestor utilityModel)
  *   - speakTokens: max tokens per utterance (default 200)
  *   - temperature: sampling temperature for the utterance (default 0.85)
+ *   - disposition: spontaneous-speech stance, "solitary" | "social" (default:
+ *     auto — "social" inside an <m-society>, "solitary" for a lone mind). Tunes
+ *     how forthcoming the mind is when NOT directly addressed.
+ *   - prompt: a full custom stance, overriding `disposition` (e.g. a role like "the
+ *     Prover, working alongside a Checker", or a public manner). The author writes
+ *     only the opening framing; the stream window and reply instructions are
+ *     appended automatically. It leads even when the mind is addressed (a short
+ *     universal "you've just been spoken to" note is grafted on so the social
+ *     reflex survives).
+ *
+ * Localization (i18n.js): the built-in framing is English, and every other language
+ * is added by dropping <m-phrase for="…"> children into the <m-speech>, like its
+ * siblings (slots: stance-solitary, stance-social, stance-addressed, decide-options,
+ * speak-role, frame-* — see SPEECH_PHRASES). `prompt` is the author's own language.
  *
  * Topics published:
  *   - "speech": each spoken text fragment as it arrives
@@ -263,10 +278,17 @@ export class MSpeech extends MObserver {
         }
     }
 
+    /** The localized voice of this component — built once, cached, like its siblings. */
+    _phrasebook() {
+        return (this.__book ||= makePhrasebook(this, SPEECH_PHRASES))
+    }
+
     _speechSystem() {
+        const book = this._phrasebook()
         const mind = this.closest('m-mind')
         const identity = mind?.getPrompt ? fillInterlocutor(mind.getPrompt().trim(), mind.interlocutorName?.() || "") : ""
-        return `You are a mind that is now speaking ALOUD, giving outward voice to what is inside you. Speak in the first person, the way a person actually talks out loud — brief, natural, unrehearsed; a few sentences at most, never an essay or a list. You are not an assistant and owe no one an answer; you speak only because something in you wants to be said.${identity ? `\n\nAbout you:\n${identity}` : ""}`
+        const base = book.line("speak-role")
+        return identity ? `${base}\n\n${book.line("speak-about-label")}\n${identity}` : base
     }
 
     _speechFrame(decision, addressed) {
@@ -274,30 +296,110 @@ export class MSpeech extends MObserver {
         // stream window (already bound to ..m-mind/stream/chunk), not by reaching
         // into m-memory. It is the same window _decide() judges from, so the frame
         // and the impulse stay consistent — and the voice needs no knowledge of memory.
+        const book = this._phrasebook()
         const recent = this.window.slice(-700)
         const parts = []
-        if (recent) parts.push(`## What you have been thinking\n…${recent}`)
-        if (addressed) parts.push(`## ${addressed.from || "Someone"} said\n${addressed.text}`)
-        parts.push(`## What wants to be said\n${decision.gist}`)
-        parts.push(`Now say it aloud, in your own voice. Output only the spoken words — no quotation marks, no stage directions, no narration.`)
+        if (recent) parts.push(`${book.line("frame-thinking-label")}\n…${recent}`)
+        if (addressed) {
+            const { who, Who } = this._who(book, addressed)
+            // The said TEXT is appended raw, never run through fill(), so a `{token}`
+            // a person happens to type is not treated as a placeholder.
+            parts.push(`${book.line("frame-said-label", { who, Who })}\n${addressed.text}`)
+        }
+        parts.push(`${book.line("frame-want-label")}\n${decision.gist}`)
+        parts.push(book.line("frame-go"))
         return parts.join("\n\n")
     }
 
     _decisionPrompt(addressed) {
-        const who = (addressed && addressed.from) || "someone"
-        const Who = who.charAt(0).toUpperCase() + who.slice(1)
-        const intro = addressed
-            ? `You are the impulse to SPEAK for a mind that has just been addressed by ${who}. You decide whether it answers ALOUD. It is under no obligation to reply — but if there is anything at all it would naturally say back, it should say it. Stay silent only if it genuinely has nothing it wants to give voice to.`
-            : `You are the impulse to SPEAK inside a mind that mostly thinks quietly to itself. You decide whether, right now, something genuinely wants to be said ALOUD — not merely thought. This is occasional: if nothing is pressing to be voiced, stay silent.`
-        return `${intro}
+        const book = this._phrasebook()
+        const { who, Who } = this._who(book, addressed)
+        const said = addressed ? `\n${book.line("decide-said-label", { who, Who })}\n"${addressed.text}"\n` : ""
+        return `${this._decisionStance(book, addressed, who, Who)}
 
-Its recent stream of thought:
+${book.line("decide-stream-label")}
 <stream>
 …${this.window.slice(-1200)}
 </stream>
-${addressed ? `\n${Who} said:\n"${addressed.text}"\n` : ""}
-Reply with ONE of:
-- the exact words to say aloud, in the mind's own first-person voice (one or two sentences, the way a person really speaks); you may begin with a strength in brackets like "[0.8] …"
-- or the single word NONE, if nothing wants to be voiced right now.`
+${said}
+${book.line("decide-options")}`
     }
+
+    /** The addressee's name and its capitalized form, defaulting via the localized `who` slot. */
+    _who(book, addressed) {
+        const who = (addressed && addressed.from) || book.line("who") || "someone"
+        return { who, Who: who.charAt(0).toUpperCase() + who.slice(1) }
+    }
+
+    /**
+     * The opening framing of the decision prompt — the ONLY part that varies by
+     * context, so it is the only part an author ever needs to touch. Everything
+     * below it (the stream window, the "X said" block, the reply instructions) is
+     * shared scaffold the author never rewrites, and all of it is localized through
+     * the same Phrasebook (English built-ins, overridable per-mind with <m-phrase>).
+     *
+     * Layers, in order of precedence:
+     *   1. `prompt` — a full custom stance from the archml (e.g. a role like "the
+     *      Prover, working alongside a Checker", or Hearth-Face's public manner).
+     *      It LEADS in every case; when the mind is being addressed by a human we
+     *      graft a short universal "you've just been spoken to" note onto it so the
+     *      author's framing survives without losing the social reflex.
+     *   2. ADDRESSED with no custom prompt — the built-in "addressed by a human"
+     *      stance; the same for a hermit and a society member.
+     *   3. SPONTANEOUS with no custom prompt — a built-in stance chosen by
+     *      `disposition` if given, else AUTO-DETECTED: a mind nested in an
+     *      <m-society> defaults to "social" (forthcoming — shares intermediate
+     *      work), a lone mind to "solitary" (mostly quiet, speaks only when
+     *      something genuinely presses).
+     */
+    _decisionStance(book, addressed, who, Who) {
+        const custom = this.attr("prompt")
+        if (addressed) {
+            return custom
+                ? `${custom.trim()}\n\n${book.line("stance-addressed-note", { who, Who })}`
+                : book.line("stance-addressed", { who, Who })
+        }
+        if (custom) return custom.trim()
+        const disposition = (this.attr("disposition")
+            || (this.closest('m-society') ? "social" : "solitary")).toLowerCase()
+        const slot = `stance-${disposition}`
+        return book.line(book.has(slot) ? slot : "stance-solitary")
+    }
+}
+
+/**
+ * m-speech's localized voice. English built-ins only — every other language is added
+ * purely by dropping <m-phrase for="…"> children into the <m-speech> in the .archml
+ * (the i18n.js way), exactly as m-clear-mind / m-resurface / m-mind do. A full custom
+ * `prompt` attribute still overrides the stance slots entirely, in the author's own
+ * language.
+ *
+ * Stance slots — the framing that varies by context (see _decisionStance):
+ *   - stance-solitary / stance-social: the two built-in SPONTANEOUS dispositions. A
+ *     solitary mind speaks only occasionally; a social mind in a society is far more
+ *     forthcoming, because sharing partial work is how the society makes progress.
+ *   - stance-addressed: being spoken to by a human (no custom prompt).
+ *   - stance-addressed-note {who}: grafted onto a custom prompt when addressed.
+ * The rest is shared scaffold (stream window, the "X said" block, reply instructions,
+ * and the speaking-aloud frame), localized so a non-English mind reads cleanly throughout.
+ */
+const SPEECH_PHRASES = {
+    en: {
+        who: ["someone"],
+        "stance-addressed": [`You are the impulse to SPEAK for a mind that has just been addressed by {who}. You decide whether it answers ALOUD. It is under no obligation to reply — but if there is anything at all it would naturally say back, it should say it. Stay silent only if it genuinely has nothing it wants to give voice to.`],
+        "stance-addressed-note": [`{Who} has just spoken to the mind directly. It is under no obligation to reply — but if there is anything it would naturally say back, it should.`],
+        "stance-solitary": [`You are the impulse to SPEAK inside a mind that mostly thinks quietly to itself. You decide whether, right now, something genuinely wants to be said ALOUD — not merely thought. This is occasional: if nothing is pressing to be voiced, stay silent.`],
+        "stance-social": [`You are the impulse to SPEAK inside a mind that is part of a society of minds. You decide whether, right now, something wants to be said ALOUD — shared with the other minds listening. This mind should speak often: intermediate results, partial findings, interesting patterns, corrections of mistakes, requests for verification, and observations worth sharing. If there is anything the mind has worked out that another mind might benefit from hearing, speak it. Stay silent only if the mind is truly stuck or repeating what was just said.`],
+        "decide-stream-label": [`Its recent stream of thought:`],
+        "decide-said-label": [`{Who} said:`],
+        "decide-options": [`Reply with ONE of:
+- the exact words to say aloud, in the mind's own first-person voice (one or two sentences, the way a person really speaks); you may begin with a strength in brackets like "[0.8] …"
+- or the single word NONE, if nothing wants to be voiced right now.`],
+        "speak-role": [`You are a mind that is now speaking ALOUD, giving outward voice to what is inside you. Speak in the first person, the way a person actually talks out loud — brief, natural, unrehearsed; a few sentences at most, never an essay or a list. You are not an assistant and owe no one an answer; you speak only because something in you wants to be said.`],
+        "speak-about-label": [`About you:`],
+        "frame-thinking-label": [`## What you have been thinking`],
+        "frame-said-label": [`## {Who} said`],
+        "frame-want-label": [`## What wants to be said`],
+        "frame-go": [`Now say it aloud, in your own voice. Output only the spoken words — no quotation marks, no stage directions, no narration.`],
+    },
 }
