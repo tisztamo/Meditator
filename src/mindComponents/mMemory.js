@@ -39,7 +39,7 @@ const log = logger('mMemory.js');
  *   - model: compression model (defaults to ancestor utilityModel, then utility default)
  *   - src (default "..m-mind/stream/chunk"), boundarySrc (default "..m-mind/stream/@boundary"):
  *     mind-relative so memory binds to its own mind's stream (see m-observer).
- *   - spokenSrc (default: the mind's m-speech `<name>/spoken` topic, auto-discovered;
+ *   - spokenSrc (default: the mind's m-speech `<name>/@spoken` event, auto-discovered;
  *     "off" disables): an aloud utterance is recorded by subscribing here, not by the
  *     voice calling spoke() in — so memory is swappable and several can listen at once.
  *   - filedSrc (default: the mind's m-kb `<name>/filed` topic, auto-discovered; "off"

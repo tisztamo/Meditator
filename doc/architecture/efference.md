@@ -64,7 +64,7 @@ with a wider repertoire and a return path:
 | **Realize** (capable) | stream an utterance on the voice model | call a **tool-capable** model with the capability menu; execute the chosen capability |
 | Output | the words, spoken | a *consequence*, returned through the afferent bus |
 | Stream sees | the utterance (it's part of the monologue) | **nothing** — only, later, a sensation |
-| Hands off via | `spoken` topic → memory splices the tail | `interrupt-request` (External) → arbiter → frame |
+| Hands off via | `@spoken` event → memory splices the tail | `interrupt-request` (External) → arbiter → frame |
 
 Like `m-speech`, the work is **two-staged on purpose** — a cheap *decide* gate keeps
 the expensive tool-calling *realize* call off the hot path unless there is plausibly

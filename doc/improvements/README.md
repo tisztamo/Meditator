@@ -57,3 +57,7 @@ not necessarily acted on yet. Each note states its status at the top.
   not a frozen file. The snapshot keeps seed + grown state for continuity (Covenant §1),
   not determinism; doors are reserved for type-based auto-wiring and activity-driven
   growth.
+- [integration-runner-suite.md](integration-runner-suite.md) — task/design for a
+  deterministic dry-run integration layer that starts real architectures, observes
+  public surfaces such as WebSocket telemetry and journals, and catches whole-system
+  wiring failures like peer ears going silently deaf.

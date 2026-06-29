@@ -70,7 +70,7 @@ export function parseSpeechDecision(text) {
  * slower pace) so "thinking effort goes to speech". The non-verbal subconscious
  * (observers, memory, economy, scribe) keeps running untouched.
  *
- * When an utterance completes, the voice publishes it on its `spoken` topic and
+ * When an utterance completes, the voice fires its transient `spoken` event and
  * is otherwise ignorant of what becomes of it. A memory subscribes (via its own
  * `spokenSrc`) and splices it into the tail as a marked block — so the next
  * thought continues knowing what it just said aloud. The voice does not know

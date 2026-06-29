@@ -125,7 +125,7 @@ their subconscious keeps working: while the voice is speaking it publishes
 slower `pace`) so the verbal effort goes mostly to the utterance — but thought
 never stops, and the non-verbal observers (associations, resurface, timers,
 memory, economy, scribe) keep running untouched. When the utterance ends, the voice
-publishes it on its `spoken` topic; a memory subscribes (via `spokenSrc`) and splices
+fires its transient `@spoken` event; a memory subscribes (via `spokenSrc`) and splices
 it into the tail as a marked `(aloud) "…"` block, so the next thought continues
 knowing what it just said — the voice itself never names memory.
 
