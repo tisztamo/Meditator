@@ -22,6 +22,8 @@ This was caught red-handed by capturing the ARC checker's verbatim prompt (`MEDI
 
 The model then reasoned over fabricated examples and even noticed *"I don't have the test input in front of me as a literal string"* — i.e. it behaved rationally under a prompt that had removed the data **and** told it the data was present. **This is not a weak model; it is a missing memory kind.** Compression is the right operation for the *story of thought*; it is exactly the wrong operation for *reference data and verdicts*.
 
+> This is the **data-and-verdicts** face of a boundary the project has already hit from the other side. [perception-not-compressible.md](perception-not-compressible.md) records the same lesson for *incoming perception*: a stimulus the compressor never sees verbatim, so it later summarises a *reaction* to an event whose content is gone. Same principle — some content must never be paraphrased into the narrative — differing only in whether it arrives as a stimulus or as standing reference data. A verbatim, keyed store is a natural home for both.
+
 ## What already exists, and why it isn't enough
 
 The hands and the scribe are *shaped* like a fact memory, but none keeps a fact reliably in front of the mind here and now:
@@ -97,6 +99,9 @@ The piece that unsticks the checker is small and self-contained: **the store + t
 ## Related Issues
 
 - [multi-mind.md](../architecture/multi-mind.md), [memory.md](../architecture/memory.md): the frame-assembly and vault rules this extends
+- [perception-not-compressible.md](perception-not-compressible.md): the perception-side twin — content lost to the narrative pipeline from the other direction
+- [compressor-not-distilling.md](compressor-not-distilling.md): the bloat/budget facet of the same compressor; a verbatim store sidesteps it for data that should never have been compressed
+- [hands-redesign-issues.md](hands-redesign-issues.md): the `m-act` redesign the `remember` / `recall-fact` hands ride on
 - [memory-persist-race.md](memory-persist-race.md): a separate persistence bug found the same session
 - `src/mindComponents/mMemory.js` (frame tiers + compression), `mNote.js` / `mKb.js` / `mRecall.js` (the write/read bones to reuse), `mMind.js:assembleFrame` (where `factsSrc` would mirror in)
 

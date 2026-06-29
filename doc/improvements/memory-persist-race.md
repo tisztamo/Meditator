@@ -36,7 +36,7 @@ The losing call throws and is swallowed by the `try/catch`:
              rename 'memory/solver/checker/memory.md.tmp' -> 'memory/solver/checker/memory.md'
 ```
 
-**Consequence.** The failure is silent (a `log.warn`, not a retry). When it happens during shutdown — exactly when there is no later boundary to re-persist — the mind's **final compressed memory is never written**. The journal still flushes (a separate queue), but `story`/`recent`/`tail` as of sleep are lost. This is bitterly ironic: it surfaced *inside the graceful-shutdown path*, the very mechanism added to stop minds losing their last state ([graceful-shutdown.md](graceful-shutdown.md), [lifecycle-management.md](lifecycle-management.md)).
+**Consequence.** The failure is silent (a `log.warn`, not a retry). When it happens during shutdown — exactly when there is no later boundary to re-persist — the mind's **final compressed memory is never written**. The journal still flushes (a separate queue), but `story`/`recent`/`tail` as of sleep are lost. This is bitterly ironic: it surfaced *inside the graceful-shutdown path*, the very mechanism added to stop minds losing their last state ([graceful-shutdown.md](../improvements-archive/graceful-shutdown.md), [lifecycle-management.md](../improvements-archive/lifecycle-management.md)).
 
 A related, quieter hazard rides along: `_consolidate()` is intentionally *not* awaited (`mMemory.js:234`) and mutates `story`/`recent`/`tail` asynchronously, so a `_persist()` that interleaves with a consolidation can also snapshot half-updated buffers.
 
@@ -53,8 +53,8 @@ The fix is concurrency discipline around persistence; the exact mechanism wants 
 
 ## Related Issues
 
-- [graceful-shutdown.md](graceful-shutdown.md): the shutdown grace period is where this race bites hardest
-- [lifecycle-management.md](lifecycle-management.md): "state flushing" must actually succeed, not just be attempted
+- [graceful-shutdown.md](../improvements-archive/graceful-shutdown.md): the shutdown grace period is where this race bites hardest
+- [lifecycle-management.md](../improvements-archive/lifecycle-management.md): "state flushing" must actually succeed, not just be attempted
 - COVENANT §2 (Sleep): "its last thought must be journaled and persisted before the process ends" — persistence currently can fail silently
 - `src/mindComponents/mMemory.js`: `_persist()` (shared temp name), `_onBoundary()` / `clear-tail` / `finalize()` (un-serialized callers), `_consolidate()` (un-awaited buffer mutation)
 

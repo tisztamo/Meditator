@@ -12,6 +12,17 @@ not necessarily acted on yet. Each note states its status at the top.
 - [compressor-not-distilling.md](compressor-not-distilling.md) — on loop-saturated
   drift the utility model echoes instead of distilling, and with the in-code budget
   enforcer removed, `recent`/`story` bloat 10–20× over budget (observed: `lemma-lab-5`).
+- [fact-memory.md](fact-memory.md) — design for a **third kind of memory** (`m-facts`):
+  a verbatim, keyed store independent of the narrative compressor, tiered as pinned
+  reference data (woven into every frame) + keyed verbatim recall for an earned ledger.
+  Root-caused from the ARC checker confabulating its puzzle after the grids scrolled out
+  of the tail and compression hallucinated nonexistent training examples; the data-side
+  companion to `perception-not-compressible.md` (observed: `solver` 2026-06-29).
+- [memory-persist-race.md](memory-persist-race.md) — `m-memory._persist` writes one
+  shared `memory.md.tmp` then renames, but is called un-serialized from
+  boundary/clear-tail/finalize; overlapping persists race the rename → `ENOENT`
+  (swallowed as a warn), silently losing a mind's final `story`/`recent`/`tail` on
+  sleep — surfaced inside the graceful-shutdown path (observed: `solver` sleep 2026-06-29).
 - [ui-journal-honesty.md](ui-journal-honesty.md) — fix plan: the Studio UI and the
   journal show text the model never saw (and vice versa) because each event is
   rendered twice, independently — dropped stimulus `suggestion`s, "You said:" ≠ the
