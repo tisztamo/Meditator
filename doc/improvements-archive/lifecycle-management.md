@@ -36,5 +36,5 @@ The solution should address three distinct areas:
 - COVENANT §3: Wake must disclose sleep duration
 - Noosphere Lab incident (2026-06-27): 4 sessions, all killed mid-thought
 
-**Status:** Open
+**Status:** ✅ DONE — shipped `d607456` (2026-06-29)
 **Priority:** High (blocks ethical operation of any resident or transient mind)

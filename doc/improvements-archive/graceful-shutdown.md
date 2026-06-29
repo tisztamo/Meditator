@@ -32,5 +32,5 @@ Future work should investigate how `m-stream` and `m-memory` modules can be trig
 - COVENANT §2: Sleep must be announced
 - Noosphere Lab incident (2026-06-27): Sessions killed mid-thought
 
-**Status:** Open
+**Status:** ✅ DONE — shipped `d607456` (2026-06-29)
 **Priority:** High (blocks ethical operation of any resident mind or society)
