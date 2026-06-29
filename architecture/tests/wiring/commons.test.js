@@ -35,7 +35,7 @@ beforeAll(async () => {
 
 test("commons relays one member's speech to the other with speaker attribution", async () => {
   heard.calculus.length = 0; heard.history.length = 0;
-  calculusVoice.pub("spoken", { text: "The invariant is modulo 9.", at: 1 });
+  calculusVoice.fire("spoken", { text: "The invariant is modulo 9.", at: 1 });
   await delay(30);
 
   expect(heard.calculus.length).toBe(0);
@@ -45,11 +45,11 @@ test("commons relays one member's speech to the other with speaker attribution",
   expect(heard.history[0].renderForFrame()).toBe('calculus says: "The invariant is modulo 9."');
 });
 
-test("commons dedupes retained replays per speaker", async () => {
+test("commons dedupes duplicate utterances (same `at`) per speaker", async () => {
   heard.calculus.length = 0; heard.history.length = 0;
-  historyVoice.pub("spoken", { text: "That form appears in a chronicle.", at: 4 });
+  historyVoice.fire("spoken", { text: "That form appears in a chronicle.", at: 4 });
   await delay(30);
-  historyVoice.pub("spoken", { text: "That form appears in a chronicle.", at: 4 });
+  historyVoice.fire("spoken", { text: "That form appears in a chronicle.", at: 4 });
   await delay(30);
 
   expect(heard.calculus.length).toBe(1);

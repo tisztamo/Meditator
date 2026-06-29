@@ -14,8 +14,9 @@ const log = logger("mSociety.js")
  *
  *   - closest('m-society') gives any descendant its enclosing society (the third
  *     relative-ref anchor beside m-mind and m-region), so cross-mind wiring is
- *     addressed society-relative: an m-ear's from="..m-society/<member>/voice/spoken"
- *     resolves THROUGH the society to a NAMED member mind. Member names must be unique
+ *     addressed society-relative: an m-ear's from="..m-society/<member>/voice/@spoken"
+ *     (voice is a FIRED event → the `@spoken` event ref, not the plain topic) resolves
+ *     THROUGH the society to a NAMED member mind. Member names must be unique
  *     within the society; component names inside a mind (stream, voice, …) need not be.
  *
  *   - it nests the members' memory under ONE folder: a mind inside an

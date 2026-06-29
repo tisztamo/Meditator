@@ -102,7 +102,7 @@ The four substrate facts:
    loader (noted under *Doors*).
 
 2. **Relative refs are clone-safe.** Wiring is addressed structurally —
-   `..m-mind/stream/chunk`, `..m-society/checker/voice/spoken`. Because these
+   `..m-mind/stream/chunk`, `..m-society/checker/voice/@spoken`. Because these
    resolve relative to the element's position in the tree, a faculty cloned from an
    archetype into a member — or, later, *moved or re-grown* at runtime — keeps
    resolving to *its own* stream and *its own* society neighbours, automatically.
@@ -349,13 +349,13 @@ copy each other. Factor it into a file and import it:
   <m-mind extends="mathematician" name="prover" tailLength="9300">
     …and you are not working alone — there is a Checker here with you… (extra prose)
     <m-origin name="origin">For a positive integer n … are there infinitely many balanced integers?</m-origin>
-    <m-ear from="..m-society/checker/voice/spoken" as="Checker" salience="0.85"/>
+    <m-ear from="..m-society/checker/voice/@spoken" as="Checker" salience="0.85"/>
     <m-speech name="voice" every="4" threshold="0.35" cooldown="15s" prompt="Speak when a result is found…"/>
     <m-ws name="ws" port="7631"/>
   </m-mind>
   <m-mind extends="mathematician" name="checker" tailLength="5400" drop="…">
     …your work is to CHECK… (extra prose)
-    <m-ear from="..m-society/prover/voice/spoken" as="Prover" salience="0.85"/>
+    <m-ear from="..m-society/prover/voice/@spoken" as="Prover" salience="0.85"/>
     <m-ws name="ws" port="7632"/>
   </m-mind>
 </m-society>
@@ -465,7 +465,7 @@ runtime-callable is the whole of leaving that door open.
 
 ### 2. Wiring by type, not by address (chemoaffinity)
 
-Today wiring is a fully-specified address: `from="..m-society/checker/voice/spoken"`.
+Today wiring is a fully-specified address: `from="..m-society/checker/voice/@spoken"`.
 That is the **pre-wired 1:1 special case** of a more general idea — ports that
 carry a **type** and find their peers, even at a distance. The intended match is
 **two-layered**:

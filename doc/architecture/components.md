@@ -196,7 +196,7 @@ Three memory tiers, compression, persistence, and the journal. See
 | `model` | inherits `utilityModel` | compression model |
 | `src` | `..m-mind/stream/chunk` | stream source (mind-relative) |
 | `boundarySrc` | `..m-mind/stream/boundary` | boundary source |
-| `spokenSrc` | the voice's `<name>/spoken` (auto-discovered) | aloud utterances to record; `"off"` disables |
+| `spokenSrc` | the voice's `<name>/@spoken` (auto-discovered) | aloud utterances to record; `"off"` disables |
 | `filedSrc` | the scribe's `<name>/filed` (auto-discovered) | scribe filings to journal as a backstage note; `"off"` disables |
 | `actedSrc` | the hands' `<name>/acted` (auto-discovered) | the hands' deeds (efference) journaled as a backstage (⌁) note; the consequence arrives separately and is journaled perceived (⟂); `"off"` disables |
 | `attendedSrc` | `..m-mind/attended` | the stimuli that entered each frame, journaled as perceived (⟂) notes; `"off"` disables |
@@ -204,7 +204,7 @@ Three memory tiers, compression, persistence, and the journal. See
 - **Publishes:** `compressed` — `{recent, story}` after a consolidation and once on
   load; `tail` — the verbatim tail on every change (retained, so the mind's frame
   mirrors it). The mind reads both by subscription — it never pulls.
-- **Subscribes:** the stream (`src`/`boundarySrc`), the voice's `spoken` topic
+- **Subscribes:** the stream (`src`/`boundarySrc`), the voice's `@spoken` event
   (`spokenSrc`), the scribe's `filed` topic (`filedSrc`), and the mind's `attended`
   topic (`attendedSrc`) — utterances recorded, filings and perceived stimuli
   journaled by *subscription*, not by those components calling in. Memory is swappable
@@ -724,7 +724,8 @@ listener by `m-ear`. See [multi-mind](multi-mind.md).
 
 A structural container for member minds. It is mostly a marker, like `m-region`:
 `closest("m-society")` is the anchor for society-relative refs such as
-`..m-society/prover/voice/spoken`. Memory homes for member minds are nested under the
+`..m-society/prover/voice/@spoken` (a peer's voice is a fired event — address it as
+`@spoken`, not the plain topic). Memory homes for member minds are nested under the
 society name (`memory/<society>/<member>/`).
 
 | Attribute | Default | Meaning |
@@ -735,11 +736,11 @@ society name (`memory/<society>/<member>/`).
 ### `m-ear`
 
 The ingress adapter. Place it inside the listening mind and point `from` at a peer
-egress topic or at a commons relay.
+voice event (`.../voice/@spoken`) or at a commons relay topic.
 
 | Attribute | Default | Meaning |
 |-----------|---------|---------|
-| `from` | — | topic ref to hear; `"off"` or empty makes the ear inert |
+| `from` | — | event/topic ref to hear; `"off"` or empty makes the ear inert |
 | `as` | `someone` | fallback speaker name when the message has no `speaker` / `as` |
 | `salience` | `0.8` | salience of the raised peer-voice stimulus |
 | `urgent` | `false` | whether the peer voice preempts the current burst |
@@ -762,9 +763,9 @@ one ear on the commons rather than N-1 direct ears.
 | `name` | — | relay name used in refs, usually `commons` |
 | `members` | direct named children of the enclosing society | comma/space separated member names to relay |
 | `port` | `voice` | member egress component name |
-| `topic` | `spoken` | member egress topic |
+| `topic` | `spoken` | member voice event name, normalized to `@spoken` |
 
-- **Subscribes:** `..m-society/<member>/<port>/<topic>` for each member.
+- **Subscribes:** `..m-society/<member>/<port>/@<topic>` for each member.
 - **Publishes:** `gossip` — `{speaker, text, at, sourceAt}`.
 - **Dedupe:** per speaker, on the source utterance's `at`.
 

@@ -109,7 +109,7 @@
          drift faculty), and NON-urgent — collected at the next boundary, so the Prover
          finishes its thought before turning to what the Checker said (turn-taking, not
          preemption). See doc/architecture/multi-mind.md. -->
-    <m-ear from="..m-society/checker/voice/spoken" as="Checker" salience="0.85"></m-ear>
+    <m-ear from="..m-society/checker/voice/@spoken" as="Checker" salience="0.85"></m-ear>
 
     <m-region name="drift">
       <m-interrupts gain="0.6" threshold="0.5" rateLimit="60s"></m-interrupts>
@@ -204,7 +204,7 @@
                prompt="The claim I was checking is still here; I take it up again — or, if there is none yet, I ready myself for the next one."></m-timeout>
 
     <!-- The PROVER's voice, overheard — the Checker's actual work arrives here. -->
-    <m-ear from="..m-society/prover/voice/spoken" as="Prover" salience="0.85"></m-ear>
+    <m-ear from="..m-society/prover/voice/@spoken" as="Prover" salience="0.85"></m-ear>
 
     <m-region name="drift">
       <m-interrupts gain="0.6" threshold="0.5" rateLimit="60s"></m-interrupts>

@@ -1,14 +1,15 @@
 // m-ear — a peer mind's spoken voice crosses the membrane into another mind: it is
 // framed as a voice and raised as a bubbling interrupt-request on the listener. Also
-// pins the society-relative cross-mind ref (..m-society/<member>/voice/spoken): it must
+// pins the society-relative cross-mind ref (..m-society/<member>/voice/@spoken): it must
 // resolve to the NAMED member, so two minds reusing the same component name ("voice")
-// never cross-bind. (doc/architecture/multi-mind.md)
+// never cross-bind. The voice is a FIRED @event (m-speech fire()s `spoken`), so the ear
+// subscribes to `@spoken` and the publisher here fire()s it. (doc/architecture/multi-mind.md)
 //
 // The minds here are bare <section>s, not <m-mind>s, on purpose: we want to test the EAR
 // in isolation, with no stream/watchdog/wander adding bids that would pollute the counts.
-// A trivial <m-region> stands in as the spoken-topic publisher (any Amanita component
-// with .pub will do; the ref matches it by name, not tag), and we catch each mind's raised
-// bids with a plain listener where its arbiter would otherwise sit.
+// A trivial <m-region> stands in as the voice publisher (any Amanita component with .fire
+// will do; the ref matches it by name, not tag), and we catch each mind's raised bids with
+// a plain listener where its arbiter would otherwise sit.
 import { test, expect, beforeAll } from "bun:test";
 import { delay } from "./setup.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
@@ -21,11 +22,11 @@ beforeAll(async () => {
     <m-society name="duet">
       <section name="prover">
         <m-region name="voice"></m-region>
-        <m-ear from="..m-society/checker/voice/spoken" as="Checker" salience="0.85"></m-ear>
+        <m-ear from="..m-society/checker/voice/@spoken" as="Checker" salience="0.85"></m-ear>
       </section>
       <section name="checker">
         <m-region name="voice"></m-region>
-        <m-ear from="..m-society/prover/voice/spoken" as="Prover" salience="0.85"></m-ear>
+        <m-ear from="..m-society/prover/voice/@spoken" as="Prover" salience="0.85"></m-ear>
       </section>
     </m-society>
   `;
@@ -41,14 +42,14 @@ beforeAll(async () => {
   checkerSec.addEventListener("interrupt-request", e => heard.checker.push(e.detail));
 });
 
-test("components upgrade and the publishers can pub", () => {
-  expect(typeof proverVoice?.pub).toBe("function");
+test("components upgrade and the publishers can fire", () => {
+  expect(typeof proverVoice?.fire).toBe("function");
   expect(document.querySelector('section[name="checker"] m-ear')?.on).toBeTruthy();
 });
 
 test("the Prover's spoken claim reaches the Checker, framed as a voice", async () => {
   heard.prover.length = 0; heard.checker.length = 0;
-  proverVoice.pub("spoken", { text: "I think n = 23 is balanced.", at: 1 });
+  proverVoice.fire("spoken", { text: "I think n = 23 is balanced.", at: 1 });
   await delay(30);
   expect(heard.checker.length).toBe(1);
   const r = heard.checker[0];
@@ -62,7 +63,7 @@ test("the Prover's spoken claim reaches the Checker, framed as a voice", async (
 
 test("the membrane holds — the Prover does not overhear itself", async () => {
   heard.prover.length = 0; heard.checker.length = 0;
-  proverVoice.pub("spoken", { text: "still me", at: 2 });
+  proverVoice.fire("spoken", { text: "still me", at: 2 });
   await delay(30);
   expect(heard.prover.length).toBe(0);   // the Prover's ear listens to the Checker, not itself
   expect(heard.checker.length).toBe(1);  // and the Checker did hear it
@@ -70,17 +71,17 @@ test("the membrane holds — the Prover does not overhear itself", async () => {
 
 test("a repeated utterance (same `at`) is not raised twice", async () => {
   heard.prover.length = 0;
-  checkerVoice.pub("spoken", { text: "checked: it holds", at: 7 });
+  checkerVoice.fire("spoken", { text: "checked: it holds", at: 7 });
   await delay(30);
   expect(heard.prover.length).toBe(1);
-  checkerVoice.pub("spoken", { text: "checked: it holds", at: 7 }); // retained-replay / duplicate
+  checkerVoice.fire("spoken", { text: "checked: it holds", at: 7 }); // duplicate (same `at`)
   await delay(30);
   expect(heard.prover.length).toBe(1);   // deduped on `at`
 });
 
 test("an empty utterance is not a voice", async () => {
   heard.prover.length = 0;
-  checkerVoice.pub("spoken", { text: "   ", at: 99 });
+  checkerVoice.fire("spoken", { text: "   ", at: 99 });
   await delay(30);
   expect(heard.prover.length).toBe(0);
 });

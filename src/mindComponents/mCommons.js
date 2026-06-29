@@ -18,7 +18,7 @@ const log = logger("mCommons.js")
  *   - members: optional comma/space separated member names. If omitted, direct named
  *              children of the enclosing m-society are used, excluding this relay.
  *   - port: member egress component name (default "voice")
- *   - topic: member egress topic (default "spoken")
+ *   - topic: member voice event name (default "spoken"; normalized to "@spoken")
  *
  * Publishes:
  *   - gossip: { speaker, text, at, sourceAt }
@@ -29,10 +29,15 @@ export class MCommons extends MBaseComponent {
         this._lastBySpeaker = new Map()
         this._seq = 0
         this._port = this.attr("port") || "voice"
+        // A member's voice (`spoken`) is FIRED as a transient @event since the events
+        // refactor (c699bba) — m-speech never pub()s it — so the relay must subscribe to
+        // the EVENT form (".../voice/@spoken"), or it binds a behaviour-value that never
+        // fires and goes silently deaf. `_relay` unwraps the CustomEvent's `.detail`.
         this._topic = this.attr("topic") || "spoken"
+        const eventTopic = this._topic.startsWith("@") ? this._topic : `@${this._topic}`
         const members = this._members()
         for (const member of members) {
-            const ref = `..m-society/${member}/${this._port}/${this._topic}`
+            const ref = `..m-society/${member}/${this._port}/${eventTopic}`
             this.sub(ref, msg => this._relay(member, msg), 12)
                 .catch(err => log.warn(`could not bind ${ref}: ${err?.message || err}`))
         }
@@ -54,11 +59,14 @@ export class MCommons extends MBaseComponent {
             .filter(Boolean)
     }
 
-    _relay(speaker, msg) {
+    _relay(speaker, raw) {
+        // A fired voice delivers the CustomEvent (payload in `.detail`); a plain pub or the
+        // unit harness delivers the payload directly; a bare string is the text itself.
+        const msg = raw?.detail ?? raw
         const text = (typeof msg === "string" ? msg : msg?.text) || ""
         if (!text.trim()) return
 
-        const sourceAt = typeof msg === "string" ? null : msg.at
+        const sourceAt = typeof msg === "string" ? null : msg?.at
         if (sourceAt != null && this._lastBySpeaker.get(speaker) === sourceAt) return
         this._lastBySpeaker.set(speaker, sourceAt)
 

@@ -63,13 +63,23 @@ A **port** is just a topic on the membrane, addressed by the mind's **unique nam
 | `mood`/`stance` | out (optional) | any retained `pub` | behaviour-value |
 | `ear` | in | `fire("interrupt-request", …)` into the arbiter | event → stimulus |
 
-Egress is a **topic** (pull/subscribe); ingress is an **event into the arbiter**.
+Egress is a **topic or event** (pull/subscribe); ingress is an **event into the arbiter**.
 The whole job of an inter-mind connection is the *adaptation* between them:
-subscribe to a source's egress topic, and raise a framed stimulus on a target's
+subscribe to a source's egress (`@spoken` for voice, a topic for relays), and raise a framed stimulus on a target's
 ingress. That adaptation — where framing, salience, and gating live — is the link.
 
+> **Address voice as `@spoken`, not `spoken`.** Since the events refactor
+> (`c699bba`), `m-speech` emits its voice by `fire("spoken", {text})` — a
+> transient DOM event, never a retained `pub`. So a consumer MUST subscribe to the
+> **event ref** `…/voice/@spoken` and read the payload from `e.detail`; a plain
+> `…/voice/spoken` ref binds a behaviour-value that the fired event never reaches,
+> and the link goes *silently deaf* (the bug that hid in `m-ear`/`m-commons`/
+> `m-link` because their tests drove `.pub` instead of `.fire`). A genuinely
+> retained value port (a `gossip` relay, a `mood`/`stance`) is still addressed by
+> its plain topic name.
+
 Ports require **unique names per mind** (`alice`, `bob`, `expert-3`). The global
-ref `/alice/voice/spoken` then addresses exactly one mind. Inside the society this
+ref `/alice/voice/@spoken` then addresses exactly one mind. Inside the society this
 is the address space; the society assigns/enforces uniqueness (templating gives
 `expert-0…N` for free).
 
@@ -81,21 +91,20 @@ mind**. It generalizes the interlocutor-voice path and `m-observer`'s overridabl
 
 ```html
 <!-- inside bob's <m-mind>: bob overhears alice -->
-<m-ear from="/alice/voice/spoken" as="Alice" salience="0.55" cooldown="20s"></m-ear>
+<m-ear from="/alice/voice/@spoken" as="Alice" salience="0.55" cooldown="20s"></m-ear>
 ```
 
 ```js
 // src/mindComponents/mEar.js  (sketch)
 export class MEar extends MBaseComponent {
   onConnect() {
-    const from = this.attr("from")              // external egress topic
+    const from = this.attr("from")              // external egress, e.g. "/alice/voice/@spoken"
     const as   = this.attr("as") || "someone"   // how the speaker is framed
     const salience = Number(this.attr("salience") || 0.5)
     const urgent   = this.attr("urgent") === "true"
-    let last = 0
-    this.sub(from, msg => {
-      if (!msg || msg.at === last) return        // dedupe: spoken is event-shaped
-      last = msg.at
+    this.sub(from, raw => {
+      const msg = raw.detail ?? raw              // a FIRED voice arrives as a CustomEvent; payload in .detail
+      if (!msg || !msg.text) return
       this.fire("interrupt-request", {           // bubbles to THIS mind's arbiter
         source: as, type: "voice",
         suggestion: `${as} says: ${msg.text}`,
@@ -112,7 +121,7 @@ ingress *inside* the listener is what keeps "intent bubbles up" intact — the l
 never reaches *into* a foreign interior.
 
 > `m-ear` is deliberately small. A richer member could instead point a full
-> `m-observer src="/alice/voice/spoken"` at a peer and raise only on *salient*
+> `m-observer src="/alice/voice/@spoken"` at a peer and raise only on *salient*
 > content — "hear, but only react when it matters." Same membrane, smarter ear.
 
 ### 3. `m-link` — the legible edge (the realized `a-wire`)
@@ -378,10 +387,10 @@ checker's job is to push back), so it damps rather than amplifies. The role stru
 
 What it took (all small):
 
-1. **`m-ear`** — the one genuinely new faculty: subscribes to a peer's egress topic and
+1. **`m-ear`** — the one genuinely new faculty: subscribes to a peer's voice event or relay topic and
    raises a framed, non-urgent `interrupt-request` on its own mind's arbiter.
 2. **`m-society`** — a marker container; `closest('m-society')` anchors the
-   society-relative cross-mind ref `..m-society/<member>/voice/spoken` (members get
+   society-relative cross-mind ref `..m-society/<member>/voice/@spoken` (members get
    unique *mind* names; component names stay generic).
 3. **`mindHome` nests under the society** — `memory/duet/{prover,checker}/`: one
    folder, a subfolder per member, as asked.

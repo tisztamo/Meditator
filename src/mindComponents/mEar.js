@@ -11,9 +11,9 @@ const log = logger("mEar.js")
  * raises what it hears as a stimulus on THIS mind's arbiter. The runtime form of an
  * inter-mind connection (doc/architecture/multi-mind.md).
  *
- * The membrane is thin and one-directional: a mind exposes its VOICE as a published
- * topic (m-speech `spoken {text, at}`), and a listening mind places an m-ear pointed at
- * it. The ear lives INSIDE the listener and only ever fires a local, bubbling
+ * The membrane is thin and one-directional: a mind exposes its VOICE as a transient
+ * event (m-speech `@spoken {text, at}`), and a listening mind places an m-ear pointed at
+ * that event or a relay topic. The ear lives INSIDE the listener and only ever fires a local, bubbling
  * `interrupt-request` — so the link never reaches into a foreign interior; "intent up
  * the tree" stays intact, and a duplex channel is simply two ears.
  *
@@ -24,7 +24,8 @@ const log = logger("mEar.js")
  *
  * @interface
  * Attributes:
- *   - from: ref to the peer's egress topic, e.g. "..m-society/prover/voice/spoken". A
+ *   - from: ref to the peer's voice event or relay topic, e.g. "..m-society/prover/voice/@spoken" (voice
+ *           is a FIRED @event, so use the `@spoken` event ref, not the plain topic). A
  *           society-relative ref addresses a member by its (unique) MIND name, so members
  *           may reuse component names ("voice"). "off" / empty makes the ear inert.
  *   - as: how the speaker is named in the framing (default "someone").
@@ -55,13 +56,22 @@ export class MEar extends MBaseComponent {
             log.debug("m-ear has no `from` (inert).")
             return
         }
-        // The peer's voice is a behaviour-value topic, so a late or re-subscribe replays
-        // the last utterance — dedupe on `at` (the shape m-memory already uses for `spoken`).
+        // Subscribe to the source exactly as authored. Since the events refactor (c699bba)
+        // a peer's voice (`spoken`) is FIRED as a transient @event — m-speech never pub()s it —
+        // so a voice `from` MUST be the EVENT ref (".../voice/@spoken"); a behaviour-value
+        // source (e.g. m-commons `gossip`) stays a plain topic. `_hear` accepts either delivery
+        // shape. A stale plain ".../voice/spoken" ref binds a behaviour-value that never fires
+        // and the ear goes silently deaf — the trap that hid this (ear.test.js drove it with
+        // .pub, not .fire). See doc/architecture/multi-mind.md.
         this.sub(this._from, msg => this._hear(msg), 12)
             .catch(err => log.debug(`m-ear could not bind ${this._from}: ${err?.message || err}`))
     }
 
-    _hear(msg) {
+    _hear(raw) {
+        if (!raw) return
+        // An @event delivers the CustomEvent (payload in `.detail`, as m-memory reads it); a
+        // plain pub or the unit harness delivers the payload directly; a bare string is the text.
+        const msg = raw.detail ?? raw
         if (!msg) return
         const text = (typeof msg === "string" ? msg : msg.text) || ""
         const at = typeof msg === "string" ? null : msg.at

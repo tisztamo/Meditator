@@ -16,7 +16,7 @@
 //     origin-override.test.js / interlocutor-override.test.js test their transforms.
 //
 // Why a DOM merge and not string-splicing: wiring is addressed STRUCTURALLY
-// (..m-mind/stream/chunk, ..m-society/checker/voice/spoken). A faculty cloned from an
+// (..m-mind/stream/chunk, ..m-society/checker/voice/@spoken). A faculty cloned from an
 // archetype into a member keeps resolving to ITS OWN stream and ITS OWN neighbours
 // because relative refs resolve by tree position — so cloning nodes is correct and
 // splicing text is not. We expand on inert plain elements inside a <template> (whose
