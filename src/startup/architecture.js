@@ -1,5 +1,7 @@
 import { readFile } from "fs/promises";
+import { dirname, resolve as resolvePath } from "path";
 import { logger } from '../infrastructure/logger';
+import { expandArchitecture } from "./templating.js";
 
 const log = logger('architecture.js');
 
@@ -161,6 +163,14 @@ export async function readArchitectureFile() {
   try {
     log.info(`Reading architecture file: ${filePath}`);
     let content = await readFile(filePath, "utf-8");
+    // Templating expands FIRST, so every wake-time override and the home snapshot see
+    // the fully-resolved tree — a home never depends on an external archetype file
+    // (see templating.js). A file with no templating tokens passes through untouched.
+    // <m-import src="…"> resolves relative to the architecture file's own directory.
+    const baseDir = dirname(filePath);
+    content = await expandArchitecture(content, {
+      resolveImport: (src) => readFile(resolvePath(baseDir, src), "utf-8"),
+    });
     // A wake-time name override (the Studio's semi-automatic transient naming, or
     // MEDITATOR_MIND_NAME by hand) disentangles a transient mind's identity from
     // its file — see applyMindNameOverride.

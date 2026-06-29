@@ -1,6 +1,20 @@
 # ArchML templating — archetypes and thin minds
 
-**Status:** design proposal — not yet implemented.
+**Status:** basics implemented (2026-06-28). The engine
+(`src/startup/templating.js` — `expandArchitecture`, `mergeInto`, `instantiate`) is
+hooked into `readArchitectureFile` before the wake-time overrides, with all five
+primitives (`<m-archetype>`, `extends="a b c"` incl. mixins/chains, `drop`,
+`<m-society archetype="…">`, `<m-import>`), slot-keyed deep merge, and `fresh`.
+`noosphere-lab.archml` is converted as the proof — its expanded tree is byte-equivalent
+to the pre-conversion file save for the intended `name="commons"` slot key on the ear
+(verified with `scripts/dev/compare-architecture.mjs`). Tests:
+`architecture/tests/unit/templating.test.js` (+ `templating-noosphere.test.js`).
+Deferred (see §Implementation/5 and §Doors): the `architecture/archetypes/` convention
+dir, attribute deletion, generic `{{…}}` substitution beyond `{{interlocutor}}`, the
+dual seed+phenotype snapshot, and everything runtime (`m-beget`, typed-port matcher,
+regulator). `duet`/`lemma` not yet converted.
+
+The remainder is the original design proposal.
 
 ## The problem
 
