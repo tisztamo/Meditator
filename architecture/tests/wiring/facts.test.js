@@ -70,11 +70,13 @@ test("m-facts registers remember and recall-fact hands", () => {
 });
 
 test("earned facts are recalled whole by exact key or unique prefix", async () => {
-    await facts._rememberHand({
+    const remembered = await facts._rememberHand({
         key: "verdict:crop-rule",
         value: "fails example 1 at r3,c2: got 8, wanted 3",
         pin: false,
     });
+    expect(remembered.experience).toContain("fact key: verdict:crop-rule");
+    expect(remembered.experience).toContain('recall-fact with key "verdict:crop-rule"');
     const out = await facts._recallHand({ key: "verdict:" });
     expect(out.experience).toContain("verdict:crop-rule");
     expect(out.experience).toContain("fails example 1 at r3,c2: got 8, wanted 3");

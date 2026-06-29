@@ -205,8 +205,9 @@ export class MFacts extends MBaseComponent {
 
     async _rememberHand({ key, value, pin } = {}) {
         const fact = await this._rememberFact({ key, value, pinned: !!pin, source: "earned" })
+        const pinNote = fact.pinned ? " It is pinned, so it will also stay in every frame." : ""
         return {
-            experience: `I set down the fact "${fact.key}" exactly, so it will stay as written.`,
+            experience: `I set down an exact fact. fact key: ${fact.key}. To bring it back whole, recall-fact with key "${fact.key}".${pinNote}`,
             salience: Number(this.attr("rememberSalience") || 0.55),
             data: { key: fact.key, chars: fact.value.length, pinned: fact.pinned },
         }
