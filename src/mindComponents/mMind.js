@@ -107,6 +107,9 @@ export class MMind extends MBaseComponent {
     _memTail = ""            // mirrors of memory's content, fed by its topics (not pulled)
     _memRecent = ""
     _memStory = ""
+    _factsPinned = ""        // pinned verbatim facts, mirrored from m-facts
+    _hasFacts = false
+    _factsReady = false
     _embodiment = ""         // the hands' body schema, mirrored from m-act (not pulled)
     _paceFactor = 1          // metabolism's inter-burst pace multiplier, mirrored from m-economy
     _originText = ""         // the origin (seed of the first thought), mirrored from m-origin
@@ -137,6 +140,17 @@ export class MMind extends MBaseComponent {
         if (tailSrc && tailSrc !== 'off') this.sub(tailSrc, t => { this._memTail = t || "" })
         if (compressedSrc && compressedSrc !== 'off') {
             this.sub(compressedSrc, c => { if (c) { this._memRecent = c.recent || ""; this._memStory = c.story || "" } })
+        }
+
+        // Mirror pinned FACTS — keyed, verbatim knowing distinct from narrative
+        // memory. m-facts publishes the whole pinned block as a retained value; we
+        // weave it into every frame and never send it through the compressor.
+        const facts = this.querySelector('m-facts[name]')
+        const factsName = facts?.getAttribute('name')
+        const factsSrc = this.attr('factsSrc') || (factsName ? `..m-mind/${factsName}/pinned` : null)
+        this._hasFacts = !!(factsSrc && factsSrc !== 'off')
+        if (this._hasFacts) {
+            this.sub(factsSrc, f => { this._factsPinned = f || ""; this._factsReady = true })
         }
 
         // Mirror the hands' BODY SCHEMA from m-act's `embodiment` topic, the same way
@@ -238,7 +252,8 @@ export class MMind extends MBaseComponent {
             // before the first burst, or the seed is lost. Wait for the mirror
             // to land (presence/flag only; the content is never pulled here).
             const originReady = !this._hasOrigin || this._originReady
-            if (streamReady && memoryReady && originReady) return
+            const factsReady = !this._hasFacts || this._factsReady
+            if (streamReady && memoryReady && originReady && factsReady) return
             await delay(100)
         }
         throw new Error("stream/memory components did not come up in time")
@@ -448,6 +463,7 @@ export class MMind extends MBaseComponent {
 
         const identity = this._identity()
         const sections = []
+        if (this._factsPinned) sections.push(`## What I know (verbatim)\n${this._factsPinned}`)
         if (this._memStory) sections.push(`## How I got here (older memory, compressed)\n${this._memStory}`)
         if (this._memRecent) sections.push(`## Recently (compressed)\n${this._memRecent}`)
         const system = [identity, ...sections].join("\n\n")
@@ -488,6 +504,7 @@ export class MMind extends MBaseComponent {
         const tail = (this._memTail || stream?.getRecentOutput(tailLength) || "").slice(-tailLength)
         const story = this._memStory
         const recent = this._memRecent
+        const facts = this._factsPinned
 
         // Fire the stimuli that are entering this frame as a transient event; a memory
         // journals them as perceived (⟂) notes by subscribing (`@attended`), rather
@@ -509,6 +526,7 @@ export class MMind extends MBaseComponent {
 
         const identity = this._identity()
         const sections = []
+        if (facts) sections.push(`## What I know (verbatim)\n${facts}`)
         if (story) sections.push(`## How I got here (older memory, compressed)\n${story}`)
         if (recent) sections.push(`## Recently (compressed)\n${recent}`)
         if (stimuli.length) {

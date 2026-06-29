@@ -111,6 +111,7 @@ is the mind's identity.
 | `speakingPaceFactor` | `2.5` | pace multiplier while the voice is speaking (slower thinking) |
 | `speakingTokensFactor` | `0.35` | burst-token multiplier while speaking (thinner thoughts, floor 60) |
 | `tailSrc` / `compressedSrc` | the memory's `<name>/tail` and `<name>/compressed` (auto-discovered) | the narrative content mirrored into the frame; `"off"` disables |
+| `factsSrc` | the facts component's `<name>/pinned` (auto-discovered) | pinned verbatim facts mirrored into every frame; `"off"` disables |
 | `embodimentSrc` | the hands' `<name>/embodiment` (auto-discovered) | the body schema woven into the identity (efference); `"off"` disables |
 | `originSrc` | the [`m-origin`](#m-origin)'s `<name>/prompt` (auto-discovered) | the origin seed; raised once at birth as the first thought (see [`m-origin`](#m-origin)); `"off"` disables |
 
@@ -118,6 +119,8 @@ is the mind's identity.
   if an [`m-speech`](#m-speech) is present, `<voice>/speaking` (thin thinking while
   talking); memory's `tail` / `compressed` topics — the frame's narrative content
   is *mirrored* from those, never pulled (see [decoupling.md](decoupling.md)); and, if
+  an [`m-facts`](#m-facts) is present, its `pinned` topic — exact keyed facts that
+  stand in the frame outside compression; and, if
   an [`m-act`](#the-hands-m-act--m-look) is present, its `embodiment` topic — the body
   schema woven into the identity so the mind knows what it can reach; and, if an
   [`m-origin`](#m-origin) is present, its `prompt` topic — the origin seed, raised once
@@ -147,6 +150,8 @@ mind reads it by subscription, never a `querySelector` reach-in
 |-----------|---------|---------|
 | `name` | — | required, so [`m-mind`](#m-mind) can build the `originSrc` ref to it |
 | `prompt` | — | the origin text; falls back to the element's text content |
+| `key` | `name` | when `pin`/`pinned` is set and [`m-facts`](#m-facts) is present, the fact key seeded from this origin |
+| `pin` / `pinned` | false | also seed this origin into [`m-facts`](#m-facts) as a pinned verbatim fact |
 
 - **Publishes:** `prompt` — its content (the [`MBaseComponent`](#shared-infrastructure) default).
 - **Lifecycle:** [`m-mind`](#m-mind) mirrors it via `originSrc` and, **only for a
@@ -158,6 +163,42 @@ mind reads it by subscription, never a `querySelector` reach-in
 - **Per-instance override at wake:** the element's text is a *default*. `MEDITATOR_ORIGIN`
   (or the [Studio's](../studio.md#waking-a-mind) editable "origin story" field) replaces it
   for one instance without editing the file — see [Configuration](../configuration.md#origin--the-first-thought-m-origin).
+
+## `m-facts`
+
+The keyed, verbatim fact store: data and verdicts that must not scroll out of the
+tail or be paraphrased by narrative compression. Facts live under the mind's vault
+home as one markdown file per key (`facts/` by default), with JSON metadata and the
+value body preserved whole.
+
+```xml
+<m-origin name="origin" key="puzzle" pin>exact puzzle data...</m-origin>
+<m-facts name="facts" pinnedBudget="30000"></m-facts>
+```
+
+Seeded facts can also be declared directly:
+
+```xml
+<m-facts name="facts">
+  <m-fact key="puzzle" pin>exact puzzle data...</m-fact>
+</m-facts>
+```
+
+| Attribute | Default | Meaning |
+|-----------|---------|---------|
+| `dir` | vault `facts/` | fact store directory; `"off"` keeps facts in RAM |
+| `pinnedBudget` | `30000` | warning threshold for pinned text; facts are never silently dropped |
+| `rememberName` | `remember` | hand name for writing a fact |
+| `recallName` | `recall-fact` | hand name for keyed exact recall |
+
+- **Publishes:** `pinned` — all pinned facts, whole and verbatim, retained for
+  [`m-mind`](#m-mind)'s `## What I know (verbatim)` frame section.
+- **Seeds:** child `<m-fact key="…" pin>…</m-fact>` elements, and any
+  `<m-origin pin key="…">…</m-origin>` in the same mind.
+- **Hands:** if an [`m-act`](#the-hands-m-act--m-look) is present, registers
+  `remember{key,value,pin?}` (world-changing) and `recall-fact{key}` (read-only).
+  Recall uses exact key or an unambiguous prefix and returns the fact whole, not a
+  fuzzy snippet.
 
 ## `m-stream`
 
