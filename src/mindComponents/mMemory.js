@@ -71,6 +71,7 @@ export class MMemory extends MBaseComponent {
     _compressing = false
     _finalized = false
     _savedAt = null
+    _persistSeq = 0
 
     onConnect() {
         this.tailLength = Number(this.attr("tailLength") || 1500)
@@ -542,9 +543,12 @@ ${this.tail}
 <!-- end -->
 `
             // atomic: a crash mid-write must never corrupt the only copy of a self
+            // unique temp name prevents race when two _persist() calls overlap
+            // (multi-mind setups, boundary + finalize, etc.)
             const file = path.join(dir, "memory.md")
-            await fs.writeFile(file + ".tmp", content)
-            await fs.rename(file + ".tmp", file)
+            const tmp = `${file}.${process.pid}.${++this._persistSeq}.tmp`
+            await fs.writeFile(tmp, content)
+            await fs.rename(tmp, file)
         } catch (error) {
             log.warn("Could not persist memory:", error.message)
         }
