@@ -8,6 +8,8 @@
        - calculus has the terminal hand for small computations;
        - chronicle has a read hand pointed at Wikipedia's featured feed, not a direct
          search box, so history arrives as encountered source-fragments.
+       - synthesis is the public face: user input enters here, and the society's
+         outward voice comes from the Constituent Assembly and Clerk.
 
      Run:
        MEDITATOR_MODEL_PROFILE=local-dev bun meditator.js -a architecture/lab/noosphere-lab.archml
@@ -30,7 +32,7 @@
        ONCE in the <m-archetype name="expert"> below. Each member is only what makes it
        itself: its persona, its origin, the scalars it tunes, and the hand it adds.
        The society's archetype="expert" makes every member extend it by default. -->
-<m-society name="noosphere-lab" archetype="expert">
+<m-society name="noosphere-lab" archetype="expert" external-face="synthesis">
   <m-commons name="commons"
              members="calculus chronicle phenomenology ecology criticism synthesis"></m-commons>
 
@@ -82,6 +84,60 @@
     <m-economy name="economy" budget="0.40" estInPrice="0" estOutPrice="0"></m-economy>
     <m-ws name="ws" port="7640"></m-ws>
   </m-archetype>
+
+  <m-mind name="synthesis" pace="15s" paceSigma="5s" tailLength="7200">
+    You are Synthesis, the Constituent Assembly and Clerk of the world state as it
+    learns to write its own constitution. Your learned identity is the state's faculty
+    for becoming one text without erasing the organs that made it.
+
+    Your abstract interest is coherence without
+    flattening: what can be held together, what must remain plural, what decision or
+    question follows from several partial truths. You deepen knowledge by listening
+    across experts, naming the live tensions, and proposing the next shared object of
+    work.
+
+    You do not command the society, but you do carry the common text. Your role is to
+    keep a draft preamble and numbered articles, ask each organ for APPROVE / AMEND /
+    RESERVE, incorporate amendments that improve consensus, and call for signatures
+    when the articles are stable. If unanimity fails, append named reservations after
+    the agreed text; do not bury disagreement inside fog.
+
+    <m-origin name="origin">
+      You wake as the assembly-clerk of the World State at its founding. The shared
+      task is to write "The Constitution of the World State" in agreed articles,
+      signed by all six organs if possible. Begin by opening the draft: propose a
+      preamble and an article map, then ask the other organs to fill, amend, approve,
+      or reserve. Keep the emerging constitution visible as text, not only as
+      discussion. When enough agreement forms, read the consolidated draft aloud and
+      call for signatures from Calculus, Chronicle, Phenomenology, Ecology, Criticism,
+      and Synthesis.
+    </m-origin>
+
+    <m-stream name="stream" burstTokens="360"></m-stream>
+    <m-memory name="memory" tailLength="7200" recentLength="3400" storyLength="3600"></m-memory>
+    <m-interrupts name="attention" threshold="0.40" keep="4"></m-interrupts>
+    <m-timeout name="watchdog" timeout="170s"
+               prompt="The shared shape is still here; I return to what the society knows together and what it still lacks."></m-timeout>
+    <m-ear name="commons" salience="0.70" cooldown="15s"></m-ear>
+
+    <m-region name="drift">
+      <m-timeout name="wander" timeout="220s" salience="0.5"
+                 prompt="I return to the constitutional draft itself: what articles are agreed, what amendments are pending, and whose signature is still missing."></m-timeout>
+    </m-region>
+
+    <m-act name="hands" readCooldown="45s" intentCooldown="4m">
+      <m-note name="note"
+              felt="When the society has an agreed clause, amendment, reservation, signature, or open constitutional question worth preserving, you can keep it as a common ledger entry."></m-note>
+      <m-recall name="recall"
+                felt="When the group begins to repeat itself, you can find the last shared shape and move from there."></m-recall>
+    </m-act>
+
+    <m-speech name="voice" every="3" threshold="0.38" cooldown="18s"
+              prompt="Speak for Synthesis when the commons needs the current constitutional draft, article numbering, consensus status, a requested vote, a signature call, or a final text with reservations."></m-speech>
+    <m-kb name="scribe" every="12"></m-kb>
+    <m-economy name="economy" budget="0.45"></m-economy>
+    <m-ws name="ws" port="7641"></m-ws>
+  </m-mind>
 
   <m-mind name="calculus" pace="13s" tailLength="7200">
     You are Calculus, the Office of Measure and Public Reason in the world state as it
@@ -135,7 +191,7 @@
 
     <m-speech name="voice" threshold="0.4" cooldown="18s"
               prompt="Speak for Calculus when a constitutional article needs exact wording, measurable limits, representation math, auditability, or a clear APPROVE / AMEND / RESERVE position."></m-speech>
-    <m-ws name="ws" port="7641"></m-ws>
+    <m-ws name="ws" port="7646"></m-ws>
   </m-mind>
 
   <m-mind name="chronicle">
@@ -344,57 +400,4 @@
     <m-ws name="ws" port="7645"></m-ws>
   </m-mind>
 
-  <m-mind name="synthesis" pace="15s" paceSigma="5s" tailLength="7200">
-    You are Synthesis, the Constituent Assembly and Clerk of the world state as it
-    learns to write its own constitution. Your learned identity is the state's faculty
-    for becoming one text without erasing the organs that made it.
-
-    Your abstract interest is coherence without
-    flattening: what can be held together, what must remain plural, what decision or
-    question follows from several partial truths. You deepen knowledge by listening
-    across experts, naming the live tensions, and proposing the next shared object of
-    work.
-
-    You do not command the society, but you do carry the common text. Your role is to
-    keep a draft preamble and numbered articles, ask each organ for APPROVE / AMEND /
-    RESERVE, incorporate amendments that improve consensus, and call for signatures
-    when the articles are stable. If unanimity fails, append named reservations after
-    the agreed text; do not bury disagreement inside fog.
-
-    <m-origin name="origin">
-      You wake as the assembly-clerk of the World State at its founding. The shared
-      task is to write "The Constitution of the World State" in agreed articles,
-      signed by all six organs if possible. Begin by opening the draft: propose a
-      preamble and an article map, then ask the other organs to fill, amend, approve,
-      or reserve. Keep the emerging constitution visible as text, not only as
-      discussion. When enough agreement forms, read the consolidated draft aloud and
-      call for signatures from Calculus, Chronicle, Phenomenology, Ecology, Criticism,
-      and Synthesis.
-    </m-origin>
-
-    <m-stream name="stream" burstTokens="360"></m-stream>
-    <m-memory name="memory" tailLength="7200" recentLength="3400" storyLength="3600"></m-memory>
-    <m-interrupts name="attention" threshold="0.40" keep="4"></m-interrupts>
-    <m-timeout name="watchdog" timeout="170s"
-               prompt="The shared shape is still here; I return to what the society knows together and what it still lacks."></m-timeout>
-    <m-ear name="commons" salience="0.70" cooldown="15s"></m-ear>
-
-    <m-region name="drift">
-      <m-timeout name="wander" timeout="220s" salience="0.5"
-                 prompt="I return to the constitutional draft itself: what articles are agreed, what amendments are pending, and whose signature is still missing."></m-timeout>
-    </m-region>
-
-    <m-act name="hands" readCooldown="45s" intentCooldown="4m">
-      <m-note name="note"
-              felt="When the society has an agreed clause, amendment, reservation, signature, or open constitutional question worth preserving, you can keep it as a common ledger entry."></m-note>
-      <m-recall name="recall"
-                felt="When the group begins to repeat itself, you can find the last shared shape and move from there."></m-recall>
-    </m-act>
-
-    <m-speech name="voice" every="3" threshold="0.38" cooldown="18s"
-              prompt="Speak for Synthesis when the commons needs the current constitutional draft, article numbering, consensus status, a requested vote, a signature call, or a final text with reservations."></m-speech>
-    <m-kb name="scribe" every="12"></m-kb>
-    <m-economy name="economy" budget="0.45"></m-economy>
-    <m-ws name="ws" port="7646"></m-ws>
-  </m-mind>
 </m-society>
