@@ -168,6 +168,9 @@ is mostly a marker) that:
 - **assigns the address space** — guarantees unique member names.
 - **holds the graph** — the `<m-link>`s (or generates them, §Templating).
 - **optionally provides a commons** — a shared blackboard topic for gossip (§6).
+- **names its public membrane** — optional `external-face`, `external-ear`, and
+  `external-mouth` attributes tell a supervisor which member the outside world
+  meets, where human input enters, and which port is the public voice.
 
 The decisive property is **uniform ports across leaf and composite**: a society
 exposes the *same* membrane a single mind does (a `voice` out, an `ear` in — by
@@ -198,6 +201,33 @@ Two distinct shapes fall out, and naming them prevents confusion:
   through-line on top of a graph* — deep-structure §1 (competing sub-streams) and
   §3 (spawned subminds). The outer stream is the serialization; the inner society
   is the parallel substrate.
+
+#### The external surface
+
+A society may have many private mouths and ears, but an external supervisor needs
+one public membrane: what to show as the face, where a human's words enter, and
+which voice counts as the society speaking outward. Declare it on the society:
+
+```html
+<m-society name="hearth-society"
+           external-face="face"
+           external-ear="face/ws"
+           external-mouth="face/voice">
+  …
+</m-society>
+```
+
+`external-face` is the member shown in Studio as the public face. `external-ear`
+names the member/component that receives direct outside input, normally the
+member's `m-ws`. `external-mouth` names the member/component whose speech is the
+society's outward voice. These are membrane addresses, not implementation hooks:
+the runtime still routes input and speech through the actual components (`m-ws`,
+`m-speech`, `m-ear`, links) already in the tree.
+
+When the attributes are absent, Studio uses the common convention: a member named
+`face` if present, otherwise the first member with an `m-ws`, otherwise the first
+member. This keeps Hearth-style files runnable before they are annotated, while
+making the general contract explicit for future societies.
 
 ### 5. The fold — folding a population back into one voice
 

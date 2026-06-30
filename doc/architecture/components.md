@@ -107,7 +107,7 @@ is the mind's identity.
 | `pace` | `8s` | pause between bursts |
 | `paceSigma` | `pace/4` | normal-distributed jitter on the pause |
 | `tailLength` | `1500` | chars of verbatim tail carried into each frame |
-| `bridge` | `true` | `"false"` disables the LLM-written transition on redirects |
+| `bridge` | `false` | `"true"` enables the LLM-written transition on redirects |
 | `speakingPaceFactor` | `2.5` | pace multiplier while the voice is speaking (slower thinking) |
 | `speakingTokensFactor` | `0.35` | burst-token multiplier while speaking (thinner thoughts, floor 60) |
 | `tailSrc` / `compressedSrc` | the memory's `<name>/tail` and `<name>/compressed` (auto-discovered) | the narrative content mirrored into the frame; `"off"` disables |

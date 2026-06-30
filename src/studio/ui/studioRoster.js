@@ -52,9 +52,15 @@ export class StudioRoster extends A(HTMLElement) {
       if (m.state === "awake" || m.state === "waking") acts.push(`<button action="sleep">Sleep</button>`);
       if (m.state === "sleeping") acts.push(`<button action="force" class="force">Force</button>`);
       if (!alive) acts.push(`<button action="dismiss">Dismiss</button>`);
+      const surface = m.surface || {};
+      const members = Array.isArray(m.members) ? m.members.length : 0;
+      const faceLine = m.kind === "society"
+        ? `<div class="sub">multi-mind · ${members} member${members === 1 ? "" : "s"}${surface.face ? ` · face ${esc(surface.face)}` : ""}${surface.ear ? ` · ear ${esc(surface.ear)}` : ""}</div>`
+        : "";
       card.innerHTML =
         `<div class="top"><span class="nm">${esc(m.name || m.file)}</span><span class="badge ${m.state}">${m.state}</span></div>` +
         `<div class="sub">${esc(m.file)} · :${m.port}${m.public ? ` <span class="pub">public</span>` : ""}${m.dryRun ? ` · dry` : ""}${m.modelProfile ? ` · ${esc(m.modelProfile)}` : ""}</div>` +
+        faceLine +
         `<div class="sub">→ <span class="home">${esc(m.home)}</span></div>` +
         (m.detail ? `<div class="det">${esc(m.detail)}</div>` : "") +
         (e !== null ? `<div class="meter"><i style="width:${(e * 100).toFixed(0)}%"></i></div>` : "") +

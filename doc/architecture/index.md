@@ -83,8 +83,8 @@ from the current thought toward what just happened. This **bridge** is both:
   pivot it has actually "said."
 
 Context switches don't cut the film; they happen on camera. The bridge is the
-*only* LLM-written part of the frame, and only on redirects. Set
-`bridge="false"` on `<m-mind>` to disable it.
+*only* LLM-written part of the frame, and only on redirects. It is off by default;
+set `bridge="true"` on `<m-mind>` to enable it.
 
 ## The thinking loop
 

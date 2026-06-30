@@ -63,6 +63,29 @@ export function applyMindNameOverride(content, rawName) {
 }
 
 /**
+ * Rewrites the first <m-society>'s name onto `name`, returning the new source.
+ *
+ * This is the society equivalent of applyMindNameOverride: an experimental
+ * multi-mind can be used as a template (`name="hearth-society"`) while Studio
+ * supplies a fresh instance (`hearth-society-1`). The override must touch the
+ * root society, not its public member (`face`), because society memory nests at
+ * memory/<society>/<member>/.
+ */
+export function applySocietyNameOverride(content, rawName) {
+  const name = String(rawName || "").replace(/["'<>]/g, "").trim();
+  if (!name) return content;
+  const tag = maskComments(content).match(/<m-society\b[^>]*>/i);
+  if (!tag) return content;
+  let attrs = tag[0].replace(/\s+memory\s*=\s*"[^"]*"/i, "");
+  if (/\bname\s*=\s*"[^"]*"/i.test(attrs)) {
+    attrs = attrs.replace(/\bname\s*=\s*"[^"]*"/i, `name="${name}"`);
+  } else {
+    attrs = attrs.replace(/^<m-society\b/i, `<m-society name="${name}"`);
+  }
+  return content.slice(0, tag.index) + attrs + content.slice(tag.index + tag[0].length);
+}
+
+/**
  * Sets the first <m-mind>'s `interlocutor="…"` attribute to `name`, returning the
  * new source. This is how an instance's COMPANION — the person the mind is in
  * conversation with — is supplied at wake without editing the file: the archml
@@ -178,6 +201,14 @@ export async function readArchitectureFile() {
     if (override && override.trim()) {
       content = applyMindNameOverride(content, override);
       log.info(`Applied MEDITATOR_MIND_NAME override → name="${override.trim()}"`);
+    }
+    // A wake-time society name override is the multi-mind analogue of
+    // MEDITATOR_MIND_NAME: it moves the WHOLE population to a fresh shared home
+    // without changing the member names inside it.
+    const societyOverride = process.env.MEDITATOR_SOCIETY_NAME;
+    if (societyOverride && societyOverride.trim()) {
+      content = applySocietyNameOverride(content, societyOverride);
+      log.info(`Applied MEDITATOR_SOCIETY_NAME override → name="${societyOverride.trim()}"`);
     }
     // A wake-time origin override (the Studio's editable origin story, or
     // MEDITATOR_ORIGIN by hand) supplies this instance's seed of thought without

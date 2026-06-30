@@ -57,7 +57,7 @@ export class MWs extends MBaseComponent {
       // Get port from the environment (the Studio supervisor places each child
       // on a distinct port via MEDITATOR_WS_PORT), else the attribute, else the
       // public default 7627. A mind run directly with no env is unchanged.
-      const port = parseInt(process.env.MEDITATOR_WS_PORT || this.attr("port") || "7627", 10);
+      const port = parseInt(this._listenPort(), 10);
 
       // Initialize WebSocket server
       this.server = new WebSocketServer({ port });
@@ -270,9 +270,9 @@ export class MWs extends MBaseComponent {
     }
     if (action === "sleep") {
       log.log("Sleep requested via websocket control.");
-      const mind = this._mind();
+      const minds = this._controlScopeMinds();
       try {
-        await Promise.resolve(mind && mind.sleep && mind.sleep());
+        await Promise.all(minds.map(mind => Promise.resolve(mind && mind.sleep && mind.sleep())));
       } catch (error) {
         log.warn("Sleep ritual error:", error.message);
       }
@@ -321,13 +321,51 @@ export class MWs extends MBaseComponent {
     return this.closest("m-mind") || this.parentElement;
   }
 
+  /** Studio assigns one supervisor port per child process. A society may contain
+   *  several m-ws components for direct member debugging; only the public socket
+   *  should take the supervisor override, while the rest keep their authored
+   *  port= values. For a lone mind, the env override remains the old behavior. */
+  _listenPort() {
+    const envPort = process.env.MEDITATOR_WS_PORT;
+    const ownPort = this.attr("port") || "7627";
+    if (!envPort) return ownPort;
+    const society = this.closest("m-society");
+    if (!society) return envPort;
+    return this._isSocietyPublicSocket(society) ? envPort : ownPort;
+  }
+
+  _isSocietyPublicSocket(society) {
+    for (const mind of Array.from(society.children)) {
+      if ((mind.tagName || "").toLowerCase() !== "m-mind") continue;
+      const ws = mind.querySelector("m-ws");
+      if (ws) return ws === this;
+    }
+    return false;
+  }
+
+  /** A control socket inside a society is the society's public membrane. Sleeping
+   *  it should settle the whole population, not only the member that owns m-ws. */
+  _controlScopeMinds() {
+    const society = this.closest("m-society");
+    if (society) {
+      const minds = Array.from(society.querySelectorAll("m-mind"))
+        .filter(m => m.closest("m-society") === society);
+      if (minds.length) return minds;
+    }
+    const mind = this._mind();
+    return mind ? [mind] : [];
+  }
+
   /** Wait (up to ~5s) for the mind and its stream to upgrade into Amanita
    *  components, so topic refs resolve instead of racing the upgrade. */
   async _whenReady() {
     for (let i = 0; i < 100; i++) {
-      const mind = this._mind();
-      const stream = mind && mind.querySelector("m-stream");
-      if (mind && mind.on && stream && stream.on) return;
+      const minds = this._controlScopeMinds();
+      const ready = minds.length && minds.every(mind => {
+        const stream = mind && mind.querySelector("m-stream");
+        return mind && mind.on && stream && stream.on;
+      });
+      if (ready) return;
       await new Promise(resolve => setTimeout(resolve, 50));
     }
   }
@@ -454,6 +492,108 @@ export class MWs extends MBaseComponent {
     this._subProp(image, "impulse", imp => imp && this._emit("image", "impulse", imp));
     this._subProp(image, "generated", img => img && this._emit("image", "generated", img));
     this._subProp(image, "error", err => err && this._emit("image", "error", err));
+
+    // If this socket is the public surface of a society, also instrument the
+    // private members for the Structure tree. Their events are tagged and marked
+    // non-public, so Studio can debug them without mixing their speech/thought
+    // into the public conversation stream.
+    this._instrumentSocietyPeers(mind);
+  }
+
+  _instrumentSocietyPeers(publicMind) {
+    const society = this.closest("m-society");
+    if (!society) return;
+    for (const mind of Array.from(society.querySelectorAll("m-mind"))) {
+      if (mind.closest("m-society") !== society || mind === publicMind) continue;
+      this._instrumentPeerMind(mind);
+    }
+  }
+
+  _instrumentPeerMind(mind) {
+    const member = mind.getAttribute("name");
+    if (!member) return;
+    const emit = (process, kind, payload = {}) => this._emit(process, kind, { member, public: false, ...payload });
+    const subMind = (suffix, cb) => this.sub(`..m-society/${member}/${suffix}`, cb);
+    const subProp = (el, prop, cb) => {
+      if (!el) return;
+      const name = el.getAttribute("name");
+      if (name) this.sub(`..m-society/${member}/${name}/${prop}`, cb);
+    };
+    const subEvent = (el, name, cb) => {
+      if (!el) return;
+      const elName = el.getAttribute("name");
+      if (elName) this.sub(`..m-society/${member}/${elName}/@${name}`, e => cb(e && e.detail));
+    };
+
+    subMind("prompt", payload => {
+      if (!payload) return;
+      if (typeof payload === "string") return emit("mind", "frame", { frameKind: "raw", frame: payload.slice(0, 8000) });
+      emit("mind", "frame", {
+        frameKind: payload.kind || "continue",
+        system: (payload.system || "").slice(0, 8000),
+        instruction: (payload.instruction || "").slice(0, 8000),
+        frame: (payload.prefill || payload.frame || "").slice(0, 8000),
+        prefix: payload.prefix || null,
+      });
+    });
+    subMind("pace", pace => pace && emit("mind", "pace", { tickMs: pace.tickMs }));
+    subMind("@interrupt-request", e => {
+      const r = (e && e.detail) || {};
+      emit("attention", "bid", {
+        source: r.source, type: r.type, reason: r.reason,
+        text: r.renderForFrame?.(),
+        salience: r.salience, urgent: !!r.urgent, clearsTail: !!r.clearsTail,
+      });
+    });
+    subMind("@interrupt", e => {
+      const r = (e && e.detail) || {};
+      emit("attention", "urgent", { type: r.type, reason: r.reason, text: r.renderForFrame?.() });
+    });
+
+    subEvent(mind.querySelector("m-stream"), "boundary", boundary => {
+      if (!boundary) return;
+      emit("stream", "boundary", {
+        reason: boundary.reason,
+        burstIndex: boundary.burstIndex,
+        burstChars: boundary.burstChars,
+      });
+      const memory = mind.querySelector("m-memory");
+      if (memory && memory.getTail) {
+        emit("memory", "state", {
+          tailLen: memory.getTail().length,
+          recentLen: memory.getRecent ? memory.getRecent().length : 0,
+          storyLen: memory.getStory ? memory.getStory().length : 0,
+        });
+      }
+    });
+
+    subProp(mind.querySelector("m-interrupts"), "decision", d => d && emit("attention", "decision", d));
+    subProp(mind.querySelector("m-loop-detector"), "loop", l => l && emit("loop", "state", l));
+    const economy = mind.querySelector("m-economy");
+    subProp(economy, "energy", energy => emit("economy", "energy", {
+      energy,
+      spent: economy ? economy.spent : null,
+      paceFactor: typeof economy?.paceFactor === "number" ? economy.paceFactor : 1,
+    }));
+    subProp(mind.querySelector("m-memory"), "compressed", c => c && emit("memory", "compressed", {
+      recentLen: (c.recent || "").length,
+      storyLen: (c.story || "").length,
+      recentPreview: (c.recent || "").slice(0, 400),
+      storyPreview: (c.story || "").slice(0, 400),
+    }));
+    subEvent(mind.querySelector("m-kb"), "filed", f => f && emit("scribe", "filed", { files: f.files || [] }));
+    const act = mind.querySelector("m-act");
+    subProp(act, "intent", i => i && emit("act", "intent", i));
+    subEvent(act, "acted", a => a && emit("act", "acted", {
+      capability: a.capability, intent: a.intent, ok: !!a.ok,
+      experience: a.experience, args: a.args, data: a.data,
+    }));
+    const speech = mind.querySelector("m-speech");
+    subProp(speech, "speaking", speaking => emit("speech", "speaking", { speaking: !!speaking }));
+    subProp(speech, "impulse", imp => imp && emit("speech", "impulse", imp));
+    subProp(speech, "speech-boundary", b => b && emit("speech", "boundary", {
+      chars: b.chars, reason: b.reason, text: (b.text || "").slice(0, 2000),
+    }));
   }
 
   /** Subscribe to a property of a (possibly absent) named sibling component. */
@@ -483,16 +623,17 @@ export class MWs extends MBaseComponent {
   /** Broadcast one telemetry event and remember it as the latest of its kind. */
   _emit(process, kind, payload) {
     const msg = { type: "event", data: { process, kind, at: new Date().toISOString(), ...payload } };
-    this._snapshot.set(`${process}/${kind}`, msg);
+    this._snapshot.set(`${payload?.member || ""}:${process}/${kind}`, msg);
     this.broadcastToClients(msg);
   }
 
-  /** Serialize the mind's component tree once (it is static after load). */
+  /** Serialize the debug scope once (a society when this is its public socket,
+   *  otherwise the single mind). The structure is static after load. */
   _structure() {
     if (this._structureCache) return this._structureCache;
-    const mind = this._mind();
-    if (!mind) return null;
-    this._structureCache = this._serializeTree(mind);
+    const root = this.closest("m-society") || this._mind();
+    if (!root) return null;
+    this._structureCache = this._serializeTree(root);
     return this._structureCache;
   }
 

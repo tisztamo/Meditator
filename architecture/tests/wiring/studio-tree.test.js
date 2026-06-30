@@ -55,3 +55,19 @@ test("a fresh-start frame (nothing underway) shows system + instruction, no assi
     expect(box.querySelector(".instr")).toBeTruthy();
     expect(box.querySelector(".frame")).toBeNull();   // no assistant prefill when no thought is in progress
 });
+
+test("member-tagged society telemetry updates that member's matching component", () => {
+    document.body.innerHTML = `<studio-tree></studio-tree>`;
+    const el = document.querySelector("studio-tree");
+    el.renderStructure({
+        tag: "m-society", name: "hearth-society", children: [
+            { tag: "m-mind", name: "face", children: [{ tag: "m-memory", name: "memory", children: [] }] },
+            { tag: "m-mind", name: "kin", children: [{ tag: "m-memory", name: "memory", children: [] }] },
+        ],
+    });
+
+    el.onEvent({ process: "memory", kind: "state", member: "kin", tailLen: 11, recentLen: 22, storyLen: 33 });
+
+    expect(el.byTag("m-memory", "face").stat.textContent).toBe("");
+    expect(el.byTag("m-memory", "kin").stat.textContent).toContain("tail 11");
+});

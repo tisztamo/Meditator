@@ -88,3 +88,9 @@ Re-run the solver and confirm the checker's script contains `«puzzle»`-spliced
 
 **Status:** Open (design agreed: transclusion at the efferent boundary — bus resolver contract + handle-expansion in the realizer + handle-menu)
 **Priority:** High (general ceiling on grounded action; small, well-scoped first milestone)
+
+**Review note:** See [efference-by-reference-critique.md](efference-by-reference-critique.md)
+for a skeptical design review. Its main recommendation is to keep the by-reference
+principle, but replace raw `«handle»` string expansion with typed, policy-checked
+reference attachments, with `m-terminal` mounting fact references as files for the
+first milestone.

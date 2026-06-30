@@ -54,7 +54,7 @@ const CLEAR_PHRASES = {
  *   - utilityModel: default for bridge/compression/observer calls
  *   - pace: the burst-to-burst tick (default "8s"), paceSigma: jitter (default "2s")
  *   - tailLength: verbatim carryover size in chars (default 1500)
- *   - bridge: "true"|"false" — whether redirects get an LLM-written bridge (default true)
+ *   - bridge: "true"|"false" — whether redirects get an LLM-written bridge (default false)
  *
  * Topics published:
  *   - "prompt": the assembled attention frame for each burst (consumed by m-stream)
@@ -518,7 +518,7 @@ export class MMind extends MBaseComponent {
         // actually seen.
         let prefix
         let thoughtInProgress = tail
-        if (stimuli.length && tail && this.attr("bridge") !== "false") {
+        if (stimuli.length && tail && this.attr("bridge") === "true") {
             const bridge = await this._writeBridge(tail, stimuli)
             prefix = "\n" + bridge + " "
             thoughtInProgress = tail + "\n" + bridge + " "

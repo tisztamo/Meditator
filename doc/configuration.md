@@ -250,7 +250,7 @@ On `<m-mind>`:
   rhythm breathes.
 - `tailLength` (default `1500`) — characters of verbatim thought carried into the
   next burst. Larger = stronger continuity, bigger prompts.
-- `bridge` (default `true`) — set `"false"` to drop the LLM-written transition
+- `bridge` (default `false`) — set `"true"` to enable the LLM-written transition
   sentence on redirects.
 
 The effective tick is also multiplied by the [economy](#budget-and-economy) pace

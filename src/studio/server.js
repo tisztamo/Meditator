@@ -11,6 +11,7 @@ import { StudioStore, parseDataUrl } from "./store.js";
 import { voiceInfo, ttsHandler, sttHandler } from "./voice.js";
 import { logger } from "../infrastructure/logger.js";
 import { registerGracefulShutdown } from "../infrastructure/gracefulShutdown.js";
+import { parseArchitecture } from "./architectureSurface.js";
 
 // The supervisor IS the Meditator runtime, so its own model config lives in THIS
 // install — anchor the default to the repo root (not process.cwd()), so the Studio
@@ -69,77 +70,8 @@ const store = new StudioStore();
 const log = logger('studio');
 const slugify = s => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "mind";
 
-/** Replace each HTML comment with same-length blanks (newlines kept), so a component
- *  tag that only appears inside a <!-- … --> comment — e.g. a design note that mentions
- *  <m-origin> in prose — is never mistaken for the real element. Equal-length blanking
- *  keeps every position outside the comments aligned with the original, so a caller can
- *  find a tag in the masked copy and still slice text out of the original `content`. */
-const maskComments = content => String(content).replace(/<!--[\s\S]*?-->/g, m => m.replace(/[^\n]/g, " "));
-
 function specLabel(spec) {
   return spec.provider === "local" ? `local/${spec.model}` : spec.model;
-}
-
-/** Tolerant parse of a .archml: the first <m-mind> attributes, whether it has an
- *  m-ws live window, and a leading <!-- … --> comment used as a description. */
-function parseArchitecture(content) {
-  // Find tags in a comment-masked copy so a <m-mind>/<m-origin> mentioned inside a
-  // comment can't be parsed as the real element — but read the leading comment (the
-  // description) and all sliced text from the original content.
-  const masked = maskComments(content);
-  const mindTag = (masked.match(/<m-mind\b[^>]*>/i) || [""])[0];
-  const attr = name => {
-    const m = mindTag.match(new RegExp(`\\b${name}\\s*=\\s*"([^"]*)"`, "i"));
-    return m ? m[1] : null;
-  };
-  const mindAt = masked.search(/<m-mind\b/i);
-  const head = mindAt >= 0 ? content.slice(0, mindAt) : content;
-  const comment = head.match(/<!--([\s\S]*?)-->/);
-  let resolvedVoice = null;
-  let resolvedUtility = null;
-  try { resolvedVoice = specLabel(resolveModelRef(attr("model"), "voice")); } catch { /* unknown ref */ }
-  try { resolvedUtility = specLabel(resolveModelRef(attr("utilityModel"), "utility")); } catch { /* unknown ref */ }
-  return {
-    name: attr("name"),
-    memory: attr("memory"),
-    model: attr("model"),
-    utilityModel: attr("utilityModel"),
-    resolvedVoice,
-    resolvedUtility,
-    pace: attr("pace"),
-    stage: attr("stage"),
-    hasWs: /<m-ws\b/i.test(content),
-    description: comment ? comment[1].trim().replace(/\s+/g, " ").slice(0, 200) : null,
-    origin: extractOrigin(content),
-    // The mind's companion (the person it talks with) — the editable default the
-    // wake panel pre-fills; null when the architecture names no companion.
-    interlocutor: attr("interlocutor") || null,
-  };
-}
-
-/** The first <m-origin>'s text — its prompt="…" attribute, else its element text —
- *  decoded to plain prose. This is the editable "origin story" the wake panel
- *  pre-fills (the seed of the mind's first thought; see mOrigin.js). Null if the
- *  architecture has no origin slot. */
-function extractOrigin(content) {
-  const masked = maskComments(content);
-  const open = masked.match(/<m-origin\b[^>]*>/i);
-  if (!open) return null;
-  const pm = open[0].match(/\bprompt\s*=\s*"([^"]*)"/i);
-  if (pm) return decodeEntities(pm[1]).trim() || null;
-  const start = open.index + open[0].length;
-  const close = masked.slice(start).search(/<\/m-origin\s*>/i);
-  if (close === -1) return null;
-  const inner = content.slice(start, start + close).replace(/<[^>]+>/g, "");
-  return decodeEntities(inner).trim() || null;
-}
-
-/** Decode the handful of XML entities applyOriginOverride emits, for display. */
-function decodeEntities(s) {
-  return String(s || "")
-    .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"').replace(/&#0*39;|&apos;/g, "'")
-    .replace(/&amp;/g, "&");
 }
 
 // --- Projects the Studio tends -------------------------------------------------
@@ -275,6 +207,22 @@ function homeInfo(slug, vaultRoot = VAULT_ROOT) {
   return { exists, files, tier: tierOf(dir, s => graveyardHas(s, vaultRoot)) };
 }
 
+function hasAnyFiles(dir) {
+  try {
+    if (fs.existsSync(path.join(dir, "memory.md"))) return true;
+    return fs.readdirSync(dir).length > 0;
+  } catch {
+    return false;
+  }
+}
+
+function transientHomesFor(meta, homeAbs) {
+  if ((meta.kind || "mind") !== "society") return [homeAbs];
+  const members = Array.isArray(meta.members) ? meta.members : [];
+  const names = members.map(m => slugify(m && m.name)).filter(Boolean);
+  return names.length ? names.map(name => path.join(homeAbs, name)) : [homeAbs];
+}
+
 /** The architecture catalog: every .archml under architecture/ (lab/ and tests/
  *  flagged), each resolved to its mind name and memory home, with collision flags.
  *  Minds under lab/ — or any mind whose <m-mind stage="experimental"> says so — are
@@ -291,20 +239,23 @@ function listArchitectures() {
         const full = path.join(dir, e.name);
         const rel = path.relative(project.archDir, full).split(path.sep).join("/");
         let meta;
-        try { meta = parseArchitecture(fs.readFileSync(full, "utf-8")); }
-        catch { meta = { name: null, memory: null, model: null, utilityModel: null, resolvedVoice: null, resolvedUtility: null, pace: null, stage: null, hasWs: false, description: null, origin: null, interlocutor: null }; }
+        try { meta = parseArchitecture(fs.readFileSync(full, "utf-8"), { resolveModelRef, specLabel }); }
+        catch { meta = { kind: "mind", name: null, memory: null, model: null, utilityModel: null, resolvedVoice: null, resolvedUtility: null, pace: null, stage: null, hasWs: false, description: null, origin: null, interlocutor: null, surface: null, members: [] }; }
         const slug = slugify(meta.memory || meta.name || "mind");
         // A mind is experimental if it lives under lab/ or marks itself so. The tag
         // is authoritative, so the flag survives a file being copied out of lab/.
         const experimental = group === "experimental" || meta.stage === "experimental";
         // A transient template's file name is a PREFIX; the Studio proposes a fresh,
         // collision-free instance name so a new tuning run never means editing the
-        // file. Suggested only for experimental minds (residents keep their fixed,
-        // deliberate name). A bare prefix with no number is treated as the prefix.
+        // file. Suggested only for experimental templates (residents keep their
+        // fixed, deliberate name). A bare prefix with no number is treated as the
+        // prefix. Societies use the same UX, but the runtime applies the override
+        // to <m-society>, not the inner public face.
         const isPrefix = experimental && group !== "test" && !/-\d+$/.test(slug);
         const suggestedName = isPrefix ? nextTransientName(meta.name || meta.memory || "mind", project) : null;
         out.push({
           file: rel, group: experimental && group !== "test" ? "experimental" : group, experimental,
+          kind: meta.kind || "mind",
           // Which project this architecture belongs to. External (non-default)
           // projects wake into their OWN vault with cwd = their root.
           project: project.name, projectRoot: project.root, external: !isDefault,
@@ -315,6 +266,8 @@ function listArchitectures() {
           hasWs: meta.hasWs, description: meta.description,
           origin: meta.origin,
           interlocutor: meta.interlocutor,
+          surface: meta.surface || null,
+          members: meta.members || [],
           homeSlug: slug,
           home: isDefault ? `memory/${slug}` : `${project.name}/memory/${slug}`,
           homeInfo: homeInfo(slug, project.vaultRoot),
@@ -368,6 +321,7 @@ function rosterSummary() {
   return [...minds.values()].map(m => ({
     id: m.id, file: m.file, name: m.name, home: m.home, baseHome: m.baseHome,
     project: m.projectName || "meditator",
+    kind: m.kind || "mind", surface: m.surface || null, members: m.members || [],
     port: m.port, public: m.port === PORT_BASE, dryRun: m.dryRun, modelProfile: m.modelProfile || null,
     state: m.state, since: m.since, hasWindow: !!(m.upstream && m.upstream.readyState === WebSocket.OPEN),
     energy: m.energy, spent: m.spent, detail: m.detail || null,
@@ -709,10 +663,11 @@ function wake(file, dryRun, modelProfile, forceTransient, reqName, reqOrigin, re
   if (resolved !== project.archDir && !resolved.startsWith(project.archDir + path.sep)) throw new Error("architecture must live under the project's architecture/");
   if (!fs.existsSync(resolved)) throw new Error(`no such architecture: ${file}`);
 
-  const meta = parseArchitecture(fs.readFileSync(resolved, "utf-8"));
-  // A wake-time name (the semi-automatic transient naming) disentangles a mind's
-  // identity from its file: when given, it drives the home and is injected into
-  // the child via MEDITATOR_MIND_NAME, so the file stays a reusable template.
+  const meta = parseArchitecture(fs.readFileSync(resolved, "utf-8"), { resolveModelRef, specLabel });
+  // A wake-time name (the semi-automatic transient naming) disentangles a
+  // transient template's identity from its file. For a society, it names the
+  // shared population home via MEDITATOR_SOCIETY_NAME; for a leaf mind, it names
+  // the <m-mind> via MEDITATOR_MIND_NAME.
   const overrideName = (reqName && String(reqName).trim()) ? slugify(reqName) : null;
   const baseHome = (dryRun ? "dry-" : "") + slugify(overrideName || meta.memory || meta.name || "mind");
   const homeAbs = path.join(project.vaultRoot, baseHome);
@@ -730,11 +685,14 @@ function wake(file, dryRun, modelProfile, forceTransient, reqName, reqOrigin, re
   // existing home loads old memory without committing new, creating an illusion
   // of a continuing subject. Override with forceTransient (testing exception).
   if (!dryRun && !forceTransient) {
-    const homeTier = tierOf(homeAbs, s => graveyardHas(s, project.vaultRoot));
-    if (homeTier === "transient") {
-      if (fs.existsSync(path.join(homeAbs, "memory.md"))) {
+    for (const transientHome of transientHomesFor(meta, homeAbs)) {
+      const homeTier = tierOf(transientHome, s => graveyardHas(s, project.vaultRoot));
+      if (homeTier === "transient" && hasAnyFiles(transientHome)) {
+        const label = project.root === ROOT
+          ? path.relative(ROOT, transientHome)
+          : `${project.name}/${path.relative(project.root, transientHome)}`;
         throw new Error(
-          `${homeLabel} is a transient mind with existing memory. ` +
+          `${label} is a transient ${meta.kind === "society" ? "society member" : "mind"} with existing memory. ` +
           `Restarting a transient loads old memory without committing new, creating an illusion of continuity. ` +
           `To force for testing: MEDITATOR_FORCE_TRANSIENT=1 bun run meditator.js -a ${file}`
         );
@@ -761,7 +719,8 @@ function wake(file, dryRun, modelProfile, forceTransient, reqName, reqOrigin, re
       // runtime's built-ins (componentLoading.js tries each path in turn).
       ...(project.componentsPath ? { MIND_COMPONENTS_PATH: project.componentsPath } : {}),
       ...(dryRun ? { MEDITATOR_DRY_RUN: "1" } : {}),
-      ...(overrideName ? { MEDITATOR_MIND_NAME: overrideName } : {}),
+      ...(overrideName && meta.kind === "society" ? { MEDITATOR_SOCIETY_NAME: overrideName } : {}),
+      ...(overrideName && meta.kind !== "society" ? { MEDITATOR_MIND_NAME: overrideName } : {}),
       // The editable origin story (the seed of the mind's first thought), when the
       // panel sent one different from the file's default — see applyOriginOverride.
       ...(reqOrigin && String(reqOrigin).trim() ? { MEDITATOR_ORIGIN: String(reqOrigin) } : {}),
@@ -787,6 +746,7 @@ function wake(file, dryRun, modelProfile, forceTransient, reqName, reqOrigin, re
   const m = {
     id, file, name, dryRun, modelProfile: profile,
     home, baseHome, hasWs: meta.hasWs,
+    kind: meta.kind || "mind", surface: meta.surface || null, members: meta.members || [],
     projectRoot: project.root, projectName: project.name, _homeAbs: homeAbs,
     port, child, state: "waking", since: startedAt,
     energy: null, spent: null, detail: "waking…",
@@ -963,18 +923,19 @@ function stimTextFor(d) {
 function onUpstreamEvent(m, msg) {
   const d = msg.data;
   const route = `${d.process}/${d.kind}`;
+  const publicTelemetry = d.public !== false;
 
   // Energy drives the roster gauge regardless of focus.
-  if (route === "economy/energy") { m.energy = d.energy; m.spent = d.spent; broadcastRoster(); }
+  if (publicTelemetry && route === "economy/energy") { m.energy = d.energy; m.spent = d.spent; broadcastRoster(); }
 
   // Images: persist bytes to disk and rewrite the data URL to a light URL on the
   // browser hop (the child's direct clients still got the raw data URL untouched).
-  if (route === "image/generated") return onUpstreamImage(m, msg);
+  if (publicTelemetry && route === "image/generated") return onUpstreamImage(m, msg);
 
   // Projection snapshot for the header/tree (latest-per-kind).
-  m.snapshots.set(route, d);
+  m.snapshots.set(`${d.member || ""}:${route}`, d);
 
-  const kind = streamTimelineKind(d);
+  const kind = publicTelemetry ? streamTimelineKind(d) : null;
   if (kind && !m._replayGuard) {
     flushPending(m);                                   // seal preceding text first → order
     const seq = ++m.seq;

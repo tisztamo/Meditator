@@ -71,6 +71,7 @@ export class StudioHeader extends A(HTMLElement) {
   }
 
   onEvent(d) {
+    if (d && d.public === false) return;
     const route = `${d.process}/${d.kind}`;
     if (route === "economy/energy") {
       const e = typeof d.energy === "number" ? d.energy : 1;
@@ -82,9 +83,14 @@ export class StudioHeader extends A(HTMLElement) {
   }
 
   renderFocus(m) {
+    const surface = m.surface || {};
+    const face = m.kind === "society"
+      ? `<span>multi-mind${surface.face ? ` · face ${esc(surface.face)}` : ""}</span>`
+      : "";
     this.focusMeta.innerHTML =
       `<span class="nm">${esc(m.name || m.file)}</span>` +
       `<span>${esc(m.file)}</span><span>:${m.port}${m.public ? ` <span class="pub">public ${this.publicPort}</span>` : ""}</span>` +
+      face +
       `<span>→ ${esc(m.home)}</span>`;
     this.renderPillForState(m.state);
   }

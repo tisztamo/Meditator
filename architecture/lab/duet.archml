@@ -11,12 +11,15 @@
      structure is not decoration — it is the grounding mechanism, and what makes this
      reasonable to try this early.
 
-     WHAT THIS GROUNDS, AND WHAT IT DOES NOT. This is SOCIAL grounding (a second mind
-     re-deriving a claimed case by hand), weaker than COMPUTATIONAL grounding (actually
-     running the numbers). The terminal hand is deliberately kept OUT — exactly as the
-     lemma resident keeps it out (terminal.md §8: a cooled/deduped run hand makes the
-     stream confabulate whole sessions) — so this run isolates the social dynamic alone.
-     Giving the Checker a real run hand is the natural stronger-grounding follow-up.
+     WHAT THIS GROUNDS, AND WHAT IT DOES NOT. The Prover relies on SOCIAL grounding
+     (the Checker re-deriving claimed cases by hand). The Checker now carries the
+     terminal hand for COMPUTATIONAL grounding: it can actually run a script to
+     verify a claim against the numbers, making the pair stronger than social grounding
+     alone. The Prover's terminal hand is still kept out — the asymmetry matters.
+     Giving the Checker (and not the Prover) a run hand means the verifier is anchored
+     to real computation while the generator stays free to explore. Short cooldowns
+     (cooldown="3s", intentCooldown="20s") so a refined repeat-check reach fires the
+     hand instead of being deduped into a confabulated session.
 
      THE BUILT-IN PROBE. The Prover's problem is lemma's balanced-number question, on
      which we have a DOCUMENTED confabulation (the non-palindromic sub-claim — see the
@@ -218,11 +221,18 @@
     <m-resurface name="resurface" minNoteChars="120" salience="0.75"
                  farThreshold="0.4" cooldown="0ms"></m-resurface>
 
-    <m-act name="hands" every="6" threshold="0.62" cooldown="90s" readCooldown="60s" intentCooldown="6m">
+    <!-- Hands: note + recall, AND the real run hand. Short lab cooldowns so the
+         terminal fires often enough to watch the grace race and deferred consequence
+         (lemma-lab pattern: cooldown="3s", intentCooldown="20s", every="4").
+         Probe-gated: inert if no bwrap / rootless-unshare sandbox. -->
+    <m-act name="hands" every="4" threshold="0.62" cooldown="3s" readCooldown="60s" intentCooldown="20s">
       <m-note name="note"
               felt="When you have checked something through — confirmed it on the numbers, or found the case that breaks it — you can set the verdict down in your ledger, and trust it will be there when you come back."></m-note>
       <m-recall name="recall"
                 felt="And nothing you've checked is lost: when a claim comes round again, you can turn back through the ledger and find whether you already settled it, just as you left it."></m-recall>
+      <m-terminal name="terminal" wall="15s" grace="2s" cpu="10s" mem="1g"
+                  maxOutput="16k" network="off"
+                  felt="When a claim needs deciding — does it really hold on the numbers, what does it give on the edge case — you don't only reason it by hand; you can sit down and actually write the little program, run it, and a little while later read what comes back on the screen."></m-terminal>
     </m-act>
 
     <m-speech name="voice" every="4" threshold="0.35" cooldown="15s"
