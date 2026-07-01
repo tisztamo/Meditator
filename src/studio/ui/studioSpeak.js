@@ -37,6 +37,13 @@ export class StudioSpeak extends A(HTMLElement) {
     this.input.addEventListener("keydown", e => { if (e.key === "Enter") this.speak(); });
     this.mic.addEventListener("click", () => this.toggleMic());
 
+    // An agent takes a TASK, not a stimulus — reword the box when one is focused.
+    this.sub("/conn/focusedKind", k => {
+      this.input.placeholder = k === "agent"
+        ? "Give the agent a task — it works, then reports back"
+        : "Speak to the mind — words arrive as experience, not instruction";
+    }).catch(() => {});
+
     this.sub("/conn/voice", v => { this.voiceOn = !!(v && v.enabled) && micSupported(); this.refresh(); });
     this.sub("/conn/focused", id => {
       this.focusedId = id;

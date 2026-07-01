@@ -41,7 +41,13 @@ export class StudioHeader extends A(HTMLElement) {
     this.sub("/conn/roster", arr => this.onRoster(arr));
     this.sub("/conn/focused", id => this.onFocused(id));
     this.sub("/conn/@lifecycle", e => this.onLifecycle(e.detail));
-    this.sub("/conn/streamState", s => { this.streamState = (s === "streaming") ? "thinking" : "idle"; this.updatePill(); });
+    // A mind's stream state is "streaming"/"idle" (shown as "thinking"/"idle"); an agent
+    // reports its own loop state ("reasoning"/"idle"/"done"/"error"), shown verbatim.
+    this.sub("/conn/streamState", s => {
+      const isAgent = this.byId[this.focusedId] && this.byId[this.focusedId].kind === "agent";
+      this.streamState = isAgent ? (s || "idle") : ((s === "streaming") ? "thinking" : "idle");
+      this.updatePill();
+    });
     this.sub("/conn/@event", e => this.onEvent(e.detail)).catch(() => {});
   }
 

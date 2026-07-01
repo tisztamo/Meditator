@@ -12,7 +12,7 @@ export function attrFromTag(tag, name) {
 
 function firstRoot(content) {
   const masked = maskComments(content);
-  const m = masked.match(/<m-(mind|society)\b[^>]*>/i);
+  const m = masked.match(/<m-(mind|society|agent)\b[^>]*>/i);
   if (!m) return null;
   return { kind: m[1].toLowerCase(), tag: m[0], index: m.index };
 }
@@ -37,13 +37,23 @@ function extractLeadingDescription(content, rootIndex) {
 
 /** The first <m-origin>'s text in a block: prompt="…", else element text. */
 export function extractOrigin(content) {
+  return extractSeed(content, "m-origin");
+}
+
+/** The first <m-objective>'s text — the agent twin of <m-origin> (the seed of the WORK). */
+export function extractObjective(content) {
+  return extractSeed(content, "m-objective");
+}
+
+/** Shared: the first <tag>'s seed text (prompt="…", else element text). */
+function extractSeed(content, tag) {
   const masked = maskComments(content);
-  const open = masked.match(/<m-origin\b[^>]*>/i);
+  const open = masked.match(new RegExp(`<${tag}\\b[^>]*>`, "i"));
   if (!open) return null;
   const pm = open[0].match(/\bprompt\s*=\s*"([^"]*)"/i);
   if (pm) return decodeEntities(pm[1]).trim() || null;
   const start = open.index + open[0].length;
-  const close = masked.slice(start).search(/<\/m-origin\s*>/i);
+  const close = masked.slice(start).search(new RegExp(`<\\/${tag}\\s*>`, "i"));
   if (close === -1) return null;
   const inner = content.slice(start, start + close).replace(/<[^>]+>/g, "");
   return decodeEntities(inner).trim() || null;
@@ -68,6 +78,23 @@ function parseMindBlock(block) {
     interlocutor: attrFromTag(tag, "interlocutor") || null,
     hasWs: /<m-ws\b/i.test(block.block || ""),
     origin: extractOrigin(block.block || ""),
+  };
+}
+
+/** The public surface of an <m-agent> root — the twin of parseMindBlock. Its seed of
+ *  work is the <m-objective> (surfaced as `origin` so the wake form edits it uniformly),
+ *  and it carries the loop's budget/stop attributes for display. */
+function parseAgentBlock(content, tag) {
+  return {
+    name: attrFromTag(tag, "name"),
+    memory: attrFromTag(tag, "memory"),
+    model: attrFromTag(tag, "model"),
+    utilityModel: attrFromTag(tag, "utilityModel"),
+    stage: attrFromTag(tag, "stage"),
+    maxSteps: attrFromTag(tag, "maxSteps"),
+    stopWhen: attrFromTag(tag, "stopWhen"),
+    hasWs: /<m-ws\b/i.test(content),
+    objective: extractObjective(content),
   };
 }
 
@@ -111,6 +138,35 @@ export function parseArchitecture(content, { resolveModelRef = null, specLabel =
       hasWs: /<m-ws\b/i.test(content), description: null, origin: null,
       interlocutor: null, surface: null, members: [],
     };
+  }
+
+  if (root.kind === "agent") {
+    // An agent is the inversion of a mind (agent-loop.md §1): a tool-calling loop, not a
+    // stream. It has no <m-origin>/interlocutor/pace; its seed of work is <m-objective>,
+    // surfaced as `origin` so the wake form's editable seed field seeds it uniformly (the
+    // server maps it to MEDITATOR_OBJECTIVE for an agent). Model refs resolve identically.
+    const agent = parseAgentBlock(content, root.tag);
+    const meta = {
+      kind: "agent",
+      name: agent.name,
+      memory: agent.memory,
+      model: agent.model,
+      utilityModel: agent.utilityModel,
+      resolvedVoice: null,
+      resolvedUtility: null,
+      pace: null,
+      stage: agent.stage,
+      hasWs: agent.hasWs,
+      description: extractLeadingDescription(content, root.index),
+      origin: agent.objective,
+      objective: agent.objective,
+      maxSteps: agent.maxSteps,
+      stopWhen: agent.stopWhen,
+      interlocutor: null,
+      surface: null,
+      members: [],
+    };
+    return resolveModels(meta, resolveModelRef, specLabel);
   }
 
   if (root.kind === "society") {

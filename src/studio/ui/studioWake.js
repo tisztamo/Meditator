@@ -189,7 +189,7 @@ export class StudioWake extends A(HTMLElement) {
     const ph = document.createElement("option");
     ph.value = ""; ph.disabled = true; ph.textContent = "— choose an architecture —";
     this.select.appendChild(ph);
-    const groups = { main: [], experimental: [], test: [] };
+    const groups = { main: [], agents: [], experimental: [], test: [] };
     for (const a of this.archList) (groups[a.group] || groups.main).push(a);
     const addGroup = (label, arr) => {
       if (!arr.length) return;
@@ -197,13 +197,14 @@ export class StudioWake extends A(HTMLElement) {
       for (const a of arr) {
         const o = document.createElement("option");
         o.value = this.key(a);
-        const kind = a.kind === "society" ? "multi-mind" : "mind";
+        const kind = a.kind === "society" ? "multi-mind" : a.kind === "agent" ? "agent" : "mind";
         o.textContent = `${a.external ? `[${a.project}] ` : ""}${a.experimental ? "⚠ " : ""}${a.name || a.file}  ·  ${kind}  ·  ${a.file}`;
         og.appendChild(o);
       }
       this.select.appendChild(og);
     };
     addGroup("architectures", groups.main);
+    addGroup("agents · tool-calling", groups.agents);
     addGroup("research preview · work in progress", groups.experimental);
     addGroup("tests", groups.test);
     // Keep an explicit prior pick across refreshes; otherwise rest on the placeholder.

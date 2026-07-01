@@ -41,6 +41,44 @@ test("Studio honors explicit society external ear and mouth attributes", () => {
   });
 });
 
+test("Studio recognizes an m-agent root and surfaces its objective as the editable seed", () => {
+  const meta = parseArchitecture(`<!-- a coding agent -->
+<m-agent name="coder" model="voice" utilityModel="utility" maxSteps="40" stopWhen="no-tools">
+  You are a coding agent.
+  <m-objective name="objective">Make the failing tests pass.</m-objective>
+  <m-reason name="reason"></m-reason>
+  <m-terminal name="terminal"></m-terminal>
+  <m-ws name="ws" port="7640"></m-ws>
+</m-agent>`);
+
+  expect(meta.kind).toBe("agent");
+  expect(meta.name).toBe("coder");
+  expect(meta.model).toBe("voice");
+  expect(meta.utilityModel).toBe("utility");
+  expect(meta.maxSteps).toBe("40");
+  expect(meta.stopWhen).toBe("no-tools");
+  expect(meta.hasWs).toBe(true);
+  // The objective is the seed of the WORK — surfaced as `origin` so the wake form edits
+  // it uniformly (the server maps it to MEDITATOR_OBJECTIVE for an agent).
+  expect(meta.objective).toBe("Make the failing tests pass.");
+  expect(meta.origin).toBe("Make the failing tests pass.");
+  expect(meta.description).toBe("a coding agent");
+  expect(meta.surface).toBe(null);
+  expect(meta.members).toEqual([]);
+});
+
+test("Studio parses a service agent (no objective, prompt= on m-objective) too", () => {
+  const meta = parseArchitecture(`<m-agent name="svc" stopWhen="finish-tool">
+  A service agent.
+  <m-reason name="reason"></m-reason>
+</m-agent>`);
+  expect(meta.kind).toBe("agent");
+  expect(meta.name).toBe("svc");
+  expect(meta.stopWhen).toBe("finish-tool");
+  expect(meta.hasWs).toBe(false);
+  expect(meta.origin).toBe(null);   // no <m-objective> — tasks arrive over the membrane
+});
+
 test("Studio keeps single-mind parsing unchanged", () => {
   const meta = parseArchitecture(`<m-mind name="seed" memory="seed-home" interlocutor="Kris">
     <m-origin name="origin" prompt="old seed"></m-origin>

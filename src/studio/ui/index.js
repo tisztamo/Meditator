@@ -15,6 +15,7 @@ import "./studioSpeech.js";
 import "./studioStim.js";
 import "./studioImage.js";
 import "./studioStreamMode.js";
+import "./studioTranscript.js";
 import "./studioTree.js";
 import "./studioLog.js";
 import "./studioSpeak.js";

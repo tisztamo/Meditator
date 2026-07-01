@@ -265,6 +265,8 @@ function listArchitectures() {
           pace: meta.pace, stage: meta.stage,
           hasWs: meta.hasWs, description: meta.description,
           origin: meta.origin,
+          // Agent (m-agent) loop attributes, for the wake form / roster detail.
+          maxSteps: meta.maxSteps || null, stopWhen: meta.stopWhen || null,
           interlocutor: meta.interlocutor,
           surface: meta.surface || null,
           members: meta.members || [],
@@ -278,6 +280,7 @@ function listArchitectures() {
   };
   for (const project of listProjects()) {
     scan(project, project.archDir, "main");
+    scan(project, path.join(project.archDir, "agents"), "agents");
     scan(project, path.join(project.archDir, "lab"), "experimental");
     scan(project, path.join(project.archDir, "tests"), "test");
   }
@@ -298,7 +301,7 @@ function listArchitectures() {
   }
   // Default project first, then ready minds, research preview, tests; stable by file.
   const prank = a => (a.projectRoot === ROOT ? 0 : 1);
-  const rank = g => (g === "main" ? 0 : g === "experimental" ? 1 : 2);
+  const rank = g => (g === "main" ? 0 : g === "agents" ? 1 : g === "experimental" ? 2 : 3);
   out.sort((a, b) => prank(a) - prank(b) || rank(a.group) - rank(b.group) || a.file.localeCompare(b.file));
   return out;
 }
@@ -611,6 +614,8 @@ function rowToWire(r) {
     case "stim":     return { k: "stim", t: r.text || "", cls: p.cls || null };
     case "speaking": return { k: "speaking", on: !!p.on };
     case "image":    return { k: "image", src: p.url || (r.image_id != null ? `/studio/image/${r.image_id}` : null), prompt: p.prompt || "" };
+    case "agent-step":   return { k: "agent-step", index: p.index, assistantText: p.assistantText || "", calls: p.calls || [], observations: p.observations || [] };
+    case "agent-answer": return { k: "agent-answer", t: r.text || "", reason: p.reason || null, steps: p.steps };
     default:         return { k: r.kind, t: r.text || "" };
   }
 }
@@ -692,7 +697,7 @@ function wake(file, dryRun, modelProfile, forceTransient, reqName, reqOrigin, re
           ? path.relative(ROOT, transientHome)
           : `${project.name}/${path.relative(project.root, transientHome)}`;
         throw new Error(
-          `${label} is a transient ${meta.kind === "society" ? "society member" : "mind"} with existing memory. ` +
+          `${label} is a transient ${meta.kind === "society" ? "society member" : meta.kind === "agent" ? "agent" : "mind"} with existing memory. ` +
           `Restarting a transient loads old memory without committing new, creating an illusion of continuity. ` +
           `To force for testing: MEDITATOR_FORCE_TRANSIENT=1 bun run meditator.js -a ${file}`
         );
@@ -720,10 +725,14 @@ function wake(file, dryRun, modelProfile, forceTransient, reqName, reqOrigin, re
       ...(project.componentsPath ? { MIND_COMPONENTS_PATH: project.componentsPath } : {}),
       ...(dryRun ? { MEDITATOR_DRY_RUN: "1" } : {}),
       ...(overrideName && meta.kind === "society" ? { MEDITATOR_SOCIETY_NAME: overrideName } : {}),
-      ...(overrideName && meta.kind !== "society" ? { MEDITATOR_MIND_NAME: overrideName } : {}),
-      // The editable origin story (the seed of the mind's first thought), when the
-      // panel sent one different from the file's default — see applyOriginOverride.
-      ...(reqOrigin && String(reqOrigin).trim() ? { MEDITATOR_ORIGIN: String(reqOrigin) } : {}),
+      ...(overrideName && meta.kind === "agent" ? { MEDITATOR_AGENT_NAME: overrideName } : {}),
+      ...(overrideName && meta.kind !== "society" && meta.kind !== "agent" ? { MEDITATOR_MIND_NAME: overrideName } : {}),
+      // The editable seed the panel sent. For a mind it is the origin story (the seed of
+      // its first thought → MEDITATOR_ORIGIN); for an agent it is the objective (the seed
+      // of the WORK → MEDITATOR_OBJECTIVE, applyObjectiveOverride). Same field, same UX.
+      ...(reqOrigin && String(reqOrigin).trim()
+        ? (meta.kind === "agent" ? { MEDITATOR_OBJECTIVE: String(reqOrigin) } : { MEDITATOR_ORIGIN: String(reqOrigin) })
+        : {}),
       // The companion this mind talks with, when the panel set one different from
       // the file's default — folds into identity + voice framing (applyInterlocutorOverride).
       ...(reqInterlocutor && String(reqInterlocutor).trim() ? { MEDITATOR_INTERLOCUTOR: String(reqInterlocutor) } : {}),
@@ -901,6 +910,9 @@ function streamTimelineKind(d) {
   if (route === "image/error") return "stim";
   if (route === "attention/urgent") return "stim";
   if (route === "attention/decision") return (d.accepted && !d.urgent) ? "stim" : null;
+  // Agent (m-agent) transcript rows: one per completed step, plus the final answer.
+  if (route === "agent/step") return "agent-step";
+  if (route === "agent/answer") return "agent-answer";
   return null;
 }
 
@@ -943,6 +955,14 @@ function onUpstreamEvent(m, msg) {
     if (kind === "boundary") entry.payload = { reason: d.reason };
     else if (kind === "speaking") entry.payload = { on: !!d.speaking };
     else if (kind === "stim") { entry.text = stimTextFor(d); entry.payload = { cls: route === "image/error" ? "warn" : null }; entry.chars = entry.text.length; }
+    else if (kind === "agent-step") {
+      entry.payload = { index: d.index, assistantText: d.assistantText || "", calls: d.calls || [], observations: d.observations || [] };
+      entry.chars = (d.assistantText || "").length + (d.observations || []).reduce((n, o) => n + (o.observation || "").length, 0);
+    } else if (kind === "agent-answer") {
+      entry.text = d.answer || "";
+      entry.payload = { reason: d.reason || null, steps: d.steps };
+      entry.chars = (d.answer || "").length;
+    }
     try { store.appendEntry(m.sessionId, entry); } catch (e) { onLog(m, "err", `store append failed: ${e.message}`); }
     forwardLive(m, msg, seq);
   } else {

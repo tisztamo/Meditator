@@ -1,8 +1,8 @@
 # Agents in Meditator: the agent loop as archml
 
 **Date:** 2026-07-01
-**Status:** Milestones 1 (kernel + loop), 2 (extensibility proof) and 3 (context +
-service mode) IMPLEMENTED (2026-07-01); milestones 4–5 still design.
+**Status:** Milestones 1 (kernel + loop), 2 (extensibility proof), 3 (context +
+service mode) and 4 (Studio panel) IMPLEMENTED (2026-07-01); milestone 5 still design.
 **Relation to other docs:** This is the concrete *loop* that
 [`doc/design-agents-norms-codex.md`](../design-agents-norms-codex.md) left
 underspecified. That doc argues (rightly) for parallel first-class roots
@@ -212,10 +212,10 @@ guarantee carry over unchanged.
   - `architecture.js` name/origin overrides target `<m-mind>`; add parallel
     `applyAgentNameOverride` / an `MEDITATOR_OBJECTIVE` override (same regex
     pattern as `applyOriginOverride`).
-  - Studio catalog/roster recognizes `m-mind` roots; teach it `m-agent` and give
-    agents a **transcript + tool-call panel** instead of a thought stream (UI
-    work, out of scope here; the `step`/`status`/`tools`/`transcript` topics feed
-    it).
+  - Studio catalog/roster recognizes `m-mind` roots; it now also recognizes `m-agent`
+    and gives agents a **transcript + tool-call panel** (`<studio-transcript>`) instead of
+    a thought stream, fed by the `step`/`status`/`tools` telemetry `m-ws` forwards.
+    ✅ **DONE — milestone 4** (see §13).
 - Optionally a shared **`MEntityKernel`** base (name, home, model inheritance,
   membrane, wake/sleep) that both `MMind` and `MAgent` extend — the DRY target
   the codex doc names. v1 can skip it and duplicate ~20 lines.
@@ -641,8 +641,28 @@ doc deliberately stops at the seam and leaves norms to that doc.
    end-to-end (validated dry via CLI, over a live socket — idle → task → terminal ×2 →
    finish → idle — and by the wiring tests). Tests: `tests/unit/context-compaction.test.js`,
    `tests/wiring/agent-context.test.js`, `tests/wiring/agent-service.test.js`. → §10.
-4. **Studio.** Transcript + tool-call panel for `m-agent` roots (feeds off
-   `step`/`status`/`tools`).
+4. **Studio.** ✅ **DONE (2026-07-01).** A transcript + tool-call panel for `m-agent`
+   roots, the operational twin of the mind's stream. **Producer:** `m-ws`'s agent branch
+   (`_instrumentAgent` in `mWs.js`) forwards the loop as telemetry — the classic
+   `{type:"status"}` state frame (drives the header pill) plus `agent/status` (rich
+   snapshot), `agent/step` (assistant text + calls + observations — the transcript body),
+   `agent/answer` (the final answer, in order) and `agent/tools` (the palette); the
+   m-agent subtree structure was already sent on connect, so the Structure column works
+   unchanged. **Supervisor:** `architectureSurface.js` recognizes the `<m-agent>` root
+   (kind `"agent"`, `<m-objective>` surfaced as the editable `origin` seed, plus
+   `maxSteps`/`stopWhen`); `server.js` scans `architecture/agents/` into a dedicated
+   `"agents"` catalog group, maps the wake seed to `MEDITATOR_OBJECTIVE` / the name to
+   `MEDITATOR_AGENT_NAME`, and routes `agent/step`/`agent/answer` into the persisted
+   stream timeline (`streamTimelineKind` → `rowToWire`), reusing the exact backfill/delta
+   machinery a mind's stream uses. **Browser:** a new `<studio-transcript>` pane (the twin
+   of `<studio-stream>`) renders steps/tools/answer; both panes gate on a new
+   `/conn/focusedKind` topic so exactly one owns the stream column (the transcript for an
+   agent, the stream for a mind); the speak box becomes a task port and the header pill
+   shows the agent's own loop state. Tests: `studio-architecture-surface` (agent parse),
+   `studio-transcript` (pane render + gating), `agent-studio` (producer telemetry over a
+   real socket). Live-validated through the supervisor end-to-end: catalogued as an agent
+   → woken dry → focused (projection snapshots) → a task streamed `agent/step`×N +
+   `agent/answer` live, then a re-focus replayed them from the persisted timeline.
 5. **Compose + govern.** Agent-as-hand inside `m-act`; the `govern` seam for
    `<m-norm>` (hands off to the codex doc).
 

@@ -74,6 +74,9 @@ export class StudioStream extends A(HTMLElement) {
   _awaitingBatch = false; hidden = false; _batching = false;
   // The focused mind's id, cached from /conn/focused so onLifecycle can match it.
   focusedId = null;
+  // The thought stream belongs to a MIND. When an agent is focused, the transcript pane
+  // (studio-transcript) owns the stream column instead, so we hide and ignore telemetry.
+  isAgent = false;
 
   onConnect() {
     this.mode = this._loadMode();
@@ -86,6 +89,9 @@ export class StudioStream extends A(HTMLElement) {
     // Track the focused id from its topic, so lifecycle messages can be matched
     // to the mind we are showing without reading the hub.
     this.sub("/conn/focused", id => { this.focusedId = id; });
+    // Hide (and stop ingesting) when the focused entity is an agent — its transcript
+    // pane owns the stream column then (agent-loop.md §13).
+    this.sub("/conn/focusedKind", k => { this.isAgent = k === "agent"; this.style.display = this.isAgent ? "none" : ""; }).catch(() => {});
     // Fresh focus: clear and await the backfill batch. Reconnect: keep what is
     // shown, settle the live tail, and await the delta batch.
     this.sub("/conn/@focusReset", () => { this.clear("reconstituting this mind"); this._awaitingBatch = true; }).catch(() => {});
@@ -122,6 +128,7 @@ export class StudioStream extends A(HTMLElement) {
 
   // ----------------------------------------------------- inbound (mode is for METERING only)
   onFragment(f) {
+    if (this.isAgent) return;        // an agent has no thought stream — the transcript pane draws it
     this._awaitingBatch = false;     // a live fragment means replay is over
     this.prime();
     const kind = f.kind === "speech" ? "speech" : "thought";
@@ -134,6 +141,7 @@ export class StudioStream extends A(HTMLElement) {
   }
 
   onEvent(d) {
+    if (this.isAgent) return;        // agent telemetry is drawn by the transcript pane
     const route = `${d.process}/${d.kind}`;
     // The mind's burst tick — size the reveal window from it. (Always honoured, even
     // mid-replay, since it only tunes the live pump.)
@@ -362,6 +370,7 @@ export class StudioStream extends A(HTMLElement) {
    * {k:"stim", t, cls} · {k:"speaking", on} · {k:"image", src, prompt}.
    */
   renderBatch(entries) {
+    if (this.isAgent) return;        // agent backfill (agent-step/answer) is the transcript pane's
     this._awaitingBatch = false;
     if (!entries || !entries.length) return;
     this.prime();

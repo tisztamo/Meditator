@@ -157,7 +157,7 @@ export class StudioConn extends A(HTMLElement) {
         this.pub("voice", (m.data && m.data.voice) || { enabled: false });
         break;
       case "architectures": this.pub("architectures", (m.data && m.data.list) || []); break;
-      case "roster":        this.roster = (m.data && m.data.minds) || []; this.pub("roster", this.roster); this._maybeRestoreFocus(); break;
+      case "roster":        this.roster = (m.data && m.data.minds) || []; this.pub("roster", this.roster); if (this.focusedId) this.pub("focusedKind", this._kindOf(this.focusedId)); this._maybeRestoreFocus(); break;
       case "woke":          if (m.data && m.data.id) this.focus(m.data.id); break;
       case "lifecycle":     this.fire("lifecycle", m.data || {}); break;
       case "state":         this.onState(m.data); break;
@@ -238,8 +238,15 @@ export class StudioConn extends A(HTMLElement) {
   force(id) { this.send({ type: "force", data: { id } }); }
 
   dismiss(id) {
-    if (id === this.focusedId) { this.focusedId = null; this.highestSeq = null; this.pub("focused", null); this.fire("focusReset", null); this._remember(null); }
+    if (id === this.focusedId) { this.focusedId = null; this.highestSeq = null; this.pub("focused", null); this.pub("focusedKind", null); this.fire("focusReset", null); this._remember(null); }
     this.send({ type: "dismiss", data: { id } });
+  }
+
+  /** The kind of a roster entry ("mind" | "society" | "agent"), defaulting to "mind"
+   *  when the roster has not delivered it yet. */
+  _kindOf(id) {
+    const m = this.roster.find(x => x.id === id);
+    return m ? (m.kind || "mind") : "mind";
   }
 
   speak(text) {
@@ -263,6 +270,10 @@ export class StudioConn extends A(HTMLElement) {
   refocus(id) {
     this.focusedId = id;
     this.pub("focused", id);
+    // Which STANCE this entity takes — a mind (thought stream) or an agent (tool-calling
+    // transcript). The stream / transcript panes gate on it to show the right column
+    // (agent-loop.md §13). Published before focusReset so a pane knows before it clears.
+    this.pub("focusedKind", this._kindOf(id));
     if (this.highestSeq == null) this.fire("focusReset", id);   // fresh: clear + repaint tail
     else this.pub("replayResume", id);                          // reconnect: keep + append delta
     this.send({ type: "focus", data: { id, sinceSeq: this.highestSeq } });

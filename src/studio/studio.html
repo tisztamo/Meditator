@@ -142,6 +142,34 @@
   .seam{display:inline-block;width:3px;height:3px;border-radius:50%;background:var(--faint);
         opacity:.28;vertical-align:.28em;margin:0 .42em}
   .seam.warn{background:var(--amber);opacity:.55}
+
+  /* ---------- agent transcript ---------- */
+  #transcript{flex:1;overflow-y:auto;display:flex;flex-direction:column;font-family:var(--sans);
+              font-size:.9rem;line-height:1.6;color:#d9d6cf;scrollbar-width:thin;scrollbar-color:#2a3040 transparent}
+  #transcript .placeholder{margin:auto;text-align:center;color:var(--faint)}
+  #transcript .placeholder .big{display:block;font-size:2rem;opacity:.4;margin-bottom:6px}
+  .ag-head{position:sticky;top:0;z-index:1;display:flex;flex-wrap:wrap;align-items:center;gap:6px;
+           padding:8px 16px;background:var(--bg);border-bottom:1px solid var(--line);min-height:16px}
+  .ag-tools{display:flex;flex-wrap:wrap;gap:5px;margin-right:auto}
+  .ag-tool{font-family:var(--mono);font-size:.66rem;color:var(--cyan);padding:1px 7px;border-radius:99px;
+           background:rgba(127,224,240,.08);border:1px solid rgba(127,224,240,.28)}
+  .ag-status{font-family:var(--mono);font-size:.7rem;color:var(--dim);white-space:nowrap}
+  .ag-body{padding:14px 16px 20px}
+  .ag-step{margin:0 0 16px;padding-left:12px;border-left:2px solid var(--line)}
+  .ag-step-h{font-family:var(--mono);font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-bottom:5px}
+  .ag-say{margin:0 0 8px;color:#e4e1d9;white-space:pre-wrap}
+  .ag-call{font-family:var(--mono);font-size:.82rem;color:var(--green);margin:4px 0;word-break:break-word}
+  .ag-call b{color:#a8ecc0;font-weight:600}
+  .ag-obs{margin:6px 0 6px;border-radius:8px;background:var(--surface2);border:1px solid var(--line);overflow:hidden}
+  .ag-obs.err{border-color:rgba(232,127,127,.4);background:rgba(232,127,127,.06)}
+  .ag-obs-h{display:block;font-family:var(--mono);font-size:.64rem;letter-spacing:.08em;text-transform:uppercase;
+            color:var(--dim);padding:5px 10px;border-bottom:1px solid var(--line)}
+  .ag-obs.err .ag-obs-h{color:var(--amber)}
+  .ag-obs pre{margin:0;padding:8px 10px;max-height:280px;overflow:auto;font-family:var(--mono);font-size:.78rem;
+              line-height:1.5;color:#cfd3cb;white-space:pre-wrap;word-break:break-word;scrollbar-width:thin}
+  .ag-answer{font-family:var(--sans);margin:12px 0;padding:12px 15px;border-radius:10px;white-space:pre-wrap;
+             background:rgba(126,226,168,.08);border:1px solid rgba(126,226,168,.32);color:#e8f3ec}
+  .ag-answer .lbl{display:block;font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;color:var(--green);margin-bottom:4px;opacity:.85}
   .caret{display:inline-block;width:8px;height:1.05em;vertical-align:-.16em;background:var(--amber);
          margin-left:1px;animation:blink 1.06s steps(1) infinite;border-radius:1px}
   /* ---------- thought folds (fold mode) ---------- */
@@ -437,6 +465,7 @@
       <div class="col left">
         <div class="colhead"><span>stream of consciousness</span><span class="hdr-right"><span class="legend">thought · 🗣 speech · ⟂ stimulus</span><studio-streammode name="streammode" class="streammode fold">fold</studio-streammode></span></div>
         <studio-stream id="stream"></studio-stream>
+        <studio-transcript id="transcript" style="display:none"></studio-transcript>
         <studio-speak class="foot"></studio-speak>
       </div>
 
