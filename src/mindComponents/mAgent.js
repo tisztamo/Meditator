@@ -1,6 +1,6 @@
 import A from "amanita"
 import { MBaseComponent } from "./mBaseComponent.js"
-import { validateAgainstSchema } from "./mAct.js"
+import { validateAgainstSchema } from "./toolSchema.js"
 import { logger } from "../infrastructure/logger.js"
 
 const log = logger("mAgent.js")

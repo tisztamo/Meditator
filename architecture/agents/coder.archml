@@ -34,11 +34,28 @@
        Swappable: replace with a plan-then-act reasoner and nothing else changes. -->
   <m-reason name="reason" toolTokens="2048" temperature="0.2"></m-reason>
 
-  <!-- The one tool. It bubbles a `capability` event that m-agent catches and offers
-       to the reasoner — no registration wiring here. Reuses the existing sandbox and,
-       inside an <m-agent>, returns the raw screen as an `observation`. -->
-  <m-terminal name="terminal" wall="60s" network="off"></m-terminal>
+  <!-- The tools. Each bubbles a `capability` event that m-agent catches and offers to
+       the reasoner — no registration wiring here, and nothing in m-agent/m-reason
+       changes when one is added or removed (agent-loop.md §8). The terminal reuses the
+       existing sandbox and, inside an <m-agent>, returns the raw screen as an
+       `observation`. read_file / write_file / edit are ~40-line leaf components that
+       read and change files inside the agent's workspace, contained to its root. -->
+  <m-terminal   name="terminal"   wall="60s" network="off"></m-terminal>
+  <m-read-file  name="read_file"></m-read-file>
+  <m-write-file name="write_file"></m-write-file>
+  <m-edit       name="edit"></m-edit>
 
-  <!-- Membrane (m-ws) + a Studio transcript/tool-call panel land in milestone 4;
-       for Phase 1 the objective is supplied at wake and progress is logged. -->
+  <!-- A pure observer (agent-loop.md §9): it watches the `step` boundary and, when the
+       agent runs essentially the same action over and over, first NUDGES it to try
+       something different and finally HALTS a genuine rut. One line, no core change —
+       the operational twin of a mind's <m-loop-detector>. -->
+  <m-repeat-guard nudgeAt="3" haltAt="6"></m-repeat-guard>
+
+  <!-- NOTE: the file tools default to the agent's own workspace home
+       (memory/coder/workspace, shared with the terminal). To let the coder work on a
+       real project instead, give the tools a root, e.g.
+         <m-read-file name="read_file" root="/path/to/project"></m-read-file>
+
+       Membrane (m-ws) + a Studio transcript/tool-call panel land in milestone 4;
+       for now the objective is supplied at wake and progress is logged. -->
 </m-agent>

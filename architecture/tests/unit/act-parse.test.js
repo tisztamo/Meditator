@@ -1,8 +1,11 @@
 // m-act's pure helpers: the closed-menu schema validator and the per-intent dedup
 // key. The decide stage reuses m-speech's tolerant parser (covered by
 // speech-parse.test.js), so here we lock in only what is new to the hands.
+// (validateAgainstSchema was hoisted to the shared toolSchema.js — agent-loop.md
+// §13 milestone 2 — since minds and agents share the closed-menu guarantee.)
 import { test, expect } from "bun:test";
-import { validateAgainstSchema, normalizeIntent } from "../../../src/mindComponents/mAct.js";
+import { validateAgainstSchema } from "../../../src/mindComponents/toolSchema.js";
+import { normalizeIntent } from "../../../src/mindComponents/mAct.js";
 
 // The look hand's real schema (efference.md §3): an object with a required enum
 // subject and an optional free-text "about".

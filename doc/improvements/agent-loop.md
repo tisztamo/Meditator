@@ -1,7 +1,8 @@
 # Agents in Meditator: the agent loop as archml
 
 **Date:** 2026-07-01
-**Status:** Milestone 1 (kernel + loop) IMPLEMENTED (2026-07-01); milestones 2–5 still design.
+**Status:** Milestones 1 (kernel + loop) and 2 (extensibility proof) IMPLEMENTED
+(2026-07-01); milestones 3–5 still design.
 **Relation to other docs:** This is the concrete *loop* that
 [`doc/design-agents-norms-codex.md`](../design-agents-norms-codex.md) left
 underspecified. That doc argues (rightly) for parallel first-class roots
@@ -366,8 +367,18 @@ never a change to the core.
 
 > Note: a tool that serves *both* minds and agents just adds a `felt:` line and
 > an `experience:` field to its result — then the same file works inside `<m-act>`
-> (mind) or under `<m-agent>` (agent). `validateAgainstSchema` can be hoisted
-> from `mAct.js` into a shared `toolSchema.js` used by both harnesses.
+> (mind) or under `<m-agent>` (agent). `validateAgainstSchema` **was** hoisted
+> from `mAct.js` into a shared `toolSchema.js` used by both harnesses (milestone 2),
+> so `m-agent` and its tools no longer import from a mind component.
+
+> **As built (milestone 2):** the three file tools share one small `fileTool.js`
+> spine — `toolRoot(el)` (an explicit `root="…"` attribute, else the agent's
+> `memory/<agent>/workspace` home, the same root `m-terminal` uses) and
+> `resolveWithin(root, rel)` (the security-critical containment check). The escape
+> check lives in that one audited place rather than being copy-pasted across three
+> leaves; each leaf stays a ~40-line component that only declares its schema and does
+> its I/O. `<m-write-file>` / `<m-edit>` are `readonly:false` (the governance flag a
+> norm gates on); `<m-edit>` requires a unique match unless `replace_all`.
 
 ---
 
@@ -402,9 +413,11 @@ export class MRepeatGuard extends MBaseComponent {
   _recent = []   // ring buffer of recent action signatures
 
   onConnect() {
-    const name = this.closest("m-agent")?.getAttribute("name")
-    const stepSrc = this.attr("stepSrc") || (name ? `..m-agent/${name}/step` : "../step")
-    this.sub(stepSrc, (step) => this._onStep(step)).catch(() => {})
+    // `step` is a FIRED event (m-agent does `this.fire("step", …)`), so subscribe with
+    // the "@" event ref and read the payload from `e.detail` — NOT a retained topic. It
+    // fires on the m-agent element itself, so the ref has no child-name segment.
+    const stepSrc = this.attr("stepSrc") || "..m-agent/@step"
+    this.sub(stepSrc, e => this._onStep(e?.detail)).catch(() => {})
     this._window  = Number(this.attr("window")  || 6)   // look-back
     this._nudgeAt = Number(this.attr("nudgeAt") || 3)   // repeats → nudge
     this._haltAt  = Number(this.attr("haltAt")  || 5)   // repeats → halt
@@ -578,10 +591,22 @@ doc deliberately stops at the seam and leaves norms to that doc.
    `architecture/agents/coder.archml` and runs end-to-end (validated dry via CLI +
    the wiring test, and the terminal against the real sandbox). Tests:
    `tests/wiring/agent-loop.test.js`, `tests/wiring/agent-terminal.test.js`,
-   `tests/unit/objective-override.test.js`. Note: `validateAgainstSchema` is still
-   imported from `mAct.js` (the hoist to a shared util is milestone 2).
-2. **Extensibility proof.** `<m-read-file>` / `<m-write-file>` / `<m-edit>` and
-   `<m-repeat-guard>`. Hoist `validateAgainstSchema` to a shared util. → §8, §9.
+   `tests/unit/objective-override.test.js`. (`validateAgainstSchema` was hoisted out
+   of `mAct.js` in milestone 2 — see below.)
+2. **Extensibility proof.** ✅ **DONE (2026-07-01).** Three file tools —
+   `<m-read-file>` (`mReadFile.js`, read-only), `<m-write-file>` (`mWriteFile.js`) and
+   `<m-edit>` (`mEdit.js`, exact-string replace, unique-match unless `replace_all`) —
+   each a ~40-line leaf that registers via the bubbling `capability` event with ZERO
+   change to `m-agent`/`m-reason`, sharing one `fileTool.js` spine (`toolRoot` +
+   the `resolveWithin` containment check). `<m-repeat-guard>` (`mRepeatGuard.js`): a
+   pure observer that watches the `step` boundary and nudges then halts a repeated
+   action (twin of `m-loop-detector`) — subscribing to the FIRED `..m-agent/@step`
+   event (the design sketch's `/step` topic form was a pre-events-refactor artefact,
+   now corrected in §9). `validateAgainstSchema` hoisted to a shared `toolSchema.js`
+   so both harnesses (and the tools) share the closed-menu guarantee without importing
+   a mind component. `coder.archml` now wires all four in as the living proof. Tests:
+   `tests/unit/file-tool.test.js`, `tests/wiring/agent-files.test.js`,
+   `tests/wiring/agent-repeat-guard.test.js`. → §8, §9.
 3. **Context + service mode.** `<m-context>` (compaction, persistence),
    task-over-port, `<m-report>`, `stopWhen="finish-tool"`. → §10.
 4. **Studio.** Transcript + tool-call panel for `m-agent` roots (feeds off
