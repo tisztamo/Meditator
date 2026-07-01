@@ -41,10 +41,12 @@ function slugify(raw) {
 }
 
 export function mindHome(el, sub) {
-    // Identity = the mind's name (the covenant's "one home per mind"); an explicit
-    // memory="slug" on <m-mind> is a deliberate override to point an architecture
-    // at a specific home. Falls back to name, then "mind".
-    const mind = el.closest('m-mind');
+    // Identity = the entity's name (the covenant's "one home per mind"); an explicit
+    // memory="slug" is a deliberate override to point an architecture at a specific
+    // home. Falls back to name, then "mind". An <m-agent> root resolves the same way
+    // (agent-loop.md §5 — the home generalizes past minds), so its terminal workspace
+    // and, later, its persisted transcript land under memory/<agent>/.
+    const mind = el.closest('m-mind, m-agent');
     const slug = slugify(mind?.getAttribute('memory') || mind?.getAttribute('name')) || 'mind';
     // A mind inside an <m-society name="…"> nests its home under the society's folder:
     // memory/<society>/<mind>. One society, one folder, a subfolder per member — so a

@@ -1,7 +1,7 @@
 # Agents in Meditator: the agent loop as archml
 
 **Date:** 2026-07-01
-**Status:** Design proposal (no code yet)
+**Status:** Milestone 1 (kernel + loop) IMPLEMENTED (2026-07-01); milestones 2–5 still design.
 **Relation to other docs:** This is the concrete *loop* that
 [`doc/design-agents-norms-codex.md`](../design-agents-norms-codex.md) left
 underspecified. That doc argues (rightly) for parallel first-class roots
@@ -568,9 +568,18 @@ doc deliberately stops at the seam and leaves norms to that doc.
 
 ## 13. Milestones
 
-1. **Kernel + loop.** `<m-agent>` + `<m-reason>` + reuse `<m-terminal>` (add an
-   `observation` field). Objective via `MEDITATOR_OBJECTIVE`. Broaden
-   `start.js` shutdown to `m-agent`. → the §7 coder runs end-to-end.
+1. **Kernel + loop.** ✅ **DONE (2026-07-01).** `<m-agent>` (`mAgent.js`) + `<m-reason>`
+   (`mReason.js`) + `<m-objective>` (`mObjective.js`); `<m-terminal>` made dual-use
+   (an agent branch `_runForAgent` returns the raw screen as an `observation`, no
+   grace-race). `MEDITATOR_OBJECTIVE` + `MEDITATOR_AGENT_NAME` overrides
+   (`applyObjectiveOverride` / `applyAgentNameOverride` in `architecture.js`);
+   `mindHome` and `start.js` shutdown broadened to `m-agent`; the dry-run tool stub
+   drives the loop offline (`debugTag:"reason"`). The §7 coder is
+   `architecture/agents/coder.archml` and runs end-to-end (validated dry via CLI +
+   the wiring test, and the terminal against the real sandbox). Tests:
+   `tests/wiring/agent-loop.test.js`, `tests/wiring/agent-terminal.test.js`,
+   `tests/unit/objective-override.test.js`. Note: `validateAgainstSchema` is still
+   imported from `mAct.js` (the hoist to a shared util is milestone 2).
 2. **Extensibility proof.** `<m-read-file>` / `<m-write-file>` / `<m-edit>` and
    `<m-repeat-guard>`. Hoist `validateAgainstSchema` to a shared util. → §8, §9.
 3. **Context + service mode.** `<m-context>` (compaction, persistence),

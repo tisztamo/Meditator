@@ -68,6 +68,11 @@ export class MTerminal extends MBaseComponent {
     _leadIdx = -1
 
     onConnect() {
+        // Dual-use (agent-loop.md §4, §14): the SAME terminal serves a mind (inside
+        // <m-act> — the grace-race deferred-sensation path below) or an agent (inside
+        // <m-agent> — a synchronous run whose raw screen is returned as an
+        // `observation` the model reads). The nearest enclosing entity decides which.
+        this._forAgent = this.closest("m-act, m-agent")?.localName === "m-agent"
         this._register()
     }
 
@@ -97,10 +102,14 @@ export class MTerminal extends MBaseComponent {
 
         const spec = {
             name,
-            description: "Actually run a small computation — write a short Python or shell script and execute it — "
-                + "when the mind wants to TRY something concrete rather than only reason it by hand: run a search, "
-                + "check a family of cases against the real numbers, count something, generate or transform data. "
-                + "The result comes back as what appears on the screen.",
+            description: this._forAgent
+                ? ("Run a shell command or a short script in the sandboxed workspace and read the raw output. "
+                    + "Use it to inspect files, run the tests, build, or otherwise check your work — 'bash' for a "
+                    + "shell command, 'python' for a quick script. The output comes back verbatim, with the exit code.")
+                : ("Actually run a small computation — write a short Python or shell script and execute it — "
+                    + "when the mind wants to TRY something concrete rather than only reason it by hand: run a search, "
+                    + "check a family of cases against the real numbers, count something, generate or transform data. "
+                    + "The result comes back as what appears on the screen."),
             felt: this.attr("felt") || ("When a question turns concrete — a count to run, a family to search, a "
                 + "guess to check against the actual numbers — you don't only reason it by hand; you can sit down "
                 + "and actually work it out, and a little while later read what comes back on the screen."),
@@ -129,6 +138,10 @@ export class MTerminal extends MBaseComponent {
      * traceback / "I let it go" is content the mind perceives.
      */
     async _terminal({ language, script, purpose } = {}) {
+        // An AGENT blocks on its tool and reads the raw result — none of the mind's
+        // grace-race / deferred-sensation machinery applies (agent-loop.md §4, §14).
+        if (this._forAgent) return this._runForAgent({ language, script, purpose })
+
         const body = (script || "").trim()
         if (!body) throw new Error("there was no script to run")
         if (language !== "python" && language !== "bash") throw new Error(`unsupported language "${language}"`)
@@ -279,6 +292,73 @@ export class MTerminal extends MBaseComponent {
             urgent: this.attr("urgent") !== "false",
             type: `Sense-${this.attr("name") || "terminal"}`,
             data: { dry: true },
+        }
+    }
+
+    // ── THE AGENT PATH (agent-loop.md §4) ──────────────────────────────────────
+    // Simpler than the mind's: an agent awaits the run synchronously and returns the
+    // raw screen as an `observation` the model reads back — no grace race, no deferred
+    // dispatch, no efference-copy framing (all of that exists only to keep a *mind's*
+    // stream flowing). Each run is self-contained (its own handle), so parallel tool
+    // calls within one step never contend for the mind-path's single desk slot.
+
+    async _runForAgent({ language, script, purpose } = {}) {
+        const body = (script || "").trim()
+        if (!body) return { observation: "error: no script was provided", isError: true }
+        if (language !== "python" && language !== "bash") {
+            return { observation: `error: unsupported language "${language}" — use "python" or "bash"`, isError: true }
+        }
+        if (isDryRun()) return this._dryAgentResult(language, body)
+
+        const runDir = await this._ensureRunDir()
+        const n = ++this._runCount
+        const ext = language === "python" ? "py" : "sh"
+        const scriptPath = path.join(runDir, ".runs", `run-${n}.${ext}`)
+        await fs.writeFile(scriptPath, body)
+
+        const handle = runScript({
+            backend: this._backend, language, runDir, scriptPath,
+            wall: this.attr("wall") || "60s",
+            killGrace: this.attr("killGrace") || "2s",
+            cpu: this.attr("cpu") || "30s",
+            mem: this.attr("mem") || "1g",
+            fileSize: this.attr("fileSize") || "64m",
+            maxProcs: Number(this.attr("maxProcs") || 256),
+            maxOutput: this.attr("maxOutput") || "16k",
+            network: this.attr("network") || "off",
+        })
+
+        let outcome
+        try {
+            outcome = await handle.done
+        } catch (error) {
+            return { observation: `error: the command could not run: ${error?.message || error}`, isError: true }
+        }
+        await this._writeTranscript(n, language, body, purpose, outcome)
+        return this._agentObservation(outcome)
+    }
+
+    // Turn a sandbox outcome into the raw observation the model reads: the verbatim
+    // screen (ANSI-stripped, tail-capped), prefixed with the exit status. isError so
+    // the loop can notice a failing command without stopping.
+    _agentObservation(outcome) {
+        const clean = stripAnsi(outcome.screen || "").replace(/[ \t]+$/gm, "").trim()
+        const shown = tail(clean, this._maxChars())
+        const truncNote = (outcome.truncated || clean.length > this._maxChars()) ? "\n[output truncated]" : ""
+        const status = outcome.timedOut ? "timed out" : `exit ${outcome.exitCode ?? 0}`
+        return {
+            observation: `(${status})\n${shown || "(no output)"}${truncNote}`,
+            data: { exitCode: outcome.exitCode, timedOut: outcome.timedOut, truncated: outcome.truncated, ms: outcome.durationMs },
+            isError: !!outcome.timedOut || (outcome.exitCode != null && outcome.exitCode !== 0),
+        }
+    }
+
+    // Offline stub for the agent path — no exec, honest that nothing ran, so a dry
+    // agent loop is exercised end-to-end without a sandbox.
+    _dryAgentResult(language, body) {
+        return {
+            observation: `(exit 0) dry-run: no command was executed.\n$ [${language}]\n${body.slice(0, 300)}`,
+            data: { dry: true, exitCode: 0 },
         }
     }
 }

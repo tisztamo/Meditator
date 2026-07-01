@@ -32,10 +32,11 @@ loadMindComponents(document).then((components) => {
     registerGracefulShutdown({
         label: "Runtime",
         sleepAll: async () => {
-            // Sleep EVERY mind in the architecture — a society runs several at once —
-            // in parallel, under one shared deadline.
-            const minds = Array.from(document.querySelectorAll("m-mind"));
-            await Promise.all(minds.map(m => Promise.resolve(m?.sleep?.())));
+            // Sleep EVERY mind AND agent in the architecture — a society runs several
+            // minds at once, and an <m-agent> root sleeps/persists on Ctrl-C too
+            // (agent-loop.md §5) — in parallel, under one shared deadline.
+            const entities = Array.from(document.querySelectorAll("m-mind, m-agent"));
+            await Promise.all(entities.map(m => Promise.resolve(m?.sleep?.())));
         },
     });
     setInterval(() => {}, 1000);

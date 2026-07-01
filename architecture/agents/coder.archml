@@ -1,0 +1,44 @@
+<!-- coder.archml — a minimalist tool-calling coding agent (agent-loop.md §7).
+     The whole Phase-1 kernel in one screen: the loop (m-agent), the model call
+     (m-reason), the seed of the task (m-objective), and one tool (m-terminal).
+
+     Run:
+       MEDITATOR_OBJECTIVE="make the failing tests pass" \
+         bun meditator.js -a architecture/agents/coder.archml
+     The objective may be written inline below instead; MEDITATOR_OBJECTIVE overrides
+     it at wake, exactly as MEDITATOR_ORIGIN seeds a mind. Ctrl-C sleeps it gracefully.
+
+     NOTE (local models): m-reason calls the model with tools, so a local vLLM must be
+     launched with --enable-auto-tool-choice and a matching --tool-call-parser
+     (agent-loop.md §12), the same requirement m-act already has. -->
+<m-agent name="coder"
+         model="voice"
+         utilityModel="utility"
+         maxSteps="40"
+         stopWhen="no-tools">
+  You are a coding agent working inside a sandboxed workspace. Given a task, you
+  make it happen: read the code, change it, and run commands to check your work,
+  looping until the task is genuinely done. Prefer small, verified steps over big
+  guesses. Never claim something works until you have run it and seen it pass.
+  When the task is complete and verified, reply with a short summary and no tool
+  call.
+
+  <!-- The seed of the WORK, held apart from the charter above — the twin of a
+       mind's <m-origin>. Seeds the first `user` turn; overridable at wake with
+       MEDITATOR_OBJECTIVE, exactly as MEDITATOR_ORIGIN seeds a mind. -->
+  <m-objective name="objective">
+    Make the failing tests in this project pass without weakening them.
+  </m-objective>
+
+  <!-- The model call. Low temperature, roomy budget for tool-calling turns.
+       Swappable: replace with a plan-then-act reasoner and nothing else changes. -->
+  <m-reason name="reason" toolTokens="2048" temperature="0.2"></m-reason>
+
+  <!-- The one tool. It bubbles a `capability` event that m-agent catches and offers
+       to the reasoner — no registration wiring here. Reuses the existing sandbox and,
+       inside an <m-agent>, returns the raw screen as an `observation`. -->
+  <m-terminal name="terminal" wall="60s" network="off"></m-terminal>
+
+  <!-- Membrane (m-ws) + a Studio transcript/tool-call panel land in milestone 4;
+       for Phase 1 the objective is supplied at wake and progress is logged. -->
+</m-agent>

@@ -720,8 +720,47 @@ function dryComplete({ prompt = '', messages }) {
 // canonical example), choosing daylight — fully offline and deterministic, so the
 // whole efferent loop runs in a dry seedling without network. m-look short-circuits
 // to canned experiences under dry-run for the other subjects too.
-function dryCompleteWithTools({ tools = [], messages } = {}) {
+function dryCompleteWithTools({ tools = [], messages, debugTag } = {}) {
   addUsage({ prompt_tokens: 220, completion_tokens: 20, cost: 0 });
+
+  // The AGENT reasoner offline (agent-loop.md §12): drive the whole tool-calling loop
+  // deterministically without a model. Decide from the transcript itself (how many
+  // tool observations already came back) so it is stateless and per-agent: take two
+  // tool steps, then STOP — call finish(summary) if the kernel offered it
+  // (finish-tool mode), else answer with no tool call (no-tools mode). This exercises
+  // assemble → reason → run tools → append → repeat, and both stop conditions.
+  if (debugTag === 'reason') {
+    const rounds = (messages || []).filter(m => m.role === 'tool').length;
+    const terminal = tools.find(t => t.function?.name === 'terminal');
+    const finish = tools.find(t => t.function?.name === 'finish');
+    if (terminal && rounds < 2) {
+      const script = rounds === 0 ? 'ls -a' : 'echo "checking" && exit 0';
+      return {
+        text: rounds === 0 ? 'Let me look at the workspace first.' : 'Now let me check my work.',
+        tool_calls: [{
+          id: `call_dry_reason_${rounds}`,
+          type: 'function',
+          function: { name: 'terminal', arguments: JSON.stringify({ language: 'bash', script, purpose: 'inspect the workspace' }) },
+        }],
+        finish_reason: 'tool_calls',
+        usage: null,
+      };
+    }
+    if (finish) {
+      return {
+        text: '',
+        tool_calls: [{
+          id: 'call_dry_finish',
+          type: 'function',
+          function: { name: 'finish', arguments: JSON.stringify({ summary: 'Dry run: inspected the workspace and the checks pass.' }) },
+        }],
+        finish_reason: 'tool_calls',
+        usage: null,
+      };
+    }
+    return { text: 'Done: I inspected the workspace and the checks pass (dry run).', tool_calls: [], finish_reason: 'stop', usage: null };
+  }
+
   const look = tools.find(t => t.function?.name === 'look');
   if (look) {
     return {

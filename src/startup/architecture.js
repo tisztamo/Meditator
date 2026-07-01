@@ -86,6 +86,28 @@ export function applySocietyNameOverride(content, rawName) {
 }
 
 /**
+ * Rewrites the first <m-agent>'s name onto `name`, returning the new source. The
+ * agent twin of applyMindNameOverride (agent-loop.md §5): a coder/service template
+ * carries name="coder" as a prefix, and the Studio (or MEDITATOR_AGENT_NAME by hand)
+ * supplies a unique instance name at wake — "coder-8" — so a fresh run never means
+ * editing the file, and the home derives from the name that actually ran. Any
+ * explicit memory="…" is dropped for the same reason as in applyMindNameOverride.
+ */
+export function applyAgentNameOverride(content, rawName) {
+  const name = String(rawName || "").replace(/["'<>]/g, "").trim();
+  if (!name) return content;
+  const tag = maskComments(content).match(/<m-agent\b[^>]*>/i);
+  if (!tag) return content;
+  let attrs = tag[0].replace(/\s+memory\s*=\s*"[^"]*"/i, "");
+  if (/\bname\s*=\s*"[^"]*"/i.test(attrs)) {
+    attrs = attrs.replace(/\bname\s*=\s*"[^"]*"/i, `name="${name}"`);
+  } else {
+    attrs = attrs.replace(/^<m-agent\b/i, `<m-agent name="${name}"`);
+  }
+  return content.slice(0, tag.index) + attrs + content.slice(tag.index + tag[0].length);
+}
+
+/**
  * Sets the first <m-mind>'s `interlocutor="…"` attribute to `name`, returning the
  * new source. This is how an instance's COMPANION — the person the mind is in
  * conversation with — is supplied at wake without editing the file: the archml
@@ -163,6 +185,37 @@ export function applyOriginOverride(content, originText) {
   return content.slice(0, start) + `${openTag}\n${escaped}\n</m-origin>` + content.slice(closeEnd);
 }
 
+/**
+ * Rewrites the first <m-objective>'s content onto `objectiveText`, returning the new
+ * source. The agent twin of applyOriginOverride (agent-loop.md §5, §7): the archml
+ * carries a default objective, the Studio shows it editable, and the chosen task is
+ * injected into the child via MEDITATOR_OBJECTIVE — exactly as MEDITATOR_ORIGIN seeds
+ * a mind. The text is written as the element's TEXT CONTENT (so multi-line tasks need
+ * no attribute gymnastics), any prompt="…" is dropped, and the value is entity-escaped
+ * so it cannot break out of the element. A blank override is a no-op (the file's
+ * default stands); an architecture with no <m-objective> is left untouched.
+ */
+export function applyObjectiveOverride(content, objectiveText) {
+  const text = String(objectiveText || "").trim();
+  if (!text) return content;
+  const masked = maskComments(content);
+  const open = masked.match(/<m-objective\b[^>]*>/i);
+  if (!open) return content;                      // no objective slot — nothing to override
+
+  const openTag = open[0].replace(/\s+prompt\s*=\s*"[^"]*"/i, "");
+  const escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  const start = open.index;
+  const afterOpen = start + open[0].length;
+  const closeRel = masked.slice(afterOpen).search(/<\/m-objective\s*>/i);
+  if (closeRel === -1) {
+    return content.slice(0, start) + `${openTag}\n${escaped}\n</m-objective>` + content.slice(afterOpen);
+  }
+  const closeStart = afterOpen + closeRel;
+  const closeEnd = closeStart + masked.slice(closeStart).match(/<\/m-objective\s*>/i)[0].length;
+  return content.slice(0, start) + `${openTag}\n${escaped}\n</m-objective>` + content.slice(closeEnd);
+}
+
 async function getArchitectureFilePath() {
   const args = process.argv;
   const fileArgIndex = args.findIndex(arg => arg === "--architecture-file" || arg === "-a");
@@ -217,6 +270,19 @@ export async function readArchitectureFile() {
     if (originOverride && originOverride.trim()) {
       content = applyOriginOverride(content, originOverride);
       log.info(`Applied MEDITATOR_ORIGIN override (${originOverride.trim().length} chars)`);
+    }
+    // The AGENT analogues (agent-loop.md §5): MEDITATOR_AGENT_NAME disentangles a
+    // transient agent's identity from its file (twin of MEDITATOR_MIND_NAME), and
+    // MEDITATOR_OBJECTIVE supplies this instance's task (twin of MEDITATOR_ORIGIN).
+    const agentNameOverride = process.env.MEDITATOR_AGENT_NAME;
+    if (agentNameOverride && agentNameOverride.trim()) {
+      content = applyAgentNameOverride(content, agentNameOverride);
+      log.info(`Applied MEDITATOR_AGENT_NAME override → name="${agentNameOverride.trim()}"`);
+    }
+    const objectiveOverride = process.env.MEDITATOR_OBJECTIVE;
+    if (objectiveOverride && objectiveOverride.trim()) {
+      content = applyObjectiveOverride(content, objectiveOverride);
+      log.info(`Applied MEDITATOR_OBJECTIVE override (${objectiveOverride.trim().length} chars)`);
     }
     // A wake-time interlocutor override (the Studio's editable companion name, or
     // MEDITATOR_INTERLOCUTOR by hand) names the person this instance talks with,
