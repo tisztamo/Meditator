@@ -1,0 +1,59 @@
+<!-- coder-service.archml — a long-running SERVICE coding agent (agent-loop.md §10), the
+     M3 companion to the one-shot coder.archml. It shows the design scaling past a single
+     task: it takes tasks over a socket, keeps its context bounded, persists across
+     restarts, and reports status — all by ADDING optional components, with no change to
+     the kernel.
+
+     Run:
+       bun meditator.js -a architecture/agents/coder-service.archml
+     Then connect to ws://localhost:7640 and send a task (plain text, or
+     {"type":"input","data":{"message":"…"}}). The agent works it, calls finish(summary),
+     and returns to idle awaiting the next. Ctrl-C sleeps it; its transcript is persisted,
+     so a restart resumes mid-task.
+
+     NOTE (local models): m-reason calls the model WITH tools, so a local vLLM must be
+     launched with --enable-auto-tool-choice and a matching --tool-call-parser
+     (agent-loop.md §12), exactly as m-act already requires. -->
+<m-agent name="coder-service"
+         model="voice"
+         utilityModel="utility"
+         maxSteps="60"
+         stopWhen="finish-tool">
+  You are a coding agent working inside a sandboxed workspace, serving one task at a
+  time. Given a task, you make it happen: read the code, change it, and run commands to
+  check your work, looping until the task is genuinely done. Prefer small, verified steps
+  over big guesses. Never claim something works until you have run it and seen it pass.
+  Call finish(summary) only when the task is complete and verified.
+
+  <!-- No <m-objective>: this agent has no static task. Tasks arrive over the membrane
+       (the m-ws socket below) as user turns, and it idles between them. -->
+
+  <!-- The model call. Roomy token budget for tool-calling turns; low temperature. -->
+  <m-reason name="reason" toolTokens="3000" temperature="0.2"></m-reason>
+
+  <!-- The tools — each self-registers via the bubbling `capability` event (agent-loop.md
+       §8), no wiring here. The terminal reuses the sandbox and, inside an agent, returns
+       the raw screen as an `observation`; the file tools are contained to the workspace. -->
+  <m-terminal   name="terminal"   wall="60s" network="off"></m-terminal>
+  <m-read-file  name="read_file"></m-read-file>
+  <m-write-file name="write_file"></m-write-file>
+  <m-edit       name="edit"></m-edit>
+
+  <!-- The agent's working memory (agent-loop.md §10): it mirrors the transcript, and when
+       it exceeds `budget` it condenses the oldest turns into a summary (reusing m-memory's
+       length-loop) while keeping the last `keepRecent` turns verbatim — the standard
+       "context window fills up" answer, as one optional component. It also persists the
+       transcript to the agent's home, so a restarted service resumes mid-task. -->
+  <m-context name="context" budget="24000" keepRecent="8"></m-context>
+
+  <!-- A pure stall observer (agent-loop.md §9): nudges then halts a repeated action. -->
+  <m-repeat-guard nudgeAt="3" haltAt="6"></m-repeat-guard>
+
+  <!-- Status out (agent-loop.md §10): republishes the agent's status as a `report` topic
+       and logs each state change, so a supervisor or the Studio can follow it. -->
+  <m-report name="status" every="1"></m-report>
+
+  <!-- Tasks in: the membrane. Under an <m-agent>, m-ws is a TASK PORT — inbound client
+       input becomes a `user` turn, and the agent's status is broadcast back. -->
+  <m-ws name="ws" port="7640"></m-ws>
+</m-agent>

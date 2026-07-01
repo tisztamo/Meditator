@@ -765,7 +765,7 @@ export function lastSentences(text, maxChars = 320) {
  * — it is never the budget. An empty response is not a compression: fall back to a
  * prior attempt, or throw so the caller keeps the raw block and retries.
  */
-export async function compressToFit({ established, fresh, targetChars, tier, generate, maxPasses = 4, contextBefore = "", contextAfter = "", lang = "" }) {
+export async function compressToFit({ established, fresh, targetChars, tier, generate, maxPasses = 4, contextBefore = "", contextAfter = "", lang = "", buildPrompt = buildCompressionPrompt }) {
     established = (established || "").trim()
     fresh = (fresh || "").trim()
     // Collapse exact-duplicate paragraphs/sentences first — pure redundancy a drifting
@@ -785,8 +785,11 @@ export async function compressToFit({ established, fresh, targetChars, tier, gen
     for (let pass = 1; pass <= maxPasses; pass++) {
         const source = draft || combined
         // Overlap context is for the initial pass only — a re-drive tightens the model's
-        // own draft, which has clean edges and needs no surrounding stream.
-        const prompt = buildCompressionPrompt({ tier, text: combined, draft, targetChars,
+        // own draft, which has clean edges and needs no surrounding stream. `buildPrompt`
+        // defaults to the mind's first-person consolidation prompt but is injectable, so
+        // another compactor (e.g. an agent's <m-context>, agent-loop.md §10) can reuse this
+        // whole length-loop — dedupe, ceiling, re-drive, nearest-fallback — with its own voice.
+        const prompt = buildPrompt({ tier, text: combined, draft, targetChars,
             contextBefore: draft ? "" : contextBefore, contextAfter: draft ? "" : contextAfter, lang })
         // Anti-truncation guard, expressed in TOKENS (it becomes max_tokens). Big enough for
         // a faithful summary — even a near-verbatim echo of the source — but capped so that

@@ -49,14 +49,24 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
  *   - toolSettleMs: how long tool registrations must be quiet before the first turn
  *     (default 300) — so the first turn already carries the tools that probe async.
  *
+ * SERVICE MODE (agent-loop.md §10): an agent with a membrane (<m-ws>/<m-console>) is a
+ * service — it takes tasks as bubbling `task` events (each a `user` turn), and after a
+ * task ends it returns to idle to await the next rather than retiring; with no static
+ * <m-objective> it simply idles until the first task lands. A one-shot agent (objective,
+ * no membrane) runs its task and retires. An optional <m-context> restores a persisted
+ * transcript on wake (resume mid-task) and compacts the working set when it overruns.
+ *
+ * Subscriptions (all optional, auto-discovered children): "reason/reply",
+ *   "<context>/restore" {messages, step}, "<context>/compacted" {summarizeCount, summary}.
+ * Events consumed (bubbling): "capability", "nudge", "halt", "task".
  * Topics published:
  *   - "turn": {system, messages, tools} — the assembled request for this step.
- *   - "status": {state, step, maxSteps, done, answer?, reason?} — for the Studio.
- *   - "transcript": the working message array (a copy) — for the Studio.
+ *   - "status": {state, step, maxSteps, done, answer?, reason?} — for the Studio / m-report.
+ *   - "transcript": the working message array (a copy) — for the Studio / m-context.
  *   - "tools": the tool schema set — for the Studio.
  * Events fired:
  *   - "step": {index, assistantText, calls, observations} — the boundary of one step.
- *   - "done": {answer, steps, reason, error?} — the loop ended.
+ *   - "done": {answer, steps, reason, error?} — a task ended (fires once per task).
  */
 export class MAgent extends MBaseComponent {
     _tools = []              // registered capabilities (from bubbling `capability` events)
@@ -71,6 +81,13 @@ export class MAgent extends MBaseComponent {
     _objectiveText = ""      // the objective (seed of the first task), mirrored from m-objective
     _hasObjective = false    // whether an <m-objective> ref was wired (so we wait for it)
     _objectiveReady = false  // whether the objective mirror has been delivered at least once
+    _taskActive = false      // a task's loop is currently running (between start and finish)
+    _retired = false         // permanently stopped (a one-shot agent that finished its task)
+    _pendingTasks = []       // tasks that arrived before wake completed, drained in _begin
+    _hasContext = false      // whether an <m-context> ref was wired (so we wait for restore)
+    _contextReady = false    // whether the context restore has been delivered at least once
+    _restoredMessages = null // a persisted transcript to resume from (from m-context)
+    _restoredStep = 0
 
     onConnect() {
         // Tools announce themselves with a bubbling `capability` event, exactly as a
@@ -85,6 +102,12 @@ export class MAgent extends MBaseComponent {
         // no change to the kernel.
         this.addEventListener("nudge", e => { const t = e?.detail?.text; if (t) this._nudges.push(String(t)) })
         this.addEventListener("halt", e => { this._halt = e?.detail?.reason || "halted by an observer" })
+
+        // A TASK arriving over the membrane (agent-loop.md §10): a bubbling `task` event
+        // (m-ws fires it on client input for an agent), whose text becomes a `user` turn.
+        // A service agent with no static objective idles until the first one lands, and
+        // returns to idle after each — the deliberate service-mode inversion of a one-shot.
+        this.addEventListener("task", e => { e.stopPropagation(); this._enqueueTask(e?.detail?.text ?? e?.detail) })
 
         // Mirror the OBJECTIVE — the task this agent was set — the decoupled way
         // (decoupling.md): m-objective publishes its text on `prompt`; we mirror it
@@ -103,6 +126,19 @@ export class MAgent extends MBaseComponent {
         // rejection when the ref never resolves. (The loop itself won't start without a
         // reasoner — _whenAlive throws and _begin bails.)
         this.sub("reason/reply", reply => this._onReply(reply)).catch(() => {})
+
+        // The optional <m-context> (agent-loop.md §10) is the agent's working memory: it
+        // restores a persisted transcript on wake (so a service resumes mid-task) and asks
+        // to compact the working set when it overruns its budget. Both are retained topics
+        // we mirror from an auto-discovered child, never a reach-in — the same decoupled
+        // idiom as reason/reply. Absent m-context, the transcript simply grows unbounded.
+        const context = this.querySelector("m-context[name]")
+        const ctxName = context?.getAttribute("name")
+        this._hasContext = !!ctxName
+        if (ctxName) {
+            this.sub(`${ctxName}/restore`, r => this._onRestore(r)).catch(() => {})
+            this.sub(`${ctxName}/compacted`, c => this._onCompacted(c)).catch(() => {})
+        }
 
         this._begin()
     }
@@ -150,21 +186,38 @@ export class MAgent extends MBaseComponent {
         // agent can declare completion explicitly (agent-loop.md §6).
         if (this._stopWhen() === "finish-tool") this._registerFinishTool()
 
-        // Seed the first `user` turn with the objective, exactly as a mind's first
-        // thought is seeded from its <m-origin>. A service agent with no objective
-        // waits for a task over its membrane instead (Phase 3); with neither, idle.
-        const objective = (this._objectiveText || "").trim()
-        if (objective) {
-            this._messages.push({ role: "user", content: objective })
-            log.info(`"${this.attr("name") || "agent"}" begins its objective (${objective.length} chars).`)
-        } else if (!this._hasMembrane()) {
-            log.warn(`"${this.attr("name") || "agent"}" has no objective and no membrane — nothing to do.`)
-            this.pub("status", { state: "idle", step: 0, maxSteps: this._maxSteps(), done: false })
+        // Resume from a persisted transcript if <m-context> restored one (agent-loop.md §10):
+        // a restarted service picks its work back up mid-task rather than seeding fresh.
+        if (this._restoredMessages && this._restoredMessages.length) {
+            this._messages = [...this._restoredMessages]   // own a copy; never mutate the restore payload
+            this._step = Number(this._restoredStep) || 0
+            this._taskActive = true
+            log.info(`"${this.attr("name") || "agent"}" resumes a restored transcript (${this._messages.length} messages, from step ${this._step}).`)
+            this.pub("transcript", [...this._messages])
+            this._publishTurn()
+            this._drainPendingTasks()
             return
         }
 
-        this.pub("transcript", [...this._messages])
-        this._publishTurn()
+        // Seed the first `user` turn with the objective, exactly as a mind's first
+        // thought is seeded from its <m-origin>. A service agent with no objective waits
+        // for a task over its membrane instead (§10); with neither, there is nothing to do.
+        const objective = (this._objectiveText || "").trim()
+        if (objective) {
+            this._messages.push({ role: "user", content: objective })
+            this._taskActive = true
+            log.info(`"${this.attr("name") || "agent"}" begins its objective (${objective.length} chars).`)
+            this.pub("transcript", [...this._messages])
+            this._publishTurn()
+        } else if (this._hasMembrane()) {
+            log.info(`"${this.attr("name") || "agent"}" is a service agent — awaiting its first task over the membrane.`)
+            this.pub("status", { state: "idle", step: 0, maxSteps: this._maxSteps(), done: false })
+        } else {
+            log.warn(`"${this.attr("name") || "agent"}" has no objective and no membrane — nothing to do.`)
+            this.pub("status", { state: "idle", step: 0, maxSteps: this._maxSteps(), done: false })
+        }
+
+        this._drainPendingTasks()
     }
 
     /** Wait until m-reason is upgraded, the objective mirror has landed (if declared),
@@ -177,7 +230,8 @@ export class MAgent extends MBaseComponent {
             const reason = this.querySelector("m-reason")
             const reasonReady = reason && reason.on
             const objectiveReady = !this._hasObjective || this._objectiveReady
-            if (reasonReady && objectiveReady) { ready = true; break }
+            const contextReady = !this._hasContext || this._contextReady
+            if (reasonReady && objectiveReady && contextReady) { ready = true; break }
             await delay(100)
         }
         if (!ready) throw new Error("m-reason did not come up in time")
@@ -334,7 +388,8 @@ export class MAgent extends MBaseComponent {
 
     /** The agent's CHARTER — the system turn, standing in every step. The <m-agent>'s
      *  own prose (its direct text, ignoring child elements), the twin of a mind's
-     *  identity. Context compaction (a prepended summary) lands in Phase 3 (m-context). */
+     *  identity. Context compaction folds the OLDEST turns into a summary message inside
+     *  the transcript itself (see _onCompacted / <m-context>), not into this charter. */
     _system() {
         return this.getPrompt().trim()
     }
@@ -359,29 +414,116 @@ export class MAgent extends MBaseComponent {
         })
     }
 
+    /** End the CURRENT task: fire `done`, publish status. Then the service-mode fork
+     *  (agent-loop.md §10): an agent with a membrane returns to idle to await the next
+     *  task (its transcript persists and rolls on); a one-shot agent retires. `_done`
+     *  guards the loop between tasks and is cleared by _resetForNextTask. */
     _finish(answer, reason, extra = {}) {
         if (this._done) return
         this._done = true
+        this._taskActive = false
         const detail = { answer: answer || null, steps: this._step, reason, ...extra }
         this.pub("status", { state: extra.error ? "error" : "done", step: this._step, maxSteps: this._maxSteps(), done: true, answer: answer || null, reason })
         this.fire("done", detail)
         if (extra.error) log.warn(`"${this.attr("name") || "agent"}" stopped after ${this._step} step(s): ${reason} (${extra.error})`)
         else log.info(`"${this.attr("name") || "agent"}" finished after ${this._step} step(s): ${reason}`)
+
+        if (this._sleeping) return
+        if (this._hasMembrane()) this._resetForNextTask()
+        else this._retired = true
+    }
+
+    /** Return a service agent to idle after a task ends: clear the per-task loop state
+     *  (but KEEP the transcript — it carries context into the next task, bounded by
+     *  <m-context>) and await the next inbound task. */
+    _resetForNextTask() {
+        // A message that folded in during the just-finished task but never got a turn
+        // (it arrived on the very last step) would otherwise be wiped here — carry it
+        // over as the seed of the next task so nothing said to the agent is lost.
+        const leftover = this._nudges.splice(0)
+        this._done = false
+        this._taskActive = false
+        this._step = 0
+        this._awaitingReply = false
+        this._halt = null
+        this._nudges = []
+        this._pendingTasks.push(...leftover)
+        this.pub("status", { state: "idle", step: 0, maxSteps: this._maxSteps(), done: false })
+        log.info(`"${this.attr("name") || "agent"}" is idle — awaiting the next task.`)
+        this._drainPendingTasks()
+    }
+
+    /** Accept a task (a `user` turn) arriving over the membrane. Before wake completes it
+     *  is buffered and drained in _begin. While a task is running, a new one folds into the
+     *  next turn as a user note (open-Q3 v1: arrival order). When idle, it starts the loop. */
+    _enqueueTask(raw) {
+        const text = String(raw ?? "").trim()
+        if (!text || this._sleeping || this._retired) return
+        if (!this._alive) { this._pendingTasks.push(text); return }
+        if (this._taskActive) {
+            this._nudges.push(`A new message from the user just arrived: ${text}`)
+            log.info(`"${this.attr("name") || "agent"}" folded an incoming message into the running task.`)
+            return
+        }
+        this._messages.push({ role: "user", content: text })
+        this._taskActive = true
+        this._done = false
+        this._step = 0
+        log.info(`"${this.attr("name") || "agent"}" received a task (${text.length} chars) and begins.`)
+        this.pub("transcript", [...this._messages])
+        this._publishTurn()
+    }
+
+    _drainPendingTasks() {
+        if (!this._pendingTasks.length) return
+        const queued = this._pendingTasks.splice(0)
+        for (const t of queued) this._enqueueTask(t)
+    }
+
+    /** m-context restored a persisted transcript on wake (or an empty one). Held for
+     *  _begin, which decides resume-vs-seed once the reasoner and tools are also ready. */
+    _onRestore(restore) {
+        this._contextReady = true
+        if (!restore) return
+        this._restoredMessages = Array.isArray(restore.messages) ? restore.messages : null
+        this._restoredStep = Number(restore.step) || 0
+    }
+
+    /** m-context asks to compact: replace the first `summarizeCount` messages with one
+     *  summary message (agent-loop.md §10). We own the array, so the splice happens HERE.
+     *  It is provider-safe because m-context chose the cut so messages[summarizeCount] is
+     *  not a `tool` message (it never orphans a tool response from its assistant); we
+     *  re-check and refuse otherwise. Messages appended while the summary was being written
+     *  sit AFTER the cut, so they are preserved untouched. */
+    _onCompacted(compacted) {
+        if (this._sleeping || !compacted) return
+        const n = Number(compacted.summarizeCount)
+        const summary = (compacted.summary || "").trim()
+        if (!(n >= 2) || !summary || n >= this._messages.length) return
+        if (this._messages[n]?.role === "tool") {
+            log.warn("refusing a compaction that would orphan a tool response; keeping the full transcript")
+            return
+        }
+        const head = { role: "user", content: `[Earlier context, condensed]\n${summary}` }
+        this._messages = [head, ...this._messages.slice(n)]
+        this.pub("transcript", [...this._messages])
+        log.info(`context compacted: folded ${n} messages into a summary (${this._messages.length} messages now).`)
     }
 
     _maxSteps() { return Number(this.attr("maxSteps") || 40) }
     _stopWhen() { return (this.attr("stopWhen") || "no-tools").toLowerCase() }
 
-    /** Whether the agent has a membrane (a task port) it could receive work over —
-     *  so a service agent with no static objective isn't mistaken for having nothing
-     *  to do. (m-ws / task-port wiring lands in Phase 3.) */
+    /** Whether the agent has a membrane (a task port) it could receive work over — the
+     *  service-mode signal: with one, a finished agent returns to idle to await the next
+     *  task instead of retiring, and a task-less agent waits for its first task. */
     _hasMembrane() { return !!this.querySelector("m-ws, m-console") }
 
     /**
      * The sleep ritual, for graceful shutdown (start.js). An agent holds no narrative
-     * self to close, so this is quiet: stop the loop and report. Persistence of the
-     * transcript (so a restarted service resumes mid-task) lands with <m-context> in
-     * Phase 3; here there is nothing to flush. Idempotent.
+     * self to close, so this is quiet: stop the loop and report. Transcript persistence
+     * (so a restarted service resumes mid-task) is owned by <m-context>, which writes on
+     * every change — the last working set is already on disk — so there is nothing to
+     * flush here. Idempotent.
      */
     async sleep() {
         if (this._sleeping) return

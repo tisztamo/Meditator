@@ -1,8 +1,8 @@
 # Agents in Meditator: the agent loop as archml
 
 **Date:** 2026-07-01
-**Status:** Milestones 1 (kernel + loop) and 2 (extensibility proof) IMPLEMENTED
-(2026-07-01); milestones 3–5 still design.
+**Status:** Milestones 1 (kernel + loop), 2 (extensibility proof) and 3 (context +
+service mode) IMPLEMENTED (2026-07-01); milestones 4–5 still design.
 **Relation to other docs:** This is the concrete *loop* that
 [`doc/design-agents-norms-codex.md`](../design-agents-norms-codex.md) left
 underspecified. That doc argues (rightly) for parallel first-class roots
@@ -617,8 +617,30 @@ doc deliberately stops at the seam and leaves norms to that doc.
    workspace root itself (`_ensureRunDir` branches on `_forAgent`), so write → run →
    read composes with plain relative paths. Test: `tests/wiring/agent-workspace-coherence.test.js`
    (real sandbox). The mind's per-wake-subdir path is unchanged.
-3. **Context + service mode.** `<m-context>` (compaction, persistence),
-   task-over-port, `<m-report>`, `stopWhen="finish-tool"`. → §10.
+3. **Context + service mode.** ✅ **DONE (2026-07-01).** `<m-context>` (`mContext.js`) is
+   the agent's working memory, a PURE OBSERVER (zero change to `m-agent`/`m-reason`): it
+   mirrors the `transcript`, and on each `step`, when the transcript exceeds `budget`, it
+   condenses the oldest turns into a summary and publishes a `compacted` intent that
+   `m-agent` splices in — reusing `m-memory`'s `compressToFit` length-loop (dedupe →
+   rewrite → re-drive → nearest-fallback) with an agent-transcript voice via an injected
+   `buildPrompt` (the one small change to `mMemory.js`). The split point (`planCompaction`)
+   never orphans a `tool` response from its `assistant`, so the spliced transcript stays
+   provider-valid (§12). It also persists the transcript (JSON) to the agent home on every
+   change and publishes `restore` on wake, so a restarted service resumes mid-task.
+   **Service mode:** an agent with a membrane (`<m-ws>`/`<m-console>`) takes tasks as
+   bubbling `task` events (each a `user` turn) and, after a task ends, returns to idle to
+   await the next rather than retiring; with no static `<m-objective>` it idles until the
+   first task lands (a one-shot agent — objective, no membrane — still retires). Tasks
+   arriving before wake are buffered; one arriving mid-task folds into the next turn
+   (open-Q3 v1). `<m-ws>` is now **dual-use**: under an `<m-agent>` it is a TASK PORT —
+   inbound client input fires a `task` event (not a mind `interrupt-request`) and it
+   broadcasts the agent's `status` — with the mind path byte-for-byte unchanged (guarded by
+   `_forAgent()`). `<m-report>` (`mReport.js`): a pure observer that republishes `status`
+   as a `report` topic and logs each state change. `stopWhen="finish-tool"` was already in
+   M1. The §10 service agent is `architecture/agents/coder-service.archml` and runs
+   end-to-end (validated dry via CLI, over a live socket — idle → task → terminal ×2 →
+   finish → idle — and by the wiring tests). Tests: `tests/unit/context-compaction.test.js`,
+   `tests/wiring/agent-context.test.js`, `tests/wiring/agent-service.test.js`. → §10.
 4. **Studio.** Transcript + tool-call panel for `m-agent` roots (feeds off
    `step`/`status`/`tools`).
 5. **Compose + govern.** Agent-as-hand inside `m-act`; the `govern` seam for

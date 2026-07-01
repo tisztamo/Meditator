@@ -76,6 +76,17 @@ export class MWs extends MBaseComponent {
       // un-upgraded elements and the short retry window would expire.
       await this._whenReady();
 
+      // Dual-use (agent-loop.md §10): under an <m-agent> there is no thought-stream to
+      // transport and no mind to instrument. The socket becomes a TASK PORT — inbound
+      // client input is fired as a `task` event (handleInputAndCreateInterrupt) that
+      // bubbles to the agent — and we broadcast the agent's status so a client can watch
+      // it work. The mind path below is untouched.
+      if (this._forAgent()) {
+        this.sub("..m-agent/status", status => status && this.broadcastToClients({ type: "status", data: status })).catch(() => {});
+        log.debug("WebSocket component initialized as an agent task port");
+        return;
+      }
+
       // Subscribe to stream chunks and state changes. Mind-relative refs (..m-mind/…)
       // so this binds to ITS OWN mind's stream even when several minds run together in
       // one document (a society); for a lone mind it resolves to the very same element
@@ -235,6 +246,14 @@ export class MWs extends MBaseComponent {
       }
     });
 
+    // Under an <m-agent> the input is a TASK, not a stimulus for a mind's attention: fire
+    // a bubbling `task` event the agent folds into a `user` turn (agent-loop.md §10). No
+    // InterruptRecord / attention machinery is involved — that is a mind concept.
+    if (this._forAgent()) {
+      this.fire("task", { text: input, clientId: clientInfo.clientId });
+      return;
+    }
+
     // Create an urgent external stimulus and put it on the interrupt bus.
     // Store the raw user input in `reason`, the mind's companion as `from`, and the
     // mind's ambient language as `lang`: the framing "<from> says: …" (in that
@@ -356,9 +375,25 @@ export class MWs extends MBaseComponent {
     return mind ? [mind] : [];
   }
 
+  /** True when this socket belongs to an <m-agent> rather than an <m-mind> — it is then
+   *  a task port, not a mind window (agent-loop.md §10). */
+  _forAgent() {
+    return !!this.closest("m-agent") && !this.closest("m-mind");
+  }
+
   /** Wait (up to ~5s) for the mind and its stream to upgrade into Amanita
    *  components, so topic refs resolve instead of racing the upgrade. */
   async _whenReady() {
+    // An agent has no m-stream to wait on — just wait for the <m-agent> to upgrade so
+    // its status topic resolves, then return.
+    if (this._forAgent()) {
+      for (let i = 0; i < 100; i++) {
+        const agent = this.closest("m-agent");
+        if (agent && agent.on) return;
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      return;
+    }
     for (let i = 0; i < 100; i++) {
       const minds = this._controlScopeMinds();
       const ready = minds.length && minds.every(mind => {
