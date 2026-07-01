@@ -12,6 +12,13 @@ not necessarily acted on yet. Each note states its status at the top.
 - [compressor-not-distilling.md](compressor-not-distilling.md) — on loop-saturated
   drift the utility model echoes instead of distilling, and with the in-code budget
   enforcer removed, `recent`/`story` bloat 10–20× over budget (observed: `lemma-lab-5`).
+- [refrain-loop-detection.md](refrain-loop-detection.md) — the **detection** companion:
+  the bloat is driven by one shape, a *refrain template with a rotating slot* ("I decide
+  the system must ___", filled fresh each burst), which slips past the loop detector (reads
+  as "content"), `dedupeExact` (near-dup, not exact), and the compressor (echoes it — a 14k
+  looped block shrank 4 chars in two passes) all at once. Proposes a cheap code-level
+  refrain metric to feed `m-loop-detector`; pairs with `experiments/compression-failure/`
+  (observed: `noosphere-lab` 2026-06-30→07-01).
 - [fact-memory.md](fact-memory.md) — design for a **third kind of memory** (`m-facts`):
   a verbatim, keyed store independent of the narrative compressor, tiered as pinned
   reference data (woven into every frame) + keyed verbatim recall for an earned ledger.
