@@ -45,8 +45,10 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
  * @interface
  * Attributes (terminal.md §5):
  *   - name: the tool-call function name (default "terminal")
- *   - workspace: the desk root (default: the mind's vault home `workspace/`); a per-run
- *     subdir run-<stamp>/ is created under it (gitignored — scratch, not versioned)
+ *   - workspace: the desk root (default: the vault home `workspace/`). For a MIND a
+ *     per-run subdir run-<stamp>/ is created under it (gitignored — scratch, not
+ *     versioned); for an AGENT the terminal runs in the root itself, shared with the
+ *     agent's file tools so write_file → run → read_file composes (agent-loop.md §8)
  *   - wall: wall-clock timeout (default "20s")
  *   - grace: finish within this → fast path; else started-now + deferred result (default "2s")
  *   - cpu: CPU-seconds cap, ulimit -t (default "10s")
@@ -258,8 +260,18 @@ export class MTerminal extends MBaseComponent {
     async _ensureRunDir() {
         if (this._runDir) return this._runDir
         const root = this.attr("workspace") || mindHome(this, "workspace")
-        const stamp = new Date().toISOString().replace(/[:.]/g, "-")
-        this._runDir = path.resolve(path.join(root, `run-${stamp}`))
+        // WORKSPACE COHERENCE (agent-loop.md §8, §14 open-Q #1). An AGENT shares ONE
+        // workspace with its file tools (read/write/edit), so the terminal must run IN
+        // that shared root — then a file the agent just wrote with write_file is directly
+        // runnable, and the script's output is readable back, with the plain relative
+        // paths the model assumes (`python3 foo.py`). The sandbox binds the run dir as its
+        // single writable path, so pointing it at the workspace root also makes the
+        // workspace writable to the script. A MIND's terminal is self-contained scratch
+        // that nothing else shares, so it keeps a fresh per-wake run-<stamp>/ subdir,
+        // out of the way of its versioned memory home.
+        this._runDir = this._forAgent
+            ? path.resolve(root)
+            : path.resolve(path.join(root, `run-${new Date().toISOString().replace(/[:.]/g, "-")}`))
         await fs.mkdir(path.join(this._runDir, ".runs"), { recursive: true })
         return this._runDir
     }
@@ -300,7 +312,9 @@ export class MTerminal extends MBaseComponent {
     // raw screen as an `observation` the model reads back — no grace race, no deferred
     // dispatch, no efference-copy framing (all of that exists only to keep a *mind's*
     // stream flowing). Each run is self-contained (its own handle), so parallel tool
-    // calls within one step never contend for the mind-path's single desk slot.
+    // calls within one step never contend for the mind-path's single desk slot. It runs
+    // IN the agent's shared workspace root (see _ensureRunDir), so write_file → run →
+    // read_file composes with plain relative paths.
 
     async _runForAgent({ language, script, purpose } = {}) {
         const body = (script || "").trim()

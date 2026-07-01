@@ -23,16 +23,18 @@ beforeAll(async () => {
     fs.mkdirSync(ws, { recursive: true });
 
     // A bare agent (no <m-reason> → the loop never starts, mirroring agent-terminal): we
-    // only want the registered tools. Each file tool is rooted at the temp workspace.
+    // only want the registered tools. Each file tool is rooted at the temp workspace,
+    // inlined into the markup: a file tool reads its `root` in onConnect, and once these
+    // tags are registered by an earlier test file, innerHTML upgrades them synchronously,
+    // so a setAttribute after assignment would be too late.
     document.body.innerHTML = `
       <m-agent name="files-test" toolSettleMs="60">
         The agent.
-        <m-read-file  name="read_file"></m-read-file>
-        <m-write-file name="write_file"></m-write-file>
-        <m-edit       name="edit"></m-edit>
+        <m-read-file  name="read_file"  root="${ws}"></m-read-file>
+        <m-write-file name="write_file" root="${ws}"></m-write-file>
+        <m-edit       name="edit"       root="${ws}"></m-edit>
       </m-agent>
     `;
-    for (const t of document.querySelectorAll("m-read-file, m-write-file, m-edit")) t.setAttribute("root", ws);
 
     await loadMindComponents(document);
     await delay(150);   // let the capabilities bubble up and register

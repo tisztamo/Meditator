@@ -607,6 +607,16 @@ doc deliberately stops at the seam and leaves norms to that doc.
    a mind component. `coder.archml` now wires all four in as the living proof. Tests:
    `tests/unit/file-tool.test.js`, `tests/wiring/agent-files.test.js`,
    `tests/wiring/agent-repeat-guard.test.js`. → §8, §9.
+   **First live run (coder.archml on ardincoder-1, 2026-07-01):** it completed a
+   write-script → run → read-back → report task correctly and honestly (read real
+   errors and adapted rather than confabulating success — §12 held). It also exposed
+   the **workspace-coherence** flaw (open-Q #1): the file tools wrote to the workspace
+   root but the terminal ran in a per-wake `run-<stamp>/` subdir (the only writable
+   path), so `write_file foo.py` → `terminal python3 foo.py` failed until the model
+   reverse-engineered the layout. **Fixed:** an agent's terminal now runs IN the shared
+   workspace root itself (`_ensureRunDir` branches on `_forAgent`), so write → run →
+   read composes with plain relative paths. Test: `tests/wiring/agent-workspace-coherence.test.js`
+   (real sandbox). The mind's per-wake-subdir path is unchanged.
 3. **Context + service mode.** `<m-context>` (compaction, persistence),
    task-over-port, `<m-report>`, `stopWhen="finish-tool"`. → §10.
 4. **Studio.** Transcript + tool-call panel for `m-agent` roots (feeds off
@@ -618,10 +628,12 @@ doc deliberately stops at the seam and leaves norms to that doc.
 
 ## 14. Open questions
 
-1. **One `<m-terminal>`, two modes, or two components?** Dual-use (one file that
-   returns both `observation` and `experience`) is elegant but the mind's
-   grace-race path is dead weight for an agent. Leaning: keep `m-terminal`
-   dual-use for parity, and let the async path be a mind-only branch.
+1. **One `<m-terminal>`, two modes, or two components?** ✅ **Resolved (M1–2):**
+   `m-terminal` is dual-use — the async grace-race path is a mind-only branch, and the
+   agent branch runs synchronously. The first live run added a second, concrete
+   resolution: an agent's terminal shares its file tools' workspace root as its writable
+   working directory (not a per-wake `run-<stamp>/` subdir), so write → run → read
+   composes. The mind keeps the per-wake subdir. See §7 milestone 2.
 2. **Streaming the assistant text.** Discrete `completeWithTools` is simplest.
    Streaming the natural-language part (via `chatStream`) would reuse the
    Studio's stream renderer for the "thinking out loud between tool calls" — nice
