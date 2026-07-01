@@ -143,7 +143,17 @@ export async function loadModelConfig() {
   activeProfile = getModelProfile(config.defaultProfile);
 
   if (!config.profiles?.[activeProfile]) {
-    throw new Error(`Unknown model profile "${activeProfile}" in ${path}`);
+    const available = config.profiles ? Object.keys(config.profiles) : [];
+    const suggestion = available.find(
+      p => p.toLowerCase().includes(activeProfile.toLowerCase()) ||
+           activeProfile.toLowerCase().includes(p.toLowerCase())
+    ) ?? null;
+    const hint = suggestion
+      ? ` Did you mean "${suggestion}"?`
+      : available.length > 0
+        ? ` Available profiles: ${available.join(", ")}.`
+        : ` No profiles are defined in the config.`;
+    throw new Error(`Unknown model profile "${activeProfile}" in ${path}.${hint}`);
   }
 
   // Pre-flight: resolve every role under the active profile and verify that
