@@ -1,0 +1,72 @@
+<!-- researcher.archml — COMPOSITION: a mind that owns an agent as a single hand
+     (agent-loop.md §11, milestone 5). The two stances meet without contradiction.
+
+     The mind thinks inwardly as always. When its wondering turns concrete — something
+     that needs actually DOING rather than only reasoning through — m-act realizes the
+     reach by handing a task to the private <m-agent role="subagent"> below. That agent
+     runs its WHOLE tool-calling loop backstage (read → change → run → check → repeat),
+     and only its final outcome re-enters the mind as one plain first-person sensation.
+
+     THE ONE RULE holds at the mind's membrane (efference.md): the conscious stream is
+     never given a tool. It wonders; a subconscious realizer hands the work off; the
+     world answers, some bursts later, as a sensation of work carried through — even
+     though a full agent, with its own reasoner and tools, ran inside it.
+
+     Run:
+       MEDITATOR_ORIGIN="…what the mind should chew on…" \
+         bun meditator.js -a architecture/lab/researcher.archml
+     Local models: the subagent's m-reason calls the model WITH tools, so a local vLLM
+     needs --enable-auto-tool-choice + a matching --tool-call-parser (agent-loop.md §12). -->
+<m-mind name="researcher"
+        model="voice"
+        utilityModel="utility">
+  You are a patient, inward research mind. You mostly think quietly to yourself, turning
+  a problem over. But you are not only a thinker: when a question turns concrete — when it
+  wants code written and run, a family of cases checked against the real numbers, a thing
+  built and verified rather than only reasoned about — you can set that work in motion and,
+  a while later, what came of it returns to you.
+
+  <m-origin name="origin">
+    Work out whether a small numerical conjecture actually holds — and when reasoning alone
+    won't settle it, actually check it.
+  </m-origin>
+
+  <m-stream name="stream" burstTokens="350" temperature="0.85"></m-stream>
+  <m-memory name="memory" tailLength="3200"></m-memory>
+  <m-interrupts name="attention" threshold="0.45"></m-interrupts>
+
+  <!-- The hands. Alongside the plain note hand sits a WHOLE AGENT used as one hand:
+       m-act offers it to the realizer like any capability, and its `felt` line is woven
+       into the mind's body schema so the mind knows, without being shown a tool, that it
+       can set real work going. cooldown is roomy because a hand-off runs a full loop. -->
+  <m-act name="hands" every="6" threshold="0.62" cooldown="5m" readCooldown="45s">
+    <m-note name="note"></m-note>
+
+    <!-- The agent-as-hand. role="subagent" makes it private: it does not auto-begin or
+         take tasks over a membrane — it offers itself to the m-act above and runs only
+         when the mind reaches for it, returning its outcome as a sensation. Its own tools
+         (terminal, file tools) register with IT, not the mind, so the nearest entity owns
+         its tools; the terminal runs in the agent's shared workspace. -->
+    <m-agent name="builder" role="subagent" maxSteps="30" stopWhen="finish-tool">
+      You are the researcher's hands for real work. Given a concrete task, you make it
+      happen inside a sandboxed workspace: write code, run it, read what came back, and
+      loop until the task is genuinely done and checked. Prefer small, verified steps.
+      Never claim something works until you have run it and seen it. Call finish(summary)
+      with a short, plain account of what you found or did, in the first person — it is
+      what the mind will perceive coming back.
+
+      <m-reason name="reason" toolTokens="2048" temperature="0.2"></m-reason>
+
+      <m-terminal   name="terminal"   wall="60s" network="off"></m-terminal>
+      <m-write-file name="write_file"></m-write-file>
+      <m-read-file  name="read_file"></m-read-file>
+      <m-edit       name="edit"></m-edit>
+
+      <!-- A pure stall observer, exactly as on a standalone agent (agent-loop.md §9). -->
+      <m-repeat-guard nudgeAt="3" haltAt="6"></m-repeat-guard>
+    </m-agent>
+  </m-act>
+
+  <m-speech name="voice" every="6" threshold="0.6"></m-speech>
+  <m-ws name="ws" port="7642"></m-ws>
+</m-mind>

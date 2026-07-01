@@ -761,6 +761,24 @@ function dryCompleteWithTools({ tools = [], messages, debugTag } = {}) {
     return { text: 'Done: I inspected the workspace and the checks pass (dry run).', tool_calls: [], finish_reason: 'stop', usage: null };
   }
 
+  // A SUBAGENT used as a mind's hand (agent-loop.md §11): a capability that takes a
+  // `task`. Reach for it so the composition — mind → m-act realize → the sub-agent's
+  // whole loop → the outcome as a sensation — runs end-to-end offline. (Its own reasoner
+  // runs on the debugTag "reason" branch above, so there is no recursion here.)
+  const subagent = tools.find(t => t.function?.parameters?.properties?.task && t.function?.name !== 'finish');
+  if (subagent) {
+    return {
+      text: '',
+      tool_calls: [{
+        id: 'call_dry_subagent',
+        type: 'function',
+        function: { name: subagent.function.name, arguments: JSON.stringify({ task: 'Make the failing tests pass, checking your work.' }) },
+      }],
+      finish_reason: 'tool_calls',
+      usage: null,
+    };
+  }
+
   const look = tools.find(t => t.function?.name === 'look');
   if (look) {
     return {

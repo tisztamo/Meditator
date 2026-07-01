@@ -88,14 +88,37 @@ export class MAgent extends MBaseComponent {
     _contextReady = false    // whether the context restore has been delivered at least once
     _restoredMessages = null // a persisted transcript to resume from (from m-context)
     _restoredStep = 0
+    _asHand = false          // role="subagent": used as a mind's hand, not auto-begun (§11)
+    _handResolve = null      // resolves the in-flight hand call's promise when a task finishes
+    _pendingIntent = null    // the mind's decide-stage intent for the current hand call
+    _handLeadIdx = -1        // rotates the first-person framing of a returned outcome
+    _ready = null            // resolves once the reasoner + tools are up (awaited by a hand call)
+    _resolveReady = null
 
     onConnect() {
+        // COMPOSITION (agent-loop.md §11): an <m-agent role="subagent"> nested inside a
+        // mind's <m-act> is used as a single HAND — the mind wonders, m-act hands it a
+        // task, the agent runs its whole tool-calling loop BACKSTAGE, and only the OUTCOME
+        // re-enters the mind as one first-person sensation (the One Rule holds at the
+        // mind's membrane, even though a full agent ran inside it). Such an agent does not
+        // auto-begin: it offers itself as a capability and runs only when executed.
+        this._asHand = (this.attr("role") || "").toLowerCase() === "subagent"
+        this._ready = new Promise(resolve => { this._resolveReady = resolve })
+
         // Tools announce themselves with a bubbling `capability` event, exactly as a
         // mind's hands do with m-act; one self-listener catches them all (incl. tools
         // added later). stopPropagation so a tool nested inside THIS agent is claimed
         // here and does not also register with an enclosing m-act (the composition case,
-        // agent-loop.md §11) — the nearest entity owns its tool.
-        this.addEventListener("capability", e => { e.stopPropagation(); this._registerCapability(e?.detail) })
+        // agent-loop.md §11) — the nearest entity owns its tool. The `e.target === this`
+        // guard lets our OWN offer to the enclosing m-act (a subagent hand's _offerAsHand,
+        // fired ON this element) pass straight through: we neither claim it nor stop it, so
+        // it bubbles past us up to that m-act, while a child tool's event (target a
+        // descendant) is claimed here.
+        this.addEventListener("capability", e => {
+            if (e.target === this) return
+            e.stopPropagation()
+            this._registerCapability(e?.detail)
+        })
 
         // Observer seams (agent-loop.md §3, §9): a `nudge` becomes a note on the next
         // user turn; a `halt` is a stop condition. Pure observers wire onto these with
@@ -140,6 +163,11 @@ export class MAgent extends MBaseComponent {
             this.sub(`${ctxName}/compacted`, c => this._onCompacted(c)).catch(() => {})
         }
 
+        // A subagent offers itself to its enclosing m-act NOW, synchronously — m-act (the
+        // parent) has already connected and is listening, so the mind's body schema and
+        // hand menu include this agent from the start, exactly as a leaf hand registers.
+        if (this._asHand) this._offerAsHand()
+
         this._begin()
     }
 
@@ -176,15 +204,26 @@ export class MAgent extends MBaseComponent {
         try {
             await this._whenAlive()
         } catch (error) {
+            this._resolveReady?.()   // unblock any waiting hand call (it will see !_alive and bail)
             if (!this._sleeping) log.error("Agent could not start:", error.message)
             return
         }
-        if (this._sleeping) return
+        if (this._sleeping) { this._resolveReady?.(); return }
         this._alive = true
 
         // finish-tool mode: the kernel offers a finish(summary) tool so an autonomous
         // agent can declare completion explicitly (agent-loop.md §6).
         if (this._stopWhen() === "finish-tool") this._registerFinishTool()
+        this._resolveReady?.()   // reasoner + tools are up: a subagent hand call can now run
+
+        // A SUBAGENT HAND (agent-loop.md §11) has no static objective and no membrane; it
+        // simply waits, idle, until its mind's m-act executes it (see _runAsHand). It never
+        // seeds a task or retires on its own — the mind drives it, one reach at a time.
+        if (this._asHand) {
+            log.info(`"${this.attr("name") || "agent"}" is a subagent hand — idle until its mind reaches for it.`)
+            this.pub("status", { state: "idle", step: 0, maxSteps: this._maxSteps(), done: false })
+            return
+        }
 
         // Resume from a persisted transcript if <m-context> restored one (agent-loop.md §10):
         // a restarted service picks its work back up mid-task rather than seeding fresh.
@@ -368,6 +407,18 @@ export class MAgent extends MBaseComponent {
         } catch {
             return { id, name, observation: `error: arguments for "${name}" were not valid JSON`, isError: true }
         }
+
+        // The GOVERN seam (agent-loop.md §6, §11): between reason and act, a governing
+        // norm may VETO or MODIFY this proposed call before it runs. With none wired the
+        // call proceeds unchanged. A modify is re-validated below, so a governor cannot
+        // patch the args into a shape the tool's schema would reject (codex doc: "modify
+        // decisions must be rechecked after patching").
+        const gov = await this._govern(name, args)
+        if (gov.denied) {
+            return { id, name, observation: `refused: ${gov.denied}`, isError: true }
+        }
+        args = gov.args
+
         const invalid = validateAgainstSchema(args, tool.parameters)
         if (invalid) {
             return { id, name, observation: `error: arguments for "${name}" failed the schema (${invalid})`, isError: true }
@@ -428,7 +479,11 @@ export class MAgent extends MBaseComponent {
         if (extra.error) log.warn(`"${this.attr("name") || "agent"}" stopped after ${this._step} step(s): ${reason} (${extra.error})`)
         else log.info(`"${this.attr("name") || "agent"}" finished after ${this._step} step(s): ${reason}`)
 
-        if (this._sleeping) return
+        if (this._sleeping) { this._resolveHand(detail); return }
+        // A subagent HAND (agent-loop.md §11): hand the outcome back to the waiting
+        // execute() (which returns it to the mind as a sensation) and reset to idle for
+        // the next reach. It neither drains a task queue nor retires — the mind drives it.
+        if (this._asHand) { this._resetForHand(); this._resolveHand(detail); return }
         if (this._hasMembrane()) this._resetForNextTask()
         else this._retired = true
     }
@@ -451,6 +506,156 @@ export class MAgent extends MBaseComponent {
         this.pub("status", { state: "idle", step: 0, maxSteps: this._maxSteps(), done: false })
         log.info(`"${this.attr("name") || "agent"}" is idle — awaiting the next task.`)
         this._drainPendingTasks()
+    }
+
+    // ── COMPOSITION: the agent as a mind's HAND (agent-loop.md §11) ─────────────────
+
+    /** Offer THIS agent to an enclosing mind's <m-act> as a single capability (a HAND).
+     *  The mind's realizer picks it and supplies a `task`; execute() below hands that task
+     *  to the loop, runs it to completion backstage, and returns the outcome as a
+     *  first-person sensation — so the mind's conscious stream perceives only the
+     *  consequence, never the tool-calling underneath (the One Rule).
+     *
+     *  Bubbled exactly as a leaf hand offers (m-note/m-look) — one shot, no retry. Our own
+     *  `capability` listener lets it pass (e.target === this; see onConnect) so it reaches
+     *  the enclosing m-act. No retry is needed because the connect order is the contract:
+     *  loadMindComponents defines tags in document order with no awaits, so a parent m-act
+     *  is upgraded — and its capability listener attached synchronously in onConnect —
+     *  before this child agent connects and offers, just as m-act precedes any leaf hand. */
+    _offerAsHand() {
+        this.fire("capability", this._handSpec())
+    }
+
+    /** The capability spec this agent offers as a hand. readonly defaults to false: an
+     *  agent that runs commands and writes files is world-changing (the flag a norm gates
+     *  on). Overridable via attributes (felt, handDescription, readonly, salience). */
+    _handSpec() {
+        return {
+            name: this.attr("name") || "agent",
+            description: this.attr("handDescription")
+                || "Hand off a concrete, self-contained piece of real work — reading and changing files, "
+                 + "running commands, checking something by actually doing it. It is carried out in full, "
+                 + "and the outcome comes back to you.",
+            felt: this.attr("felt")
+                || "When something needs actually doing rather than only thinking through — real work with "
+                 + "files and commands, carried all the way to a checked result — you can set it in motion, "
+                 + "and a while later what came of it returns to you.",
+            parameters: {
+                type: "object",
+                properties: {
+                    task: { type: "string", description: "the concrete task to carry out, in plain first-person terms" },
+                },
+                required: ["task"],
+            },
+            readonly: this.attr("readonly") === "true",
+            execute: (args, ctx) => this._runAsHand(args, ctx),
+        }
+    }
+
+    /** Run one hand call: seed the task, drive the whole loop, and resolve with the
+     *  outcome (the twin of any hand's execute()). Returns { experience, observation,
+     *  data } — m-act journals the DEED backstage and re-enters `experience` as a plain
+     *  External sensation. Sequential by construction: the mind's m-act is single-flight
+     *  and awaits this, so a second call cannot overlap; if one somehow does, it is turned
+     *  away rather than corrupting the in-flight transcript. */
+    async _runAsHand(args, ctx) {
+        const task = String(args?.task ?? ctx?.intent ?? "").trim()
+        if (!task) return { observation: "there was no task to carry out", isError: true }
+
+        await this._ready   // reasoner + tools must be up before the first turn
+        if (!this._alive || this._sleeping || this._retired) {
+            return { observation: "the agent is not available to take work right now", isError: true }
+        }
+        if (this._taskActive || this._handResolve) {
+            return { observation: "still finishing the last piece of work; leaving it to complete first", isError: true }
+        }
+
+        const outcome = new Promise(resolve => { this._handResolve = resolve })
+        this._pendingIntent = ctx?.intent || null
+        this._messages.push({ role: "user", content: task })
+        this._taskActive = true
+        this._done = false
+        this._step = 0
+        log.info(`"${this.attr("name") || "agent"}" (subagent hand) takes a task (${task.length} chars) and begins.`)
+        this.pub("transcript", [...this._messages])
+        this._publishTurn()
+
+        return this._handConsequence(await outcome)
+    }
+
+    /** Turn a finished task's `done` detail into the consequence the MIND perceives. On a
+     *  genuine failure it returns an observation but NO experience — a hand-slip is silent
+     *  for the mind (efference.md §5.5), never a false sensation of success. On success it
+     *  frames the agent's answer as a first-person sensation of work returning, grounded
+     *  (when known) in the reach that set it going — the same shape m-terminal uses. */
+    _handConsequence(detail) {
+        const intent = this._pendingIntent
+        this._pendingIntent = null
+        if (!detail || detail.error) {
+            return { observation: `the work could not be completed: ${detail?.error || detail?.reason || "unknown"}`, isError: true, data: { reason: detail?.reason, error: detail?.error } }
+        }
+        const answer = (detail.answer || "").trim()
+        if (!answer) {
+            return { observation: `(the work ended with no summary: ${detail.reason})`, data: { reason: detail.reason, steps: detail.steps } }
+        }
+        return {
+            observation: answer,
+            experience: frameHandExperience(answer, intent, ++this._handLeadIdx),
+            salience: Number(this.attr("salience") || 0.62),
+            urgent: this.attr("urgent") !== "false",
+            type: `Sense-${this.attr("name") || "agent"}`,
+            data: { steps: detail.steps, reason: detail.reason },
+        }
+    }
+
+    /** Reset a subagent hand to idle after a task ends — clear the per-task loop state but
+     *  KEEP the transcript (it carries context into the next reach, bounded by an optional
+     *  <m-context>, exactly as service mode does). No task-queue drain, no retire. */
+    _resetForHand() {
+        this._done = false
+        this._taskActive = false
+        this._step = 0
+        this._awaitingReply = false
+        this._halt = null
+        this._nudges = []
+        this.pub("status", { state: "idle", step: 0, maxSteps: this._maxSteps(), done: false })
+    }
+
+    /** Resolve the in-flight hand call's promise, once, with the finished-task detail. */
+    _resolveHand(detail) {
+        const resolve = this._handResolve
+        this._handResolve = null
+        resolve?.(detail)
+    }
+
+    /**
+     * The GOVERN seam (agent-loop.md §6, §11) — the checkpoint between reason and act. A
+     * governor (an <m-norm>, a permission policy) subscribes to the bubbling `proposal`
+     * event and may VETO the call (proposal.deny(reason)) or MODIFY it (mutate/replace
+     * proposal.args). A deterministic governor decides synchronously; an async one (e.g. an
+     * LLM policy that needs a model call) registers its decision with proposal.hold(promise)
+     * and we await it before proceeding — so world-changing actions can be gated with real
+     * deliberation, not only pattern matches. With NO governor wired the event bubbles away
+     * unheard and the call proceeds unchanged: a bare agent is ungoverned, and the safe
+     * per-surface defaults (deny world-changing, permit read-only) are a norm's concern,
+     * handed off to design-agents-norms-codex.md. This doc stops at the seam.
+     */
+    async _govern(name, args) {
+        let denied = null
+        const holds = []
+        const proposal = {
+            agent: this.attr("name") || "agent",
+            name,
+            args,
+            deny(reason) { denied = reason || "denied by a governing norm" },
+            hold(p) { if (p && typeof p.then === "function") holds.push(p) },
+        }
+        this.fire("proposal", proposal)
+        if (holds.length) {
+            try { await Promise.all(holds) }
+            catch (error) { denied = denied || `governor error: ${error?.message || error}` }
+        }
+        return { denied, args: proposal.args }
     }
 
     /** Accept a task (a `user` turn) arriving over the membrane. Before wake completes it
@@ -528,6 +733,10 @@ export class MAgent extends MBaseComponent {
     async sleep() {
         if (this._sleeping) return
         this._sleeping = true
+        // Unblock anything waiting on this agent so a mind's m-act (or a hand call in
+        // flight) is not left hanging as the process winds down.
+        this._resolveReady?.()
+        this._resolveHand({ answer: null, reason: "asleep" })
         this.pub("status", { state: "asleep", step: this._step, maxSteps: this._maxSteps(), done: this._done })
         log.info(`"${this.attr("name") || "agent"}" put to sleep after ${this._step} step(s).`)
     }
@@ -549,6 +758,27 @@ function observationOf(out, name) {
 /** Parse a tool call's argument JSON for the `step` event's convenience; never throws. */
 function safeArgs(raw) {
     try { return JSON.parse(raw || "{}") } catch { return raw ?? null }
+}
+
+// First-person openings for an outcome returning to a mind that set a subagent's work
+// going (agent-loop.md §11) — the efference-copy framing, the twin of m-terminal's leads.
+// Rotated so repeated hand-offs don't read mechanically. No mechanism word appears: the
+// mind perceives work carried through and coming back, never "the agent" or "the loop".
+const HAND_LEADS = [
+    "I set the work going, and a while later it comes back to me, carried through:",
+    "I hand it off and let it run its course; what comes back is:",
+    "It is seen all the way through, and the result finds its way back to me:",
+]
+
+/** Frame a finished subagent's answer as the mind's first-person sensation of work
+ *  returning. When the reach that set it going is known, it grounds the sensation in what
+ *  it was for — so the outcome lands as "what I set out to do is done", not a bare report. */
+function frameHandExperience(answer, intent, idx) {
+    const lead = HAND_LEADS[((idx % HAND_LEADS.length) + HAND_LEADS.length) % HAND_LEADS.length]
+    const about = (intent || "").trim()
+    return about
+        ? `What I set going — ${about} — comes back to me, carried through: ${answer}`
+        : `${lead} ${answer}`
 }
 
 A.define("m-agent", MAgent)

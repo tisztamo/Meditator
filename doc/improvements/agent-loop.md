@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-01
 **Status:** Milestones 1 (kernel + loop), 2 (extensibility proof), 3 (context +
-service mode) and 4 (Studio panel) IMPLEMENTED (2026-07-01); milestone 5 still design.
+service mode), 4 (Studio panel) and 5 (compose + govern) IMPLEMENTED (2026-07-01).
 **Relation to other docs:** This is the concrete *loop* that
 [`doc/design-agents-norms-codex.md`](../design-agents-norms-codex.md) left
 underspecified. That doc argues (rightly) for parallel first-class roots
@@ -552,6 +552,22 @@ tool call as a proposal, and permits / denies / modifies before execution — wi
 no change to the agent, because it is just another subscriber on the seam. This
 doc deliberately stops at the seam and leaves norms to that doc.
 
+> **As built (milestone 5).** The agent-as-hand is `role="subagent"` on `<m-agent>`:
+> such an agent does not auto-begin (no objective seed, no membrane idle) — it offers
+> itself to the enclosing `<m-act>` as one capability whose `execute(task)` drives the
+> whole loop and returns the answer as a first-person sensation (m-act journals the deed
+> and re-enters it as an External `Sense-<name>`; the terminal, file tools, etc. register
+> with the *subagent*, not the mind, because the nearest entity owns its tool). The govern
+> seam is a `proposal` event `mAgent` fires before every tool call: a governor subscribes
+> and calls `proposal.deny(reason)` (veto), mutates/replaces `proposal.args` (modify,
+> re-validated), or `proposal.hold(promise)` (decide asynchronously — e.g. an LLM policy —
+> which the loop awaits). No governor ⇒ the call proceeds unchanged. Both live in
+> `mAgent.js` alone; `architecture/lab/researcher.archml` is the living §11 mind. The
+> DECIDE-stage intent rides all the way into the consequence — m-act forwards its gist as
+> `ctx.intent`, `_runAsHand` holds it, and `_handConsequence` weaves it in — so the mind
+> reads an outcome that still remembers the reach that asked for it (the twin of the
+> terminal intent fix, commit bf98a26).
+
 ---
 
 ## 12. Reasoning caveats to get right (so the loop is honest)
@@ -663,8 +679,33 @@ doc deliberately stops at the seam and leaves norms to that doc.
    real socket). Live-validated through the supervisor end-to-end: catalogued as an agent
    → woken dry → focused (projection snapshots) → a task streamed `agent/step`×N +
    `agent/answer` live, then a re-focus replayed them from the persisted timeline.
-5. **Compose + govern.** Agent-as-hand inside `m-act`; the `govern` seam for
-   `<m-norm>` (hands off to the codex doc).
+5. **Compose + govern.** ✅ **DONE (2026-07-01).** Two additions to `mAgent.js`, no new
+   components. **Agent-as-hand (§11):** an `<m-agent role="subagent">` nested in a mind's
+   `<m-act>` does not auto-begin — it offers ITSELF to that m-act as one capability
+   (`_offerAsHand` / `_handSpec`, `readonly:false` by default) and runs only when the
+   realizer executes it (`_runAsHand`): it seeds the task, drives its whole loop backstage,
+   and returns the outcome as a first-person sensation (`_handConsequence` + the
+   `frameHandExperience` leads, the twin of m-terminal's), which m-act journals as a DEED
+   and re-enters as an External `Sense-<name>` — the One Rule held at the mind's membrane.
+   After each task it resets to idle for the next reach (`_resetForHand`), never retiring;
+   an in-flight call is resolved on sleep. It offers itself by BUBBLING a `capability`
+   event exactly as a leaf hand does — the agent's own listener lets its self-offer pass
+   (`e.target === this`) so it reaches the enclosing m-act — relying on the same connect
+   order every hand relies on (a parent m-act is upgraded, and its listener attached in
+   onConnect, before a child offers; loadMindComponents defines tags in document order with
+   no awaits). **The govern seam (§6, §11):**
+   before each tool runs, `_runOne` calls `_govern(name, args)`, which fires a bubbling
+   `proposal` event a governor may VETO (`proposal.deny(reason)`) or MODIFY (mutate/replace
+   `proposal.args`), synchronously or asynchronously (`proposal.hold(promise)`, awaited); a
+   deny returns a `refused:` observation, and a modify is re-validated against the schema
+   before execution. With no governor wired the call proceeds unchanged — the seam a
+   `<m-norm>` attaches to, with the norm subsystem left to the codex doc. The §11 mind is
+   `architecture/lab/researcher.archml` (a mind whose `<m-act>` owns a `builder` subagent
+   alongside a plain note hand) and dry-wakes end-to-end. Tests:
+   `tests/wiring/agent-compose.test.js` (register-as-hand, tool ownership, no-auto-begin,
+   execute→sensation, idle-reuse, and the whole path through m-act's decide→realize→
+   consequence), `tests/wiring/agent-govern.test.js` (default permit, sync veto, sync
+   modify + re-validation, and async veto via hold). → §11.
 
 ---
 
@@ -685,8 +726,21 @@ doc deliberately stops at the seam and leaves norms to that doc.
    grow many interrupt sources, reuse the mind's `InterruptRecord` + a small
    arbiter instead of a plain queue.
 4. **Shared kernel now or later?** `MEntityKernel` removes ~20 lines of
-   duplication between `MMind` and `MAgent` but touches the mind. Probably
-   milestone 5, once the agent shape has settled.
+   duplication between `MMind` and `MAgent` but touches the mind. Probably a later
+   milestone, once the agent shape has settled (milestone 5 duplicated the ~20 lines
+   rather than extracting the base, as planned).
+5. **One-shot capability offers rely on connect order (by design).** Every capability
+   offer — a leaf hand's and the subagent's `_offerAsHand` alike — bubbles a `capability`
+   event exactly once in `onConnect`, with no retry, and reaches its `m-act` only because
+   the connect order is the contract: `loadMindComponents` defines tags in document order
+   with no awaits, so a parent `m-act` is upgraded (and its listener attached synchronously
+   in `onConnect`) before any child offers. This holds for the initial CLI load and for a
+   Studio re-wake (all tags already registered ⇒ innerHTML upgrades in tree order, parent
+   first). It can only break in the *test harness*, where cross-file registration state may
+   leave `m-act` unregistered at innerHTML-parse time so it upgrades late, after a child
+   already offered — surfaced when building this milestone as an occasionally-lost `m-note`.
+   The fix belongs in the tests (register components in production order first), not the
+   runtime; `agent-compose.test.js` does exactly that in `beforeAll`.
 
 ---
 
