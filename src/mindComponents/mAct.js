@@ -301,9 +301,15 @@ export class MAct extends MObserver {
         // A hand that slips must never crash the mind, exactly as a sense going quiet
         // must not (m-sense). On error: no afference (failure is silent, not self-blame
         // — efference.md §5.5), but the deed is still journaled as an honest ⌁ note.
+        // Pass the DECIDE-stage intent alongside the realizer's own args, as a second,
+        // optional context argument every hand may ignore. A hand whose consequence can
+        // arrive detached from this call (m-terminal's deferred slow path) uses it to
+        // ground the experience in what the mind was actually reaching for, even when
+        // the realizer did not restate it in its own args (agent-loop.md-style context,
+        // fixing the "intent never reaches the tail" gap the deferred path exposed).
         let out = null, ok = false, errMsg = null
         try {
-            out = await cap.execute(args)
+            out = await cap.execute(args, { intent: decision.gist || null })
             ok = true
         } catch (error) {
             errMsg = error?.message || String(error)

@@ -71,7 +71,7 @@ registerCapability({
     language: { type: "string", enum: ["python", "bash"] },
     script:   { type: "string", description: "the code to run" },
     purpose:  { type: "string", description: "in a few words, what this is trying " +
-                                 "to find out (for the record only)" },
+                                 "to find out — woven into what comes back (§2a)" },
   }, required: ["language", "script"] },
   // WORLD-facing body schema — the mind's felt sense of this affordance, no mechanism.
   felt: "When a question turns concrete — a count to run, a family to search, a " +
@@ -79,7 +79,7 @@ registerCapability({
         "hand; you can sit down and actually work it out, and a little while later " +
         "read what comes back on the screen.",
   readonly: false,                        // WORLD-CHANGING — guardrailed in §4
-  async execute(args) { /* §3 */ },
+  async execute(args, ctx) { /* §2a, §3 — ctx.intent is m-act's DECIDE-stage gist */ },
 })
 ```
 
@@ -94,10 +94,36 @@ auditable by reading the `.archml`.
 ## 2. The latency problem, and the two-sensation model
 
 Every other hand returns one consequence synchronously: `m-act._execute` does
-`out = await cap.execute(args)` and dispatches `out.experience` as a single
+`out = await cap.execute(args, ctx)` and dispatches `out.experience` as a single
 sensation. A terminal breaks that assumption — a script may take 50ms or 50s — so
 this hand is the first whose consequence can arrive **after `execute()` has already
 returned.** That is fine, and the spine for it already exists.
+
+### 2a. The intent rides along, not just the answer (2026-07-01 fix)
+
+The deferred path above has a sharp edge: the RESULT can land many bursts after the
+REACH that asked for it, in a window where the wondering that prompted it has long
+scrolled out of the tail. Originally the realizer's `purpose` arg was recorded only
+in the `.runs/` transcript "for the record" — never in the experience itself — so a
+mind reading a deferred *"the screen answers: `[1, 153, 370, 371, 407]`"* some bursts
+later had no way to tell **what question that even answers.** The deed (with its
+intent) was journaled backstage (⌁) per the One Rule, but the intent never reached
+the one thing that IS perceived: the consequence.
+
+Fixed by threading intent into the experience two ways, so it survives even when the
+realizer leaves `purpose` blank:
+
+- `m-act._execute` now calls `cap.execute(args, { intent: decision.gist })` — its own
+  DECIDE-stage gist, passed as a second, optional context argument every hand may
+  ignore (existing hands are unaffected; only `m-terminal` reads it).
+- `m-terminal` resolves `about = purpose || ctx.intent`, and weaves it into the
+  experience as a short anchoring clause ("Checking how many balanced numbers show
+  up below 1000 — I run it, and the screen answers: …") across every outcome kind
+  (answer, bare, error, timeout) and on both the started and the deferred-result
+  sensations — see `screenToExperience`'s `purpose` option in `mTerminal.js`.
+
+No mechanism word is introduced; `about` is still just first-person content, tested
+against the same MECHANISM regex as everything else in this hand (§7.2).
 
 ### The deferred-consequence path (already in the codebase)
 

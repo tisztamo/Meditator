@@ -69,6 +69,43 @@ test("answer openings rotate so repeated runs don't read mechanically", () => {
     expect(a).not.toBe(b);
 });
 
+// ---- purpose → the intent rides along with the consequence ---------------------------
+// A deferred result can land many bursts after the reach that asked for it; without this
+// the mind reads an answer with no memory of the question. `purpose` (from the realizer's
+// own arg, or m-act's DECIDE-stage gist as a fallback — see mAct.js/mTerminal.js) must
+// survive into the experience across every kind, and still name no mechanism.
+
+test("purpose grounds a clean answer in what it was checking", () => {
+    const e = screenToExperience(
+        { screen: "42\n", exitCode: 0, timedOut: false, truncated: false },
+        { leadIdx: 0, purpose: "how many balanced numbers show up below 1000" },
+    );
+    expect(e.experience).toMatch(/how many balanced numbers show up below 1000/i);
+    expect(e.experience).toMatch(/42/);
+    expect(e.experience).not.toMatch(MECHANISM);
+});
+
+test("purpose also grounds an error and a timeout, not just a clean answer", () => {
+    const err = screenToExperience(
+        { screen: "NameError: name 'rev' is not defined", exitCode: 1, timedOut: false, truncated: false },
+        { purpose: "checking the reversal count" },
+    );
+    expect(err.experience).toMatch(/checking the reversal count/i);
+    expect(err.experience).not.toMatch(MECHANISM);
+
+    const timeout = screenToExperience(
+        { screen: "", exitCode: null, timedOut: true, truncated: false },
+        { purpose: "searching for a counterexample" },
+    );
+    expect(timeout.experience).toMatch(/searching for a counterexample/i);
+    expect(timeout.experience).not.toMatch(MECHANISM);
+});
+
+test("no purpose given → no anchoring clause added (unchanged behavior)", () => {
+    const e = screenToExperience({ screen: "42\n", exitCode: 0, timedOut: false, truncated: false }, { leadIdx: 0 });
+    expect(e.experience).not.toMatch(/Checking/);
+});
+
 // ---- ANSI stripping (must not mangle ordinary text) ---------------------------------
 
 test("stripAnsi removes escape sequences but preserves ordinary CAPS and punctuation", () => {

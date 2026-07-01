@@ -120,12 +120,15 @@ export class MTerminal extends MBaseComponent {
                 properties: {
                     language: { type: "string", enum: ["python", "bash"] },
                     script: { type: "string", description: "the code to run" },
-                    purpose: { type: "string", description: "in a few words, what this is trying to find out (for the record only)" },
+                    purpose: { type: "string", description: "in a few words, what this is trying to find out — woven into what comes back, so name it plainly" },
                 },
                 required: ["language", "script"],
             },
             readonly: false,                  // WORLD-CHANGING — the strongest guardrail (§4)
-            execute: async args => this._terminal(args),
+            // ctx.intent is m-act's own DECIDE-stage gist (the reach this realizes), passed
+            // alongside args so the result can still be grounded in "what this was for" even
+            // when the realizer left `purpose` blank (see _terminal's `about`).
+            execute: async (args, ctx) => this._terminal(args, ctx),
         }
 
         this.offerCapability(spec)
@@ -138,12 +141,19 @@ export class MTerminal extends MBaseComponent {
      * hand-slip (the sandbox won't spawn) — m-act swallows it, so a slip is silent
      * (terminal.md §3, §5.5). A script that errors or times out is NOT a slip: its
      * traceback / "I let it go" is content the mind perceives.
+     *
+     * `about` — what this run was FOR — prefers the realizer's own `purpose` arg, falling
+     * back to m-act's DECIDE-stage intent (ctx.intent) when the realizer left it blank, so
+     * the consequence is never delivered with no memory of what it was checking. This
+     * matters most on the SLOW path: the result can land many bursts after the reach was
+     * made, in a window where the original wondering has long scrolled out of the tail.
      */
-    async _terminal({ language, script, purpose } = {}) {
+    async _terminal({ language, script, purpose } = {}, ctx = {}) {
         // An AGENT blocks on its tool and reads the raw result — none of the mind's
         // grace-race / deferred-sensation machinery applies (agent-loop.md §4, §14).
         if (this._forAgent) return this._runForAgent({ language, script, purpose })
 
+        const about = (purpose || ctx.intent || "").trim()
         const body = (script || "").trim()
         if (!body) throw new Error("there was no script to run")
         if (language !== "python" && language !== "bash") throw new Error(`unsupported language "${language}"`)
@@ -196,30 +206,32 @@ export class MTerminal extends MBaseComponent {
         if (outcome !== SLOW) {
             // FAST PATH: finished within grace → the answer is already on the screen.
             this._running = null
-            await this._writeTranscript(n, language, body, purpose, outcome)
-            return this._resultConsequence(outcome)
+            await this._writeTranscript(n, language, body, about, outcome)
+            return this._resultConsequence(outcome, about)
         }
 
         // SLOW PATH: still running after grace → reassure now, deliver the result later.
         handle.done.then(async result => {
             this._running = null
-            await this._writeTranscript(n, language, body, purpose, result)
+            await this._writeTranscript(n, language, body, about, result)
             // The mind made the reach bursts ago; its answer now lands in a contended
             // window, so dispatch it as its OWN urgent interrupt-request straight onto
-            // the afferent bus (terminal.md §2 — the deferred-consequence path).
-            this._dispatch(this._resultConsequence(result))
+            // the afferent bus (terminal.md §2 — the deferred-consequence path). `about`
+            // rides along so the mind reads not just an answer, but what it answers.
+            this._dispatch(this._resultConsequence(result, about))
         }).catch(error => {
             this._running = null
             log.warn(`terminal run ${n} failed after grace: ${error?.message || error}`)
         })
 
-        return this._startedConsequence()
+        return this._startedConsequence(about)
     }
 
     // The result, as the consequence the mind perceives. The result re-enters URGENT
     // (like m-recall) and at the result salience; the experience names NO mechanism.
-    _resultConsequence(outcome) {
-        const { experience } = screenToExperience(outcome, { maxChars: this._maxChars(), openings: ANSWER_LEADS, leadIdx: ++this._leadIdx })
+    // `about` (see _terminal) grounds it in what the run was for, not just its output.
+    _resultConsequence(outcome, about) {
+        const { experience } = screenToExperience(outcome, { maxChars: this._maxChars(), openings: ANSWER_LEADS, leadIdx: ++this._leadIdx, purpose: about })
         return {
             experience,
             salience: Number(this.attr("salience") || 0.7),
@@ -231,12 +243,13 @@ export class MTerminal extends MBaseComponent {
 
     // The "I set it going" reassurance — ambient, NON-urgent (terminal.md §2): it must
     // not commandeer a burst. The blinking cursor lives here, and only here, because
-    // here it is literally true (§6d).
-    _startedConsequence() {
+    // here it is literally true (§6d). `about`, when known, still names what it is
+    // running FOR — so even this early sensation is not pure "something is happening."
+    _startedConsequence(about) {
         const leads = STARTED_LEADS
         const line = leads[(++this._leadIdx % leads.length + leads.length) % leads.length]
         return {
-            experience: line,
+            experience: about ? `Checking ${about} — ${line}` : line,
             salience: Number(this.attr("startedSalience") || 0.45),
             urgent: false,
             type: `Sense-${this.attr("name") || "terminal"}-start`,
@@ -278,12 +291,12 @@ export class MTerminal extends MBaseComponent {
 
     // The verbatim audit trail (terminal.md §2/§4.5): script + output kept on disk so the
     // run is reconstructable even when the slow-path result has no `acted` entry. Best-effort.
-    async _writeTranscript(n, language, body, purpose, outcome) {
+    async _writeTranscript(n, language, body, about, outcome) {
         try {
             const runDir = await this._ensureRunDir()
             const header = [
                 `# run ${n} (${language}) ${new Date().toISOString()}`,
-                purpose ? `# purpose: ${purpose}` : null,
+                about ? `# purpose: ${about}` : null,
                 `# exit=${outcome.exitCode} signal=${outcome.signal || "-"} timedOut=${outcome.timedOut} `
                 + `truncated=${outcome.truncated} ${outcome.durationMs}ms`,
             ].filter(Boolean).join("\n")
@@ -418,30 +431,36 @@ function fence(text) {
  * unit-testable: every line is first-person and world-facing, and no mechanism word
  * (stdout/exit code/process/script/sandbox) ever appears.
  *
+ * `purpose`, when given, is prepended as a short anchoring clause ("Checking X — …")
+ * so the experience carries not just an answer but what it answers — the fix for the
+ * deferred slow path, where the result can land many bursts after the reach that
+ * asked for it, well past where the original wondering left the tail.
+ *
  *   outcome: { screen, exitCode, timedOut, truncated }
  *   returns: { kind: 'answer'|'bare'|'error'|'timeout', experience }
  */
-export function screenToExperience({ screen, exitCode, timedOut, truncated }, { maxChars = 16000, openings = ANSWER_LEADS, leadIdx = 0 } = {}) {
+export function screenToExperience({ screen, exitCode, timedOut, truncated }, { maxChars = 16000, openings = ANSWER_LEADS, leadIdx = 0, purpose = "" } = {}) {
     const clean = stripAnsi(screen || "").replace(/[ \t]+$/gm, "").trim()
+    const about = purpose ? `Checking ${purpose.trim()} — ` : ""
 
     if (timedOut) {
         const partial = clean ? ` Before I let it go, the last of it on the screen read:${fence(tail(clean, maxChars))}` : ""
-        return { kind: "timeout", experience: `I set it going, and it runs and runs and never settles, so I let it go.${partial}` }
+        return { kind: "timeout", experience: `${about}I set it going, and it runs and runs and never settles, so I let it go.${partial}` }
     }
     if (!clean) {
-        return { kind: "bare", experience: "It runs, the cursor returns, and the screen stays bare — nothing to say." }
+        return { kind: "bare", experience: `${about}It runs, the cursor returns, and the screen stays bare — nothing to say.` }
     }
 
     const shown = truncated || clean.length > maxChars
     const text = tail(clean, maxChars)
     if (shown) {
-        return { kind: exitCode ? "error" : "answer", experience: `The screen scrolled past what I could catch; the last of it read:${fence(text)}` }
+        return { kind: exitCode ? "error" : "answer", experience: `${about}The screen scrolled past what I could catch; the last of it read:${fence(text)}` }
     }
     if (exitCode) {
-        return { kind: "error", experience: `The screen comes back with:${fence(text)}` }
+        return { kind: "error", experience: `${about}The screen comes back with:${fence(text)}` }
     }
     const open = openings[(leadIdx % openings.length + openings.length) % openings.length]
-    return { kind: "answer", experience: `${open}${fence(text)}` }
+    return { kind: "answer", experience: `${about}${open}${fence(text)}` }
 }
 
 A.define('m-terminal', MTerminal);

@@ -203,6 +203,14 @@ test("the DEED is journaled backstage (⌁) and never touches the tail; the CONS
     await act._execute(call, { gist: "I want to actually check the small balanced n" });
     expect(consequences.length).toBeGreaterThan(before);
 
+    // The realizer's args above deliberately omit `purpose` — yet the CONSEQUENCE still
+    // names what the run was for, because m-act forwards its own DECIDE-stage gist as a
+    // fallback (mAct.js `_execute` → cap.execute(args, {intent})). Without this, the
+    // intent stays backstage forever and a later reader of the tail cannot tell what the
+    // screen even answered.
+    const consequence = consequences[consequences.length - 1];
+    expect(consequence.reason).toMatch(/check the small balanced n/i);
+
     await delay(80);   // let the journal queue flush
     const day = new Date().toISOString().slice(0, 10);
     const journal = fs.readFileSync(path.join(journalDir, `${day}.md`), "utf8");
