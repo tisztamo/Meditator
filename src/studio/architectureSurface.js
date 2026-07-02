@@ -5,6 +5,13 @@
 /** Replace HTML comments with same-length blanks, preserving positions. */
 export const maskComments = content => String(content).replace(/<!--[\s\S]*?-->/g, m => m.replace(/[^\n]/g, " "));
 
+/** Does a LIVE <m-ws> membrane exist — not merely one mentioned inside a comment?
+ *  Several shipped agents document the optional socket in a comment (e.g.
+ *  "to watch in the Studio, add <m-ws …>"); a raw regex would read that as a real
+ *  window, so the supervisor would loop forever trying to connect to a port that
+ *  never binds and the entity would hang in "waking". Mask comments first. */
+export const hasWsTag = content => /<m-ws\b/i.test(maskComments(content));
+
 export function attrFromTag(tag, name) {
   const m = String(tag || "").match(new RegExp(`\\b${name}\\s*=\\s*"([^"]*)"`, "i"));
   return m ? m[1] : null;
@@ -76,7 +83,7 @@ function parseMindBlock(block) {
     pace: attrFromTag(tag, "pace"),
     stage: attrFromTag(tag, "stage"),
     interlocutor: attrFromTag(tag, "interlocutor") || null,
-    hasWs: /<m-ws\b/i.test(block.block || ""),
+    hasWs: hasWsTag(block.block || ""),
     origin: extractOrigin(block.block || ""),
   };
 }
@@ -93,7 +100,7 @@ function parseAgentBlock(content, tag) {
     stage: attrFromTag(tag, "stage"),
     maxSteps: attrFromTag(tag, "maxSteps"),
     stopWhen: attrFromTag(tag, "stopWhen"),
-    hasWs: /<m-ws\b/i.test(content),
+    hasWs: hasWsTag(content),
     objective: extractObjective(content),
   };
 }
@@ -135,7 +142,7 @@ export function parseArchitecture(content, { resolveModelRef = null, specLabel =
     return {
       kind: "mind", name: null, memory: null, model: null, utilityModel: null,
       resolvedVoice: null, resolvedUtility: null, pace: null, stage: null,
-      hasWs: /<m-ws\b/i.test(content), description: null, origin: null,
+      hasWs: hasWsTag(content), description: null, origin: null,
       interlocutor: null, surface: null, members: [],
     };
   }
@@ -205,7 +212,7 @@ export function parseArchitecture(content, { resolveModelRef = null, specLabel =
     resolvedUtility: null,
     pace: mind.pace,
     stage: mind.stage,
-    hasWs: mind.hasWs || /<m-ws\b/i.test(content),
+    hasWs: mind.hasWs || hasWsTag(content),
     description: extractLeadingDescription(content, root.index),
     origin: mind.origin,
     interlocutor: mind.interlocutor,

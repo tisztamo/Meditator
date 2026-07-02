@@ -584,55 +584,6 @@ export class MWs extends MBaseComponent {
     }).catch(() => {});
   }
 
-  /**
-   * Instrument an <m-agent> for the Studio (agent-loop.md §13 milestone 4). An agent has
-   * no thought stream; its observable life is the tool-calling LOOP. We forward it as:
-   *   - status → the classic {type:"status"} frame (drives the header state pill, exactly
-   *     the contract a mind's stream state uses), PLUS an `agent/status` telemetry event
-   *     carrying the richer {state, step, maxSteps, done} the transcript panel shows.
-   *   - each `step` (a fired boundary) → an `agent/step` event: the assistant's text, the
-   *     tool calls it made, and the raw observations that came back — the transcript body.
-   *   - the final `done` → an `agent/answer` event: the answer, in order, once per task.
-   *   - the `tools` set → an `agent/tools` event: the palette of capabilities.
-   * The m-agent SUBTREE structure is already sent on connect by handleConnection, so the
-   * Studio's Structure column works for an agent with no extra wiring.
-   */
-  _instrumentAgent() {
-    this.sub("..m-agent/status", status => {
-      if (!status) return;
-      this.broadcastToClients({ type: "status", data: status });   // header state pill (mind-parallel)
-      this._emit("agent", "status", {                              // rich snapshot for the transcript panel
-        state: status.state, step: status.step, maxSteps: status.maxSteps, done: !!status.done,
-      });
-    }).catch(() => {});
-
-    this.sub("..m-agent/tools", tools => {
-      if (!Array.isArray(tools)) return;
-      this._emit("agent", "tools", { names: tools.map(t => t?.function?.name).filter(Boolean) });
-    }).catch(() => {});
-
-    // `step` and `done` are FIRED events on the m-agent element (like m-stream's boundary),
-    // so subscribe with the "@" event ref and read the payload from e.detail.
-    this.sub("..m-agent/@step", e => {
-      const step = e && e.detail;
-      if (!step) return;
-      this._emit("agent", "step", {
-        index: step.index,
-        assistantText: (step.assistantText || "").slice(0, 8000),
-        calls: (step.calls || []).map(c => ({ name: c.name, args: c.args })),
-        observations: (step.observations || []).map(o => ({
-          name: o.name, isError: !!o.isError, observation: (o.observation || "").slice(0, 8000),
-        })),
-      });
-    }).catch(() => {});
-
-    this.sub("..m-agent/@done", e => {
-      const d = e && e.detail;
-      if (!d) return;
-      this._emit("agent", "answer", { answer: (d.answer || "").slice(0, 8000), reason: d.reason || null, steps: d.steps });
-    }).catch(() => {});
-  }
-
   _instrumentSocietyPeers(publicMind) {
     const society = this.closest("m-society");
     if (!society) return;

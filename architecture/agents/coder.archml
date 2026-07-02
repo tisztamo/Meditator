@@ -51,14 +51,17 @@
        the operational twin of a mind's <m-loop-detector>. -->
   <m-repeat-guard nudgeAt="3" haltAt="6"></m-repeat-guard>
 
+  <!-- The live window / task port (agent-loop.md §10, §13 M4). Under an <m-agent>, m-ws is
+       a TASK PORT: inbound client input becomes a `task` (a user turn) and the whole loop
+       streams to the Studio's transcript panel, with the structure tree alongside. Having a
+       membrane also makes the coder a SERVICE — it runs the objective above as its first
+       task, then idles for the next task rather than retiring. Under the Studio the port is
+       assigned automatically (MEDITATOR_WS_PORT); the value here is only the direct-run
+       default. Remove this line to run the coder as a headless one-shot instead. -->
+  <m-ws name="ws" port="7641"></m-ws>
+
   <!-- NOTE: the file tools default to the agent's own workspace home
        (memory/coder/workspace, shared with the terminal). To let the coder work on a
        real project instead, give the tools a root, e.g.
-         <m-read-file name="read_file" root="/path/to/project"></m-read-file>
-
-       To watch this agent work in the Studio, add a membrane and it becomes visible in
-       the transcript panel (milestone 4): <m-ws name="ws" port="7640"></m-ws> — inbound
-       input becomes a task and the loop streams to the panel. (Adding m-ws also turns the
-       one-shot into a service that idles for the next task; the objective above still
-       seeds the first run.) For now the objective is supplied at wake and progress logged. -->
+         <m-read-file name="read_file" root="/path/to/project"></m-read-file> -->
 </m-agent>

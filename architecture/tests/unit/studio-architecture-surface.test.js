@@ -79,6 +79,22 @@ test("Studio parses a service agent (no objective, prompt= on m-objective) too",
   expect(meta.origin).toBe(null);   // no <m-objective> — tasks arrive over the membrane
 });
 
+test("Studio does not read a commented-out m-ws as a live window (agent)", () => {
+  // Several shipped agents (coder, coder-async, coder-team) DOCUMENT the optional
+  // socket in a comment: "to watch in the Studio, add <m-ws …>". A raw regex read
+  // that as a real membrane, so the supervisor looped forever trying to connect to
+  // a port that never binds and the agent hung in "waking" — process log, no
+  // architecture, no transcript. Comments must be masked before detecting <m-ws>.
+  const meta = parseArchitecture(`<m-agent name="coder" stopWhen="no-tools">
+  A coding agent.
+  <m-objective name="objective">Make the tests pass.</m-objective>
+  <m-reason name="reason"></m-reason>
+  <!-- To watch it in the Studio, add <m-ws name="ws" port="7640"></m-ws>. -->
+</m-agent>`);
+  expect(meta.kind).toBe("agent");
+  expect(meta.hasWs).toBe(false);
+});
+
 test("Studio keeps single-mind parsing unchanged", () => {
   const meta = parseArchitecture(`<m-mind name="seed" memory="seed-home" interlocutor="Kris">
     <m-origin name="origin" prompt="old seed"></m-origin>
