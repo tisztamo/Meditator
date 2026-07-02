@@ -13,6 +13,7 @@
        MEDITATOR_OBJECTIVE="$(cat the-objective)" \
          bun meditator.js -a architecture/agents/rpn-team.archml -mp local-dev -->
 <m-agent name="architect"
+         memory="rpn-team"
          interlocutor="user"
          model="voice"
          utilityModel="utility"

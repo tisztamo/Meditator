@@ -255,7 +255,12 @@ function listArchitectures() {
         // Societies use the same UX, but the runtime applies the override to
         // <m-society>, not the inner public face.
         const isPrefix = (experimental || meta.kind === "agent") && group !== "test" && !/-\d+$/.test(slug);
-        const suggestedName = isPrefix ? nextTransientName(meta.name || meta.memory || "mind", project) : null;
+        // Seed the fresh instance name from the HOME base (memory=, else name) — the same
+        // key `slug` uses — so the suggestion matches the home it will create. This is how
+        // an agent homes after its architecture: a team file declares memory="coder-team"
+        // on its root (whose name is a role like "lead"), so instances are coder-team-1, …
+        // rather than lead-1. applyAgentNameOverride strips memory= when this name lands.
+        const suggestedName = isPrefix ? nextTransientName(meta.memory || meta.name || "mind", project) : null;
         out.push({
           file: rel, group: experimental && group !== "test" ? "experimental" : group, experimental,
           kind: meta.kind || "mind",

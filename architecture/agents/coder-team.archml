@@ -17,6 +17,7 @@
      --tool-call-parser (agent-loop.md §12). Sub-agent jobs need no sandbox themselves (a
      job is a loop), but the workers' terminals do. -->
 <m-agent name="lead"
+         memory="coder-team"
          interlocutor="user"
          model="voice"
          utilityModel="utility"
