@@ -24,7 +24,7 @@ export class StudioWake extends A(HTMLElement) {
         <input type="text" class="name-input" autocomplete="off" spellcheck="false" placeholder="a fresh name">
       </label>
       <label class="field interloc-field" hidden>
-        <span class="lbl">your name <span class="lbl-hint">— how the mind knows the person it talks with</span></span>
+        <span class="lbl">your name <span class="lbl-hint interloc-hint">— how the mind knows the person it talks with</span></span>
         <input type="text" class="interloc-input" autocomplete="off" spellcheck="false" placeholder="the person it talks with">
       </label>
       <div class="det arch-det"></div>
@@ -54,6 +54,7 @@ export class StudioWake extends A(HTMLElement) {
     this.originInput = this.querySelector(".origin-input");
     this.interlocField = this.querySelector(".interloc-field");
     this.interlocInput = this.querySelector(".interloc-input");
+    this.interlocHint = this.querySelector(".interloc-hint");
 
     // A new architecture selection re-seeds the name, the origin story AND the
     // companion name with the selected mind's defaults; editing any after that is
@@ -226,10 +227,12 @@ export class StudioWake extends A(HTMLElement) {
       this.wakeBtn.disabled = true;
       return;
     }
-    if (this.nameLabel) this.nameLabel.textContent = a.kind === "society" ? "multi-mind name" : "mind name";
-    // Every mind can have a companion (it shapes the voice framing), so the field
-    // is offered for any selected architecture — pre-filled with its default.
+    if (this.nameLabel) this.nameLabel.textContent = a.kind === "society" ? "multi-mind name" : a.kind === "agent" ? "agent name" : "mind name";
+    // Every entity can name its companion — for a mind it shapes the voice framing,
+    // for an agent it is who the task-sender is (prefilled "user") — so the field is
+    // offered for any selected architecture, pre-filled with its default.
     this.interlocField.hidden = false;
+    if (this.interlocHint) this.interlocHint.textContent = a.kind === "agent" ? "— the name this agent knows you by" : "— how the mind knows the person it talks with";
     const dry = this.dryRunBox.checked;
     // A transient template's instance name drives its own fresh home; the catalog's
     // tier/exists/busy info describes the template's PREFIX home, so it does not

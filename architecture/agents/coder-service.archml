@@ -15,6 +15,7 @@
      launched with --enable-auto-tool-choice and a matching --tool-call-parser
      (agent-loop.md §12), exactly as m-act already requires. -->
 <m-agent name="coder-service"
+         interlocutor="user"
          model="voice"
          utilityModel="utility"
          maxSteps="60"

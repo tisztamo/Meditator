@@ -16,6 +16,7 @@
      launched with --enable-auto-tool-choice and a matching --tool-call-parser
      (agent-loop.md §12). -->
 <m-agent name="coder-async"
+         interlocutor="user"
          model="voice"
          utilityModel="utility"
          maxSteps="60"

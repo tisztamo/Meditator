@@ -246,12 +246,15 @@ function listArchitectures() {
         // is authoritative, so the flag survives a file being copied out of lab/.
         const experimental = group === "experimental" || meta.stage === "experimental";
         // A transient template's file name is a PREFIX; the Studio proposes a fresh,
-        // collision-free instance name so a new tuning run never means editing the
-        // file. Suggested only for experimental templates (residents keep their
-        // fixed, deliberate name). A bare prefix with no number is treated as the
-        // prefix. Societies use the same UX, but the runtime applies the override
-        // to <m-society>, not the inner public face.
-        const isPrefix = experimental && group !== "test" && !/-\d+$/.test(slug);
+        // collision-free instance name so a new run never means editing the file.
+        // Suggested for experimental templates AND for agents — both are transient by
+        // construction (no manifest), so re-waking their fixed home trips the
+        // transient-memory guard; a fresh instance name (coder-service-1, -2, …) gives
+        // each wake its own home instead of a hard block (residents keep their fixed,
+        // deliberate name). A bare prefix with no number is treated as the prefix.
+        // Societies use the same UX, but the runtime applies the override to
+        // <m-society>, not the inner public face.
+        const isPrefix = (experimental || meta.kind === "agent") && group !== "test" && !/-\d+$/.test(slug);
         const suggestedName = isPrefix ? nextTransientName(meta.name || meta.memory || "mind", project) : null;
         out.push({
           file: rel, group: experimental && group !== "test" ? "experimental" : group, experimental,

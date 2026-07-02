@@ -79,6 +79,15 @@ test("Studio parses a service agent (no objective, prompt= on m-objective) too",
   expect(meta.origin).toBe(null);   // no <m-objective> — tasks arrive over the membrane
 });
 
+test("Studio surfaces an agent's interlocutor so the wake form prefills 'your name'", () => {
+  const meta = parseArchitecture(`<m-agent name="coder" interlocutor="user" stopWhen="no-tools">
+  A coding agent.
+  <m-reason name="reason"></m-reason>
+</m-agent>`);
+  expect(meta.kind).toBe("agent");
+  expect(meta.interlocutor).toBe("user");
+});
+
 test("Studio does not read a commented-out m-ws as a live window (agent)", () => {
   // Several shipped agents (coder, coder-async, coder-team) DOCUMENT the optional
   // socket in a comment: "to watch in the Studio, add <m-ws …>". A raw regex read

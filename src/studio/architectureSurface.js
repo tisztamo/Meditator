@@ -102,6 +102,9 @@ function parseAgentBlock(content, tag) {
     stopWhen: attrFromTag(tag, "stopWhen"),
     hasWs: hasWsTag(content),
     objective: extractObjective(content),
+    // Who the agent knows the task-sender as — surfaced so the wake form's "your
+    // name" field prefills it (agents ship with interlocutor="user").
+    interlocutor: attrFromTag(tag, "interlocutor") || null,
   };
 }
 
@@ -169,7 +172,7 @@ export function parseArchitecture(content, { resolveModelRef = null, specLabel =
       objective: agent.objective,
       maxSteps: agent.maxSteps,
       stopWhen: agent.stopWhen,
-      interlocutor: null,
+      interlocutor: agent.interlocutor,
       surface: null,
       members: [],
     };
