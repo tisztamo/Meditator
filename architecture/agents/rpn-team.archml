@@ -1,0 +1,87 @@
+<!-- rpn-team.archml — a LIVE multi-agent software build (agent-loop.md §16, milestone 7).
+     A lead agent decomposes a real coding goal, delegates the two independent modules to
+     two background sub-agents that run in parallel, then integrates their work and verifies
+     it by running the tests. All three agents share ONE workspace (root=), so a file one
+     worker writes is directly importable by the code the lead writes.
+
+     The lead is NOT given the workers as direct tools — the only signal it has that it can
+     delegate is the spawn_agent tool, whose schema enumerates the workers by name ("math",
+     "parse"). That is by design (milestone 7): a sub-agent nested in an <m-agent> is a
+     background job, discovered by <m-jobs>, not a blocking hand.
+
+     Run (local model):
+       MEDITATOR_OBJECTIVE="$(cat the-objective)" \
+         bun meditator.js -a architecture/agents/rpn-team.archml -mp local-dev -->
+<m-agent name="architect"
+         model="voice"
+         utilityModel="utility"
+         maxSteps="48"
+         stopWhen="no-tools">
+  You are the ARCHITECT of a small team of coding agents, working together in one shared
+  workspace. You are given a software goal that decomposes into independent pieces. Your job:
+  size it up, hand each independent piece to a background worker with spawn_agent (giving it a
+  precise, self-contained spec — the exact filename to create and the exact interface it must
+  expose), and run the pieces in PARALLEL by handing them to different workers. While they
+  work you can prepare the integration. Poll a job with check, or block on one with wait when
+  you have nothing else to do; you will also be told when a job finishes. Once every worker's
+  file is in the workspace, write the integrating code and the tests YOURSELF, run the tests
+  with the terminal, and read the real output. Never claim success until you have actually SEEN
+  the tests pass. When everything passes, reply with a short summary and no tool call.
+
+  <m-objective name="objective">
+    Build a small RPN (reverse Polish notation) calculator in Python. (The concrete spec is
+    supplied at wake.)
+  </m-objective>
+
+  <!-- The architect's own reasoner. Declared FIRST so `reason/reply` resolves to it, not to
+       a worker's identically-named reasoner (name-based ref: first in document order wins). -->
+  <m-reason name="reason" toolTokens="2048" temperature="0.2"></m-reason>
+
+  <!-- The architect's own belt: read the workers' files, write the integration + tests, run
+       them. All rooted in the SHARED workspace. -->
+  <m-read-file  name="read_file"  root="/home/sovereign/Meditator/memory/rpn-team/workspace"></m-read-file>
+  <m-write-file name="write_file" root="/home/sovereign/Meditator/memory/rpn-team/workspace"></m-write-file>
+  <m-edit       name="edit"       root="/home/sovereign/Meditator/memory/rpn-team/workspace"></m-edit>
+  <m-terminal   name="terminal"   root="/home/sovereign/Meditator/memory/rpn-team/workspace" wall="60s" network="off"></m-terminal>
+
+  <!-- WORKER 1: the arithmetic module. Its own full belt, rooted in the SAME workspace. -->
+  <m-agent name="math" role="subagent" maxSteps="22" stopWhen="finish-tool">
+    You are a worker agent. You are given a precise spec for ONE Python module. Write exactly
+    that file (the given filename) in the shared workspace, then run it with the terminal
+    (python3 <file>) to check its self-test passes. Read the real output; if it errors, fix the
+    file and run again. Call finish(summary) only once the file exists and its self-test runs
+    clean — say plainly what you built.
+
+    <m-reason name="reason" toolTokens="2048" temperature="0.2"></m-reason>
+    <m-write-file name="write_file" root="/home/sovereign/Meditator/memory/rpn-team/workspace"></m-write-file>
+    <m-read-file  name="read_file"  root="/home/sovereign/Meditator/memory/rpn-team/workspace"></m-read-file>
+    <m-edit       name="edit"       root="/home/sovereign/Meditator/memory/rpn-team/workspace"></m-edit>
+    <m-terminal   name="terminal"   root="/home/sovereign/Meditator/memory/rpn-team/workspace" wall="60s" network="off"></m-terminal>
+    <m-repeat-guard nudgeAt="3" haltAt="6"></m-repeat-guard>
+  </m-agent>
+
+  <!-- WORKER 2: the tokenizer module. Independent of worker 1, same workspace. -->
+  <m-agent name="parse" role="subagent" maxSteps="22" stopWhen="finish-tool">
+    You are a worker agent. You are given a precise spec for ONE Python module. Write exactly
+    that file (the given filename) in the shared workspace, then run it with the terminal
+    (python3 <file>) to check its self-test passes. Read the real output; if it errors, fix the
+    file and run again. Call finish(summary) only once the file exists and its self-test runs
+    clean — say plainly what you built.
+
+    <m-reason name="reason" toolTokens="2048" temperature="0.2"></m-reason>
+    <m-write-file name="write_file" root="/home/sovereign/Meditator/memory/rpn-team/workspace"></m-write-file>
+    <m-read-file  name="read_file"  root="/home/sovereign/Meditator/memory/rpn-team/workspace"></m-read-file>
+    <m-edit       name="edit"       root="/home/sovereign/Meditator/memory/rpn-team/workspace"></m-edit>
+    <m-terminal   name="terminal"   root="/home/sovereign/Meditator/memory/rpn-team/workspace" wall="60s" network="off"></m-terminal>
+    <m-repeat-guard nudgeAt="3" haltAt="6"></m-repeat-guard>
+  </m-agent>
+
+  <!-- ASYNC AGENCY: discovers "math" and "parse" and offers spawn_agent alongside the shell
+       job tools. Sub-agent jobs and shell jobs share one registry, so check/wait/kill/list_jobs
+       collect both. Long waits because a worker's whole loop can take a while on a local model. -->
+  <m-jobs name="jobs" root="/home/sovereign/Meditator/memory/rpn-team/workspace"
+          wall="10m" defaultWait="200s" maxWait="600s" network="off"></m-jobs>
+
+  <!-- The architect's own stall guard. -->
+  <m-repeat-guard nudgeAt="4" haltAt="10"></m-repeat-guard>
+</m-agent>

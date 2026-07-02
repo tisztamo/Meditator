@@ -30,6 +30,7 @@ export class Job {
     constructor(id, meta = {}, maxBuffer = DEFAULT_MAX_BUFFER) {
         this.id = id;
         this.command = meta.command || '';   // a short human label of what is running
+        this.kind = meta.kind || 'shell';    // 'shell' (a sandbox run) | 'agent' (a sub-agent loop)
         this.state = 'running';              // running | done | timeout | error | killed
         this.outcome = null;                 // the sandbox outcome once it settles
         this.error = null;                   // a spawn failure (a hand-slip), if any
@@ -89,14 +90,17 @@ export class Job {
         return this._buf.length <= n ? this._buf : this._buf.slice(-n);
     }
 
-    /** A one-line status summary for list_jobs / a completion notice. */
+    /** A one-line status summary for list_jobs / a completion notice. An agent job reports
+     *  in agent terms (completed / could not complete), not shell exit codes. */
     summary() {
         const ms = (this.finishedAt || Date.now()) - this.startedAt;
         const label = this.command ? ` — ${this.command}` : '';
+        const agent = this.kind === 'agent';
         if (this.running) return `${this.id}: running (${Math.round(ms / 1000)}s)${label}`;
         if (this.state === 'error') return `${this.id}: failed to start (${this.error?.message || this.error})${label}`;
         if (this.state === 'killed') return `${this.id}: killed${label}`;
         if (this.state === 'timeout') return `${this.id}: timed out after ${Math.round(ms / 1000)}s${label}`;
+        if (agent) return `${this.id}: ${this.outcome?.exitCode ? 'could not complete' : 'completed'} (${Math.round(ms / 1000)}s)${label}`;
         return `${this.id}: finished (exit ${this.outcome?.exitCode ?? 0}, ${Math.round(ms / 1000)}s)${label}`;
     }
 }
@@ -111,29 +115,41 @@ export class JobRegistry {
     }
 
     /**
-     * Start a background job. `opts` is passed straight to the sandbox runner (backend,
-     * language, runDir, scriptPath, wall, …); `meta.command` is a short label. Returns
-     * the Job immediately — the whole point (agent-loop.md §16: spawn is non-blocking).
+     * The GENERIC entry point (agent-loop.md §16, "a background job can be another
+     * <m-agent>"). Register a Job around ANY background work, given a factory that takes
+     * the job's live-tail sink (`onData`) and returns a handle {done, kill}. Returns the
+     * Job IMMEDIATELY — the whole point: the work runs in the background. Both a sandbox
+     * run (spawn) and a sub-agent loop (m-jobs' spawn_agent) settle through here, so
+     * check / wait / kill / list_jobs treat them uniformly ("parallel sub-agents for free").
      */
-    spawn(opts, meta = {}) {
+    start(makeHandle, meta = {}) {
         const id = `job-${++this._seq}`;
         const job = new Job(id, meta, this._maxBuffer);
         this._jobs.set(id, job);
         let handle;
         try {
-            handle = this._run({ ...opts, onData: chunk => job._ingest(chunk) });
+            handle = makeHandle(chunk => job._ingest(chunk));
         } catch (error) {
             job._fail(error);
             this._notify(job);
             return job;
         }
         job._attach(handle);
-        // Settle the job when the run ends — success or spawn failure — then notify once.
+        // Settle the job when the work ends — success or start failure — then notify once.
         handle.done.then(
             outcome => { job._settle(outcome); this._notify(job); },
             error => { job._fail(error); this._notify(job); },
         );
         return job;
+    }
+
+    /**
+     * Start a background SANDBOX job (the original path). `opts` is passed straight to the
+     * sandbox runner (backend, language, runDir, scriptPath, wall, …); `meta.command` is a
+     * short label. A thin specialization of start() over the injected sandbox runner.
+     */
+    spawn(opts, meta = {}) {
+        return this.start(onData => this._run({ ...opts, onData }), { kind: 'shell', ...meta });
     }
 
     get(id) { return this._jobs.get(id); }

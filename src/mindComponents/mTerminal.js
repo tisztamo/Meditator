@@ -75,6 +75,13 @@ export class MTerminal extends MBaseComponent {
         // <m-agent> — a synchronous run whose raw screen is returned as an
         // `observation` the model reads). The nearest enclosing entity decides which.
         this._forAgent = this.closest("m-act, m-agent")?.localName === "m-agent"
+        // Script-file namespacing: an agent's terminal runs IN the shared workspace root, so
+        // when several sub-agents share ONE workspace (a team building software together,
+        // agent-loop.md §16) their .runs/run-<n> script files would collide on the per-instance
+        // counter. Qualify agent-mode scripts with the enclosing agent's name so each writes
+        // its own — "run-mathcore-1.py", "run-parser-1.py". A mind keeps a unique per-wake desk,
+        // so it needs no tag (its filenames are unchanged).
+        this._runTag = this._forAgent ? `${this.closest("m-agent")?.getAttribute("name") || "agent"}-` : ""
         this._register()
     }
 
@@ -272,7 +279,12 @@ export class MTerminal extends MBaseComponent {
 
     async _ensureRunDir() {
         if (this._runDir) return this._runDir
-        const root = this.attr("workspace") || mindHome(this, "workspace")
+        // `root=` is the canonical shared-workspace attribute (the file tools' fileTool.js
+        // and m-jobs use it): setting the SAME root on the terminal + read/write/edit + jobs
+        // is what lets an agent — or a whole TEAM of sub-agents (agent-loop.md §16) — share
+        // ONE workspace, so a file written with write_file is directly runnable here. Accept
+        // `workspace=` too for back-compat. Absent both, fall back to the agent's own home.
+        const root = this.attr("root") || this.attr("workspace") || mindHome(this, "workspace")
         // WORKSPACE COHERENCE (agent-loop.md §8, §14 open-Q #1). An AGENT shares ONE
         // workspace with its file tools (read/write/edit), so the terminal must run IN
         // that shared root — then a file the agent just wrote with write_file is directly
@@ -301,7 +313,7 @@ export class MTerminal extends MBaseComponent {
                 + `truncated=${outcome.truncated} ${outcome.durationMs}ms`,
             ].filter(Boolean).join("\n")
             const transcript = `${header}\n\n--- script ---\n${body}\n\n--- screen ---\n${outcome.screen}\n`
-            await fs.writeFile(path.join(runDir, ".runs", `run-${n}.out.txt`), transcript)
+            await fs.writeFile(path.join(runDir, ".runs", `run-${this._runTag}${n}.out.txt`), transcript)
         } catch (error) {
             log.debug(`could not write transcript for run ${n}: ${error?.message || error}`)
         }
@@ -340,7 +352,7 @@ export class MTerminal extends MBaseComponent {
         const runDir = await this._ensureRunDir()
         const n = ++this._runCount
         const ext = language === "python" ? "py" : "sh"
-        const scriptPath = path.join(runDir, ".runs", `run-${n}.${ext}`)
+        const scriptPath = path.join(runDir, ".runs", `run-${this._runTag}${n}.${ext}`)
         await fs.writeFile(scriptPath, body)
 
         const handle = runScript({

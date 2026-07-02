@@ -122,9 +122,11 @@ export class MAgent extends MBaseComponent {
 
         // Observer seams (agent-loop.md §3, §9): a `nudge` becomes a note on the next
         // user turn; a `halt` is a stop condition. Pure observers wire onto these with
-        // no change to the kernel.
-        this.addEventListener("nudge", e => { const t = e?.detail?.text; if (t) this._nudges.push(String(t)) })
-        this.addEventListener("halt", e => { this._halt = e?.detail?.reason || "halted by an observer" })
+        // no change to the kernel. stopPropagation so a signal is claimed by the NEAREST
+        // agent: a background sub-agent nested in another <m-agent> (agent-loop.md §16) has
+        // its own observers whose nudge/halt must not leak up and derail the parent's loop.
+        this.addEventListener("nudge", e => { e.stopPropagation(); const t = e?.detail?.text; if (t) this._nudges.push(String(t)) })
+        this.addEventListener("halt", e => { e.stopPropagation(); this._halt = e?.detail?.reason || "halted by an observer" })
 
         // A TASK arriving over the membrane (agent-loop.md §10): a bubbling `task` event
         // (m-ws fires it on client input for an agent), whose text becomes a `user` turn.
@@ -163,10 +165,17 @@ export class MAgent extends MBaseComponent {
             this.sub(`${ctxName}/compacted`, c => this._onCompacted(c)).catch(() => {})
         }
 
-        // A subagent offers itself to its enclosing m-act NOW, synchronously — m-act (the
-        // parent) has already connected and is listening, so the mind's body schema and
-        // hand menu include this agent from the start, exactly as a leaf hand registers.
-        if (this._asHand) this._offerAsHand()
+        // A subagent offers itself as a blocking HAND only when its enclosing entity is a
+        // mind's <m-act> (agent-loop.md §11): m-act (the parent) has already connected and
+        // is listening, so the mind's body schema and hand menu include this agent from the
+        // start, exactly as a leaf hand registers. Nested directly inside ANOTHER <m-agent>
+        // it is instead a BACKGROUND-JOB sub-agent (agent-loop.md §16): it stays quiet here,
+        // and the parent's <m-jobs> discovers it and offers spawn_agent, so it runs async
+        // rather than as a blocking tool. (Checking the nearest enclosing entity — not just
+        // any ancestor m-act — so a sub-agent nested in a sub-agent inside a mind is not
+        // mistaken for the mind's own hand.)
+        const enclosing = this.parentElement?.closest("m-act, m-agent")
+        if (this._asHand && enclosing?.localName === "m-act") this._offerAsHand()
 
         this._begin()
     }
@@ -628,6 +637,55 @@ export class MAgent extends MBaseComponent {
         resolve?.(detail)
     }
 
+    // ── COMPOSITION: the agent as a BACKGROUND JOB (agent-loop.md §16) ───────────────
+
+    /** Whether this agent is mid-task (so it cannot take another). A sub-agent runs one
+     *  task at a time — its transcript is single-threaded — so parallelism comes from
+     *  spawning DISTINCT sub-agents, not overlapping tasks on one. */
+    get busy() { return this._taskActive || !!this._handResolve }
+
+    /** Whether this agent can take a background task right now (agent-loop.md §16). It need
+     *  not be _alive yet — runAsJob awaits readiness — only not asleep, retired, or busy. */
+    get available() { return !this._sleeping && !this._retired && !this.busy }
+
+    /**
+     * Run one task IN THE BACKGROUND for a spawning agent, shaped as a job HANDLE
+     * ({done, kill}) so the job registry tracks a sub-agent exactly like a sandbox run —
+     * this is what makes "a background job can be another <m-agent>" (agent-loop.md §16)
+     * fall out for free: parallel sub-agents with the same spawn / check / wait / kill.
+     *
+     * It reuses the very same single-task loop as the mind-hand path (_runAsHand): the
+     * task is seeded, the whole tool-calling loop runs, and the outcome resolves the
+     * handle. Each `step` boundary is streamed to `onData` so `check` shows progress, and
+     * the final answer is fed as a last chunk so `check`/`wait` surface it. kill aborts
+     * the task (a synthetic finish) — the same safe-point as a mind putting the hand down.
+     */
+    runAsJob(task, { onData } = {}) {
+        const tap = typeof onData === "function" ? onData : () => {}
+        const onStep = e => { try { tap(renderStep(e?.detail)) } catch { /* a tail hiccup must not break the loop */ } }
+        this.addEventListener("step", onStep)
+        const done = (async () => {
+            try {
+                const out = await this._runAsHand({ task }, {})
+                const answer = String(out?.observation ?? "").trim()
+                if (answer) tap(`\n${answer}\n`)   // the final summary lands in the job's tail for check/wait
+                return { screen: answer, exitCode: out?.isError ? 1 : 0, signal: null, timedOut: false, truncated: false, durationMs: 0 }
+            } finally {
+                this.removeEventListener("step", onStep)
+            }
+        })()
+        return { done, kill: () => this._abortTask("the work was stopped") }
+    }
+
+    /** Abort the current background task at a safe point: end the loop with a synthetic
+     *  finish so the in-flight reason reply is dropped (guarded by _awaitingReply) and the
+     *  handle's `done` resolves. In-flight tool executions are left to complete but their
+     *  results are discarded — true mid-reason preemption is Level 2 (agent-loop.md §16). */
+    _abortTask(reason = "the work was stopped") {
+        if (this._done || !this._taskActive) return
+        this._finish(null, reason, { halted: true })
+    }
+
     /**
      * The GOVERN seam (agent-loop.md §6, §11) — the checkpoint between reason and act. A
      * governor (an <m-norm>, a permission policy) subscribes to the bubbling `proposal`
@@ -758,6 +816,18 @@ function observationOf(out, name) {
 /** Parse a tool call's argument JSON for the `step` event's convenience; never throws. */
 function safeArgs(raw) {
     try { return JSON.parse(raw || "{}") } catch { return raw ?? null }
+}
+
+/** Render one `step` boundary as a compact line for a background job's output tail
+ *  (agent-loop.md §16) — its assistant text (clipped) and which tools it reached for —
+ *  so a spawning agent's check(id) sees the sub-agent's progress, not a black box. */
+function renderStep(step) {
+    if (!step) return ""
+    const said = String(step.assistantText || "").replace(/\s+/g, " ").trim()
+    const clipped = said.length > 200 ? said.slice(0, 200) + "…" : said
+    const tools = (step.calls || []).map(c => c.name).filter(Boolean)
+    const head = `[step ${step.index}]${clipped ? ` ${clipped}` : ""}`
+    return head + (tools.length ? `\n  → ${tools.join(", ")}` : "") + "\n"
 }
 
 // First-person openings for an outcome returning to a mind that set a subagent's work

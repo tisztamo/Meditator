@@ -1,0 +1,96 @@
+<!-- coder-team.archml — PARALLEL SUB-AGENTS: a lead agent that spawns background sub-agents
+     (agent-loop.md §16, "a background job can be another <m-agent>"). This is the async
+     job registry (milestone 6) turned on its most interesting payoff: a background job need
+     not be a shell command — it can be a whole other agent, running its own tool-calling
+     loop. The lead breaks a task into independent pieces, hands each to a background worker
+     with spawn_agent, keeps going while they run, and collects results with check/wait —
+     and is NOTIFIED when each finishes. The loop stays synchronous and deterministic; only
+     the TOOLS are async-shaped (§16, "async agency without an async loop").
+
+     Run:
+       MEDITATOR_OBJECTIVE="…a task with independent pieces…" \
+         bun meditator.js -a architecture/agents/coder-team.archml
+     Ctrl-C sleeps the lead and every worker gracefully (and kills any running job).
+
+     NOTE (local models): both the lead's and each worker's m-reason call the model WITH
+     tools, so a local vLLM must be launched with --enable-auto-tool-choice and a matching
+     --tool-call-parser (agent-loop.md §12). Sub-agent jobs need no sandbox themselves (a
+     job is a loop), but the workers' terminals do. -->
+<m-agent name="lead"
+         model="voice"
+         utilityModel="utility"
+         maxSteps="80"
+         stopWhen="no-tools">
+  You are the LEAD of a small team of coding agents, working in a sandboxed workspace. Given
+  a task, first size it up. When it splits into independent pieces that can proceed at the
+  same time, hand each piece to a background sub-agent with spawn_agent — then keep working
+  (plan the next piece, read code, prepare the integration) while they run. Poll a job with
+  check, block on one with wait when you have nothing else to do, and you will also be told
+  when a job finishes. A sub-agent runs one task at a time, so to run two pieces at once,
+  give them to two different workers. Only claim the whole task is done once you have
+  collected and verified every sub-agent's result. When it is complete, reply with a short
+  summary and no tool call.
+
+  <!-- The seed of the WORK — overridable at wake with MEDITATOR_OBJECTIVE. -->
+  <m-objective name="objective">
+    Split the work into independent pieces, run them in parallel with the workers, then
+    integrate and verify the result.
+  </m-objective>
+
+  <!-- The lead's own reasoner. Declared FIRST so `reason/reply` (a name-based ref) resolves
+       to it and not to a worker's identically-named reasoner (refs are position-relative;
+       first in document order wins). -->
+  <m-reason name="reason" toolTokens="2048" temperature="0.2"></m-reason>
+
+  <!-- The lead's own light belt: read/plan/integrate. Heavy work goes to the workers. -->
+  <m-read-file  name="read_file"></m-read-file>
+  <m-write-file name="write_file"></m-write-file>
+  <m-edit       name="edit"></m-edit>
+
+  <!-- The BACKGROUND SUB-AGENTS (agent-loop.md §16). Each is a full agent: role="subagent"
+       makes it private — it does not auto-begin or take tasks over a membrane; it idles
+       until the lead spawns it as a job. Its own tools (terminal, file tools) register with
+       IT, not the lead — the nearest entity owns its tools — and it shares the workspace, so
+       a file one worker writes is visible to the others and to the lead. Two workers so two
+       pieces can genuinely run at once; add more for wider fan-out. -->
+  <m-agent name="worker-a" role="subagent" maxSteps="30" stopWhen="finish-tool">
+    You are a worker agent. Given a concrete, self-contained task, carry it out in the shared
+    workspace: write code, run it, read what came back, and loop until it is genuinely done
+    and checked. Prefer small, verified steps. Never claim something works until you have run
+    it and seen it. Call finish(summary) with a short, plain account of what you did or found.
+
+    <m-reason name="reason" toolTokens="2048" temperature="0.2"></m-reason>
+    <m-terminal   name="terminal"   wall="120s" network="off"></m-terminal>
+    <m-read-file  name="read_file"></m-read-file>
+    <m-write-file name="write_file"></m-write-file>
+    <m-edit       name="edit"></m-edit>
+    <m-repeat-guard nudgeAt="3" haltAt="6"></m-repeat-guard>
+  </m-agent>
+
+  <m-agent name="worker-b" role="subagent" maxSteps="30" stopWhen="finish-tool">
+    You are a worker agent. Given a concrete, self-contained task, carry it out in the shared
+    workspace: write code, run it, read what came back, and loop until it is genuinely done
+    and checked. Prefer small, verified steps. Never claim something works until you have run
+    it and seen it. Call finish(summary) with a short, plain account of what you did or found.
+
+    <m-reason name="reason" toolTokens="2048" temperature="0.2"></m-reason>
+    <m-terminal   name="terminal"   wall="120s" network="off"></m-terminal>
+    <m-read-file  name="read_file"></m-read-file>
+    <m-write-file name="write_file"></m-write-file>
+    <m-edit       name="edit"></m-edit>
+    <m-repeat-guard nudgeAt="3" haltAt="6"></m-repeat-guard>
+  </m-agent>
+
+  <!-- ASYNC AGENCY (agent-loop.md §16). It discovers the two workers above and offers
+       spawn_agent(agent, task) alongside spawn / check / wait / kill / list_jobs — sub-agent
+       jobs live in the SAME registry as shell jobs, so the same tools collect both. One
+       line, no core change. -->
+  <m-jobs name="jobs" wall="10m" network="off"></m-jobs>
+
+  <!-- Stall guard for the lead itself (agent-loop.md §9). Each worker has its own. -->
+  <m-repeat-guard nudgeAt="3" haltAt="8"></m-repeat-guard>
+
+  <!-- To work on a real project, give every file/terminal/jobs tool the same root=, e.g.
+         <m-read-file name="read_file" root="/path/to/project"></m-read-file>
+       To watch it in the Studio, add <m-ws name="ws" port="7643"></m-ws>. -->
+</m-agent>
