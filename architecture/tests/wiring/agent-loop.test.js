@@ -160,6 +160,34 @@ test("finish-tool mode: a plain-text answer (no tool call) does not freeze the l
     assertTranscriptValid(agent._messages);
 });
 
+// Regression: a purely CONVERSATIONAL request in finish-tool mode must not run away.
+// "What tools do you have" is fully answered in one plain-text reply — there is no task to
+// finish — but finish-tool mode cannot end on a plain answer, so the old "keep working"
+// nudge sent the model hunting the filesystem for a nonexistent objective until the step
+// cap (found live: coder-service-2 dug through /tmp, .claude/tasks, env vars, then tripped
+// context compaction and looped). The fix: after two consecutive plain answers the kernel
+// auto-finishes, concatenating them (with a marker) so the first, substantive answer is
+// preserved rather than replaced by a terse retry.
+test("finish-tool mode: a conversational answer auto-finishes instead of looping", async () => {
+    const { agent, done } = await runAgent(`
+      <m-agent name="coder-conv" maxSteps="12" toolSettleMs="60" stopWhen="finish-tool">
+        PLAIN_TEXT_ALWAYS. You are a coding agent. Call finish(summary) when done.
+        <m-objective name="objective">What tools do you have?</m-objective>
+        <m-reason name="reason" toolTokens="512"></m-reason>
+        <m-terminal name="terminal" wall="10s" network="off"></m-terminal>
+      </m-agent>
+    `);
+    expect(agent._done).toBe(true);
+    expect(done).not.toBeNull();
+    expect(done.reason).toBe("answered");
+    // Ended well within budget — no runaway toward the step cap.
+    expect(done.steps).toBeLessThan(4);
+    // The concatenated summary keeps the FIRST substantive answer, not just the retry.
+    expect(done.answer).toMatch(/read_file, write_file, edit, terminal/);
+    expect(done.answer).toMatch(/\[continued\]/);
+    assertTranscriptValid(agent._messages);
+});
+
 test("the halt seam stops the loop: a bubbling `halt` event is a stop condition", async () => {
     // A high step budget so the dry loop would otherwise run to completion; a halt
     // fired before it starts must end it at the next turn boundary with reason=halt.

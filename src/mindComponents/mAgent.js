@@ -78,6 +78,7 @@ export class MAgent extends MBaseComponent {
     _sleeping = false
     _halt = null             // set by a bubbling `halt` event; a stop condition
     _nudges = []             // pending observer nudges, folded into the next user turn
+    _plainStreak = []        // consecutive no-tool-call answers (finish-tool mode); two ends it
     _objectiveText = ""      // the objective (seed of the first task), mirrored from m-objective
     _hasObjective = false    // whether an <m-objective> ref was wired (so we wait for it)
     _objectiveReady = false  // whether the objective mirror has been delivered at least once
@@ -354,10 +355,31 @@ export class MAgent extends MBaseComponent {
         this._messages.push(assistant)
 
         // No tool calls → the model answered. In no-tools mode that ends the loop; in
-        // finish-tool mode the agent must call finish, so remind it and continue.
+        // finish-tool mode the agent must call finish, so remind it and continue — BUT a
+        // purely conversational request ("what tools do you have") has no work to finish,
+        // so a bare "keep working" nudge sends the model hunting for a task that isn't
+        // there, looping until the step cap (found live: coder-service-2 dug through the
+        // whole filesystem for a nonexistent objective). Two guards fix it:
+        //   1. The nudge itself offers finish as the answer to a complete reply, and only
+        //      asks for more work when work genuinely remains — so an answered question
+        //      routes to finish() next turn instead of to busywork.
+        //   2. A backstop: two CONSECUTIVE plain-text answers (no tool call, no finish)
+        //      mean the model has said its piece and won't call finish — so end the loop
+        //      ourselves. The answers are concatenated with a marker (not just the last
+        //      one kept) so the first, substantive answer isn't lost to a terse retry.
         if (!calls.length) {
             if (this._stopWhen() === "finish-tool") {
-                this._nudges.push("Do not stop yet: when the objective is complete and verified, call the finish tool with a summary. Otherwise keep working.")
+                this._plainStreak.push(text)
+                if (this._plainStreak.length >= 2) {
+                    const answers = this._plainStreak.filter(t => t && t.trim())
+                    const summary = answers.length
+                        ? answers.map((t, i) => i === 0 ? t : `[continued]\n${t}`).join("\n\n")
+                        : text
+                    this._plainStreak = []
+                    this._finish(summary, "answered")
+                    return
+                }
+                this._nudges.push("If you have fully addressed the request — including simply answering the user's question — call the finish tool now with a summary to end. Only keep working if real work genuinely remains.")
                 this.pub("transcript", [...this._messages])
                 this._publishTurn()
             } else {
@@ -365,6 +387,9 @@ export class MAgent extends MBaseComponent {
             }
             return
         }
+        // A tool call means the agent is actively working, not just talking: reset the
+        // plain-answer streak so only CONSECUTIVE plain answers ever end the loop.
+        this._plainStreak = []
 
         const { toolMessages, observations, finished } = await this._runCalls(calls)
         for (const m of toolMessages) this._messages.push(m)
@@ -511,6 +536,7 @@ export class MAgent extends MBaseComponent {
         this._awaitingReply = false
         this._halt = null
         this._nudges = []
+        this._plainStreak = []
         this._pendingTasks.push(...leftover)
         this.pub("status", { state: "idle", step: 0, maxSteps: this._maxSteps(), done: false })
         log.info(`"${this.attr("name") || "agent"}" is idle — awaiting the next task.`)
@@ -627,6 +653,7 @@ export class MAgent extends MBaseComponent {
         this._awaitingReply = false
         this._halt = null
         this._nudges = []
+        this._plainStreak = []
         this.pub("status", { state: "idle", step: 0, maxSteps: this._maxSteps(), done: false })
     }
 

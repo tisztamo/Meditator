@@ -758,6 +758,23 @@ function dryCompleteWithTools({ tools = [], messages, debugTag } = {}) {
       };
     }
 
+    // Regression coverage for the finish-tool conversational-loop fix (agent-loop.md §6):
+    // a marker asks the dry reasoner to ALWAYS answer in plain text and NEVER call a tool —
+    // an informational request ("what tools do you have") that has no work to finish. In
+    // finish-tool mode this must not run away hunting for a task: after two consecutive
+    // plain answers the kernel auto-finishes, concatenating them. The first answer is the
+    // substantive one and the retry is terse, so the concatenation (not last-wins) is what
+    // preserves the real content — asserted in the test.
+    if ((messages || []).some(m => /PLAIN_TEXT_ALWAYS/i.test(m.content || ''))) {
+      const answered = (messages || []).filter(m => m.role === 'assistant' && !(m.tool_calls && m.tool_calls.length)).length;
+      return {
+        text: answered === 0
+          ? 'I have these tools: read_file, write_file, edit, terminal.'
+          : 'As I said above — nothing more to add.',
+        tool_calls: [], finish_reason: 'stop', usage: null,
+      };
+    }
+
     if (terminal && rounds < 2) {
       const script = rounds === 0 ? 'ls -a' : 'echo "checking" && exit 0';
       return {
