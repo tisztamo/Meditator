@@ -1,0 +1,59 @@
+<!-- coder-async.archml — a coding agent with ASYNC AGENCY (agent-loop.md §16).
+     Same kernel as coder.archml, plus <m-jobs>: the background twin of the terminal.
+     Where the plain terminal blocks the step until a command finishes, <m-jobs> lets the
+     agent START slow work (a full test run, a build), keep editing other files while it
+     runs, and collect the result later — spawn / check / wait / kill / list_jobs. The
+     loop stays synchronous and deterministic; only the TOOLS are async-shaped. When a job
+     finishes it NOTIFIES the agent (a nudge folded into the next turn), so it learns the
+     job is done between steps without polling (§16, "three ways to learn a job finished").
+
+     Run:
+       MEDITATOR_OBJECTIVE="build the project and make the failing tests pass" \
+         bun meditator.js -a architecture/agents/coder-async.archml
+     Ctrl-C sleeps it gracefully (and kills any still-running background job).
+
+     NOTE (local models): m-reason calls the model with tools, so a local vLLM must be
+     launched with --enable-auto-tool-choice and a matching --tool-call-parser
+     (agent-loop.md §12). -->
+<m-agent name="coder-async"
+         model="voice"
+         utilityModel="utility"
+         maxSteps="60"
+         stopWhen="no-tools">
+  You are a coding agent working inside a sandboxed workspace. Given a task, you make it
+  happen: read the code, change it, and run commands to check your work, looping until the
+  task is genuinely done. For quick commands use the plain terminal. For anything SLOW — a
+  full test suite, a build, a long script — spawn it as a background job and keep working
+  while it runs, then check on it or wait for it when you need the result. You will also be
+  told when a background job finishes. Never claim something works until you have actually
+  seen it pass. When the task is complete and verified, reply with a short summary and no
+  tool call.
+
+  <!-- The seed of the WORK — overridable at wake with MEDITATOR_OBJECTIVE. -->
+  <m-objective name="objective">
+    Build the project and make the failing tests pass without weakening them.
+  </m-objective>
+
+  <m-reason name="reason" toolTokens="2048" temperature="0.2"></m-reason>
+
+  <!-- The synchronous belt: quick commands and file edits, contained to the workspace. -->
+  <m-terminal   name="terminal"   wall="60s" network="off"></m-terminal>
+  <m-read-file  name="read_file"></m-read-file>
+  <m-write-file name="write_file"></m-write-file>
+  <m-edit       name="edit"></m-edit>
+
+  <!-- ASYNC AGENCY (agent-loop.md §16). One line, no core change: it bubbles five
+       `capability` events (spawn / check / wait / kill / list_jobs) and, on completion,
+       a `nudge` the loop already knows how to fold in. It shares the same workspace root
+       as the terminal and the file tools, so a file just written is directly runnable as
+       a job. Jobs get a long wall (10m) — they are the long-running path. -->
+  <m-jobs name="jobs" wall="10m" network="off"></m-jobs>
+
+  <!-- Stall guard (agent-loop.md §9): nudge, then halt, a repeated action. -->
+  <m-repeat-guard nudgeAt="3" haltAt="6"></m-repeat-guard>
+
+  <!-- To work on a real project, give the tools a shared root, e.g.
+         <m-read-file name="read_file" root="/path/to/project"></m-read-file>
+         <m-jobs name="jobs" root="/path/to/project"></m-jobs>
+       To watch it in the Studio, add <m-ws name="ws" port="7640"></m-ws>. -->
+</m-agent>

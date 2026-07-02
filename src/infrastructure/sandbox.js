@@ -197,6 +197,12 @@ function killGroup(child, signal = 'SIGKILL') {
  * the capture is marked truncated. `screen` is the script's own stdout+stderr (folded
  * by the inner 2>&1); `stderr` here is the SANDBOX's setup noise (mount/ulimit), kept
  * only for debugging and never shown to the mind.
+ *
+ * `opts.onData(chunk)` — an OPTIONAL live-output hook, called with each stdout chunk as
+ * it arrives (before the cap is applied). A background job (jobRegistry.js) uses it to
+ * keep a live tail so `check(id)` can show progress before the run ends; a synchronous
+ * caller (m-terminal) simply omits it and reads the whole `screen` on `done`. It must
+ * never throw — a live-tail consumer cannot be allowed to break the authoritative capture.
  */
 export function runScript(opts) {
     const { command, args } = assembleCommand(opts);
@@ -222,6 +228,7 @@ export function runScript(opts) {
         let flooded = false;
 
         child.stdout.on('data', chunk => {
+            try { opts.onData?.(chunk); } catch { /* a live-tail consumer must never break capture */ }
             if (truncated) return;
             out = Buffer.concat([out, chunk]);
             if (out.length > capBytes) {

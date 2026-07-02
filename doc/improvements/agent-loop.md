@@ -2,7 +2,8 @@
 
 **Date:** 2026-07-01
 **Status:** Milestones 1 (kernel + loop), 2 (extensibility proof), 3 (context +
-service mode), 4 (Studio panel) and 5 (compose + govern) IMPLEMENTED (2026-07-01).
+service mode), 4 (Studio panel) and 5 (compose + govern) IMPLEMENTED (2026-07-01);
+6 (async operation — the job registry) IMPLEMENTED (2026-07-02).
 **Relation to other docs:** This is the concrete *loop* that
 [`doc/design-agents-norms-codex.md`](../design-agents-norms-codex.md) left
 underspecified. That doc argues (rightly) for parallel first-class roots
@@ -706,6 +707,43 @@ doc deliberately stops at the seam and leaves norms to that doc.
    execute→sensation, idle-reuse, and the whole path through m-act's decide→realize→
    consequence), `tests/wiring/agent-govern.test.js` (default permit, sync veto, sync
    modify + re-validation, and async veto via hold). → §11.
+6. **Async operation — the job registry.** ✅ **DONE (2026-07-02).** Level 1 of the ladder
+   (§16): async agency on a synchronous, deterministic loop, via async-shaped *tools*, not
+   an async loop. `infrastructure/jobRegistry.js` is the bookkeeping — one `Job` per
+   background sandboxed run (the SAME `sandbox.js`), started with a handle that returns
+   immediately; it keeps a live output tail (via a new OPTIONAL `onData` hook on
+   `runScript` — the one tiny, backward-compatible change to the sandbox), tracks a per-job
+   read cursor so `check` returns only what is NEW (and reports honestly when the tail cap
+   dropped output — the confabulation guard applies to tools too), and fires an
+   `onComplete` callback when a job settles. The sandbox runner is INJECTED (default the
+   real `runScript`) so the whole registry is unit-tested — and dry-runnable — with a
+   controllable fake handle, no process.
+   `<m-jobs>` (`mJobs.js`) is the agent tool that offers five capabilities by bubbling a
+   `capability` event each, with ZERO change to `m-agent`/`m-reason`: `spawn(language,
+   script)` (non-blocking, returns a job id), `check(id)` (status + new output),
+   `wait(id, timeout)` (the interruptible long-poll), `list_jobs()`, `kill(id)`. The
+   `wait` is literally m-terminal's grace-race with a THIRD racer — `Promise.race([job.done,
+   delay(timeout), messageArrived])` — where the inbound message is m-ws's bubbling `task`
+   event (listened for on the enclosing `m-agent`), so a long poll stays responsive to the
+   user with no loop change. NOTIFY (the "best" of the three ways to learn a job finished):
+   the registry's `onComplete` fires a bubbling `nudge` — the SAME seam the loop-detector
+   uses — which `m-agent` folds into the next turn ("Background job-1 finished; call
+   check(...)"), so the agent learns between steps without polling; a deliberate `kill`
+   raises no notice. Transcript integrity holds because an async result re-enters as a
+   fresh observation at a later step, never as a late `tool` reply to the original `spawn`
+   (§16). It is probe-gated like m-terminal (no sandbox ⇒ the tools stay inert, fail-safe)
+   and shares the agent's ONE workspace with the terminal and file tools (a file written
+   with `write_file` is directly runnable as a job; scripts land under `.runs/job-<n>`).
+   `killAll` on disconnect so no background process is orphaned on sleep. The §16 async
+   coder is `architecture/agents/coder-async.archml` (the §7 belt + one `<m-jobs>` line)
+   and dry-wakes end-to-end (all nine tools register, the loop runs). Tests:
+   `tests/unit/job-registry.test.js` (spawn-returns-immediately, cursor-only-new-output,
+   tail-cap-with-honest-gap, done/timeout/kill/error settle, kill-wins-over-outcome,
+   onComplete-once, sync-throw), `tests/wiring/agent-jobs.test.js` (all five register,
+   spawn/list/check happy paths dry, new-output-only + final report, wait-blocks-then-
+   reports, wait-times-out, wait-interrupted-by-message, finished-job-notifies-via-nudge,
+   kill-suppresses-notice, killAll-on-disconnect). → §16. Level 2 (preemptible loop) and
+   the "a background job is another `<m-agent>`" payoff remain nice-to-haves.
 
 ---
 
@@ -868,3 +906,18 @@ A minimal async-capable coder is just the §7 file plus a job tool:
   <m-terminal name="terminal" wall="60s" network="off"></m-terminal>
   <m-jobs name="jobs"></m-jobs>   <!-- registers spawn / check / wait / kill / list_jobs -->
 ```
+
+> **As built (milestone 6).** Level 1 exactly as sketched. `infrastructure/jobRegistry.js`
+> is the job registry (one `Job` per background `sandbox.js` run, a live output tail via a
+> new optional `onData` hook on `runScript`, a per-job read cursor so `check` returns only
+> NEW output, an injected runner so it is unit-tested with no process); `<m-jobs>`
+> (`mJobs.js`) offers `spawn` / `check` / `wait` / `list_jobs` / `kill` by bubbling a
+> `capability` event each — no change to `m-agent`/`m-reason`. The interruptible `wait` IS
+> the code above: `Promise.race([job.done, delay(timeout), messageArrived])`, where the
+> message is m-ws's bubbling `task` event (§10), listened for on the enclosing `m-agent`.
+> NOTIFY is the registry's `onComplete` firing a bubbling `nudge` (§9's seam) that
+> `m-agent` folds into the next turn — the "best last" way to learn a job finished — so the
+> async result re-enters as a fresh observation at a later step, never a late `tool` reply
+> (transcript stays valid). Probe-gated and sharing the agent's one workspace, exactly like
+> the terminal. Example: `architecture/agents/coder-async.archml`. Level 2 (preemption) and
+> "a background job is another `<m-agent>`" (parallel sub-agents) are the remaining rungs.
