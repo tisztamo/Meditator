@@ -6,6 +6,8 @@
 import { test, expect } from "bun:test";
 import { JobRegistry, Job } from "../../../src/infrastructure/jobRegistry.js";
 
+const delay = ms => new Promise(r => setTimeout(r, ms));
+
 // A hand-controllable sandbox handle: resolve/reject its `done` when the test chooses, and
 // push live stdout chunks through the onData hook the registry wired in.
 function makeFakeRunner() {
@@ -152,4 +154,41 @@ test("summary reads honestly for each lifecycle state", async () => {
     controls[0].finish({ exitCode: 3 });
     await job.done;
     expect(job.summary()).toMatch(/finished \(exit 3/);
+});
+
+test("start() backs a job with ANY handle, not just a sandbox run (agent-loop.md §16)", async () => {
+    // The generic entry point spawn() delegates to — the seam m-jobs' spawn_agent uses to
+    // run a SUB-AGENT as a background job. Given a factory that takes the tail sink and
+    // returns a {done, kill} handle, the whole lifecycle (id, tail, settle, notify, kind)
+    // works identically. Here the "handle" is a bare promise, no process at all.
+    const completed = [];
+    const reg = new JobRegistry({ onComplete: j => completed.push(j.id) });
+    let resolve, sink;
+    const done = new Promise(res => { resolve = res; });
+    const job = reg.start(onData => { sink = onData; return { done, kill() {} }; }, { kind: "agent", command: "sub-agent worker: a piece" });
+
+    expect(job.id).toBe("job-1");
+    expect(job.kind).toBe("agent");
+    expect(job.running).toBe(true);
+    sink("[step 1] working\n");
+    expect(job.readNew().text).toBe("[step 1] working\n");
+
+    resolve({ screen: "done", exitCode: 0 });
+    await done;
+    await delay(0);                                   // let the settle/notify microtask run
+    expect(job.state).toBe("done");
+    expect(completed).toEqual(["job-1"]);
+    // An agent job reports in agent terms, not a shell exit code.
+    expect(job.summary()).toMatch(/completed/);
+});
+
+test("an agent job that could not complete (exitCode 1) reads honestly, not 'exit 1'", async () => {
+    const reg = new JobRegistry();
+    let resolve;
+    const done = new Promise(res => { resolve = res; });
+    const job = reg.start(() => ({ done, kill() {} }), { kind: "agent", command: "sub-agent worker" });
+    resolve({ screen: "gave up", exitCode: 1 });
+    await done;
+    await delay(0);
+    expect(job.summary()).toMatch(/could not complete/);
 });

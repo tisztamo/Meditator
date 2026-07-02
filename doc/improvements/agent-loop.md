@@ -3,7 +3,8 @@
 **Date:** 2026-07-01
 **Status:** Milestones 1 (kernel + loop), 2 (extensibility proof), 3 (context +
 service mode), 4 (Studio panel) and 5 (compose + govern) IMPLEMENTED (2026-07-01);
-6 (async operation — the job registry) IMPLEMENTED (2026-07-02).
+6 (async operation — the job registry) and 7 (parallel sub-agents — a background
+job that is another `<m-agent>`) IMPLEMENTED (2026-07-02).
 **Relation to other docs:** This is the concrete *loop* that
 [`doc/design-agents-norms-codex.md`](../design-agents-norms-codex.md) left
 underspecified. That doc argues (rightly) for parallel first-class roots
@@ -742,8 +743,43 @@ doc deliberately stops at the seam and leaves norms to that doc.
    onComplete-once, sync-throw), `tests/wiring/agent-jobs.test.js` (all five register,
    spawn/list/check happy paths dry, new-output-only + final report, wait-blocks-then-
    reports, wait-times-out, wait-interrupted-by-message, finished-job-notifies-via-nudge,
-   kill-suppresses-notice, killAll-on-disconnect). → §16. Level 2 (preemptible loop) and
-   the "a background job is another `<m-agent>`" payoff remain nice-to-haves.
+   kill-suppresses-notice, killAll-on-disconnect). → §16.
+7. **Parallel sub-agents — a background job that is another `<m-agent>`.** ✅ **DONE (2026-07-02).**
+   The §16 payoff with NO new subsystem — a background job need not be a shell command. `JobRegistry`
+   grew a generic `start(makeHandle, meta)` (register a `Job` around any `{done, kill}` handle + its
+   tail sink); `spawn` is now a thin specialization of it over the sandbox runner, and `Job.kind`
+   (`shell`|`agent`) lets the pollers report an agent job in agent terms ("completed"/"could not
+   complete") rather than a shell exit code. `mAgent.runAsJob(task, {onData})` reuses the milestone-5
+   `_runAsHand` single-task loop but shapes it as a job handle — streaming each `step` to the tail,
+   feeding the final answer as a last chunk, and `kill` → `_abortTask` ending the loop at a safe point.
+   `<m-jobs>` discovers its enclosing agent's `role="subagent"` children and offers `spawn_agent(agent,
+   task)` backed by `registry.start(onData => sub.runAsJob(task,{onData}))`, so `check`/`wait`/`kill`/
+   `list_jobs` and the completion `nudge` work on sub-agent jobs unchanged. Gating split: shell `spawn`
+   needs a sandbox, `spawn_agent` needs a sub-agent (a job is a loop, not a process), neither ⇒ inert.
+   Two composition fixes fell out: `_offerAsHand` fires only when the nearest enclosing entity is a
+   mind's `<m-act>` (nested directly in an `<m-agent>`, a sub-agent is a background job, not a blocking
+   hand), and `nudge`/`halt` now `stopPropagation` so a nested sub-agent's observer signals don't leak
+   up to the parent's loop. A sub-agent is single-flight (a `busy`/`available` guard turns work away),
+   so parallelism = distinct sub-agents. Example: `architecture/agents/coder-team.archml` (lead + two
+   background workers), dry-wakes end-to-end. Tests: `tests/unit/job-registry.test.js` (generic
+   `start()` + agent-kind summary), `tests/wiring/agent-subagent-jobs.test.js` (discovery, spawn_agent
+   runs a worker's whole loop dry, kind, progress tail, notify, busy guard, `_abortTask`, gating).
+   → §16. Level 2 (preemptible loop) is the only remaining rung.
+   **First live run (rpn-team.archml on ardincoder-1, 2026-07-02):** a 3-agent team (an architect +
+   two workers `math`/`parse`) built a working RPN calculator — the architect delegated the two
+   independent modules IN PARALLEL via `spawn_agent` in one step (knowing the workers only from the
+   `spawn_agent` schema, which enumerates them by name — they are NOT registered as hands), the
+   progress-tail and NOTIFY nudges surfaced each worker's steps and completion, and the architect
+   integrated + ran the tests + saw them pass (honest — §12 held: when a run errored it read the real
+   error and adapted, never faked success). It exposed a **shared-workspace coherence flaw** (the same
+   class as milestone 2's): a *team* needs one shared workspace (`root=` on every tool), but `m-terminal`
+   read the `workspace=` attribute while the file tools read `root=`, so `root=` on the terminal was
+   silently ignored and it diverged to `memory/<agent>/workspace` — files written with `write_file`
+   (shared root) were invisible to the terminal (per-agent home). **Fixed:** `m-terminal` now resolves
+   `root` \|\| `workspace` \|\| `mindHome` — the same canonical `root=` the file tools and `m-jobs` use.
+   Also fixed pre-emptively: an agent's `.runs/run-<n>` script files are namespaced `run-<agent>-<n>`
+   so sub-agents sharing one workspace can't clobber each other's scripts. Re-run after the fix: one
+   clean shared workspace, no scattered homes, 7 architect steps (down from 18), tests pass.
 
 ---
 
@@ -884,7 +920,7 @@ mind (`terminal.md` §2). The philosophy carries straight over.
 
 - A background job can be **another `<m-agent>`**, not just a shell — so *parallel
   sub-agents* (spawn, keep working, collect results) fall out of the same
-  abstraction for free.
+  abstraction for free. ✅ **DONE — milestone 7** (see §13).
 - **Level 2 (true preemption)** — to stop the agent mid-`reason`: reuse
   `m-stream._supersede()` (already aborts an in-flight burst on a new prompt),
   add an abort signal to `completeWithTools`, and let `m-agent` borrow the
@@ -919,5 +955,34 @@ A minimal async-capable coder is just the §7 file plus a job tool:
 > `m-agent` folds into the next turn — the "best last" way to learn a job finished — so the
 > async result re-enters as a fresh observation at a later step, never a late `tool` reply
 > (transcript stays valid). Probe-gated and sharing the agent's one workspace, exactly like
-> the terminal. Example: `architecture/agents/coder-async.archml`. Level 2 (preemption) and
-> "a background job is another `<m-agent>`" (parallel sub-agents) are the remaining rungs.
+> the terminal. Example: `architecture/agents/coder-async.archml`. Level 2 (preemption) is the
+> remaining rung; "a background job is another `<m-agent>`" (parallel sub-agents) landed in
+> milestone 7 (below).
+>
+> **As built (milestone 7 — parallel sub-agents).** The payoff of §16 without a new subsystem:
+> a background job can be another `<m-agent>`. `JobRegistry` grew a generic `start(makeHandle,
+> meta)` — register a `Job` around ANY `{done, kill}` handle given the tail sink — and `spawn`
+> is now a thin specialization of it over the sandbox runner, so a sub-agent job and a shell job
+> settle through the same path (and `Job.kind` = `shell`|`agent` lets `check`/`wait`/`list_jobs`
+> report each honestly — an agent job says "completed"/"could not complete", not a shell exit
+> code). `mAgent` gained a `runAsJob(task, {onData})` seam that reuses the milestone-5
+> `_runAsHand` single-task loop but shapes it as a job handle: each `step` boundary streams to
+> the tail (so `check` shows the sub-agent's progress, never a black box), the final answer is
+> fed as a last chunk, and `kill` → `_abortTask` ends the loop at a safe point (the in-flight
+> `reason` reply is dropped; true mid-`reason` preemption is still Level 2). `<m-jobs>` discovers
+> its enclosing agent's `role="subagent"` children and offers `spawn_agent(agent, task)` alongside
+> the shell tools, backing each spawn with `registry.start(onData => sub.runAsJob(task,{onData}))`
+> — so `check`/`wait`/`kill`/`list_jobs` and the completion `nudge` all work on sub-agent jobs
+> unchanged ("parallel sub-agents for free"). Gating split cleanly: shell `spawn` needs a sandbox
+> (probe-gated as before), `spawn_agent` needs a sub-agent (no sandbox — a job is a loop), and
+> with neither the tool stays inert. Two composition fixes fell out: `_offerAsHand` now fires
+> ONLY when the sub-agent's nearest enclosing entity is a mind's `<m-act>` (nested directly in an
+> `<m-agent>` it is a background-job sub-agent, discovered by `<m-jobs>`, not a blocking hand), and
+> `mAgent`'s `nudge`/`halt` listeners `stopPropagation` so a nested sub-agent's observer signals
+> are claimed by the nearest agent and don't leak up to derail the parent's loop. A sub-agent runs
+> one task at a time (single-threaded transcript), so real parallelism = distinct sub-agents (a
+> `busy`/`available` guard turns work away rather than corrupt an in-flight transcript). Example:
+> `architecture/agents/coder-team.archml` (a lead + two background workers), dry-wakes end-to-end.
+> Tests: `job-registry.test.js` (the generic `start()` + agent-kind summary), `agent-subagent-jobs.test.js`
+> (discovery + spawn_agent runs a worker's whole loop dry, kind, progress tail, notify, busy guard,
+> `_abortTask`, and no-sub-agent gating). Level 2 (preemptible loop) is the only remaining rung.
