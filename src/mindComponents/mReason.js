@@ -60,17 +60,25 @@ export class MReason extends MBaseComponent {
             return
         }
         this._busy = true
+        let reply
         try {
-            const reply = await this._move(turn)
-            this.pub("reply", reply)
+            reply = await this._move(turn)
         } catch (error) {
             // A genuine client/config error (completeWithTools does not retry). Surface
             // it as an error reply so m-agent can stop honestly instead of hanging.
             log.warn("reason move failed:", error?.message || error)
-            this.pub("reply", { text: "", tool_calls: [], finish_reason: "error", error: error?.message || String(error) })
-        } finally {
-            this._busy = false
+            reply = { text: "", tool_calls: [], finish_reason: "error", error: error?.message || String(error) }
         }
+        // Clear busy BEFORE publishing: m-agent's reply handler runs synchronously inside
+        // this pub() call (Amanita's pub() invokes subscribers synchronously, not via a
+        // microtask), and in finish-tool mode a no-tool-call reply immediately republishes
+        // the NEXT turn from within that same call stack. If _busy were still true at that
+        // point, this component would see its own still-in-flight move as "a turn arrived
+        // while a move was in flight" and silently drop the new turn — freezing the loop
+        // forever with no reply ever coming back (bug found live: an agent stuck at
+        // "reasoning" indefinitely, no request even reaching the model).
+        this._busy = false
+        this.pub("reply", reply)
     }
 
     /** One move: assemble the chat request, call the model, return the raw reply. */

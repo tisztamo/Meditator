@@ -134,6 +134,32 @@ test("finish-tool mode: the loop ends when the model calls finish()", async () =
     assertTranscriptValid(agent._messages);
 });
 
+// Regression: a reentrancy hazard between m-agent and m-reason. In finish-tool mode, a
+// reply with NO tool call folds a "keep working" nudge and immediately republishes the
+// next turn SYNCHRONOUSLY — inside m-reason's still-open pub("reply") call (Amanita's
+// pub() runs subscribers synchronously, not via a microtask). If m-reason clears its busy
+// flag after publishing instead of before, that reentrant turn sees busy still true and is
+// silently dropped: no model call is ever made for it, and the loop freezes forever with no
+// error and no further steps. Live symptom (what surfaced this): an agent stuck at
+// state "reasoning" indefinitely, with no request ever reaching the model.
+test("finish-tool mode: a plain-text answer (no tool call) does not freeze the loop", async () => {
+    const { agent, done } = await runAgent(`
+      <m-agent name="coder-ptf" maxSteps="10" toolSettleMs="60" stopWhen="finish-tool">
+        PLAIN_TEXT_FIRST_THEN_FINISH. You are a coding agent. Call finish(summary) when done.
+        <m-objective name="objective">Make the failing tests pass.</m-objective>
+        <m-reason name="reason" toolTokens="512"></m-reason>
+        <m-terminal name="terminal" wall="10s" network="off"></m-terminal>
+      </m-agent>
+    `);
+    expect(agent._done).toBe(true);
+    expect(done).not.toBeNull();
+    expect(done.reason).toBe("finish-tool");
+    // The plain-text answer must have actually been nudged into a second reasoning call
+    // (not dropped): the transcript carries the nudge note and the eventual finish call.
+    expect(agent._messages.some(m => m.role === "user" && /keep working/i.test(m.content))).toBe(true);
+    assertTranscriptValid(agent._messages);
+});
+
 test("the halt seam stops the loop: a bubbling `halt` event is a stop condition", async () => {
     // A high step budget so the dry loop would otherwise run to completion; a halt
     // fired before it starts must end it at the next turn boundary with reason=halt.

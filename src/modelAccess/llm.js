@@ -733,6 +733,31 @@ function dryCompleteWithTools({ tools = [], messages, debugTag } = {}) {
     const rounds = (messages || []).filter(m => m.role === 'tool').length;
     const terminal = tools.find(t => t.function?.name === 'terminal');
     const finish = tools.find(t => t.function?.name === 'finish');
+
+    // Regression coverage for the m-reason/m-agent reentrancy hazard (agent-loop.md §3):
+    // a marker in the system prompt asks the dry reasoner to answer in PLAIN TEXT first
+    // (no tool call), then finish — the exact shape that, in finish-tool mode, makes
+    // m-agent synchronously republish the NEXT turn from inside m-reason's still-open
+    // pub("reply") call (Amanita's pub() runs subscribers synchronously). If m-reason's
+    // busy flag is cleared too late, that reentrant turn is silently dropped and the loop
+    // freezes forever with no reply ever coming back.
+    if (finish && (messages || []).some(m => /PLAIN_TEXT_FIRST_THEN_FINISH/i.test(m.content || ''))) {
+      const alreadyAnswered = (messages || []).some(m => m.role === 'assistant' && !(m.tool_calls && m.tool_calls.length));
+      if (!alreadyAnswered) {
+        return { text: 'Sure — here is my plan before I start.', tool_calls: [], finish_reason: 'stop', usage: null };
+      }
+      return {
+        text: '',
+        tool_calls: [{
+          id: 'call_dry_finish_ptf',
+          type: 'function',
+          function: { name: 'finish', arguments: JSON.stringify({ summary: 'Dry run: answered in plain text, then finished after the nudge.' }) },
+        }],
+        finish_reason: 'tool_calls',
+        usage: null,
+      };
+    }
+
     if (terminal && rounds < 2) {
       const script = rounds === 0 ? 'ls -a' : 'echo "checking" && exit 0';
       return {
