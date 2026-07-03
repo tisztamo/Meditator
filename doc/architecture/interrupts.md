@@ -63,8 +63,10 @@ What happens next depends on urgency:
 
 - **Non-urgent:** the stimulus simply waits. At the next burst boundary, `m-mind`
   calls `takePending()`, which returns the queued stimuli oldest-first and clears
-  the queue. They become the "## This just happened" section of the next frame.
-  *An interruption is just an attended boundary.*
+  the queue. They enter the next frame as `> ⟂ …` lines appended to the thought in
+  progress — after the mind's last words, where they actually reached it — and
+  `m-memory` appends the identical block to the durable tail, so the perception
+  outlives the frame. *An interruption is just an attended boundary.*
 - **Urgent:** the arbiter *also* dispatches a bubbling `interrupt` event. `m-mind`
   hears it and thinks immediately, superseding the running burst. A human voice
   is always urgent — you don't wait your turn, and there is no reply turn; you

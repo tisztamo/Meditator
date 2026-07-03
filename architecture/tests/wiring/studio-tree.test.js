@@ -21,9 +21,9 @@ test("a redirect frame renders three role-labeled turns, not one folded system b
     const el = mk();
     el.onFrame({
         process: "mind", kind: "frame", frameKind: "redirect",
-        system: 'You are a mind thinking to itself.\n\n## This just happened\n- Kris says: "hi"',
+        system: 'You are a mind thinking to itself.\n\n## Recently (compressed)\nI had been watching the harbor.',
         instruction: "Your inner monologue is already underway; continue it from exactly where it leaves off.",
-        frame: "…the tail of the thought I was already having, then the bridge sentence.",
+        frame: '…the tail of the thought I was already having.\n\n> ⟂ Kris says: "hi"\n\n',
     });
     const box = el.querySelector(".framebox");
     expect(box).toBeTruthy();
@@ -37,8 +37,10 @@ test("a redirect frame renders three role-labeled turns, not one folded system b
     expect(box.querySelector(".instr").textContent).toContain("continue it from exactly where it leaves off");
     expect(box.querySelector(".sys").textContent).not.toContain("continue it from exactly where it leaves off");
 
-    // Each turn's content is shown verbatim.
-    expect(box.textContent).toContain("This just happened");
+    // Each turn's content is shown verbatim — including the perceived `> ⟂` event,
+    // which now lives at the END of the assistant prefill, not in the system block.
+    expect(box.querySelector(".frame").textContent).toContain('> ⟂ Kris says: "hi"');
+    expect(box.querySelector(".sys").textContent).not.toContain("⟂");
     expect(box.textContent).toContain("the tail of the thought I was already having");
 });
 

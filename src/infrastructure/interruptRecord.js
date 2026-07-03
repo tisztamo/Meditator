@@ -35,6 +35,32 @@ export function voiceFraming(lang) {
 }
 
 /**
+ * Appends perceived stimuli to a stretch of the stream, rendered exactly as the
+ * journal (and Studio) render them — a `> ⟂ …` block at the point where they
+ * reached the mind: AFTER its last words, because that is when they entered the
+ * thinking, not somewhere earlier.
+ *
+ * This is THE one rendering of perception in the stream record. m-mind uses it to
+ * compose the burst's prefill (tail + what just arrived) and m-memory uses it to
+ * append the same events to the durable tail — both through this function, so the
+ * prompt the model continues, the tail it wakes from, and the journal a human reads
+ * never drift apart. Pure, so it is unit-testable without a mind.
+ *
+ * The block ends with a blank line: the continuation starts as fresh prose after
+ * the event, free to take it up or to abandon the interrupted sentence above it.
+ *
+ * @param {string} text   the stream so far (may be empty — a freshly-born mind)
+ * @param {string[]} lines rendered stimulus lines (renderForFrame output)
+ * @returns {string}
+ */
+export function withPerceivedEvents(text, lines) {
+  if (!Array.isArray(lines) || !lines.length) return text || "";
+  const block = lines.map(l => `> ⟂ ${l}`).join("\n\n");
+  const base = (text || "").replace(/\s+$/, "");
+  return base ? `${base}\n\n${block}\n\n` : `${block}\n\n`;
+}
+
+/**
  * Class representing a structured interrupt record
  * Implements the Markdown format described in architecture docs
  */

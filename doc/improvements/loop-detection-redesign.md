@@ -38,6 +38,12 @@ sentence behind"* (`mMind.js:424`). Prefill momentum wins: **the note gets a nod
 continues.** Recovering from a loop is not "add a stimulus" — it is **replace what the mind is
 about to continue from.**
 
+> *(2026-07-03 update: the `## This just happened` system section described here no longer
+> exists — stimuli now enter the tail itself as `> ⟂ …` lines at the end of the prefill,
+> which softens the prefill-momentum problem for ordinary stimuli; see
+> [perception-not-compressible.md](perception-not-compressible.md). The break/clear-tail
+> design below remains the answer for a loop already in the tail.)*
+
 **2. Detection and intervention are fused and brittle.** `loopScore` is bigram/stem overlap
 (`mLoopGuard.js:60`); it false-positives on the conjecture word *infinite* and false-negatives
 on digit-spam, so a hand-tuned bliss lexicon (`attractorLexicon.js`) was bolted on as a

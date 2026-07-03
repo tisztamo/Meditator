@@ -15,13 +15,17 @@ disk).
 
 | Tier | What it is | Budget (default) | How it changes |
 |------|------------|------------------|----------------|
-| `tail` | the **verbatim** end of the stream — "what I was just saying" | `tailLength` 1500 chars | never compressed; carried into every frame |
+| `tail` | the **verbatim** end of the stream — "what I was just saying", plus what I just perceived | `tailLength` 1500 chars | never compressed; carried into every frame |
 | `recent` | a rolling first-person summary of what scrolled out of the tail | `recentLength` 1200 chars | recompressed as thought overflows |
 | `story` | a slow first-person autobiography | `storyLength` 2200 chars | every `storyEvery`-th consolidation folds `recent` into it |
 
-As the stream generates chunks, they append to the tail. When the tail exceeds
-its budget, the oldest part is cut at a word edge and pushed into an `overflow`
-buffer. That overflow is what gets summarized.
+As the stream generates chunks, they append to the tail. Perceived stimuli join it
+too: each frame's attended events are appended as the same `> ⟂ …` block the journal
+renders, after the mind's last words — so what reached the mind persists and
+compresses exactly like what it said (see
+[perception-not-compressible.md](../improvements/perception-not-compressible.md)).
+When the tail exceeds its budget, the oldest part is cut at a word edge and pushed
+into an `overflow` buffer. That overflow is what gets summarized.
 
 ## Consolidation — compression that never blocks
 

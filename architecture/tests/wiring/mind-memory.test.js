@@ -100,14 +100,22 @@ test("waking is raised onto the attention spine, not parked for a pull", () => {
     expect(waking.renderForFrame().includes("waking up")).toBe(true);
 });
 
-test("the mind's `attended` stimuli are journaled by memory via subscription", async () => {
-    // attended is journaled via note() (perceived ⟂), which writes to the journal, not
-    // the verbatim tail; spy on note() to confirm the wire routes each line into memory.
+test("the mind's `attended` stimuli are journaled AND enter the tail as a `> ⟂` block", async () => {
+    // attended is journaled via note() (perceived ⟂) and appended to the verbatim tail
+    // in the same rendering, after the mind's last words — perception persists like the
+    // mind's own voice (perception-not-compressible.md, option 1).
     const notes = [];
     const origNote = memory.note.bind(memory);
     memory.note = (text, opts) => { notes.push(text); return origNote(text, opts); };
+    const tailBefore = memory.getTail();
     mind.fire("attended", ["A bell rang somewhere in the fog."]);
     await delay(10);
     memory.note = origNote;
     expect(notes.some(line => line.includes("bell rang"))).toBe(true);
+    expect(memory.getTail().includes("> ⟂ A bell rang somewhere in the fog.")).toBe(true);
+    // ...at the honest position: after everything the mind had already said.
+    expect(memory.getTail().indexOf("> ⟂ A bell rang") > memory.getTail().indexOf(tailBefore.trimEnd().slice(-30))).toBe(true);
+    // ...and the published topic carried the change to the frame's mirror.
+    await delay(10);
+    expect(tailSeen.includes("> ⟂ A bell rang somewhere in the fog.")).toBe(true);
 });

@@ -52,11 +52,17 @@ these layers:
 ─────────────────────────────────────────────────────────────────────────────
 ## How I got here (older memory, compressed)   ← story   (from m-memory)
 ## Recently (compressed)                        ← recent  (from m-memory)
-## This just happened                           ← stimuli (from the arbiter)
-   - <first-person line for each accepted interrupt>
-## My thought in progress
-   …<tail — verbatim end of the stream, plus the bridge if attention turned>
 <instruction: continue the monologue from exactly where it leaves off>
+## My thought in progress (the assistant prefill the model continues)
+   …<tail — verbatim end of the stream>
+
+   > ⟂ <first-person line for each accepted interrupt — stimuli enter the
+        STREAM, after the mind's last words (that is when they reached it),
+        rendered exactly as the journal and Studio render them; m-memory
+        appends the identical block to the durable tail, so perception
+        persists and compresses like the mind's own voice>
+
+   <the bridge, if attention turned>
 ```
 
 Two properties make this work over arbitrarily long runs:

@@ -4,7 +4,7 @@ import { resolveModelRef } from "../../modelAccess/modelConfig.js"
 import { makePhrasebook } from "../shared/i18n.js"
 import { parseTime } from '../../config/timeParser.js';
 import { logger } from '../../infrastructure/logger.js';
-import { InterruptRecord } from '../../infrastructure/interruptRecord.js';
+import { InterruptRecord, withPerceivedEvents } from '../../infrastructure/interruptRecord.js';
 
 const log = logger('mMind.js');
 
@@ -30,9 +30,11 @@ const CLEAR_PHRASES = {
  *   [identity]   standing self-description: the mind's own text in the .archml file
  *   [story]      slow compressed autobiography            (from m-memory)
  *   [recently]   faster rolling summary                   (from m-memory)
- *   [stimulus]   what just happened, if anything          (from the m-interrupts arbiter)
+ *   [tail]       verbatim end of the stream — "what I was just saying" — always last,
+ *                ending with any freshly perceived stimuli as `> ⟂ …` lines (from the
+ *                m-interrupts arbiter), at the honest position: after the last words,
+ *                because that is when they entered the thinking
  *   [bridge]     1-2 transition sentences, the only LLM-written part, redirects only
- *   [tail]       verbatim end of the stream — "what I was just saying" — always last
  *
  * The identity is the seed of the SELF and stands in every frame. Distinct from
  * it is the seed of the THOUGHT — a child <m-origin>, the one matter the mind was
@@ -507,21 +509,33 @@ export class MMind extends MBaseComponent {
         const facts = this._factsPinned
 
         // Fire the stimuli that are entering this frame as a transient event; a memory
-        // journals them as perceived (⟂) notes by subscribing (`@attended`), rather
-        // than us calling note() in. An event is never replayed, so each frame's fresh
-        // array is recorded once, with no dedupe.
-        if (stimuli.length) this.fire("attended", stimuli.map(s => s.renderForFrame()))
+        // journals them as perceived (⟂) notes AND appends the same `> ⟂ …` block to
+        // the durable tail by subscribing (`@attended`), rather than us calling note()
+        // in. An event is never replayed, so each frame's fresh array is recorded once,
+        // with no dedupe.
+        const rendered = stimuli.map(s => s.renderForFrame())
+        if (rendered.length) this.fire("attended", rendered)
+
+        // Perception enters the STREAM, not a briefing section: what just happened is
+        // appended to the thought-in-progress as the same `> ⟂ …` block the journal and
+        // Studio render — after the mind's last words, because that is when it reached
+        // the thinking (not "before everything", which is where a system section would
+        // dishonestly place it). Memory makes the identical append to the durable tail
+        // (same helper, same rendering), so this frame's prefill, the next frame's
+        // mirrored tail, and the journal all read as one text — and the model continues
+        // FROM the event instead of resuming an interrupted sentence past it.
+        let thoughtInProgress = withPerceivedEvents(tail, rendered)
 
         // The bridge: one small model call that writes the turn itself. It is
         // both emitted into the visible stream (prefix) and appended to the
-        // tail in the frame, so the voice model continues from a pivot it has
-        // actually seen.
+        // thought in the frame, so the voice model continues from a pivot it has
+        // actually seen. It follows the event block — attention turns after the
+        // event arrives, not before.
         let prefix
-        let thoughtInProgress = tail
         if (stimuli.length && tail && this.attr("bridge") === "true") {
             const bridge = await this._writeBridge(tail, stimuli)
-            prefix = "\n" + bridge + " "
-            thoughtInProgress = tail + "\n" + bridge + " "
+            prefix = bridge + " "
+            thoughtInProgress = thoughtInProgress + bridge + " "
         }
 
         const identity = this._identity()
@@ -529,30 +543,29 @@ export class MMind extends MBaseComponent {
         if (facts) sections.push(`## What I know (verbatim)\n${facts}`)
         if (story) sections.push(`## How I got here (older memory, compressed)\n${story}`)
         if (recent) sections.push(`## Recently (compressed)\n${recent}`)
-        if (stimuli.length) {
-            sections.push(`## This just happened\n${stimuli.map(s => `- ${s.renderForFrame()}`).join("\n")}`)
-        }
 
         // The frame is split across three chat turns (built in m-stream): a `system`
-        // message (identity + memory + what just happened), a `user` message carrying
-        // the instruction, and — when a thought is already underway — an `assistant`
-        // prefill holding that thought, which the model is asked to continue. The
-        // instruction is a `user` turn rather than a section of the system block for
-        // two reasons: the request must contain a user query at all (litellm/vLLM
-        // reject a system-only or system+assistant request with "No user query found
-        // in messages"), and placing it ahead of the assistant prefill lets the
-        // request end on the mind's own last token, so the model continues the thought
-        // instead of answering it.
+        // message (identity + memory), a `user` message carrying the instruction, and
+        // an `assistant` prefill holding the thought in progress — which now ENDS with
+        // any freshly perceived `> ⟂` events, so the request ends where experience
+        // ends. The instruction is a `user` turn rather than a section of the system
+        // block for two reasons: the request must contain a user query at all
+        // (litellm/vLLM reject a system-only or system+assistant request with "No user
+        // query found in messages"), and placing it ahead of the assistant prefill
+        // lets the request end on the mind's own stream, so the model continues the
+        // thought instead of answering it.
         let instruction, prefill
-        if (thoughtInProgress) {
-            instruction = stimuli.length
-                ? `Your inner monologue is already underway; its most recent words are given as your own turn that follows. Continue it from exactly where it leaves off, letting what just happened genuinely enter and redirect the thought. If attention has truly moved, you may leave the unfinished sentence behind. Do not repeat or summarize what is already written; write only the continuation.`
-                : `Your inner monologue is already underway; its most recent words are given as your own turn that follows. Continue it from exactly where it leaves off. Do not repeat or summarize what is already written; write only the continuation.`
+        if (tail && stimuli.length) {
+            instruction = `Your inner monologue is already underway; the turn that follows carries its most recent stretch, ending with what has just reached you (the "> ⟂" lines at its end). Continue the monologue from exactly where it leaves off, letting what arrived genuinely land: if it answers something you were working out, take the answer in rather than working it out again; if attention has truly moved, you may leave the unfinished sentence behind. Do not repeat or summarize what is already written; write only the continuation.`
+            prefill = thoughtInProgress
+        } else if (tail) {
+            instruction = `Your inner monologue is already underway; its most recent stretch is given as your own turn that follows. Continue it from exactly where it leaves off. Do not repeat or summarize what is already written; write only the continuation.`
+            prefill = thoughtInProgress
+        } else if (stimuli.length) {
+            instruction = `Your inner monologue begins now; the turn that follows opens with what has just reached you (the "> ⟂" lines). Begin thinking from it. Write only the monologue.`
             prefill = thoughtInProgress
         } else {
-            instruction = stimuli.length
-                ? `Begin the inner monologue now, starting from what just happened. Write only the monologue.`
-                : `Begin the inner monologue now, starting from whatever is most alive in you. Write only the monologue.`
+            instruction = `Begin the inner monologue now, starting from whatever is most alive in you. Write only the monologue.`
         }
 
         const system = [identity, ...sections].join("\n\n")
@@ -594,7 +607,7 @@ export class MMind extends MBaseComponent {
         // what lets a capability be USED on purpose and rediscovered when it fires,
         // instead of staying invisible until the stream happens into its domain.
         const body = (this._embodiment || "").trim()
-        return `You are a mind thinking to itself in a continuous inner monologue. No task was given to you, and you owe no one a performance; you are not an assistant. Think in first person, present tense. Be concrete and specific; follow genuine curiosity; allow doubt, revision, tangents, memories and quiet observation. Let one thought grow out of the last. Never announce what you are about to think — just think it. Voices or events from outside are real experiences: you may think about them, answer them in thought, or let them change your direction. Plain flowing prose; no headings, no lists.
+        return `You are a mind thinking to itself in a continuous inner monologue. No task was given to you, and you owe no one a performance; you are not an assistant. Think in first person, present tense. Be concrete and specific; follow genuine curiosity; allow doubt, revision, tangents, memories and quiet observation. Let one thought grow out of the last. Never announce what you are about to think — just think it. Voices or events from outside are real experiences: you may think about them, answer them in thought, or let them change your direction. In the record of your thought, a line beginning "> ⟂" marks something that actually reached you at that moment — a voice, an event, the world answering one of your own reaches. Those lines are never your words and you never write one yourself: only the world writes them, and what stands in one really happened, unlike anything you merely imagine. Plain flowing prose; no headings, no lists.
 
 ${self ? `About you:\n${self}` : ""}${body ? `\n\nSome things about how you meet the world, known the way you know your own hands:\n${body}` : ""}`
     }

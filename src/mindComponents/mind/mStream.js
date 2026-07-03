@@ -109,7 +109,7 @@ export class MStream extends MBaseComponent {
         const messages = []
         if (system) messages.push({ role: 'system', content: system })
         if (prefill && thinking) {
-            messages.push({ role: 'user', content: `${userTurn}\n\nYour most recent words:\n"…${prefill}"` })
+            messages.push({ role: 'user', content: `${userTurn}\n\nThe monologue so far:\n"…${prefill}"` })
         } else {
             if (userTurn) messages.push({ role: 'user', content: userTurn })
             if (prefill) messages.push({ role: 'assistant', content: prefill })

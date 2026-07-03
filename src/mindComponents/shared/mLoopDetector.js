@@ -125,7 +125,9 @@ export class MLoopDetector extends MObserver {
 …${text.slice(-1800)}
 </tail>
 
-Is the mind CIRCLING — restating the same point again and again, or chanting a refrain, or chewing the same vocabulary without taking a genuinely new step? Working a hard problem and revisiting it is NOT circling; neither is honestly stating a question (a conjecture about something being "infinite" is real content, not a loop). Only a true rut counts.
+Lines beginning "> ⟂" are events the mind perceived at that moment (a voice, or an answer coming back from its own reach into the world) — not its own words.
+
+Is the mind CIRCLING — restating the same point again and again, or chanting a refrain, or chewing the same vocabulary without taking a genuinely new step? Working a hard problem and revisiting it is NOT circling; neither is honestly stating a question (a conjecture about something being "infinite" is real content, not a loop). But re-reaching for the same thing whose answer already came back (repeated near-identical "> ⟂" events the thought never takes up), or re-deriving and re-declaring a conclusion it has already reached, IS circling even when every restatement is freshly worded. Only a true rut counts.
 
 Reply in EXACTLY this format, nothing else:
 LOOPING: yes or no

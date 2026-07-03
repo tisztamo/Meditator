@@ -6,7 +6,7 @@ import { langOf } from "../shared/i18n.js"
 import { complete, isDryRun } from "../../modelAccess/llm.js"
 import { resolveModelRef } from "../../modelAccess/modelConfig.js"
 import { logger } from '../../infrastructure/logger.js';
-import { InterruptRecord } from '../../infrastructure/interruptRecord.js';
+import { InterruptRecord, withPerceivedEvents } from '../../infrastructure/interruptRecord.js';
 import { mindHome, inVault, ensureVault, commitVault, assertNotRetired } from '../../infrastructure/memoryVault.js';
 import { FORMAT_VERSION, recordWake, tierOf } from '../../infrastructure/manifest.js';
 import { getLoadedArchitecture } from '../../startup/architecture.js';
@@ -53,7 +53,9 @@ const log = logger('mMemory.js');
  *     `attended`. Deed ⌁, consequence ⟂. Exactly mirrors `filedSrc` for the scribe.
  *   - attendedSrc (default "..m-mind/attended"; "off" disables): the stimuli that
  *     entered each frame, journaled as perceived (⟂) notes by subscribing here
- *     rather than the mind calling note() in.
+ *     rather than the mind calling note() in — AND appended to the verbatim tail
+ *     as the same `> ⟂ …` block, so perception persists in memory like the mind's
+ *     own words instead of living for a single frame.
  *
  * Topics published:
  *   - "tail": the verbatim tail, on every change (retained; the frame mirrors it)
@@ -325,11 +327,21 @@ export class MMemory extends MBaseComponent {
     }
 
     // The stimuli that entered a frame, arriving as the mind's transient `@attended`
-    // event rather than a note() call per stimulus. Each is a perceived (⟂) note.
+    // event rather than a note() call per stimulus. Each is a perceived (⟂) note in the
+    // journal AND a `> ⟂ …` block appended to the verbatim tail — at the honest position,
+    // after the mind's last words, exactly as m-mind composed this frame's prefill
+    // (withPerceivedEvents keeps the two renderings identical). Perception thereby
+    // persists like the mind's own voice: it survives into the next prefill, scrolls
+    // into the compressor, and outlives the one frame it used to live in
+    // (doc/improvements/perception-not-compressible.md — option 1, chosen 2026-07-03
+    // after the lemma-lab-20 run showed the mind amnesic about its own computed results).
     _onAttended = e => {
         const lines = e.detail
         if (!Array.isArray(lines) || !lines.length) return
         for (const line of lines) this.note(line)
+        if (this._finalized) return
+        this.tail = withPerceivedEvents(this.tail, lines)
+        this._trimTail()
     }
 
     // A loop break: the mind cleared its tail and starts fresh from `seed`. We own the
@@ -445,8 +457,10 @@ export class MMemory extends MBaseComponent {
      *   - backstage (⌁): a subconscious/bookkeeping event the mind never sees, e.g.
      *     the scribe filing knowledge. Recorded for us, never part of the stream —
      *     the prose flows straight across it.
-     * Neither writes to the verbatim `tail`; only `spoke()` does that. This is a
-     * human-readable annotation only — the journal is never fed back to the model.
+     * note() itself never writes to the verbatim `tail` — this is the human-readable
+     * annotation channel, never fed back to the model. Perceived (⟂) stimuli DO also
+     * reach the tail, but via `_onAttended`'s explicit append, in the same rendering;
+     * backstage (⌁) events stay journal-only — the mind never experienced them.
      */
     note(text, { perceived = true } = {}) {
         this._flushJournal()
@@ -719,7 +733,7 @@ ${draft}
         : ""
     return `You are writing ${voice}.
 
-Rewrite the thinking inside <thinking> below into a single, continuous first-person memory of AT MOST ${targetChars} characters.${ctxNote} Keep what the mind is working on or turning over, every result, conclusion, or decision it has reached, and the questions it has left open. Remove what does not change those: abandoned attempts and the step-by-step working of individual cases once the result is in hand (keep the result, drop the scratch-work). Where the thinking LOOPS — the same point restated many times, or a refrain repeated with small variations (a chain of "I am the X, I am the Y" sentences, a circling that adds nothing new) — collapse the whole loop to a single sentence of what it was circling. Judge a thing by what it bears on, never by its age: a hard-won conclusion is the last thing to cut, not the first, however old it has become. Never invent anything: if it is not in <thinking>, it does not belong in the memory.${langLine} Output only the memory.${before}
+Rewrite the thinking inside <thinking> below into a single, continuous first-person memory of AT MOST ${targetChars} characters.${ctxNote} Lines beginning "> ⟂" are not the mind's words: they are what reached it at that moment — a voice, an event, an answer coming back from something it reached out to do. What such a line carried is lived experience, so keep its substance as something that happened ("the search came back empty", "Kris asked me to stop") — a concrete result that arrived this way outranks the speculation around it. Keep what the mind is working on or turning over, every result, conclusion, or decision it has reached, and the questions it has left open. Remove what does not change those: abandoned attempts and the step-by-step working of individual cases once the result is in hand (keep the result, drop the scratch-work). Where the thinking LOOPS — the same point restated many times, or a refrain repeated with small variations (a chain of "I am the X, I am the Y" sentences, a circling that adds nothing new) — collapse the whole loop to a single sentence of what it was circling. Judge a thing by what it bears on, never by its age: a hard-won conclusion is the last thing to cut, not the first, however old it has become. Never invent anything: if it is not in <thinking>, it does not belong in the memory.${langLine} Output only the memory.${before}
 
 <thinking>
 ${text}

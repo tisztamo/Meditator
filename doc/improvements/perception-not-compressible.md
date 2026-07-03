@@ -1,9 +1,13 @@
 # Perception bypasses compressible memory — the experiential anchor is lost
 
-> **Status: proposed (2026-06-23). Not yet implemented — diagnosis only.**
-> Observed in the `lemma-lab-5` run (`memory/lemma-lab-5/`, saved 2026-06-22T18:43).
+> **Status: RESOLVED (2026-07-03) — direction 1 implemented, with a stronger rendering.**
+> Diagnosed 2026-06-23 from the `lemma-lab-5` run; the decision was forced by the
+> `lemma-lab-20` run (2026-07-03), where the mind's own terminal results — correct
+> answers it had reached for — lived one frame each and never entered memory, so it
+> re-ran the same search ~109 times for two hours (see the project memory,
+> `local-voice-profile-experiment`). Implementation notes at the end of this file.
 > Touches `MMemory` (the tail's write paths and `_onAttended`) and `MMind.assembleFrame`
-> (`src/mindComponents/mMemory.js`, `src/mindComponents/mMind.js`).
+> (`src/mindComponents/mind/mMemory.js`, `src/mindComponents/mind/mMind.js`).
 > Companion to [memory.md](../architecture/memory.md) and
 > [compression-fidelity.md](../architecture/compression-fidelity.md).
 
@@ -144,3 +148,35 @@ has no *remembered* record that it was repeatedly asked to return to work — on
 journal does. This is directly relevant to the memory-length × presence-attractor
 study (see the project memory index): the intervention is invisible to the substrate
 that drives the next burst.
+
+## Resolution (2026-07-03)
+
+Direction 1 was chosen, with one refinement over the sketch above: instead of a new
+`(heard) "…"` marker, a perceived stimulus enters the tail in **the exact rendering
+the journal and Studio already use** — a `> ⟂ …` block — and at the **honest
+temporal position**: after the mind's last words, because that is when it entered
+the thinking, not somewhere earlier. One pure helper,
+`withPerceivedEvents(text, lines)` (`src/infrastructure/interruptRecord.js`), is the
+single source of that rendering:
+
+- `MMind.assembleFrame` composes the burst's **prefill** with it — the thought in
+  progress now *ends* with what just arrived, so the model continues from the event
+  instead of resuming an interrupted sentence past it. The `## This just happened`
+  system section is gone; perception is stream, not briefing.
+- `MMemory._onAttended` appends the **identical block to the durable tail** (and
+  still journals it), so this frame's prefill, the next frame's mirrored tail, and
+  the journal read as one text. Perception now scrolls into the compressor like the
+  mind's own voice; `buildCompressionPrompt` was taught that `> ⟂` lines are lived
+  events whose substance (a result that came back, a voice) outranks speculation.
+- The identity instruction explains the notation and forbids the mind writing `> ⟂`
+  lines itself — only the world writes them — so a real result is now typographically
+  distinct from an imagined one (the lemma-lab-20 killer asymmetry, inverted).
+- `m-loop-detector`'s prompt was updated: repeated near-identical `> ⟂` events the
+  thought never takes up ARE circling, so the re-reach ruts the events make visible
+  are now detectable.
+
+Backstage (`⌁`) events — the scribe's filings, the hands' deeds — stay journal-only:
+the mind never experienced them, and the One Rule keeps them out of its stream. The
+budget-competition risk flagged above is real but bounded: events pass through the
+tail into consolidation like everything else, and the compression prompt knows what
+they are.
