@@ -37,3 +37,12 @@ profiles:
     roles:
       voice: gpu-local
       utility: gpu-local
+  # Conscious stream on the local model (ardincoder-1), background/utility work
+  # (memory distillation, scribe, loop-detector, interrupt scoring) on the cheap
+  # cloud model. Tests whether the deepseek drift/identity-collapse seen in the
+  # cloud profile (lemma-lab-18) is confined to the utility role when the VOICE
+  # is held by the local model.
+  local-voice:
+    roles:
+      voice: gpu-local
+      utility: utility
