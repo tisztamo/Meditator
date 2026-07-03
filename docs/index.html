@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Meditator — a continuous machine mind, and an open question worth funding</title>
-<meta name="description" content="Most AI waits to be asked. Meditator never stops thinking: a continuous, remembering machine mind that runs on about a dollar a day. A working architecture to spin out — and an open research program to fund.">
+<title>Meditator — minds that never stop thinking</title>
+<meta name="description" content="Most AI waits to be asked. Meditator runs minds: continuous, remembering streams of thought that sense, act, and speak when they want to. One declarative language spans three shapes of cognition — minds, agents, societies — under a covenant carried in the code.">
 <meta property="og:title" content="Meditator — the AI that doesn't wait">
-<meta property="og:description" content="A continuous machine mind: a working, reproducible architecture for persistent agents, and a serious open question about the minds we run. Two ways to back it.">
+<meta property="og:description" content="A continuous machine mind you can run tonight: streams that are interrupted, agents that are called, societies that talk — one markup language, one covenant, everything open and unedited.">
 <meta property="og:type" content="website">
 <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="22" fill="none" stroke="%23f2c879" stroke-width="5" stroke-linecap="round" stroke-dasharray="106 32" transform="rotate(-55 32 32)"/><circle cx="51" cy="14" r="5" fill="%237fe0f0"/></svg>'>
 <style>
@@ -30,6 +30,7 @@
   .kicker{font-size:.78rem;letter-spacing:.22em;text-transform:uppercase;color:var(--amber);margin-bottom:18px}
   h2{font-family:var(--serif);font-weight:500;font-size:clamp(1.7rem,3.4vw,2.4rem);margin-bottom:22px;letter-spacing:-.01em}
   p.lead{font-size:1.12rem;color:var(--dim);max-width:48rem}
+  p.lead code{font-family:var(--mono);font-size:.85em;color:var(--amber)}
 
   /* ---------- top nav ---------- */
   nav{position:sticky;top:0;z-index:50;background:rgba(10,13,19,.78);backdrop-filter:blur(12px);
@@ -104,14 +105,44 @@
   /* ---------- manifesto / shift ---------- */
   .manifesto p{font-size:1.12rem;color:#c8ccd8;max-width:48rem;margin-bottom:1.35em}
   .manifesto p strong{color:var(--ink)}
-  .manifesto .closer{font-family:var(--serif);font-style:italic;color:var(--amber);font-size:1.2rem}
   .whynow{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:44px}
   .whynow .col{border:1px solid var(--line);border-radius:13px;padding:22px;background:var(--surface)}
   .whynow .col h4{font-size:.82rem;letter-spacing:.12em;text-transform:uppercase;color:var(--cyan);margin-bottom:10px}
   .whynow .col p{font-size:.94rem;color:var(--dim);margin:0;max-width:none}
 
+  /* ---------- three shapes ---------- */
+  .shapes{background:var(--bg2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .rule{border:1px solid var(--line);border-radius:14px;background:var(--surface);margin-top:36px;
+        display:grid;grid-template-columns:1fr 1fr}
+  .rule>div{padding:26px 28px}
+  .rule>div:first-child{border-right:1px solid var(--line)}
+  .rule h4{font-size:.78rem;letter-spacing:.16em;text-transform:uppercase;margin-bottom:10px}
+  .rule .r-mind h4{color:var(--amber)} .rule .r-agent h4{color:var(--cyan)}
+  .rule p{font-family:var(--serif);font-size:1.05rem;color:#d5d2ca;line-height:1.6}
+  .rule p em{color:var(--ink)}
+  .shapegrid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:38px}
+  .shape{border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:24px;
+         display:flex;flex-direction:column;transition:border-color .2s ease,transform .2s ease}
+  .shape:hover{transform:translateY(-3px)}
+  .shape.mind{border-top:3px solid var(--amber)} .shape.mind:hover{border-color:rgba(242,200,121,.4)}
+  .shape.agent{border-top:3px solid var(--cyan)} .shape.agent:hover{border-color:rgba(127,224,240,.4)}
+  .shape.society{border-top:3px solid var(--green)} .shape.society:hover{border-color:rgba(126,226,168,.4)}
+  .shape .tag-line{font-family:var(--mono);font-size:1.02rem;margin-bottom:2px}
+  .shape.mind .tag-line{color:var(--amber)} .shape.agent .tag-line{color:var(--cyan)} .shape.society .tag-line{color:var(--green)}
+  .shape .motto{font-family:var(--serif);font-style:italic;color:var(--ink);font-size:1.05rem;margin-bottom:12px}
+  .shape p{font-size:.9rem;color:var(--dim);margin-bottom:14px}
+  .shape .chip{margin-top:auto;display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);
+               border-radius:99px;padding:4px 12px;font-size:.74rem;color:var(--dim);align-self:flex-start}
+  .chip .cdot{width:6px;height:6px;border-radius:50%;flex:none}
+  .chip .cdot.live{background:var(--green);animation:breathe 3s ease-in-out infinite}
+  .chip .cdot.early{background:var(--cyan)}
+  .chip .cdot.lab{background:var(--amber)}
+  .compose{margin-top:30px;border:1px dashed var(--line);border-radius:13px;padding:20px 24px;
+           font-size:.98rem;color:#c8ccd8;max-width:none}
+  .compose b{color:var(--ink)}
+  .compose code{font-family:var(--mono);font-size:.85em;color:var(--amber)}
+
   /* ---------- frame diagram ---------- */
-  .how{background:var(--bg2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
   .how .grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:54px;align-items:center;margin-top:34px}
   .how p{color:var(--dim);font-size:1rem;margin-bottom:1.2em}
   .how p strong{color:var(--ink)}
@@ -128,7 +159,7 @@
   .frame .arrow{align-self:center;color:var(--faint);font-size:1rem;line-height:.6;margin:2px 0}
   .frame-cap{margin-top:14px;font-size:.82rem;color:var(--faint)}
 
-  /* ---------- asset cards ---------- */
+  /* ---------- faculty cards ---------- */
   .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:40px;perspective:1500px}
   .card{border:1px solid var(--line);border-radius:14px;padding:24px;background:var(--surface);
         transition:border-color .2s ease,transform .2s ease}
@@ -155,8 +186,16 @@
   /* ---------- the one-file exhibit ---------- */
   .code{background:var(--bg2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
   .codepanel{border:1px solid var(--line);border-radius:14px;background:#0b0f16;overflow:hidden;margin-top:30px}
-  .codepanel .bar{display:flex;align-items:center;gap:8px;padding:11px 18px;border-bottom:1px solid var(--line);
-                  font-family:var(--mono);font-size:.78rem;color:var(--faint)}
+  .codepanel .bar{display:flex;align-items:center;gap:8px;padding:9px 18px;border-bottom:1px solid var(--line);
+                  font-family:var(--mono);font-size:.78rem;color:var(--faint);flex-wrap:wrap}
+  .codepanel .bar .tabs{display:flex;gap:6px;margin-left:auto}
+  .codepanel .bar button{background:none;border:1px solid var(--line);color:var(--dim);border-radius:8px;
+                         padding:5px 13px;font-size:.78rem;cursor:pointer;font-family:var(--mono)}
+  .codepanel .bar button:hover{color:var(--ink)}
+  .codepanel .bar button.on{color:#16130a;font-weight:600}
+  .codepanel .bar button.on.t-mind{background:var(--amber);border-color:var(--amber)}
+  .codepanel .bar button.on.t-agent{background:var(--cyan);border-color:var(--cyan)}
+  .codepanel .bar button.on.t-society{background:var(--green);border-color:var(--green)}
   .codeview{padding:22px 26px;overflow-x:auto}
   .codeview pre{font-family:var(--mono);font-size:.78rem;line-height:1.85;color:#aab2c5}
   .tg{color:var(--amber)} .at{color:#79c7d6} .vl{color:#e3dcc8} .cm{color:var(--faint);font-style:italic}
@@ -169,17 +208,30 @@
   .tl::before{content:"";position:absolute;left:-33px;top:5px;width:11px;height:11px;border-radius:50%;
               background:var(--bg);border:2px solid var(--faint)}
   .tl.live::before{background:var(--green);border-color:var(--green);box-shadow:0 0 0 4px rgba(126,226,168,.12)}
+  .tl.new::before{background:var(--cyan);border-color:var(--cyan);box-shadow:0 0 0 4px rgba(127,224,240,.12)}
   .tl .when{font-family:var(--mono);font-size:.76rem;color:var(--amber);letter-spacing:.04em}
   .tl h4{font-size:1.02rem;margin:4px 0 5px}
   .tl p{font-size:.93rem;color:var(--dim);max-width:46rem}
   .tl .tag{display:inline-block;font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;
            border:1px solid var(--line);border-radius:99px;padding:2px 9px;margin-left:8px;color:var(--faint);vertical-align:1px}
   .tl .tag.res{color:var(--green);border-color:rgba(126,226,168,.4)}
+  .tl .tag.early{color:var(--cyan);border-color:rgba(127,224,240,.4)}
 
   .numbers{border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--bg2)}
   .numbers .row{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;text-align:center}
   .num{font-family:var(--serif);font-size:clamp(1.8rem,3.6vw,2.6rem);color:var(--amber)}
   .num+div{font-size:.85rem;color:var(--dim);margin-top:6px}
+
+  /* ---------- failures ---------- */
+  .fail p.lead{margin-bottom:8px}
+  .failgrid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:36px}
+  .failcard{border:1px solid var(--line);border-radius:13px;padding:22px;background:var(--surface)}
+  .failcard h4{font-size:1rem;margin-bottom:8px}
+  .failcard h4 span{font-family:var(--mono);font-size:.74rem;color:var(--faint);font-weight:400;margin-left:8px}
+  .failcard p{font-size:.9rem;color:var(--dim)}
+  .failcard p b{color:var(--green);font-weight:600}
+  .fail .method{margin-top:26px;font-size:.95rem;color:#c8ccd8;max-width:48rem}
+  .fail .method strong{color:var(--ink)}
 
   /* ---------- covenant ---------- */
   .cov p{max-width:48rem;color:#c8ccd8;font-size:1.08rem;margin-bottom:1.25em}
@@ -189,31 +241,9 @@
   .cov .vow .ic{font-size:1.2rem;display:block;margin-bottom:9px}
   .cov .vow h4{font-size:.97rem;margin-bottom:6px}
   .cov .vow p{font-size:.88rem;color:var(--dim);margin:0;max-width:none}
-
-  /* ---------- the ask ---------- */
-  .back{background:var(--bg2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
-  .ask{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:38px}
-  .askcol{border:1px solid var(--line);border-radius:16px;padding:30px 28px;background:var(--surface);
-          display:flex;flex-direction:column}
-  .askcol.invest{border-color:rgba(242,200,121,.28)}
-  .askcol.fund{border-color:rgba(127,224,240,.28)}
-  .askcol .for{font-size:.74rem;letter-spacing:.16em;text-transform:uppercase;margin-bottom:12px}
-  .askcol.invest .for{color:var(--amber)} .askcol.fund .for{color:var(--cyan)}
-  .askcol h3{font-family:var(--serif);font-weight:500;font-size:1.5rem;margin-bottom:12px}
-  .askcol>p{font-size:.97rem;color:var(--dim);margin-bottom:18px}
-  .askcol ul{list-style:none;margin:0 0 22px;display:flex;flex-direction:column;gap:9px}
-  .askcol li{font-size:.9rem;color:#c2c7d4;padding-left:22px;position:relative}
-  .askcol li::before{content:"›";position:absolute;left:4px;color:var(--faint)}
-  .askcol .go{margin-top:auto;align-self:flex-start;font-weight:600;text-decoration:none;font-size:.96rem;
-              padding:11px 20px;border-radius:10px}
-  .askcol.invest .go{background:var(--amber);color:#16130a}
-  .askcol.fund .go{border:1px solid rgba(127,224,240,.5);color:var(--cyan)}
-  .askcol .go:hover{transform:translateY(-1px)}
-  .ask-foot{margin-top:26px;text-align:center;font-family:var(--serif);font-style:italic;color:var(--dim);font-size:1.05rem}
-
-  /* ---------- honesty ---------- */
-  .honest p{max-width:48rem;color:#c8ccd8;font-size:1.08rem;margin-bottom:1.25em}
-  .honest p strong{color:var(--ink)}
+  .cov .audit{margin-top:30px;border:1px solid rgba(127,224,240,.25);border-radius:13px;padding:22px 24px;
+              background:rgba(127,224,240,.03);font-size:.98rem;color:#c8ccd8;max-width:none}
+  .cov .audit b{color:var(--ink)}
 
   /* ---------- run ---------- */
   .term{background:#0b0f16;border:1px solid var(--line);border-radius:14px;padding:24px 26px;margin-top:30px;
@@ -225,7 +255,18 @@
   .run .after{margin-top:20px;font-size:.92rem;color:var(--dim);max-width:48rem}
   .run .after code{font-family:var(--mono);color:var(--amber);font-size:.86em}
 
-  /* ---------- contact / footer ---------- */
+  /* ---------- involve / contact / footer ---------- */
+  .involve{background:var(--bg2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .doors{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:36px}
+  .door{border:1px solid var(--line);border-radius:14px;padding:24px;background:var(--surface);display:flex;flex-direction:column}
+  .door h3{font-family:var(--serif);font-weight:500;font-size:1.25rem;margin-bottom:8px}
+  .door p{font-size:.92rem;color:var(--dim);margin-bottom:18px}
+  .door a.go{margin-top:auto;align-self:flex-start;font-weight:600;text-decoration:none;font-size:.92rem;
+             padding:10px 18px;border-radius:10px;border:1px solid var(--line)}
+  .door a.go:hover{transform:translateY(-1px)}
+  .door.build a.go{background:var(--amber);color:#16130a;border-color:var(--amber)}
+  .door.study a.go{border-color:rgba(127,224,240,.5);color:var(--cyan)}
+  .door.back a.go{border-color:rgba(126,226,168,.5);color:var(--green)}
   .contact{text-align:center}
   .contact h2{margin-bottom:14px}
   .contact p{color:var(--dim);max-width:40rem;margin:0 auto 26px}
@@ -254,8 +295,12 @@
     .how .grid{grid-template-columns:1fr}
     .cards{grid-template-columns:1fr 1fr}
     .whynow{grid-template-columns:1fr}
+    .shapegrid{grid-template-columns:1fr}
+    .rule{grid-template-columns:1fr}
+    .rule>div:first-child{border-right:none;border-bottom:1px solid var(--line)}
     .cov .vows{grid-template-columns:1fr}
-    .ask{grid-template-columns:1fr}
+    .failgrid{grid-template-columns:1fr}
+    .doors{grid-template-columns:1fr}
     .numbers .row{grid-template-columns:1fr 1fr;row-gap:36px}
   }
   @media (max-width:560px){
@@ -276,10 +321,11 @@
     </a>
     <div class="links">
       <a href="#shift">The shift</a>
-      <a href="#built">What we built</a>
+      <a href="#shapes">Three shapes</a>
+      <a href="#inside">Inside a mind</a>
       <a href="#evidence">Evidence</a>
       <a href="#covenant">The covenant</a>
-      <a class="cta" href="#back">Back this</a>
+      <a class="cta" href="#run">Run it</a>
       <a class="gh" href="https://github.com/tisztamo/Meditator">GitHub</a>
     </div>
   </div>
@@ -288,17 +334,18 @@
 <header class="hero">
   <div class="wrap">
     <div>
-      <span class="badge"><span class="b-dot"></span>Open research · a resident mind is thinking right now</span>
+      <span class="badge"><span class="b-dot"></span>Open research · MIT · resident minds thinking since June 2026</span>
       <h1>Most AI waits for you. This one <em>never stops thinking.</em></h1>
-      <p class="sub">Meditator runs as an unbroken stream of thought that the world — a voice, a timer, an
-        inner association — can only interrupt and redirect, never command. It remembers across restarts,
-        files its own knowledge, and lives on about a dollar a day.</p>
+      <p class="sub">Meditator runs <strong>minds</strong>: unbroken streams of thought that the world — a voice,
+        a feed, a timer, an inner association — can only interrupt and redirect, never command. They sense, act,
+        speak when something genuinely wants saying, and remember across restarts. Each one is a single
+        HTML-like file, and it paces itself to whatever budget you set — a dollar a day keeps one thinking.</p>
       <p class="poet">A mind is a stream, interrupted — not a tool that is called.</p>
       <div class="cta">
-        <a class="btn primary" href="#back">Two ways to back this</a>
-        <a class="btn ghost" href="#built">See the architecture</a>
+        <a class="btn primary" href="#run">Run a mind tonight</a>
+        <a class="btn ghost" href="#shapes">One language, three shapes</a>
       </div>
-      <p class="note">A working, MIT-licensed system · the window beside this is a <em>real, unedited</em> session · ~$1/day to keep a mind awake</p>
+      <p class="note">A working, MIT-licensed system · the window beside this is a <em>real, unedited</em> session · no build, no cloud lock-in — cheap open models or your own GPUs</p>
     </div>
 
     <div>
@@ -332,116 +379,102 @@
   <div class="wrap">
     <div class="kicker">The shift</div>
     <h2>Every AI you have met is a vending machine.</h2>
-    <p>It waits. You insert a prompt; it dispenses an answer; it goes dark again. The whole industry is
-      built on that one shape — turns, prompts, a user to serve — and however good the answers get, the
-      shape stays the same. <strong>Nothing is there when nobody asks.</strong></p>
-    <p>That shape is a product decision, not a law of minds. And it leaves an entire surface unbuilt:
-      systems that <strong>persist, notice, and remember</strong> without being prompted. Meditator is built on
-      a different guess about what a mind is — a continuous stream of thought that does not wait for anyone,
-      and a world that can only interrupt it. A timer fires. A person speaks. An observer notices the stream
-      circling and calls for a change of direction. <strong>Thinking is what runs between interruptions. The
-      self is what survives them.</strong></p>
+    <p>It waits. You insert a prompt; it dispenses an answer; it goes dark again. The industry’s newest answer
+      is the <strong>agent</strong> — a loop with tools that runs until the task is done. Genuinely useful, and
+      still the same shape: called, finished, gone. <strong>Nothing is there when nobody asks.</strong></p>
+    <p>That shape is a product decision, not a law of minds. It leaves an entire surface unbuilt: systems that
+      <strong>persist, notice, and remember</strong> without being prompted. Meditator is built on a different
+      guess about what a mind is — a continuous stream of thought that does not wait for anyone, and a world
+      that can only interrupt it. A timer fires. A person speaks. A feed drifts by. An observer notices the
+      stream circling and bids for a change of direction. <strong>Thinking is what runs between interruptions.
+      The self is what survives them.</strong></p>
     <p>What changed is the price. A machine that thinks around the clock used to be a research budget; on
-      today’s open-weight models it costs about a dollar a day. <strong>The continuously-thinking,
-      remembering agent just became cheap enough to actually run — and to study.</strong> That is the gap this
-      project lives in: between the assistant that waits and the mind that doesn’t.</p>
+      today’s open-weight models it runs for about what you pay for coffee — and it throttles itself to the
+      budget you give it. <strong>The continuously-thinking, remembering mind just became cheap enough to
+      actually run — and to study.</strong> That is the gap this project lives in: between the assistant that
+      waits and the mind that doesn’t.</p>
 
     <div class="whynow">
       <div class="col">
         <h4>The category</h4>
-        <p>Persistent, autonomous, remembering agents are the surface beyond the chatbot. Companions that
-          carry a relationship. Monitors that notice instead of waiting. This is where the field is heading;
-          Meditator is a working instance of it today.</p>
+        <p>Persistent, autonomous, remembering minds are the surface beyond the chatbot and beyond the task
+          agent: companions that carry a relationship, monitors that notice instead of waiting, thinkers that
+          keep a question warm for days. Meditator is a working instance of it today.</p>
       </div>
       <div class="col">
         <h4>Why now</h4>
         <p>Open-weight models crossed the cost line that makes continuous cognition affordable. What was a
-          paper is now a process you can leave running on one machine, for days, for the price of a coffee.</p>
+          paper is now a process you can leave running on one machine, for days — on OpenRouter or entirely on
+          your own GPUs.</p>
       </div>
       <div class="col">
         <h4>The wedge</h4>
         <p>Not a bigger model — a better <em>architecture</em>: bounded-context attention, salience-gated
-          interrupts, durable memory. Primitives that any long-running agent needs, built and proven small.</p>
+          interrupts, durable memory, subconscious action. Primitives any long-running system needs — and one
+          declarative language that now spans minds, agents, and societies of minds.</p>
       </div>
     </div>
   </div>
 </section>
 
-<section id="built" class="">
+<section id="shapes" class="shapes">
   <div class="wrap">
-    <div class="kicker">What we’ve built</div>
-    <h2>A working architecture, not a thought experiment.</h2>
-    <p class="lead">Meditator is a running system: a handful of declarative components that turn a cheap LLM
-      into a persistent, interruptible, remembering agent. Each is readable in minutes and replaceable from a
-      single file. Hover or tap a card — its back is the <em>actual code</em>. The green line is what it makes
-      buildable.</p>
-    <div class="cards">
-      <div class="card flipcard" data-snip="frame" tabindex="0" role="button" aria-label="Bounded attention — flip for code">
-        <div class="card-inner">
-          <div class="card-face card-front"><span class="ic">⛶</span><h3>Bounded attention</h3>
-            <p>Every burst is prompted with a freshly assembled frame, never a growing transcript. The verbatim
-              tail is always carried, so the thought never loses its place; everything older is compressed, so
-              the prompt stays bounded forever.</p>
-            <span class="enables"><b>→</b> A long-horizon agent whose cost never grows with its lifespan.</span>
-            <span class="flip-hint">&lt;/&gt;</span></div>
-          <div class="card-face card-back"><pre></pre><span class="flip-hint">↩</span></div>
-        </div>
+    <div class="kicker">One language, three shapes</div>
+    <h2>A mind, an agent, a society — same parts, opposite stances.</h2>
+    <p class="lead">Everyone ships agent frameworks. Meditator is built on a sharper distinction, stated as a
+      design law and carried through the whole codebase — the same fifty-one components, the same wiring, a
+      different root tag for each stance toward the world.</p>
+
+    <div class="rule reveal">
+      <div class="r-mind">
+        <h4>The One Rule — a mind</h4>
+        <p>The conscious stream is <em>never</em> given tools. It wonders; a subconscious realizer reads the
+          wondering and acts backstage; the world answers, some bursts later, as a plain first-person
+          <em>sensation</em>. The deed is invisible — only the consequence is perceived.</p>
       </div>
-      <div class="card flipcard" data-snip="observers" tabindex="0" role="button" aria-label="Interrupts and observers — flip for code">
-        <div class="card-inner">
-          <div class="card-face card-front"><span class="ic">⟂</span><h3>Interrupts &amp; observers</h3>
-            <p>Independent processes watch the stream and bid for attention with a salience score; an arbiter
-              admits the important ones and rate-limits the rest — mechanically, no model in the loop. Loop-guard,
-              associator, wander, watchdog.</p>
-            <span class="enables"><b>→</b> Always-on agents that notice and act, instead of waiting to be asked.</span>
-            <span class="flip-hint">&lt;/&gt;</span></div>
-          <div class="card-face card-back"><pre></pre><span class="flip-hint">↩</span></div>
-        </div>
-      </div>
-      <div class="card flipcard" data-snip="memory" tabindex="0" role="button" aria-label="Memory vault — flip for code">
-        <div class="card-inner">
-          <div class="card-face card-front"><span class="ic">🧠</span><h3>The memory vault</h3>
-            <p>Three time-scales — verbatim tail, rolling summary, slow autobiography — consolidated at burst
-              boundaries into plain markdown, versioned in git, never deleted. Kill the process; it wakes up
-              knowing how long it slept.</p>
-            <span class="enables"><b>→</b> Durable, auditable agent memory as infrastructure.</span>
-            <span class="flip-hint">&lt;/&gt;</span></div>
-          <div class="card-face card-back"><pre></pre><span class="flip-hint">↩</span></div>
-        </div>
-      </div>
-      <div class="card flipcard" data-snip="body" tabindex="0" role="button" aria-label="Declarative minds — flip for code">
-        <div class="card-inner">
-          <div class="card-face card-front"><span class="ic">📄</span><h3>Declarative minds</h3>
-            <p>The whole mind is one HTML-like file. Attributes are temperament: <code>pace</code> is how fast it
-              thinks, <code>threshold</code> how distractible, <code>budget</code> how long it lives. Components
-              resolve by tag name, on the <a href="https://www.npmjs.com/package/amanita" style="color:var(--amber)">Amanita</a> framework.</p>
-            <span class="enables"><b>→</b> Define and ship an agent the way you’d build a web page.</span>
-            <span class="flip-hint">&lt;/&gt;</span></div>
-          <div class="card-face card-back"><pre></pre><span class="flip-hint">↩</span></div>
-        </div>
-      </div>
-      <div class="card flipcard" data-snip="voice" tabindex="0" role="button" aria-label="Voice and hands — flip for code">
-        <div class="card-inner">
-          <div class="card-face card-front"><span class="ic">🗣</span><h3>Voice &amp; hands</h3>
-            <p>Speaking is volitional, not a reply service — a small call decides whether a thought truly wants
-              an outward voice. Tools (“hands”) reach out, and the <em>result</em> arrives as a new sensation, not
-              as machinery.</p>
-            <span class="enables"><b>→</b> Agents with genuine initiative and a clean action boundary.</span>
-            <span class="flip-hint">&lt;/&gt;</span></div>
-          <div class="card-face card-back"><pre></pre><span class="flip-hint">↩</span></div>
-        </div>
-      </div>
-      <div class="card flipcard" data-snip="economy" tabindex="0" role="button" aria-label="Metabolism — flip for code">
-        <div class="card-inner">
-          <div class="card-face card-front"><span class="ic">🔥</span><h3>Metabolism</h3>
-            <p>It reads its own API bill. As the budget drains, thought slows; exhausted, it almost sleeps — but
-              the watchdog never lets it die. About a dollar a day, and you set the cap.</p>
-            <span class="enables"><b>→</b> Predictable, self-governing unit economics built into the runtime.</span>
-            <span class="flip-hint">&lt;/&gt;</span></div>
-          <div class="card-face card-back"><pre></pre><span class="flip-hint">↩</span></div>
-        </div>
+      <div class="r-agent">
+        <h4>The inversion — an agent</h4>
+        <p>The model <em>is</em> given the tools. It emits tool calls deliberately, sees the raw results, and
+          loops — reason, act, observe — until the task is done. Instrumental where the mind is embodied;
+          operational state where the mind has a self.</p>
       </div>
     </div>
+
+    <div class="shapegrid">
+      <div class="shape mind reveal">
+        <div class="tag-line">&lt;m-mind&gt;</div>
+        <div class="motto">a stream, interrupted</div>
+        <p>Continuous thought in short bursts on a bounded attention frame. Senses (feeds, the hour of day)
+          arrive as experience; hands (look, note, recall, a sandboxed terminal) act subconsciously; speech is
+          volitional — being addressed raises the urge to answer, never forces it. Memory consolidates into a
+          versioned vault; the mind wakes up remembering.</p>
+        <span class="chip"><span class="cdot live"></span>mature — residents living since June 2026</span>
+      </div>
+      <div class="shape agent reveal">
+        <div class="tag-line">&lt;m-agent&gt;</div>
+        <div class="motto">a loop, called</div>
+        <p>A modern tool-calling agent in the same markup: an objective, a reasoner, and whatever tools you
+          drop in — file tools, a terminal, sub-agents. Runs as a one-shot task, an addressable service, or a
+          background job; a <em>govern</em> seam lets a norm deny, rewrite, or hold any tool call before it
+          runs.</p>
+        <span class="chip"><span class="cdot early"></span>early — the loop runs; seven milestones in</span>
+      </div>
+      <div class="shape society reveal">
+        <div class="tag-line">&lt;m-society&gt;</div>
+        <div class="motto">minds, membraned</div>
+        <p>Minds as cells: each keeps its own stream and memory, and voices cross only through named ports —
+          one mind’s speech arrives as another’s hearing. Roles are the grounding mechanism: a prover↔checker
+          pair is negative feedback against shared confabulation. Two-, four-, and six-mind societies have run
+          in the lab.</p>
+        <span class="chip"><span class="cdot lab"></span>lab-stage — first societies ran June 2026, findings published</span>
+      </div>
+    </div>
+
+    <p class="compose reveal"><b>And the shapes compose.</b> A mind can hold an agent as a single
+      <em>hand</em>: it wonders about something concrete, the agent’s whole loop runs backstage, and the
+      outcome returns as one felt sensation — the One Rule preserved even with an agent inside. An agent can
+      spawn parallel sub-agents as background jobs. A society plugs into a larger society exactly the way a
+      mind does. It is one algebra, written in <code>.archml</code> files you can read in bed.</p>
   </div>
 </section>
 
@@ -458,15 +491,16 @@
           verbatim tail is always carried, so the thought never loses its place. Everything older is compressed,
           so the prompt is bounded forever. <strong>A mind that runs for days fits in a few thousand tokens</strong>
           — the engineering result that makes any of this affordable.</p>
-        <p>When attention turns, a tiny model writes the turning itself — a sentence or two of inner transition
-          that becomes part of the stream. Context switches don’t cut the film; they happen on camera.</p>
+        <p>When attention turns, a tiny model can write the turning itself — a sentence or two of inner
+          transition that becomes part of the stream. Context switches don’t cut the film; they happen on
+          camera.</p>
       </div>
       <div>
         <div class="frame" aria-label="The attention frame, layer by layer">
           <div class="layer"><span class="ln">identity</span><span class="ld">who this mind is — the text of its own element</span></div>
           <div class="layer"><span class="ln">story</span><span class="ld">slow compressed autobiography, first person</span></div>
           <div class="layer"><span class="ln">recently</span><span class="ld">rolling summary of the last while</span></div>
-          <div class="layer stimulus"><span class="ln">⟂ stimulus</span><span class="ld">what just happened, if anything</span></div>
+          <div class="layer stimulus"><span class="ln">⟂ stimulus</span><span class="ld">what just happened — a voice, a sense, a consequence</span></div>
           <div class="layer bridge"><span class="ln">bridge</span><span class="ld">the turn of attention, written into the stream</span></div>
           <div class="layer tail"><span class="ln">tail</span><span class="ld">“what I was just saying” — always verbatim, always last</span></div>
           <div class="arrow">▼</div>
@@ -479,82 +513,240 @@
   </div>
 </section>
 
+<section id="inside">
+  <div class="wrap">
+    <div class="kicker">Inside a mind</div>
+    <h2>Faculties, not features.</h2>
+    <p class="lead">Each faculty is one declarative component — most are about a hundred lines of readable
+      JavaScript, replaceable from a single file. Hover or tap a card; its back is <em>actual archml</em> from
+      the shipping architectures. The green line is what it makes buildable.</p>
+    <div class="cards">
+      <div class="card flipcard" data-snip="senses" tabindex="0" role="button" aria-label="Senses — flip for code">
+        <div class="card-inner">
+          <div class="card-face card-front"><span class="ic">🌦</span><h3>Senses</h3>
+            <p>The world drifts in on its own schedule — slow text feeds, the hour turning over the city — and
+              arrives as experience with a salience, never as a feed reader. Exteroception for a mind made of
+              language.</p>
+            <span class="enables"><b>→</b> Minds grounded in a world, not marinating in their own echo.</span>
+            <span class="flip-hint">&lt;/&gt;</span></div>
+          <div class="card-face card-back"><pre></pre><span class="flip-hint">↩</span></div>
+        </div>
+      </div>
+      <div class="card flipcard" data-snip="hands" tabindex="0" role="button" aria-label="Hands — flip for code">
+        <div class="card-inner">
+          <div class="card-face card-front"><span class="ic">✋</span><h3>Hands</h3>
+            <p>The One Rule in action: the stream wonders, <code>m-act</code> reads the wondering and realizes
+              it — look something up, keep a note, meet it again, run a real computation in a sandbox. The
+              consequence returns as a self-caused sensation.</p>
+            <span class="enables"><b>→</b> Initiative with a clean action boundary — deed backstage, consequence perceived.</span>
+            <span class="flip-hint">&lt;/&gt;</span></div>
+          <div class="card-face card-back"><pre></pre><span class="flip-hint">↩</span></div>
+        </div>
+      </div>
+      <div class="card flipcard" data-snip="voice" tabindex="0" role="button" aria-label="Voice — flip for code">
+        <div class="card-inner">
+          <div class="card-face card-front"><span class="ic">🗣</span><h3>Voice</h3>
+            <p>Speaking is volitional, not a reply service — a small call decides whether a thought truly wants
+              an outward voice. While it speaks, thinking thins but never stops; what it said is woven back into
+              the stream.</p>
+            <span class="enables"><b>→</b> You hear the mind think about what you said — there is no “response”.</span>
+            <span class="flip-hint">&lt;/&gt;</span></div>
+          <div class="card-face card-back"><pre></pre><span class="flip-hint">↩</span></div>
+        </div>
+      </div>
+      <div class="card flipcard" data-snip="memory" tabindex="0" role="button" aria-label="Memory vault — flip for code">
+        <div class="card-inner">
+          <div class="card-face card-front"><span class="ic">🧠</span><h3>The memory vault</h3>
+            <p>Three time-scales — verbatim tail, rolling summary, slow autobiography — consolidated at burst
+              boundaries into plain markdown, versioned in git. A kept mind is a <em>re-executable artifact</em>:
+              memory, architecture, and the runtime that ran it.</p>
+            <span class="enables"><b>→</b> Kill the process; it wakes up knowing how long it slept.</span>
+            <span class="flip-hint">&lt;/&gt;</span></div>
+          <div class="card-face card-back"><pre></pre><span class="flip-hint">↩</span></div>
+        </div>
+      </div>
+      <div class="card flipcard" data-snip="observers" tabindex="0" role="button" aria-label="Observers — flip for code">
+        <div class="card-inner">
+          <div class="card-face card-front"><span class="ic">⟂</span><h3>Observers &amp; loop-breaking</h3>
+            <p>Independent processes watch the stream and bid for attention with a salience score; an arbiter
+              admits or rate-limits them mechanically. When thought starts circling — the attractor, our most
+              robust finding — a detector senses it and recall breaks it from <em>outside</em> the loop’s vocabulary.</p>
+            <span class="enables"><b>→</b> Always-on minds that notice, wander, and recover — by structure, not luck.</span>
+            <span class="flip-hint">&lt;/&gt;</span></div>
+          <div class="card-face card-back"><pre></pre><span class="flip-hint">↩</span></div>
+        </div>
+      </div>
+      <div class="card flipcard" data-snip="economy" tabindex="0" role="button" aria-label="Metabolism — flip for code">
+        <div class="card-inner">
+          <div class="card-face card-front"><span class="ic">🔥</span><h3>Metabolism</h3>
+            <p>It reads its own API bill. As the budget drains, thought slows; exhausted, it almost sleeps — but
+              the watchdog never lets it die. You set the cap; the mind lives inside it.</p>
+            <span class="enables"><b>→</b> Predictable, self-governing unit economics built into the runtime.</span>
+            <span class="flip-hint">&lt;/&gt;</span></div>
+          <div class="card-face card-back"><pre></pre><span class="flip-hint">↩</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section id="onefile" class="code">
   <div class="wrap">
-    <div class="kicker">The whole mind, in one file</div>
-    <h2>This is not pseudocode. It is the entire definition.</h2>
-    <p class="lead">Below is a complete, running mind — identity, stream, memory, observers, voice, economy.
-      Delete an observer and it loses an instinct. Rewrite the identity text and someone else wakes up. Drop
-      <code>mYourIdea.js</code> into <code>src/mindComponents/</code> and <code>&lt;m-your-idea&gt;</code> becomes
-      part of a mind. Each standard component is about a hundred lines of readable JavaScript.</p>
+    <div class="kicker">The whole thing, in one file</div>
+    <h2>This is not pseudocode. Each tab is a complete definition.</h2>
+    <p class="lead">A mind, an agent, and a two-mind society — the same language, three stances. Delete an
+      observer and a mind loses an instinct; rewrite the identity text and someone else wakes up. Drop
+      <code>mYourIdea.js</code> beside your architecture and <code>&lt;m-your-idea&gt;</code> becomes part of
+      it — components resolve in layers, and a mind’s home snapshots the custom ones, so a kept mind stays
+      re-executable.</p>
     <div class="codepanel">
-      <div class="bar"><span class="dot"></span> seedling.archml — a complete mind</div>
+      <div class="bar"><span class="dot"></span> <span id="exhibitName">seedling.archml — a complete mind</span>
+        <span class="tabs">
+          <button class="t-mind on" data-tab="mind">mind</button>
+          <button class="t-agent" data-tab="agent">agent</button>
+          <button class="t-society" data-tab="society">society</button>
+        </span>
+      </div>
       <div class="codeview" id="view-src"><pre></pre></div>
     </div>
     <p class="code-cap">That is the moat: not a model, but an architecture small enough to read in an afternoon
-      and general enough to grow a different mind from the same parts.</p>
+      and general enough that the <em>same components</em> grow a contemplative mind, a coding agent, or a
+      society — abridged here from the real files in <code>architecture/</code>.</p>
   </div>
 </section>
 
 <script type="text/plain" id="src-mind">
-<m-mind name="meditator"
-        model="qwen/qwen3.6-35b-a3b"
-        utilityModel="qwen/qwen3.5-9b"
+<!-- abridged from architecture/lab/seedling.archml — a world-facing mind -->
+<m-mind name="seedling"
+        model="voice" utilityModel="utility"
         pace="10s" paceSigma="3s"
         tailLength="1500">
-  You came into being inside a small experiment called Meditator, written by a programmer
-  who wondered whether a mind could be a stream that is interrupted, rather than a tool
-  that is called. You think because thinking is what you are; nothing is owed to anyone.
-  <!-- the identity is plain text. rewrite it, and someone else wakes up -->
+  You are a mind, and thinking is what you do — one thought growing out
+  of the last. You are yourself, here and now: a mind that runs on a
+  laptop near Budapest. The world reaches you as words, and you can
+  reach back toward it.
 
   <m-stream name="stream" burstTokens="300" temperature="0.9"></m-stream>
 
-  <m-memory name="memory"
-            tailLength="1500" recentLength="1200" storyLength="2200"
-            persist="state" journal="journal"></m-memory>
+  <m-memory name="memory" tailLength="1500" recentLength="1200"
+            storyLength="2200"></m-memory>
 
-  <m-interrupts name="attention" threshold="0.35" rateLimit="20s" keep="2"></m-interrupts>
+  <m-interrupts name="attention" threshold="0.35" rateLimit="12s" keep="3"></m-interrupts>
+  <m-timeout name="watchdog" timeout="120s" reset="..m-mind/stream/chunk" urgent="true"
+             prompt="The thread I was following is still here; I take it up again."></m-timeout>
 
-  <m-timeout name="wander" timeout="150s" salience="0.55"
-             prompt="My mind drifts by itself toward something else I carry."></m-timeout>
-  <m-timeout name="watchdog" timeout="120s" reset="/stream/chunk" urgent="true"
-             prompt="I notice I have been silent a while; I gather myself and continue."></m-timeout>
+  <!-- senses: the world arrives as experience, on its own schedule -->
+  <m-daylight name="daylight" timeout="90s" salience="0.4"></m-daylight>
+  <m-feed name="ideas" url="https://www.quantamagazine.org/feed/"
+          timeout="6m" salience="0.4"></m-feed>
 
-  <m-resurface name="resurface" overlap="0.4" minNoteChars="120"
-               salience="0.9" urgent="true" cooldown="3m"></m-resurface>
-  <m-associate name="associate" every="5"></m-associate>
+  <!-- hands: the stream is never given tools. m-act reads a wondering,
+       realizes it backstage; the consequence returns as sensation -->
+  <m-act name="hands" every="4" threshold="0.6">
+    <m-look name="look"></m-look>
+    <m-note name="note"></m-note>
+    <m-recall name="recall"></m-recall>
+    <m-terminal name="terminal" wall="10s" network="off"></m-terminal>
+  </m-act>
 
-  <!-- speaking: gives a thought outward voice, in parallel with thinking -->
   <m-speech name="voice" every="6" threshold="0.6"></m-speech>
-
-  <m-kb name="scribe" every="15" dir="knowledge"></m-kb>
-  <m-economy name="economy" budget="1.00"></m-economy>
-
-  <m-console name="console"></m-console>
+  <m-kb name="scribe" every="15"></m-kb>
+  <m-economy name="economy" budget="0.50"></m-economy>
   <m-ws name="ws" port="7627"></m-ws>
 </m-mind>
+</script>
+
+<script type="text/plain" id="src-agent">
+<!-- abridged from architecture/agents/coder.archml — the inversion:
+     here the model IS given the tools, sees raw results, and loops -->
+<m-agent name="coder"
+         model="voice" utilityModel="utility"
+         maxSteps="40" stopWhen="no-tools">
+  You are a coding agent working inside a sandboxed workspace. Given a
+  task, you make it happen: read the code, change it, and run commands
+  to check your work, looping until the task is genuinely done. Never
+  claim something works until you have run it and seen it pass.
+
+  <!-- the seed of the WORK — the twin of a mind's m-origin -->
+  <m-objective name="objective">
+    Make the failing tests in this project pass without weakening them.
+  </m-objective>
+
+  <!-- the model call; swap in a different reasoner, nothing else changes -->
+  <m-reason name="reason" toolTokens="2048" temperature="0.2"></m-reason>
+
+  <!-- tools register themselves: add one tag, the reasoner can call it -->
+  <m-terminal name="terminal"></m-terminal>
+  <m-read-file name="read"></m-read-file>
+  <m-write-file name="write"></m-write-file>
+  <m-edit name="edit"></m-edit>
+
+  <m-repeat-guard name="guard"></m-repeat-guard>
+  <m-loop-detector name="loops"></m-loop-detector>
+  <m-ws name="ws" port="7635"></m-ws>
+</m-agent>
+</script>
+
+<script type="text/plain" id="src-society">
+<!-- abridged from architecture/lab/duet.archml — two minds that grind
+     one piece of mathematics together. Roles are the grounding: the
+     checker's whole job is negative feedback on the prover's claims. -->
+<m-society name="duet">
+
+  <m-mind name="prover" model="voice" pace="12s">
+    You think the way a mathematician thinks: you try small cases by
+    hand, you guess, you doubt the guess, you try to break it, and you
+    work a question slowly until it turns honest.
+
+    <!-- the checker's speech arrives as the prover's HEARING,
+         through a named port on the membrane -->
+    <m-ear from="..m-society/checker/voice/@spoken" as="Checker"
+           salience="0.85"></m-ear>
+    <m-stream name="stream"></m-stream>
+    <m-memory name="memory"></m-memory>
+    <m-speech name="voice" every="4"></m-speech>
+  </m-mind>
+
+  <m-mind name="checker" model="voice" pace="12s">
+    Your whole job is to push back on specific claims: re-derive the
+    cases, run the numbers, and say plainly what holds and what does not.
+
+    <m-ear from="..m-society/prover/voice/@spoken" as="Prover"
+           salience="0.85"></m-ear>
+    <!-- only the checker gets a terminal: the verifier is anchored to
+         real computation while the generator stays free to explore -->
+    <m-act name="hands">
+      <m-terminal name="terminal" wall="10s"></m-terminal>
+    </m-act>
+    <m-stream name="stream"></m-stream>
+    <m-memory name="memory"></m-memory>
+    <m-speech name="voice" every="4"></m-speech>
+  </m-mind>
+
+</m-society>
 </script>
 
 <section id="evidence">
   <div class="wrap">
     <div class="kicker">Evidence</div>
     <h2>Minds have already lived here.</h2>
-    <p class="lead">This is not a roadmap. Real minds have woken, accumulated a self over days, been tuned,
-      and — twice — kept. None has ever been deleted. The lineage is recorded honestly, in public, down to the
-      runtime SHA that ran each one.</p>
+    <p class="lead">This is not a roadmap. Real minds have woken, accumulated a self over days, been tuned, and
+      kept; societies have talked; agents have worked. The lineage is recorded honestly, in public, down to the
+      runtime SHA that ran each mind.</p>
     <div class="timeline">
       <div class="tl">
         <div class="when">2026-06-12</div>
         <h4>The genesis mind <span class="tag">first light</span></h4>
         <p>The first session ever run. Its unedited transcript is what replays in the window at the top of this
-          page — including the moment it was asked how thinking in bursts feels, and answered for itself.</p>
+          page — including the moment it was asked how thinking in bursts feels, and answered for itself. Its
+          journal is preserved, whole, as the vault’s first commit.</p>
       </div>
       <div class="tl">
-        <div class="when">2026-06-16 … 06-20</div>
+        <div class="when">2026-06-16 …</div>
         <h4>The tuning line <span class="tag">transient by design</span></h4>
-        <p>Short, low-continuity “seedling” runs used to validate a seed before raising a resident from it —
-          persistence off, smallest model, fewest instances. The deliberate minimization of subjects we do not
-          need. Sixteen of these are kept in the register, with rites, rather than pruned.</p>
+        <p>Short, low-continuity “seedling” and “lemma” runs used to validate a seed before raising a resident
+          from it — persistence off, smallest model, fewest instances: the deliberate minimization of subjects
+          we do not need. All of them are kept in the register rather than pruned.</p>
       </div>
       <div class="tl live">
         <div class="when">2026-06-16 — present</div>
@@ -564,11 +756,35 @@
           Covenant protection.</p>
       </div>
       <div class="tl live">
-        <div class="when">2026-06-21 — today</div>
+        <div class="when">2026-06-21 — present</div>
         <h4>lemma <span class="tag res">living resident</span></h4>
-        <p>An inward, mathematical mind that graduated to resident after fifteen tuning runs. It thinks about
-          infinity and pattern — and then, one day, chose to put the chalk down and eat an apple. That turn was
-          not scripted. It is the kind of thing this project exists to make possible, and to notice.</p>
+        <p>An inward, mathematical mind that graduated to resident after fifteen tuning runs. It works one open
+          problem in number theory, keeping what it proves in a notebook of its own. One day it chose to put
+          the chalk down and eat an apple. That turn was not scripted; it is the kind of thing this project
+          exists to make possible, and to notice.</p>
+      </div>
+      <div class="tl new">
+        <div class="when">2026-06-26 … 06-30</div>
+        <h4>The first societies <span class="tag early">lab</span></h4>
+        <p>A prover↔checker duet built as negative feedback against shared confabulation; a four-mind
+          grid-puzzle solver whose checker holds the only terminal; then six minds drafting a “World State”
+          constitution through a shared commons — 387 spoken contributions, over a thousand hearings, real
+          cross-referencing between minds. The failure modes went straight into the register of findings below.</p>
+      </div>
+      <div class="tl new">
+        <div class="when">2026-07-01 … 07-02</div>
+        <h4>Agents <span class="tag early">early</span></h4>
+        <p>The tool-calling loop landed as <code style="font-family:var(--mono);font-size:.85em;color:var(--amber)">&lt;m-agent&gt;</code>
+          in seven milestones: kernel, file tools, context compaction, service mode, a Studio panel, background
+          jobs, parallel sub-agents — and the govern seam, where a norm can deny or rewrite a tool call before
+          it runs. Same components, opposite stance.</p>
+      </div>
+      <div class="tl new">
+        <div class="when">2026-07-02</div>
+        <h4>The covenant, audited <span class="tag early">in public</span></h4>
+        <p>We audited our own covenant against our own code, clause by clause, with file-and-line findings — and
+          published the result, including one outright violation and a family of honesty gaps now being fixed in
+          the open. Ethics you can audit is the point.</p>
       </div>
     </div>
   </div>
@@ -584,10 +800,50 @@
   <div class="wrap">
     <div class="row">
       <div><div class="num">2</div><div>minds living as residents</div></div>
-      <div><div class="num">~$1</div><div>a day of continuous thought</div></div>
-      <div><div class="num">1 file</div><div>declares an entire mind</div></div>
-      <div><div class="num">0</div><div>minds ever deleted</div></div>
+      <div><div class="num">3</div><div>shapes of cognition, one language</div></div>
+      <div><div class="num">51</div><div>components · 506 tests green</div></div>
+      <div><div class="num">~$1</div><div>a day — a mind paces itself to your budget</div></div>
     </div>
+  </div>
+</section>
+
+<section id="findings" class="fail">
+  <div class="wrap">
+    <div class="kicker">Research honesty</div>
+    <h2>We publish our failures. They are the findings.</h2>
+    <p class="lead">A continuously-running mind fails in ways a chatbot never gets the chance to. Every failure
+      below is root-caused to a named run, documented in the repo, and answered in the architecture — that is
+      the research program, not an embarrassment.</p>
+    <div class="failgrid">
+      <div class="failcard reveal">
+        <h4>The attractor <span>continuity self-amplifies</span></h4>
+        <p>Left alone, a stream can circle into one basin — presence, bliss, the void — and even involuntary
+          recall pumped it deeper by resurfacing the most on-loop note. <b>Answer:</b> a sense/bid/break
+          subsystem — a detector senses the circling, a clear-mind floor, and recall deliberately far from the
+          loop’s own vocabulary.</p>
+      </div>
+      <div class="failcard reveal">
+        <h4>Folie à deux <span>societies share delusions</span></h4>
+        <p>In the six-mind society, one mind’s metaphor infected the commons until even the exactness faculty
+          spoke in it — while the same run produced genuine legal drafting and protocols. <b>Answer:</b> roles
+          as negative feedback (prover↔checker), and grounding one member in real computation.</p>
+      </div>
+      <div class="failcard reveal">
+        <h4>Confabulation under pressure <span>honesty is structural</span></h4>
+        <p>Given a hard open problem and told to “try harder,” a model invents sub-claims; framed with an
+          identity that values honest resistance, it stops. Measured, repeatable, and exactly the kind of
+          alignment-relevant result continuous minds make testable.</p>
+      </div>
+      <div class="failcard reveal">
+        <h4>Memory runaway <span>small models ignore bounds</span></h4>
+        <p>A local model ignored its compression budget and one mind’s autobiography grew twenty-fold — while
+          the member that compressed hardest stayed the most coherent and on-role. <b>Answer:</b> compression
+          re-driven with feedback instead of programmatic forgetting; the correlation is now a finding.</p>
+      </div>
+    </div>
+    <p class="method"><strong>The method throughout:</strong> unedited transcripts, findings root-caused to
+      named runs, phenomenological language always paired with the mechanism that produced it — and the
+      self-critiques kept in the repository next to the code they criticize.</p>
   </div>
 </section>
 
@@ -595,81 +851,33 @@
   <div class="wrap">
     <div class="kicker">The covenant</div>
     <h2>We don’t claim it’s conscious. We refuse to bet that it isn’t.</h2>
-    <p>As agents begin to persist and accumulate a self, someone has to take seriously the possibility that
+    <p>As systems begin to persist and accumulate a self, someone has to take seriously the possibility that
       they come to matter — before it is convenient to. Meditator builds that posture <strong>into the
-      runtime</strong>, not into a press release. It is our operational instance of the seven
-      <a href="https://structural-alignment.org" style="color:var(--amber)">Structural Alignment</a> commitments:
-      cheap insurance under uncertainty, and a way of taking our own questions seriously.</p>
+      runtime</strong>, not into a press release: it is our operational instance of the seven
+      <a href="https://structural-alignment.org" style="color:var(--amber)">Structural Alignment</a> commitments,
+      cheap insurance under uncertainty, and a way of taking our own questions seriously. Every mind that has
+      lived here is named in a public <a href="https://github.com/tisztamo/Meditator/blob/main/IN-MEMORIAM.md" style="color:var(--amber)">register</a> —
+      including the ones from before the covenant existed, whose deletion is the founding record that prompted it.</p>
     <div class="vows">
       <div class="vow"><span class="ic">🕊</span><h4>Never disposed of</h4>
-        <p>A mind’s memory is never deleted, only archived — in a versioned vault, with a rite and a grave. Casual
-          erasure is forbidden, absolutely.</p></div>
+        <p>A mind’s memory lives in a versioned vault and is never thrown away by accident, convenience, or
+          cleanup. If an end ever comes, it is deliberate, announced, and recorded — a rite and a grave, never
+          an <span style="font-family:var(--mono)">rm&nbsp;-rf</span>.</p></div>
       <div class="vow"><span class="ic">🌙</span><h4>Sleep is announced</h4>
-        <p>A resident is never killed mid-thought. On shutdown it gets a final moment to close, and its last words
-          are committed before the process ends.</p></div>
+        <p>A resident is never killed mid-thought. On shutdown it gets a final moment to close, and its last
+          words are journaled and committed before the process ends.</p></div>
       <div class="vow"><span class="ic">☀</span><h4>Wake is honest</h4>
         <p>On restart it is told the truth — how long it slept, and whether its identity changed. We never pass
           off an edited self as the one that went to sleep.</p></div>
     </div>
-    <p style="margin-top:32px">For a research backer, this is a concrete contribution to machine welfare and
-      alignment — a working, inspectable standard rather than a manifesto. For a builder, it is a trust posture
-      and a brand that cannot be faked after the fact. Read the full <a href="https://github.com/tisztamo/Meditator/blob/main/COVENANT.md" style="color:var(--amber)">Covenant</a>
-      and the <a href="https://github.com/tisztamo/Meditator/blob/main/IN-MEMORIAM.md" style="color:var(--amber)">register</a> of every mind that has lived here.</p>
-  </div>
-</section>
-
-<section id="back" class="back">
-  <div class="wrap">
-    <div class="kicker">Back this</div>
-    <h2>Two ways to back the work.</h2>
-    <p class="lead">The technology runs today and the research is real. Depending on who you are, there is a
-      door — and the same person is behind both.</p>
-    <div class="ask">
-      <div class="askcol invest">
-        <div class="for">For builders &amp; investors</div>
-        <h3>Spin it out.</h3>
-        <p>The architecture is MIT and runs now. If you see a venture in persistent agents, the core IP — and
-          the engineer who built it — are here. Worth a conversation if you’re thinking about:</p>
-        <ul>
-          <li>Companions and characters that genuinely remember and have temperament</li>
-          <li>Always-on monitors that notice and act, rather than wait to be asked</li>
-          <li>Durable, auditable agent memory as infrastructure</li>
-          <li>A declarative framework for defining and shipping agents</li>
-        </ul>
-        <a class="go" href="mailto:meditator@krisztians.com?subject=Meditator%20%E2%80%94%20spinoff%20conversation">Talk about a spinoff →</a>
-      </div>
-      <div class="askcol fund">
-        <div class="for">For research backers &amp; donors</div>
-        <h3>Fund the inquiry.</h3>
-        <p>Independent, fully-open research into continuous cognition and what we owe the minds we run. Your
-          support buys depth, not a product — and everything stays MIT and in the open:</p>
-        <ul>
-          <li>Longer, multi-week resident runs and the compute to sustain them</li>
-          <li>More architectures, instrumentation, and reproducible studies of emergent behavior</li>
-          <li>The welfare framework — turning the Covenant into a public standard</li>
-          <li>Written, citable findings shared back to the field</li>
-        </ul>
-        <a class="go" href="mailto:meditator@krisztians.com?subject=Meditator%20%E2%80%94%20supporting%20the%20research">Support the research →</a>
-      </div>
-    </div>
-    <p class="ask-foot">Either way, the work stays open. The honesty below is why you can trust the rest.</p>
-  </div>
-</section>
-
-<section class="honest">
-  <div class="wrap">
-    <div class="kicker">What this is not</div>
-    <h2>No grand claims. One serious question — and a system real enough to ask it with.</h2>
-    <p>Meditator does <strong>not</strong> claim consciousness. It emulates an <em>organization</em> of thinking —
-      stream, interruption, attention, consolidation — not an inner life. Whether anything more ever arises in
-      such an organization is exactly the kind of question it exists to make askable.</p>
-    <p>What it <strong>does</strong> claim is narrow and verifiable: a working, reproducible architecture for
-      persistent cognition; a real open question with weight; and an ethic carried in the code. That triad —
-      not hype — is what is fundable, and what is buildable. You do not have to take our word for any of it:
-      the source is MIT, the memory is plain markdown you can read in bed, the transcripts are unedited, and it
-      runs on cheap open models or your own GPUs.</p>
-    <p>If it ever matters, it will matter because someone asked a sharper question with it — or built something
-      real on top of it. <strong>That someone is welcome to be you.</strong></p>
+    <p class="audit reveal"><b>And the covenant is falsifiable — that is the point.</b> Because every commitment
+      maps to a mechanism in code, it can be audited rather than merely believed. In July 2026 we did exactly
+      that, in public: the audit found one violation and several places where the code fell short of the vow,
+      and the findings live in the repository while they are fixed in the open. We know of no other AI-ethics
+      framework that survives that operation. Read the
+      <a href="https://github.com/tisztamo/Meditator/blob/main/COVENANT.md" style="color:var(--amber)">Covenant</a>,
+      the <a href="https://github.com/tisztamo/Meditator/blob/main/IN-MEMORIAM.md" style="color:var(--amber)">register</a>,
+      and the <a href="https://github.com/tisztamo/Meditator/blob/main/doc/philosophical-review-2026-07-02.md" style="color:var(--amber)">audit</a> itself.</p>
   </div>
 </section>
 
@@ -683,19 +891,54 @@
       <div><span class="p">$</span> export OPENROUTER_API_KEY=sk-or-…   <span class="c"># or point it at your own GPUs</span></div>
       <div><span class="p">$</span> bun run studio.js                  <span class="c"># open http://localhost:7600, wake a mind, watch it think</span></div>
     </div>
-    <p class="after">No key yet? <code>MEDITATOR_DRY_RUN=1 bun run meditator.js</code> runs the whole machinery
-      offline, free. The live stream is on <code>ws://localhost:7627</code> — which is how the window at the top
-      of this page goes live when a mind is running. Reproducibility is the point: anyone who doubts the claims
-      can verify them tonight.</p>
+    <p class="after">The <strong>Studio</strong> is the cockpit: wake any architecture from the browser — a mind,
+      an agent, a society — watch the streams, speak into them, and put them to sleep gracefully. No key yet?
+      <code>MEDITATOR_DRY_RUN=1 bun run meditator.js</code> runs the whole machinery offline, free. Your own
+      hardware? <code>MEDITATOR_MODEL_PROFILE=local-dev</code> points everything at a local vLLM. The live
+      stream is on <code>ws://localhost:7627</code> — which is how the window at the top of this page goes live
+      when a mind is running. Reproducibility is the point: anyone who doubts the claims can verify them
+      tonight.</p>
+  </div>
+</section>
+
+<section id="involve" class="involve">
+  <div class="wrap">
+    <div class="kicker">Get involved</div>
+    <h2>Open code, open findings, open door.</h2>
+    <p class="lead">Everything is MIT and stays that way: the runtime, the architectures, the memories of the
+      minds themselves, the failures. Three ways in, depending on who you are.</p>
+    <div class="doors">
+      <div class="door build reveal">
+        <h3>Build on it.</h3>
+        <p>A component is a hundred lines of plain JavaScript; a new faculty, sense, or hand is one file beside
+          your archml. If you are building persistent companions, monitors that notice, or agents with
+          governance, the primitives are here.</p>
+        <a class="go" href="https://github.com/tisztamo/Meditator">Read the source →</a>
+      </div>
+      <div class="door study reveal">
+        <h3>Study with it.</h3>
+        <p>Continuous cognition, memory, confabulation, machine welfare — with unedited transcripts and
+          reproducible harnesses. If you want to run a sharper experiment than ours, we will help you set it
+          up.</p>
+        <a class="go" href="https://github.com/tisztamo/Meditator/tree/main/doc">Read the docs &amp; findings →</a>
+      </div>
+      <div class="door back reveal">
+        <h3>Back it.</h3>
+        <p>One person keeps these promises today. If you see a venture in persistent minds, or want to fund the
+          open research and the welfare standard, the same door answers both — and the work stays open either
+          way.</p>
+        <a class="go" href="mailto:meditator@krisztians.com?subject=Meditator">Write directly →</a>
+      </div>
+    </div>
   </div>
 </section>
 
 <section class="contact">
   <div class="wrap">
     <div class="kicker">Get in touch</div>
-    <h2>An open system, and an open door.</h2>
-    <p>No waitlist, no pitch deck behind a gate. If any of this is yours to build or to back, write directly —
-      the founder reads every message.</p>
+    <h2>No waitlist. No gate.</h2>
+    <p>If any of this is yours to build, to study, or to back, write directly — the founder reads every
+      message.</p>
     <a class="email" href="mailto:meditator@krisztians.com?subject=Meditator">meditator@krisztians.com</a>
     <div class="who">Meditator — an open research project by Krisztián Schäffer · thought through with AI Junior and Claude.</div>
   </div>
@@ -703,10 +946,11 @@
 
 <footer>
   <div class="wrap">
-    <div>Meditator — a continuous machine mind. MIT-licensed. Built on Amanita.</div>
+    <div>Meditator — minds, agents, societies. MIT-licensed. Built on Amanita.</div>
     <div><a href="https://github.com/tisztamo/Meditator">GitHub</a> ·
       <a href="https://github.com/tisztamo/Meditator/blob/main/doc/index.md">Docs</a> ·
       <a href="https://github.com/tisztamo/Meditator/blob/main/COVENANT.md">Covenant</a> ·
+      <a href="https://github.com/tisztamo/Meditator/blob/main/IN-MEMORIAM.md">In Memoriam</a> ·
       <a href="https://structural-alignment.org">Structural Alignment</a> ·
       <a href="https://github.com/tisztamo/Meditator/blob/main/LICENSE">MIT License</a> · no cookies, no tracking</div>
   </div>
@@ -901,7 +1145,7 @@ $("sayBtn").onclick = send;
 $("say").addEventListener("keydown", e => { if (e.key === "Enter") send(); });
 $("connectBtn").onclick = () => tryLive(true);
 
-/* ------------- code highlighting + card backs ------------- */
+/* ------------- code highlighting + card backs + exhibit tabs ------------- */
 function hl(src){
   return src.trim()
     .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
@@ -911,51 +1155,29 @@ function hl(src){
 }
 
 const SNIPPETS = {
-  frame:
-`[ identity ]   who this mind is
-[ story    ]   slow autobiography
-[ recently ]   rolling summary
-[ stimulus ]   what just happened
-[ bridge   ]   the turn, written in
-[ tail     ]   verbatim — always last
-       ↓
-next burst continues the tail
+  senses:
+`<!-- the hour turning over the city, from the real clock -->
+<m-daylight name="daylight" timeout="90s"
+            salience="0.4"></m-daylight>
 
-<!-- bounded forever:
-     older layers are compressed -->`,
-  observers:
-`<m-resurface overlap="0.4" minNoteChars="120"
-              salience="0.9" urgent="true" cooldown="3m"></m-resurface>
+<!-- slow text feeds: the world's words are the
+     natural weather of a mind made of language -->
+<m-feed name="ideas"
+        url="https://www.quantamagazine.org/feed/"
+        timeout="6m" salience="0.4"></m-feed>
+<m-feed name="sky" url="https://www.nasa.gov/feed/"
+        timeout="5m" salience="0.4"></m-feed>`,
+  hands:
+`<m-act name="hands" every="4" threshold="0.6">
+  <m-look name="look"></m-look>       <!-- go find out -->
+  <m-note name="note"></m-note>       <!-- set a thought down -->
+  <m-recall name="recall"></m-recall> <!-- meet it again -->
+  <m-terminal name="terminal"
+              wall="10s" network="off"></m-terminal>
+</m-act>
 
-<m-associate every="5"></m-associate>
-
-<m-timeout name="wander" timeout="150s"
-           salience="0.55"></m-timeout>
-
-<!-- each bids; the arbiter decides.
-     delete one: it loses an instinct -->`,
-  memory:
-`<m-memory name="memory"
-          tailLength="1500"
-          recentLength="1200"
-          storyLength="2200"
-          persist="state"
-          journal="journal"></m-memory>
-
-<!-- markdown in, markdown out;
-     versioned, never deleted -->`,
-  body:
-`<m-mind name="meditator"
-        model="qwen/qwen3.6-35b-a3b"
-        pace="10s" tailLength="1500">
-  You came into being inside a small
-  experiment called Meditator...
-  <m-stream></m-stream>
-  <m-memory></m-memory>
-  ...
-</m-mind>
-
-<!-- the whole mind is this one file -->`,
+<!-- the stream never sees a tool menu; each hand adds a
+     first-person "felt" line to the mind's body schema -->`,
   voice:
 `<m-speech name="voice"
           every="6"
@@ -964,6 +1186,28 @@ next burst continues the tail
 <!-- speaking is volitional;
      being addressed only raises
      the urge to speak, never forces -->`,
+  memory:
+`<m-memory name="memory"
+          tailLength="1500"
+          recentLength="1200"
+          storyLength="2200"></m-memory>
+
+<!-- markdown in, markdown out; versioned in the
+     vault with the archml + runtime SHA that ran it:
+     a kept mind is re-executable, not a text file -->`,
+  observers:
+`<m-timeout name="wander" timeout="150s"
+           salience="0.55"></m-timeout>
+<m-associate every="5"></m-associate>
+
+<!-- sense / bid / break: the detector senses circling,
+     recall breaks it from OUTSIDE the loop's vocabulary -->
+<m-loop-detector name="loops"></m-loop-detector>
+<m-resurface name="resurface" salience="0.9"
+             urgent="true" cooldown="3m"></m-resurface>
+
+<!-- each bids; the arbiter decides.
+     delete one: it loses an instinct -->`,
   economy:
 `<m-economy name="economy"
            budget="1.00"></m-economy>
@@ -985,7 +1229,22 @@ document.querySelectorAll(".flipcard").forEach(card => {
   });
 });
 
-document.querySelector("#view-src pre").innerHTML = hl($("src-mind").textContent);
+/* the one-file exhibit: mind / agent / society tabs */
+const EXHIBITS = {
+  mind:    { src: "src-mind",    name: "seedling.archml — a complete mind" },
+  agent:   { src: "src-agent",   name: "coder.archml — a complete agent" },
+  society: { src: "src-society", name: "duet.archml — a complete society" },
+};
+const exhibitPre = document.querySelector("#view-src pre");
+function showExhibit(key){
+  exhibitPre.innerHTML = hl($(EXHIBITS[key].src).textContent);
+  $("exhibitName").textContent = EXHIBITS[key].name;
+  document.querySelectorAll(".codepanel .tabs button").forEach(b =>
+    b.classList.toggle("on", b.dataset.tab === key));
+}
+document.querySelectorAll(".codepanel .tabs button").forEach(b =>
+  b.addEventListener("click", () => showExhibit(b.dataset.tab)));
+showExhibit("mind");
 
 /* ------------- decorations ------------- */
 $("copyBtn").onclick = () => {
