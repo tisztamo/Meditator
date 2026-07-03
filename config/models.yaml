@@ -15,10 +15,10 @@ providers:
 roles:
   voice:
     provider: openrouter
-    model: qwen/qwen3.6-35b-a3b
+    model: deepseek/deepseek-v4-flash
   utility:
     provider: openrouter
-    model: qwen/qwen3.5-9b
+    model: deepseek/deepseek-v4-flash
 
 presets:
   gpu-local:
