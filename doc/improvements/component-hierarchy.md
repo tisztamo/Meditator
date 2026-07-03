@@ -1,15 +1,16 @@
 # Component hierarchy, bundle-local components, and self-contained homes
 
 **Date:** 2026-07-03
-**Status:** **M1 IMPLEMENTED (2026-07-03)** — the resolver + loader (goals 2 & 3) are
-built and green (272 unit + 219 wiring, +9 new resolver tests; verified end-to-end with a
-bundle-only `<m-badge>` loading from a `components/` dir beside a throwaway archml). **M2
-(vault snapshot) and M3 (built-in reorg) are designed but NOT built** — held pending review
-because M2 touches vault-writing (covenant-adjacent) and M3 moves ~55 files. Proposes a
-component **resolver** that replaces the flat search-path loop in `loadMindComponents.js`,
-so (1) built-ins can live in a hierarchy, (2) an author can drop a custom component next to
-their `.archml`, (3) name collisions have a clean rule, and (4) a home snapshots the custom
-components it ran with, staying re-executable.
+**Status:** **M1 + M2 IMPLEMENTED (2026-07-03)** — the resolver + loader (goals 2 & 3) and
+the home component-snapshot (goal 4) are built and green (282 unit + 222 wiring). Verified
+end-to-end: a bundle-only `<m-badge>` loads from a `components/` dir beside a throwaway
+archml, is snapshotted into the home, and the home run *standalone* (and in-place) re-loads
+it from its own `components/` with the self-copy correctly skipped. **M3 (built-in reorg)
+is designed but NOT built** — held; it moves ~55 files (33 import `./mBaseComponent`).
+Proposes a component **resolver** that replaces the flat search-path loop in
+`loadMindComponents.js`, so (1) built-ins can live in a hierarchy, (2) an author can drop a
+custom component next to their `.archml`, (3) name collisions have a clean rule, and (4) a
+home snapshots the custom components it ran with, staying re-executable.
 **Touches:** `src/startup/loadMindComponents.js`, `src/config/componentLoading.js`,
 `src/mindComponents/**` (reorg), `src/mindComponents/mMemory.js` (`_snapshotArchitecture`),
 `src/config/cli.js` (help). Relates to `doc/architecture/lifecycle.md` §2 (a home carries
@@ -293,9 +294,14 @@ with `architecture.archml` — the graveyard bundle becomes re-executable for fr
   at the resolver. No files moved. `architecture/tests/unit/component-resolver.test.js`
   added; CLI help updated. A resolved file is now imported exactly once, so its own
   syntax/import error surfaces directly instead of falling through to a lower layer.
-- **M2 — self-contained homes (goal 4).** Snapshot the bundle into `home/components/`; the
-  re-run closure; snapshot test. Update `retire.mjs` docstring (bundles now carry
-  `components/`).
+- **M2 — self-contained homes (goal 4). ✅ DONE (2026-07-03).** `mMemory._snapshotArchitecture`
+  now also calls `_snapshotComponents`: the bundle `components/` dir is copied wholesale into
+  `home/components/` when a component resolved from it, plus cli/env/project winners
+  individually (with the transitive-dep warning); a copy whose source is already inside the
+  home is skipped (the re-run no-op). `architecture/tests/wiring/component-snapshot.test.js`
+  added (+ a built-in-only no-op guard on `architecture-snapshot.test.js`); `retire.mjs`
+  docstring updated. `commitVault` already stages the home recursively, so `home/components/`
+  is committed with the wake/sleep commits and `git mv`'d into the graveyard for free.
 - **M3 — built-in reorg (goal 1).** Codemod the move + relative-import rewrites; the
   no-duplicate-basename test; update `cli.js -p` help and `doc/configuration.md`.
 

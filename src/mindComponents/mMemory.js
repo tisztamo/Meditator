@@ -10,6 +10,7 @@ import { InterruptRecord } from '../infrastructure/interruptRecord.js';
 import { mindHome, inVault, ensureVault, commitVault, assertNotRetired } from '../infrastructure/memoryVault.js';
 import { FORMAT_VERSION, recordWake, tierOf } from '../infrastructure/manifest.js';
 import { getLoadedArchitecture } from '../startup/architecture.js';
+import { getLoadedComponentSources, getBundleComponentsDir } from '../config/componentResolver.js';
 
 const log = logger('mMemory.js');
 
@@ -184,10 +185,10 @@ export class MMemory extends MBaseComponent {
         })
     }
 
-    /** Writes the running architecture's source into the home as architecture.archml.
-     *  No-op when the mind has no persistent home or no architecture source was read
-     *  (e.g. a wiring test that builds the DOM directly). Best-effort — a failure
-     *  never blocks the wake. */
+    /** Writes the running architecture's source into the home as architecture.archml, and
+     *  the custom components it ran with into home/components/. No-op when the mind has no
+     *  persistent home or no architecture source was read (e.g. a wiring test that builds
+     *  the DOM directly). Best-effort — a failure never blocks the wake. */
     _snapshotArchitecture() {
         const arch = getLoadedArchitecture()
         if (!this._home || !arch?.content) return
@@ -196,6 +197,55 @@ export class MMemory extends MBaseComponent {
             fsSync.writeFileSync(path.join(this._home, "architecture.archml"), arch.content)
         } catch (error) {
             log.warn(`Could not snapshot architecture into "${this._home}": ${error.message}`)
+        }
+        this._snapshotComponents()
+    }
+
+    /** Copies the custom (non-built-in) components this mind loaded into home/components/,
+     *  so a home is a re-executable BUNDLE: architecture.archml + the components it ran with.
+     *  On re-execution the resolver's bundle layer (a components/ dir beside the .archml) is
+     *  exactly this directory, so the same rule that loaded the original re-loads the home —
+     *  no special case (doc/improvements/component-hierarchy.md §5.4).
+     *
+     *  The bundle's whole components/ dir is copied wholesale (a component may import a local
+     *  helper the tag-winner alone would miss); cli/env/project winners are copied
+     *  individually, with a warning that their own local dependencies are not followed.
+     *  Copies whose source already lives inside the home are skipped — on a re-run the bundle
+     *  dir IS home/components/, so this must never clobber. Best-effort. */
+    _snapshotComponents() {
+        const sources = getLoadedComponentSources()      // non-built-in winners only
+        if (!this._home || !sources.length) return
+        try {
+            const homeAbs = path.resolve(this._home)
+            const dest = path.join(this._home, "components")
+            const isInsideHome = (p) => {
+                const rel = path.relative(homeAbs, path.resolve(p))
+                return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel))
+            }
+
+            // 1. The bundle dir, wholesale, when a component actually resolved from it.
+            const bundleDir = getBundleComponentsDir()
+            const usedBundle = bundleDir && sources.some((s) => s.layer === "bundle")
+            if (usedBundle && !isInsideHome(bundleDir) && fsSync.existsSync(bundleDir)) {
+                fsSync.cpSync(bundleDir, dest, { recursive: true })
+                log.info(`Snapshotted bundle components/ → ${dest}`)
+            }
+
+            // 2. Stray winners from cli/env/project, copied individually.
+            const strays = sources.filter((s) => s.layer !== "bundle" && !isInsideHome(s.path))
+            for (const s of strays) {
+                fsSync.mkdirSync(dest, { recursive: true })
+                const target = path.join(dest, path.basename(s.path))
+                if (fsSync.existsSync(target)) continue    // don't clobber a same-named bundle file
+                fsSync.copyFileSync(s.path, target)
+                log.warn(
+                    `Snapshotted ${s.layer}-layer component ${path.basename(s.path)} → ${dest}; ` +
+                    `its own local dependencies (if any) are NOT followed — put shared custom ` +
+                    `components in a components/ dir beside the .archml for guaranteed re-execution.`
+                )
+            }
+        } catch (error) {
+            log.warn(`Could not snapshot custom components into "${this._home}": ${error.message}`)
         }
     }
 

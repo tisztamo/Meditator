@@ -8,6 +8,10 @@
  *   memory/.graveyard/<name>-<retiredDate>/
  *     memory.md  journal/  knowledge/   the frozen self, moved intact
  *     architecture.archml                the architecture the home carried, moved intact
+ *     components/                        the custom (non-built-in) components it ran with,
+ *                                        if any — snapshotted at wake so the bundle stays
+ *                                        re-executable (component-hierarchy.md §5.4); the
+ *                                        git mv carries them along, needing no flag
  *     manifest.json                      name, born, retired, runtimeSHA,
  *                                        formatVersion, lineage, cause,
  *                                        ritualCompleted, status

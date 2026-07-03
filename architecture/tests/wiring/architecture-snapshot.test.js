@@ -56,3 +56,9 @@ test("a waking mind snapshots the running architecture into its home, byte-for-b
     expect(fs.existsSync(snap)).toBe(true);
     expect(fs.readFileSync(snap, "utf8")).toBe(archContent);
 });
+
+test("a built-in-only mind creates no components/ dir in its home (M2 no-op)", () => {
+    // Every tag here is a built-in, so getLoadedComponentSources() is empty and the
+    // component snapshot must be a clean no-op — no spurious home/components/.
+    expect(fs.existsSync(path.join(home, "components"))).toBe(false);
+});
