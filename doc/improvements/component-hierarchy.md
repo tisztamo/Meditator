@@ -98,16 +98,21 @@ error.
 
 | # | Layer | Directory(ies) | Purpose |
 |---|-------|----------------|---------|
-| 1 | **explicit** | `-p` CLI dir(s), `MIND_COMPONENTS_PATH` env | operator/dev override |
+| 1 | **cli** | `-p` / `--mind-components-path` dir | deliberate one-off operator override (testing, bug workaround) |
 | 2 | **bundle** | `<dir(archml)>/components/` | the author's own components (goal 2) |
-| 3 | **project** | `./mindComponents` (cwd) | external-project convention (existing) |
-| 4 | **built-in** | `src/mindComponents/**` (recursive) | the shipped faculties (goal 1) |
+| 3 | **env** | `MIND_COMPONENTS_PATH` | a project's component library (the Studio sets it per external project) |
+| 4 | **project** | `./mindComponents` (cwd) | external-project convention (existing) |
+| 5 | **built-in** | `src/mindComponents/**` (recursive) | the shipped faculties (goal 1) |
 
-**Precedence = specificity.** The bundle dir (adjacent to the exact file being run) is more
-specific than a cwd-level `./mindComponents`, which is more specific than the shipped
-built-ins. The `explicit` layer stays on top to preserve today's `-p`/env behavior (a
-deliberate operator override, e.g. for debugging). See §7 for the one real trade-off this
-ordering carries (explicit-over-bundle vs bundle-always-wins).
+**Precedence = specificity, with re-executability protected.** The bundle dir (adjacent to
+the exact file being run) is more specific than the project-wide `MIND_COMPONENTS_PATH`
+library, which is more specific than a cwd-level `./mindComponents`, then the shipped
+built-ins. **`bundle` sits above `env`** so a home's snapshotted `components/` beats a
+project's current library on re-execution — the Studio always sets `env` for an external
+project, so a resident re-woken there must still resolve *its own* frozen components, not
+whatever the library has drifted to. **`cli` (`-p`) stays on top** as the deliberate
+override: a re-run of a home normally passes no `-p`, so putting it above the bundle costs
+re-executability nothing while keeping the workaround escape hatch (see §7.2).
 
 The built-in layer becomes a **recursive scan of `src/mindComponents/`**, which is what
 makes the hierarchy (goal 1) free: the loader does not care whether `mStream.js` sits in
@@ -261,11 +266,16 @@ with `architecture.archml` — the graveyard bundle becomes re-executable for fr
    homes are isolated at rest regardless, since each snapshots into its *own*
    `home/components/`.
 
-2. **`explicit` over `bundle`, or `bundle` always wins?** Recommended: keep `explicit`
-   (`-p`/env) on top, preserving today's behavior — an operator override is deliberate and
-   rare, and a home is normally re-run *without* `-p`, so the re-executability guarantee
-   (bundle > built-in) still holds in practice. The alternative (bundle always wins) makes a
-   snapshot maximally authoritative but silently ignores an operator's explicit `-p`.
+2. **Where do `-p` and `env` sit relative to `bundle`?** RESOLVED (2026-07-03, with the
+   user): `-p` > `bundle` > `env`. The two override sources split by role. `env`
+   (`MIND_COMPONENTS_PATH`) is a *project-wide library* — the Studio sets it for every
+   external-project run — so it must sit *below* the bundle: a resident re-woken via the
+   Studio (env set) has to resolve *its own* snapshotted `components/`, not a library that
+   has since drifted. `-p` (CLI) is the *deliberate one-off* override (testing, a bug
+   workaround); it stays on top because a home re-run passes no `-p`, so putting it above the
+   bundle costs re-executability nothing. (Rejected: a single `explicit` layer over the
+   bundle — it would let the Studio's persistent env silently shadow a home's frozen
+   components; and bundle-always-wins — it would ignore a deliberate `-p` workaround.)
 
 3. **Silent built-in override, or opt-in?** Recommended: allow a bundle component to
    override a built-in, but always `WARN` (shadow log). The stricter alternative is to

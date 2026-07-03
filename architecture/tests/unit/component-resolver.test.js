@@ -101,6 +101,25 @@ test("loadedSources reports only the non-built-in winners (what a home must snap
   expect(getBundleComponentsDir()).toBe(componentsDir);
 });
 
+test("the bundle layer beats MIND_COMPONENTS_PATH (env) — re-executability", () => {
+  // env supplies a project-wide library that ALSO defines m-note; the bundle beside the
+  // archml must still win (a re-run home resolves its own frozen components, not the library).
+  const envDir = fs.mkdtempSync(path.join(os.tmpdir(), "med-resolver-env-"));
+  fs.writeFileSync(path.join(envDir, "mNote.js"), stub("MNote"));      // collides with bundle
+  fs.writeFileSync(path.join(envDir, "mGadget.js"), stub("MGadget"));  // env-only
+  const saved = process.env.MIND_COMPONENTS_PATH;
+  process.env.MIND_COMPONENTS_PATH = envDir;
+  try {
+    const r = buildComponentResolver({ archmlPath });
+    expect(r.resolve("m-note").layer).toBe("bundle");   // bundle wins over env
+    expect(r.resolve("m-gadget").layer).toBe("env");     // env still resolves below the bundle
+  } finally {
+    if (saved === undefined) delete process.env.MIND_COMPONENTS_PATH;
+    else process.env.MIND_COMPONENTS_PATH = saved;
+    fs.rmSync(envDir, { recursive: true, force: true });
+  }
+});
+
 test("with no architecture path there is no bundle layer (unit-test / direct-DOM case)", () => {
   const r = buildComponentResolver({});
   expect(getBundleComponentsDir()).toBeNull();
