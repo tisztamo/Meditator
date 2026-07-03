@@ -88,3 +88,13 @@ not necessarily acted on yet. Each note states its status at the top.
   deterministic dry-run integration layer that starts real architectures, observes
   public surfaces such as WebSocket telemetry and journals, and catches whole-system
   wiring failures like peer ears going silently deaf.
+- [component-hierarchy.md](component-hierarchy.md) — the flat `src/mindComponents/` tree
+  (~55 files) grows a **layered resolver**: cli / env / a `components/` dir beside the
+  `.archml` (the author's own components) / project / the built-in tree scanned
+  *recursively*. Clean override rules — a higher layer shadows a lower one with a loud
+  log; two definitions at **equal** precedence are a fatal ambiguity naming both paths.
+  An architecture is a **bundle** (`X.archml` + `components/`), and so is a vault home, so
+  one rule serves authoring, running, snapshotting, and re-running. **M1 (resolver +
+  loader) IMPLEMENTED 2026-07-03**; M2 (a home snapshots the custom components it ran with
+  → re-executable) and M3 (physically split built-ins into `mind/ agent/ shared/`, gated by
+  a no-duplicate-basename test — 33 files import `./mBaseComponent`) designed, held for review.

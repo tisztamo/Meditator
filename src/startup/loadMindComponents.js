@@ -1,32 +1,24 @@
 import A from "amanita";
 import { getUnregisteredCustomElements } from "./getUnregisteredCustomElements.js";
-import { getMindComponentsPaths } from '../config/componentLoading.js';
+import { buildComponentResolver, kebabToCamel } from '../config/componentResolver.js';
+import { getLoadedArchitecture } from './architecture.js';
 import { logger } from '../infrastructure/logger';
 
 const log = logger('loadMindComponents.js');
 
 /**
- * Converts a kebab-case string (e.g. "m-stream") to camelCase (e.g. "mStream").
- *
- * @param {string} str - The kebab-case string.
- * @returns {string} The camelCase conversion.
- */
-function kebabToCamel(str) {
-  return str
-    .split('-')
-    .map((word, index) =>
-      index === 0 ? word : word.charAt(0).toUpperCase() + word.slice(1)
-    )
-    .join('');
-}
-
-/**
  * Loads the JS module for each unregistered custom element found in the given DOM.
- * The module for a tag (e.g. "m-stream") is expected to be located at:
- *    ../mindComponents/mStream.js
  *
- * When a component has the attribute skipload="true", if its module fails to load,
- * the error is caught and a warning is dropped to the console instead of throwing.
+ * Each tag (e.g. "m-stream") is resolved to a single module file by the component
+ * RESOLVER (componentResolver.js), which searches ordered layers — cli / env / a
+ * `components/` dir beside the .archml / project / the built-in tree — applying clean
+ * override rules and failing loudly on an ambiguous collision. See
+ * doc/improvements/component-hierarchy.md.
+ *
+ * When a component has the attribute skipload="true", if its module cannot be resolved or
+ * fails to load, the error is caught and a warning is dropped instead of throwing. An
+ * ambiguity error is NOT suppressible by skipload — two components answering one tag is a
+ * mistake the author must fix, not an optional faculty.
  *
  * This function returns a mapping of tag names to their imported module objects.
  *
@@ -37,6 +29,11 @@ export async function loadMindComponents(dom) {
   // Get all custom element tag names that are not yet registered (in document order).
   const customTags = getUnregisteredCustomElements(dom);
 
+  // Build the resolver once for this load. The .archml path (when one was read) anchors
+  // the bundle layer — its `components/` sibling; unit tests that build the DOM directly
+  // have no architecture and simply get no bundle layer.
+  const resolver = buildComponentResolver({ archmlPath: getLoadedArchitecture()?.path });
+
   // Hold A.define's auto-flush: we import across async ticks, where the microtask flush
   // could fire mid-import and define a hand before its m-act ancestor. Phase 2 + A.settle()
   // (in the finally) then define the whole batch once, in document order.
@@ -45,7 +42,7 @@ export async function loadMindComponents(dom) {
   // Phase 1 — import every module concurrently. A.define() only queues while deferred, so
   // this has no registration side effects: it really is just imports.
   const descriptors = await Promise.all(
-    customTags.map((tag) => importModuleForTag(tag, dom))
+    customTags.map((tag) => importModuleForTag(tag, dom, resolver))
   );
 
   // Phase 2 — register the custom elements synchronously, in document order.
@@ -85,7 +82,7 @@ export async function loadMindComponents(dom) {
         // onConnect) is tolerated for skipload="true" components and fatal
         // otherwise — same policy as a failed import. handleModuleLoadError
         // warns-and-skips or re-throws.
-        handleModuleLoadError(error, customTags[i], dom);
+        handleModuleLoadError(error, customTags[i], dom, resolver);
       }
     }
   } finally {
@@ -104,25 +101,30 @@ export async function loadMindComponents(dom) {
  * Imports the module for a tag WITHOUT registering it. Returns a descriptor
  * ({module, pascalCaseName, moduleUrl}) for the registration phase, or null when
  * the load was skipped via skipload="true".
+ *
+ * The resolver picks the single winning file (throwing on an ambiguous collision — which
+ * propagates, fatal, and is deliberately not skipload-suppressible). We then import that
+ * exact file, so a syntax/import error in a found module surfaces directly instead of being
+ * misread as "not here, try the next layer" (the old first-success-wins loop's failure mode).
  */
-async function importModuleForTag(tag, dom) {
+async function importModuleForTag(tag, dom, resolver) {
   const camelCaseName = kebabToCamel(tag);
   const pascalCaseName = camelCaseName.charAt(0).toUpperCase() + camelCaseName.slice(1);
-  const componentPaths = getMindComponentsPaths();
 
-  for (const basePath of componentPaths) {
-    const moduleUrl = new URL(`${basePath}/${camelCaseName}.js`, import.meta.url);
+  const winner = resolver.resolve(tag);   // {path, layer} | null; throws on ambiguity
+  if (!winner) {
+    return handleModuleLoadError(
+      new Error(`No module found for <${tag}> (expected ${camelCaseName}.js in a component layer).`),
+      tag, dom, resolver
+    );
+  }
 
-    try {
-      const module = await import(moduleUrl);
-      return { module, pascalCaseName, moduleUrl };
-    } catch (error) {
-      // If this is the last path and we still haven't found it, handle the error
-      if (basePath === componentPaths[componentPaths.length - 1]) {
-        return handleModuleLoadError(error, tag, dom);
-      }
-      continue;
-    }
+  try {
+    const moduleUrl = resolver.toModuleUrl(winner.path);
+    const module = await import(moduleUrl);
+    return { module, pascalCaseName, moduleUrl };
+  } catch (error) {
+    return handleModuleLoadError(error, tag, dom, resolver);
   }
 }
 
@@ -141,10 +143,9 @@ function registerCustomElement(tag, exportedComponentName, module, moduleUrl) {
   }
 }
 
-function handleModuleLoadError(error, tag, dom) {
-  const componentPaths = getMindComponentsPaths();
-  const pathsMessage = `\nAttempted paths:\n${componentPaths.map(p => `- ${p}`).join('\n')}`;
-  const configMessage = '\nYou can configure component paths via:\n- CLI argument: --mind-components-path=<path>\n- Environment variable: MIND_COMPONENTS_PATH\n- Default: ./mindComponents/ dir';
+function handleModuleLoadError(error, tag, dom, resolver) {
+  const pathsMessage = `\nSearched (highest precedence first):\n${resolver.describeSearch()}`;
+  const configMessage = '\nYou can supply components via:\n- A `components/` directory beside your .archml (bundle layer)\n- CLI argument: --mind-components-path=<dir> (-p)\n- Environment variable: MIND_COMPONENTS_PATH';
 
   // If any element of this tag in the DOM has skipload="true", drop a warning and continue
   if (dom.querySelector(`${tag}[skipload="true"]`)) {

@@ -191,5 +191,8 @@ Examples:
 Notes:
   Secrets (API keys, tokens) must be set via environment variables only.
   CLI flags take priority over environment variables, which take priority over defaults.
+  Custom components: drop mFoo.js into a components/ directory beside your .archml and
+  <m-foo> loads from there — overriding a built-in of the same name (a shadow is logged).
+  Precedence: -p, then MIND_COMPONENTS_PATH, then that components/ dir, then built-ins.
 `);
 }

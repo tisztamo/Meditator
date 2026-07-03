@@ -1,31 +1,59 @@
+import { fileURLToPath } from 'url';
+import path from 'path';
+
 /**
- * Returns an array of directory paths to search for mind components.
- * Priority order:
- * 1. CLI argument if provided
- * 2. MIND_COMPONENTS_PATH environment variable if set
- * 3. ./mindComponents/
- * 3. Default ../mindComponents relative to source
- * 
- * @returns {string[]} Array of directory paths
+ * Returns the ordered COMPONENT LAYERS to search, highest precedence first. Each layer is
+ * a set of directories at equal precedence; the resolver (componentResolver.js) applies
+ * the override/collision rules over them. See doc/improvements/component-hierarchy.md §3.
+ *
+ * Order (highest → lowest):
+ *   1. cli      — the -p / --mind-components-path argument (a deliberate operator override)
+ *   2. env      — the MIND_COMPONENTS_PATH environment variable
+ *   3. bundle   — a `components/` directory beside the running .archml (the author's own
+ *                 components); present only when an architecture path is known
+ *   4. project  — ./mindComponents relative to cwd (external-project convention)
+ *   5. built-in — the shipped faculties under src/mindComponents (scanned recursively, so
+ *                 they may live in a hierarchy: mind/ agent/ shared/)
+ *
+ * `recursive` says whether a layer's dirs are walked into subdirectories. cli/env/project
+ * stay shallow (matching the historical `${base}/mFoo.js` lookup); bundle and built-in are
+ * recursive so components may be organised into folders.
+ *
+ * @param {{archmlPath?: string|null}} [opts]
+ * @returns {Array<{name:string, dirs:string[], recursive:boolean, bundle?:boolean}>}
  */
-export function getMindComponentsPaths() {
-  const paths = [];
+export function getComponentLayers({ archmlPath } = {}) {
+  const layers = [];
 
-  // Check for CLI argument (assuming it's passed as --mind-components-path or -p)
-  const cliArgIndex = process.argv.findIndex(arg => arg === '--mind-components-path' || arg === '-p');
+  // 1. CLI: --mind-components-path / -p (first occurrence, as before).
+  const cliArgIndex = process.argv.findIndex(
+    (arg) => arg === '--mind-components-path' || arg === '-p'
+  );
   if (cliArgIndex !== -1 && process.argv[cliArgIndex + 1]) {
-    paths.push(process.argv[cliArgIndex + 1]);
+    layers.push({ name: 'cli', dirs: [process.argv[cliArgIndex + 1]], recursive: false });
   }
 
-  // Check for environment variable
+  // 2. Environment variable.
   if (process.env.MIND_COMPONENTS_PATH) {
-    paths.push(process.env.MIND_COMPONENTS_PATH);
+    layers.push({ name: 'env', dirs: [process.env.MIND_COMPONENTS_PATH], recursive: false });
   }
 
-  paths.push("./mindComponents");
+  // 3. Bundle: a components/ directory beside the .archml being run. This is what makes a
+  //    home self-contained — the home's own components/ IS this layer on re-execution.
+  if (archmlPath) {
+    const dir = path.join(path.dirname(archmlPath), 'components');
+    layers.push({ name: 'bundle', dirs: [dir], recursive: true, bundle: true });
+  }
 
-  // Add default path relative to this source file
-  paths.push(new URL('../mindComponents', import.meta.url).pathname);
+  // 4. Project convention (cwd-relative).
+  layers.push({ name: 'project', dirs: ['./mindComponents'], recursive: false });
 
-  return paths;
+  // 5. Built-in faculties, relative to this source file, scanned recursively.
+  layers.push({
+    name: 'built-in',
+    dirs: [fileURLToPath(new URL('../mindComponents', import.meta.url))],
+    recursive: true,
+  });
+
+  return layers;
 }
