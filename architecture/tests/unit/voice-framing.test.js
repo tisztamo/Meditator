@@ -4,10 +4,10 @@
 // is named from the interlocutor (`from`) and the language is stamped from the mind's
 // lang="…" (`lang`) where the voice enters (mWs/mConsole). See
 // InterruptRecord.renderForFrame + VOICE_FRAMING, and langOf (the shared ambient-language
-// read, src/mindComponents/i18n.js).
+// read, src/mindComponents/shared/i18n.js).
 import { test, expect } from "bun:test";
 import { InterruptRecord, voiceFraming } from "../../../src/infrastructure/interruptRecord.js";
-import { langOf } from "../../../src/mindComponents/i18n.js";
+import { langOf } from "../../../src/mindComponents/shared/i18n.js";
 
 const frame = (o) => new InterruptRecord({ source: "X", salience: 1, ...o }).renderForFrame();
 

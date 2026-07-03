@@ -9,7 +9,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { delay } from "./setup.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
-import { MMind } from "../../../src/mindComponents/mMind.js";
+import { MMind } from "../../../src/mindComponents/mind/mMind.js";
 
 let mind, facts, act, factsDir, pinnedSeen;
 

@@ -1,6 +1,6 @@
 // Fixed-tick burst scheduling math — pure unit.
 import { test, expect } from "bun:test";
-import { tickDelay } from "../../../src/mindComponents/mMind.js";
+import { tickDelay } from "../../../src/mindComponents/mind/mMind.js";
 
 test("a burst faster than the tick waits out the remainder", () => {
     // 5s burst on an 8s tick -> 3s of slack before the next one.

@@ -15,7 +15,7 @@ import { test, expect, beforeAll } from "bun:test";
 import A from "amanita";
 import { delay } from "./setup.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
-import { MMind } from "../../../src/mindComponents/mMind.js";
+import { MMind } from "../../../src/mindComponents/mind/mMind.js";
 
 beforeAll(async () => {
     if (!customElements.get("m-mind")) {

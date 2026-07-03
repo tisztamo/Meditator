@@ -1,6 +1,6 @@
 // mSpeech tolerant decision parser — locks in format-tolerant speaking decisions.
 import { test, expect } from "bun:test";
-import { parseSpeechDecision } from "../../../src/mindComponents/mSpeech.js";
+import { parseSpeechDecision } from "../../../src/mindComponents/mind/mSpeech.js";
 
 const cases = [
     ["NONE", null],

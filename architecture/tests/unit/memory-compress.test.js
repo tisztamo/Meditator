@@ -10,7 +10,7 @@
 // Nothing is ever truncated or evicted in code — a code-level "drop the oldest to fit"
 // was what silently erased a mind's origin problem.
 import { test, expect } from "bun:test";
-import { compressToFit, buildCompressionPrompt, nearestToTarget, dedupeExact, firstSentences, lastSentences } from "../../../src/mindComponents/mMemory.js";
+import { compressToFit, buildCompressionPrompt, nearestToTarget, dedupeExact, firstSentences, lastSentences } from "../../../src/mindComponents/mind/mMemory.js";
 
 // A fake model: returns canned outputs of exact lengths (or exact texts), one per pass,
 // and records every (prompt, maxTokens) it was driven with.

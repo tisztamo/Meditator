@@ -94,7 +94,8 @@ not necessarily acted on yet. Each note states its status at the top.
   *recursively*. Clean override rules — a higher layer shadows a lower one with a loud
   log; two definitions at **equal** precedence are a fatal ambiguity naming both paths.
   An architecture is a **bundle** (`X.archml` + `components/`), and so is a vault home, so
-  one rule serves authoring, running, snapshotting, and re-running. **M1 (resolver +
-  loader) IMPLEMENTED 2026-07-03**; M2 (a home snapshots the custom components it ran with
-  → re-executable) and M3 (physically split built-ins into `mind/ agent/ shared/`, gated by
-  a no-duplicate-basename test — 33 files import `./mBaseComponent`) designed, held for review.
+  one rule serves authoring, running, snapshotting, and re-running. **ALL THREE MILESTONES
+  IMPLEMENTED 2026-07-03**: M1 (resolver + loader), M2 (a home snapshots the custom components
+  it ran with → re-executable bundle), M3 (built-ins physically split into `mind/ agent/
+  shared/`, 51 files, gated by a flat-namespace test). 284 unit + 222 wiring green; a mind,
+  an agent, and a standalone re-run home all verified live.

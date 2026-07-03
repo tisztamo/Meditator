@@ -26,7 +26,7 @@ beforeAll(() => {
   componentsDir = path.join(tmp, "components");
   fs.mkdirSync(componentsDir, { recursive: true });
 
-  // A bundle component that OVERRIDES a real built-in (src/mindComponents/mNote.js).
+  // A bundle component that OVERRIDES a real built-in (src/mindComponents/shared/mNote.js).
   fs.writeFileSync(path.join(componentsDir, "mNote.js"), stub("MNote"));
   // A brand-new bundle-only component, nested — proves recursive scan of the bundle.
   fs.mkdirSync(path.join(componentsDir, "widgets"), { recursive: true });

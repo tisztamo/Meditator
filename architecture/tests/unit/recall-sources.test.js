@@ -5,7 +5,7 @@ import { test, expect, beforeAll, afterAll } from "bun:test";
 import os from "node:os";
 import fs from "node:fs";
 import path from "node:path";
-import { readKept, mergeKept, knowledgeItem } from "../../../src/mindComponents/recallSources.js";
+import { readKept, mergeKept, knowledgeItem } from "../../../src/mindComponents/shared/recallSources.js";
 
 // --- knowledgeItem (pure) --------------------------------------------------
 

@@ -5,7 +5,7 @@
 // guards. This is the one place the escape check lives, so it is the one place to prove it.
 import { test, expect } from "bun:test";
 import path from "node:path";
-import { resolveWithin, toolRoot } from "../../../src/mindComponents/fileTool.js";
+import { resolveWithin, toolRoot } from "../../../src/mindComponents/shared/fileTool.js";
 
 const ROOT = path.resolve("/work/ws");
 

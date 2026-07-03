@@ -2,7 +2,7 @@
 // with a continuation marker from the model; we strip that before overlap
 // detection so the rendered stream does not show the artifact.
 import { test, expect } from "bun:test";
-import { trimSeamOverlap } from "../../../src/mindComponents/mStream.js";
+import { trimSeamOverlap } from "../../../src/mindComponents/mind/mStream.js";
 
 test("trimSeamOverlap removes a leading continuation ellipsis", () => {
     expect(trimSeamOverlap("the presence here, in this chat window, is", "…sustained by the electricity."))

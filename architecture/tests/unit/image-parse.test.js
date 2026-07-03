@@ -1,6 +1,6 @@
 // mImage tolerant decision parser — locks in format-tolerant visual decisions.
 import { test, expect } from "bun:test";
-import { parseImageDecision } from "../../../src/mindComponents/mImage.js";
+import { parseImageDecision } from "../../../src/mindComponents/mind/mImage.js";
 
 const cases = [
   ["NONE", null],

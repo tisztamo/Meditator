@@ -3,7 +3,7 @@
 // must default to NOT looping whenever the signal is unclear, so a garbled reply never
 // fabricates a loop.
 import { test, expect } from "bun:test";
-import { parseLoopReply } from "../../../src/mindComponents/mLoopDetector.js";
+import { parseLoopReply } from "../../../src/mindComponents/shared/mLoopDetector.js";
 
 test("a well-formed looping reply parses fully", () => {
     const p = parseLoopReply(

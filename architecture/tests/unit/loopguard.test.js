@@ -1,6 +1,6 @@
 // Loop-guard math — pure unit, no DOM or network.
 import { test, expect } from "bun:test";
-import { loopScore } from "../../../src/mindComponents/mLoopGuard.js";
+import { loopScore } from "../../../src/mindComponents/mind/mLoopGuard.js";
 
 const distinct = `The window is open and I can hear something like traffic or maybe rain outside today.
 A hammer does not need a manual and the best things were small enough to hold in one thought.`;

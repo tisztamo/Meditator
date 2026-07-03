@@ -37,7 +37,7 @@ Rules: group related ideas into topic files (e.g. attention/interruption.md); ev
 console.log("=== RAW MODEL OUTPUT ===");
 console.log(result.text);
 
-const { parseOps } = await import("../../../src/mindComponents/mKb.js");
+const { parseOps } = await import("../../../src/mindComponents/mind/mKb.js");
 console.log("=== PARSED OPS ===");
 for (const op of parseOps(result.text, 4)) {
     console.log(`${op.kind} ${op.file} (${op.content.length} chars)`);

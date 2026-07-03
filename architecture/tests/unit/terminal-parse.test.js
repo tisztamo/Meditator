@@ -3,7 +3,7 @@
 // executing anything. The dangerous code is small and impure (runScript); everything
 // here is pure and locked down by these tests.
 import { test, expect } from "bun:test";
-import { screenToExperience, stripAnsi } from "../../../src/mindComponents/mTerminal.js";
+import { screenToExperience, stripAnsi } from "../../../src/mindComponents/shared/mTerminal.js";
 import {
     assembleCommand, scrubbedEnv, interpreterFor,
     parseSizeKb, parseSizeBytes, toSeconds,

@@ -1,13 +1,13 @@
 # Component hierarchy, bundle-local components, and self-contained homes
 
 **Date:** 2026-07-03
-**Status:** **M1 + M2 IMPLEMENTED (2026-07-03)** — the resolver + loader (goals 2 & 3) and
-the home component-snapshot (goal 4) are built and green (282 unit + 222 wiring). Verified
-end-to-end: a bundle-only `<m-badge>` loads from a `components/` dir beside a throwaway
-archml, is snapshotted into the home, and the home run *standalone* (and in-place) re-loads
-it from its own `components/` with the self-copy correctly skipped. **M3 (built-in reorg)
-is designed but NOT built** — held; it moves ~55 files (33 import `./mBaseComponent`).
-Proposes a component **resolver** that replaces the flat search-path loop in
+**Status:** **M1 + M2 + M3 IMPLEMENTED (2026-07-03)** — all four goals delivered and green
+(284 unit + 222 wiring). M1: resolver + loader (goals 2 & 3). M2: home component-snapshot
+(goal 4) — verified end-to-end (a bundle-only `<m-badge>` loads from a `components/` dir
+beside a throwaway archml, is snapshotted into the home, and the home run *standalone* and
+*in-place* re-loads it, self-copy skipped). M3: the built-in tree is split into
+`mind/ agent/ shared/` (goal 1) — a mind and an agent both dry-run clean. Proposes a
+component **resolver** that replaces the flat search-path loop in
 `loadMindComponents.js`, so (1) built-ins can live in a hierarchy, (2) an author can drop a
 custom component next to their `.archml`, (3) name collisions have a clean rule, and (4) a
 home snapshots the custom components it ran with, staying re-executable.
@@ -184,30 +184,31 @@ trivial for ~55 files.
 snapshot step (§5.4) can ask `resolver.loadedSources()` for the non-built-in ones, mirroring
 how `mMemory` already asks `getLoadedArchitecture()`.
 
-### 5.3 Built-in reorg (goal 1) — a *separate, mechanical* step
+### 5.3 Built-in reorg (goal 1) — a *separate, mechanical* step ✅ DONE (2026-07-03)
 
-Because the built-in layer is a recursive scan, the physical move is invisible to the loader
-and can land **after** §5.1–5.2 as its own commit. Proposed buckets (assign by which
-root's subtree uses a tag; a tag used by ≥2 roots is `shared`):
+Because the built-in layer is a recursive scan, the physical move was invisible to the
+loader and landed as its own commit. The 51 files split **27 / 10 / 14**:
 
 ```
 src/mindComponents/
   mind/     mMind mStream mMemory mResurface mAssociate mTimeout mSpeech mPhrase
             mClearMind mEconomy mDaylight mLoopGuard mRecall mInterrupts mRegion
-            mFeed mKb mImage mWeather mObserver mSense mFacts mFact mPrompt …
+            mFeed mKb mImage mWeather mObserver mSense mFacts mFact mPrompt
+            mSociety mEar mCommons          ← society infra is mind-side (user's 3-bucket ask)
   agent/    mAgent mReason mObjective mContext mJobs mReport mRepeatGuard
-            mReadFile mWriteFile mEdit …
+            mReadFile mWriteFile mEdit
   shared/   mAct mWs mTerminal mLook mNote mOrigin mLoopDetector mConsole
-            mBaseComponent i18n loopMath recallSources toolSchema fileTool …
+            mBaseComponent i18n loopMath recallSources toolSchema fileTool
 ```
 
-**Migration risk to respect:** intra-directory relative imports. `./mBaseComponent` is
-imported by 33 files, `./i18n` by 9, `./mObserver` by 8, plus `mSense`, `loopMath`,
-`recallSources`, `fileTool`, `toolSchema`. Moving a file breaks these unless the import
-path is rewritten. Do the move as a codemod (move file → rewrite `./x` to the correct
-`../shared/x` etc.), and gate it with the collision test below. This is why the reorg is
-sequenced last: nothing else depends on it, and it is the only change that can break a
-working tree by a stale relative path.
+**Migration risk that was respected:** intra-directory relative imports. `./mBaseComponent`
+is imported by 33 files, `./i18n` by 9, `./mObserver` by 8, plus `mSense`, `loopMath`,
+`recallSources`, `fileTool`, `toolSchema`; every file also imports `../infrastructure`,
+`../modelAccess`, `../config`, `../startup` (now one level deeper). And ~20 unit tests import
+specific component files by path. The move was a codemod (`git`-tracked rename → rewrite
+`./x` to `../<sub>/x`, `../y` to `../../y`, and every external `mindComponents/X.js` →
+`mindComponents/<sub>/X.js`): 148 internal + 22 external specifiers across 61 files, computed
+from the category map rather than hand-edited. Gated by the flat-namespace test in §6.
 
 ### 5.4 Self-contained homes (goal 4) — `mMemory._snapshotArchitecture`
 
@@ -302,8 +303,14 @@ with `architecture.archml` — the graveyard bundle becomes re-executable for fr
   added (+ a built-in-only no-op guard on `architecture-snapshot.test.js`); `retire.mjs`
   docstring updated. `commitVault` already stages the home recursively, so `home/components/`
   is committed with the wake/sleep commits and `git mv`'d into the graveyard for free.
-- **M3 — built-in reorg (goal 1).** Codemod the move + relative-import rewrites; the
-  no-duplicate-basename test; update `cli.js -p` help and `doc/configuration.md`.
+- **M3 — built-in reorg (goal 1). ✅ DONE (2026-07-03).** Codemod moved 51 files into
+  `mind/ agent/ shared/` and rewrote 148 internal + 22 external import specifiers;
+  `architecture/tests/unit/builtin-namespace.test.js` locks the flat-namespace invariant (no
+  duplicate basename; no loose top-level `.js`). A mind and an agent both dry-run clean.
 
-M1 alone already delivers user-extensible, collision-safe loading; M2 makes those extensions
-survive into the vault; M3 is the cosmetic tree the loader was made indifferent to.
+M1 alone already delivered user-extensible, collision-safe loading; M2 made those extensions
+survive into the vault; M3 was the cosmetic tree the loader was made indifferent to.
+
+**Still open (not built):** the §7.3 guardrail question — allow a bundle to silently
+override a built-in (current: yes, with a WARN) vs require an explicit `override="true"`.
+Left as the current permissive default; revisit if an accidental shadow ever bites.

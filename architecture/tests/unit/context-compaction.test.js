@@ -2,7 +2,7 @@
 // so the split-point SAFETY (never orphan a tool response from its assistant, agent-loop.md
 // §12), the sizing, the rendering, and the prompt shape are proven on their own.
 import { test, expect } from "bun:test";
-import { transcriptSize, planCompaction, renderForSummary, buildBriefPrompt } from "../../../src/mindComponents/mContext.js";
+import { transcriptSize, planCompaction, renderForSummary, buildBriefPrompt } from "../../../src/mindComponents/agent/mContext.js";
 
 // A little transcript builder: u=user, a=assistant(+optional tool_calls), t=tool.
 const u = (content) => ({ role: "user", content });

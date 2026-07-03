@@ -4,8 +4,8 @@
 // (validateAgainstSchema was hoisted to the shared toolSchema.js — agent-loop.md
 // §13 milestone 2 — since minds and agents share the closed-menu guarantee.)
 import { test, expect } from "bun:test";
-import { validateAgainstSchema } from "../../../src/mindComponents/toolSchema.js";
-import { normalizeIntent } from "../../../src/mindComponents/mAct.js";
+import { validateAgainstSchema } from "../../../src/mindComponents/shared/toolSchema.js";
+import { normalizeIntent } from "../../../src/mindComponents/shared/mAct.js";
 
 // The look hand's real schema (efference.md §3): an object with a required enum
 // subject and an optional free-text "about".
