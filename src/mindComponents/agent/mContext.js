@@ -88,6 +88,12 @@ export class MContext extends MBaseComponent {
 
     _onStep(step) {
         if (step && Number.isFinite(step.index)) this._step = step.index
+        // m-agent pubs "transcript" then synchronously fires "step" in the same call
+        // (amanita 0.4: pub's subscriber dispatch is now deferred to a microtask, so
+        // this handler can run before _onTranscript sees that same step's transcript).
+        // Read the retained value directly so compaction/persist never lag one step.
+        const live = this.el("..m-agent")?.transcript
+        if (Array.isArray(live)) this._messages = live
         this._schedulePersist()
         this._maybeCompact()
     }

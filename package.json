@@ -10,14 +10,11 @@
     "test:live": "bun architecture/tests/live/run-live.mjs"
   },
   "dependencies": {
-    "amanita": "^0.3.0",
+    "amanita": "^0.4.0",
     "express": "^4.22.2",
     "jsdom": "^26.1.0",
     "openai": "^4.104.0",
     "ws": "^8.21.0",
     "yaml": "^2.9.0"
-  },
-  "devDependencies": {
-    "@aijunior/dev": "^0.3.24"
   }
 }

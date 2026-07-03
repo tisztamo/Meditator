@@ -175,7 +175,12 @@ export class StudioConn extends A(HTMLElement) {
     if (!d || d.id !== this.focusedId) return;
     if (d.structure) this.pub("structure", d.structure);
     if (d.status) this.pub("streamState", d.status);
-    for (const ev of d.snapshots || []) this.fire("event", ev);
+    // "structure"'s subscribers (studio-tree's rebuild) are deferred to a microtask
+    // (amanita 0.4: pub() dispatch is no longer synchronous); fire the snapshots one
+    // microtask later so they land on the freshly rebuilt tree, not the stale one.
+    queueMicrotask(() => {
+      for (const ev of d.snapshots || []) this.fire("event", ev);
+    });
   }
 
   /** The ordered stream timeline (tail on a fresh load, delta on reconnect). The

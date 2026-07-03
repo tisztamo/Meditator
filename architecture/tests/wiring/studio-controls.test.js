@@ -56,8 +56,10 @@ test("streammode publishes its mode string so the stream can subscribe", async (
   await delay(1);
   expect(mode).toBe("fold");                         // current = fold (default)
   el.click();
+  await delay(1);                                    // pub() dispatch is deferred (Amanita 0.4)
   expect(mode).toBe("flow");                         // republished
   el.click();
+  await delay(1);
   expect(mode).toBe("raw");
 });
 
