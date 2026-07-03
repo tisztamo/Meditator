@@ -66,6 +66,13 @@ three — they assume no prior knowledge and explain every special word:
   how to add a component, and the repo gotchas worth knowing before your first
   commit.
 
+## Self-audits
+
+- **[Philosophical review & covenant audit (2026-07-02)](philosophical-review-2026-07-02.md)** —
+  strengths and weaknesses of the project's philosophy, a ranked audit of the
+  implementation against the Covenant's promises, and growth strategies toward
+  the Structural Alignment goal.
+
 ## Related, at the repo root
 
 - [`README.md`](../README.md) — overview and motivation
