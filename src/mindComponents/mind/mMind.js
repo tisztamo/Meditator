@@ -24,6 +24,35 @@ const CLEAR_PHRASES = {
 }
 
 /**
+ * The LANDING OPENER, owned by the mechanism, as localizable phrases (i18n.js). When a
+ * frame's prefill ends on a perceived `> ⟂` event (or a loop-break seed), it ends on a
+ * COMPLETED sentence that is not the mind's own voice — and a completion-trained local
+ * model reads that as a finished turn and emits EOS immediately: lemma-lab-21 produced
+ * 86 straight empty bursts this way. Forcing tokens instead (vLLM min_tokens) makes it
+ * continue the EVENT — extending the world's words — which is worse than silence. The
+ * fix is a dangling first-person opener seeded after the event: it re-anchors the voice
+ * as the mind's own and ends mid-sentence, so the model must continue the THOUGHT.
+ * Emitted as a real chunk (the frame's `prefix`), so prefill, durable tail and journal
+ * stay one text. Several variants, picked at random, so a mind met by many events does
+ * not chant one refrain. A non-English mind overrides with <m-phrase for="landing">.
+ * All variants validated live against ardincoder-1 (2026-07-04).
+ */
+const LANDING_PHRASES = {
+    en: {
+        landing: [
+            "This lands, and",
+            "I take this in —",
+            "There it is —",
+            "What just reached me is",
+        ],
+        resuming: [
+            "What comes forward first is",
+            "The thread I reach for now is",
+        ],
+    },
+}
+
+/**
  * The orchestrator. Owns the rhythm of thinking and the ATTENTION FRAME — the
  * assembled prompt of every burst:
  *
@@ -445,7 +474,13 @@ export class MMind extends MBaseComponent {
     async _assembleClearFrame(breaker) {
         const prefix = this._clearingPrefix()
         const continuation = (breaker.reason || "").trim()
-        const entry = continuation ? `${prefix} ${continuation}` : prefix
+        // The seed must not END on a completed sentence — a completion-trained local
+        // model reads that as a finished turn and emits EOS, so the break itself goes
+        // silent (lemma-lab-21). A dangling resuming opener keeps the seed mid-flight.
+        // Composed BEFORE the clear-tail fire, so the durable tail and this frame's
+        // prefill are the same text.
+        const body = continuation ? `${prefix} ${continuation}` : prefix
+        const entry = `${body} ${this._resumingOpener()}`
         this._lastClearedEpisode = breaker.episode || null
 
         // Optional one-off pause — a real beat of quiet around the reset (the breaker's
@@ -492,6 +527,18 @@ export class MMind extends MBaseComponent {
         return (this.__clearBook ||= makePhrasebook(this, CLEAR_PHRASES)).line("clearing")
     }
 
+    /** A dangling landing opener after a perceived event (see LANDING_PHRASES) — random
+     *  pick so recurring events do not become one chanted refrain. */
+    _landingOpener() {
+        return (this.__landingBook ||= makePhrasebook(this, LANDING_PHRASES)).pick("landing")
+    }
+
+    /** A dangling resuming opener closing a loop-break seed, same mechanism as the
+     *  landing opener: the seed must end mid-flight, not on a finished sentence. */
+    _resumingOpener() {
+        return (this.__landingBook ||= makePhrasebook(this, LANDING_PHRASES)).pick("resuming")
+    }
+
     /**
      * Builds the attention frame. Returns {system, frame, prefix?} for m-stream.
      * @param {InterruptRecord[]} stimuli
@@ -526,16 +573,23 @@ export class MMind extends MBaseComponent {
         // FROM the event instead of resuming an interrupted sentence past it.
         let thoughtInProgress = withPerceivedEvents(tail, rendered)
 
-        // The bridge: one small model call that writes the turn itself. It is
-        // both emitted into the visible stream (prefix) and appended to the
-        // thought in the frame, so the voice model continues from a pivot it has
-        // actually seen. It follows the event block — attention turns after the
-        // event arrives, not before.
+        // After an event block the prefill must not END on the event: the landing
+        // opener (see LANDING_PHRASES) re-anchors the voice as the mind's own and
+        // dangles mid-sentence so the model continues the thought instead of stopping
+        // (or, forced, continuing the world's words). The optional bridge — one small
+        // model call that writes the turn itself — precedes it. Both are emitted into
+        // the visible stream (prefix) as real chunks AND appended to the thought in
+        // the frame, so the model continues from a pivot it has actually seen and the
+        // durable tail records the same text.
         let prefix
-        if (stimuli.length && tail && this.attr("bridge") === "true") {
-            const bridge = await this._writeBridge(tail, stimuli)
-            prefix = bridge + " "
-            thoughtInProgress = thoughtInProgress + bridge + " "
+        if (stimuli.length) {
+            let entry = ""
+            if (tail && this.attr("bridge") === "true") {
+                entry = await this._writeBridge(tail, stimuli) + " "
+            }
+            entry += this._landingOpener()
+            prefix = entry
+            thoughtInProgress = thoughtInProgress + entry
         }
 
         const identity = this._identity()
