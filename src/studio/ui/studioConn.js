@@ -37,6 +37,13 @@ export class StudioConn extends A(HTMLElement) {
   // null means "fresh — give me the recent tail". Reset when focus changes.
   highestSeq = null;
   roster = [];
+  // Kind ("agent" | "society" | "mind") learned from a `woke` reply, keyed by id. On a
+  // fresh wake the `woke` message arrives ~120ms BEFORE the coalesced roster, so focusing
+  // the new entity would otherwise guess kind="mind" (the _kindOf default) — and an agent's
+  // backfill, which the supervisor sends back within milliseconds, would be dropped by the
+  // transcript's isAgent gate before the roster ever corrects the kind. The hint lets focus
+  // know the kind immediately, so focusedKind is right from the first frame.
+  _kindHints = new Map();
   _restored = false;
   _onVis = null;
   // Consecutive connect attempts that never reached `open`. Behind HTTPS this most
@@ -158,7 +165,7 @@ export class StudioConn extends A(HTMLElement) {
         break;
       case "architectures": this.pub("architectures", (m.data && m.data.list) || []); break;
       case "roster":        this.roster = (m.data && m.data.minds) || []; this.pub("roster", this.roster); if (this.focusedId) this.pub("focusedKind", this._kindOf(this.focusedId)); this._maybeRestoreFocus(); break;
-      case "woke":          if (m.data && m.data.id) this.focus(m.data.id); break;
+      case "woke":          if (m.data && m.data.id) { if (m.data.kind) this._kindHints.set(m.data.id, m.data.kind); this.focus(m.data.id); } break;
       case "lifecycle":     this.fire("lifecycle", m.data || {}); break;
       case "state":         this.onState(m.data); break;
       case "backfill":      this.onBackfill(m.data); break;
@@ -247,11 +254,14 @@ export class StudioConn extends A(HTMLElement) {
     this.send({ type: "dismiss", data: { id } });
   }
 
-  /** The kind of a roster entry ("mind" | "society" | "agent"), defaulting to "mind"
-   *  when the roster has not delivered it yet. */
+  /** The kind of a roster entry ("mind" | "society" | "agent"). Prefers the roster (the
+   *  authority), then a `woke` hint for an entity the coalesced roster hasn't delivered yet
+   *  (so a freshly-woken agent focuses AS an agent, not the "mind" default — otherwise its
+   *  backfill is dropped before the roster arrives), then "mind" as the last-resort default. */
   _kindOf(id) {
     const m = this.roster.find(x => x.id === id);
-    return m ? (m.kind || "mind") : "mind";
+    if (m) return m.kind || "mind";
+    return this._kindHints.get(id) || "mind";
   }
 
   speak(text) {

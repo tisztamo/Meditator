@@ -600,7 +600,7 @@ wss.on("connection", client => {
 function handleClientMessage(client, msg) {
   const d = msg.data || {};
   switch (msg.type) {
-    case "wake":    try { const id = wake(d.file, !!d.dryRun, d.modelProfile, !!d.forceTransient, d.name, d.origin, d.projectRoot, d.interlocutor); sendJSON(client, { type: "woke", data: { id, file: d.file } }); } catch (e) { sendJSON(client, { type: "error", data: { message: e.message } }); } break;
+    case "wake":    try { const id = wake(d.file, !!d.dryRun, d.modelProfile, !!d.forceTransient, d.name, d.origin, d.projectRoot, d.interlocutor); const wk = minds.get(id); sendJSON(client, { type: "woke", data: { id, file: d.file, kind: wk ? wk.kind : null } }); } catch (e) { sendJSON(client, { type: "error", data: { message: e.message } }); } break;
     case "sleep":   sleepMind(d.id); break;
     case "force":   forceMind(d.id); break;
     case "dismiss": dismissMind(d.id); break;
