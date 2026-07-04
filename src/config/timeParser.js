@@ -1,7 +1,8 @@
 /**
  * Parses a time expression string into milliseconds.
- * Supports SI units: s (seconds), ms (milliseconds), m (minutes), h (hours)
- * Examples: "100s", "1.5h", "500ms", "10m"
+ * Supports SI units: s (seconds), ms (milliseconds), m (minutes), h (hours),
+ * d (days — for the slow rhythms: a visitor due in "3d")
+ * Examples: "100s", "1.5h", "500ms", "10m", "3d"
  * 
  * @param {string|number} timeExpr - Time expression to parse
  * @param {string} [defaultUnit='ms'] - Default unit to use if only a number is provided
@@ -24,9 +25,9 @@ export function parseTime(timeExpr, defaultUnit = 's') {
   }
 
   // Match number and unit pattern
-  const match = timeExpr.match(/^(\d*\.?\d+)\s*(ms|s|m|h)$/i);
+  const match = timeExpr.match(/^(\d*\.?\d+)\s*(ms|s|m|h|d)$/i);
   if (!match) {
-    throw new Error(`Invalid time expression: ${timeExpr}. Expected format: number + unit (ms|s|m|h)`);
+    throw new Error(`Invalid time expression: ${timeExpr}. Expected format: number + unit (ms|s|m|h|d)`);
   }
 
   const [, value, unit] = match;
@@ -45,7 +46,8 @@ function convertToMs(value, unit) {
     'ms': 1,
     's': 1000,
     'm': 60 * 1000,
-    'h': 60 * 60 * 1000
+    'h': 60 * 60 * 1000,
+    'd': 24 * 60 * 60 * 1000
   };
 
   const factor = conversions[unit];
