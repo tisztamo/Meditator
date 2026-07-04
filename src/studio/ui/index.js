@@ -20,6 +20,7 @@ import "./studioTree.js";
 import "./studioLog.js";
 import "./studioSpeak.js";
 import "./studioVoice.js";
+import "./studioPlenum.js";
 import "./studioToast.js";
 import "./studioPanes.js";
 import "./studioCovenant.js";

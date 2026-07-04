@@ -357,6 +357,48 @@
   .voice-mic.busy{color:var(--faint);animation:none}
   .voice-hint{font-size:1rem;color:var(--dim);text-align:center;min-height:1.3em}
 
+  /* ---------- Plenum (the 3D mind space, chora-imagined.md Part 2) ---------- */
+  /* A full-screen overlay: the focused mind/society as glowing faculties in a
+     bounded 3D space, live telemetry as traveling light. Canvas fills it; the
+     HUD floats on top. */
+  studio-plenum{position:fixed;inset:0;z-index:55;display:none;
+    background:radial-gradient(1100px 750px at 50% 42%,#0a1120 0%,#06080d 62%,#04050a 100%)}
+  studio-plenum.show{display:block}
+  studio-plenum canvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab;touch-action:none}
+  studio-plenum canvas.dragging{cursor:grabbing}
+  .pl-top{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:14px;
+    padding:12px 16px;pointer-events:none}
+  .pl-top .pl-back{pointer-events:auto;background:rgba(16,20,29,.7);border:1px solid var(--line);color:var(--ink);
+    border-radius:10px;padding:8px 14px;font-size:.95rem;cursor:pointer;backdrop-filter:blur(4px)}
+  .pl-top .pl-back:hover{background:var(--surface2)}
+  .pl-title{display:flex;align-items:center;gap:9px;min-width:0}
+  .pl-name{font-weight:600;font-size:1.05rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pl-kind{font-family:var(--mono);font-size:.68rem;letter-spacing:.06em;color:var(--violet);
+    border:1px solid rgba(183,156,240,.4);border-radius:99px;padding:1px 8px}
+  .pl-meta{margin-left:auto;font-family:var(--mono);font-size:.74rem;color:var(--dim);white-space:nowrap}
+  .pl-legend{position:absolute;top:56px;right:16px;display:flex;flex-direction:column;gap:5px;pointer-events:none}
+  .pl-chip{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:.68rem;color:var(--dim)}
+  .pl-chip i{width:8px;height:8px;border-radius:50%;flex:none;box-shadow:0 0 6px currentColor}
+  .pl-info{position:absolute;left:16px;bottom:44px;max-width:min(440px,80vw);background:rgba(13,17,26,.82);
+    border:1px solid var(--line);border-radius:11px;padding:11px 13px;font-size:.84rem;line-height:1.5;
+    backdrop-filter:blur(5px);pointer-events:none}
+  .pl-info b{font-size:.92rem}
+  .pl-info .pl-tag{font-family:var(--mono);font-size:.72rem;color:var(--violet);margin-left:4px}
+  .pl-info .pl-member{font-family:var(--mono);font-size:.72rem;color:var(--cyan)}
+  .pl-info .pl-attrs{display:flex;flex-wrap:wrap;gap:4px 7px;margin-top:6px}
+  .pl-info .pl-attr{font-family:var(--mono);font-size:.68rem;color:var(--dim);background:#0b0f16;
+    border:1px solid var(--line);border-radius:5px;padding:1px 6px}
+  .pl-info .pl-attr b{color:var(--amber);font-weight:500;font-size:inherit}
+  .pl-info .pl-stats{margin-top:6px;font-family:var(--mono);font-size:.74rem;color:var(--green)}
+  .pl-info .pl-last{margin-top:6px;font-family:var(--mono);font-size:.72rem;color:var(--dim)}
+  .pl-hint{position:absolute;bottom:12px;left:0;right:0;text-align:center;font-family:var(--mono);
+    font-size:.68rem;color:var(--faint);pointer-events:none}
+  @media (max-width:900px){
+    .pl-meta{display:none}
+    .pl-legend{display:none}
+    .pl-hint{display:none}
+  }
+
   /* ---------- mobile pane switcher ---------- */
   /* A segmented control shown only on narrow screens; on the desktop layout the
      three columns sit side by side and the bar is hidden. */
@@ -444,6 +486,9 @@
            the supervisor reports voice is usable. Static here (outside studio-header,
            whose innerHTML is replaced on connect) so it survives as a header action. -->
       <button id="voicebtn" class="voicebtn" type="button" hidden>🎙 Voice</button>
+      <!-- Plenum launch — owned by <studio-plenum>, revealed once any mind is live.
+           Static here for the same reason as the Voice button above. -->
+      <button id="plenumbtn" class="voicebtn" type="button" hidden>◉ Plenum</button>
     </header>
 
     <!-- Mobile-only pane switcher: reveals one column at a time on a narrow
@@ -478,6 +523,10 @@
     </main>
 
     <studio-toast id="toast"></studio-toast>
+    <!-- The Plenum: the focused mind (or society) rendered as a 3D space of
+         glowing faculties — a live prototype of doc/architecture/chora-imagined.md.
+         Hidden until launched from the header button above. -->
+    <studio-plenum></studio-plenum>
     <!-- Voice Mode: the large-button, phone- and elder-friendly conversation
          surface. Hidden until launched from the header button above. -->
     <studio-voice></studio-voice>
