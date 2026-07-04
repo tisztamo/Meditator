@@ -8,7 +8,8 @@
 > now against that framework; Parts 1–5 sketch the architecture. Companion to
 > [deep-structure.md](deep-structure.md) — every dynamism here is either something
 > we already ship, a generalization of something we ship, or one clearly-labelled
-> new piece.
+> new piece. The buildable path toward this is broken into eight concise designs
+> in [chora-roadmap.md](chora-roadmap.md).
 
 ---
 
