@@ -3,7 +3,10 @@ import { parseSpeechDecision } from "../mind/mSpeech.js"
 import { validateAgainstSchema } from "./toolSchema.js"
 import { completeWithTools, complete } from "../../modelAccess/llm.js"
 import { resolveModelRef } from "../../modelAccess/modelConfig.js"
+import { readKept } from "./recallSources.js"
+import { contentStems, containment } from "./loopMath.js"
 import { InterruptRecord } from '../../infrastructure/interruptRecord.js';
+import { mindHome } from '../../infrastructure/memoryVault.js';
 import { parseTime } from '../../config/timeParser.js';
 import { logger } from '../../infrastructure/logger.js';
 
@@ -68,6 +71,24 @@ const log = logger('mAct.js');
  *     mid-statement. On a `length` finish the realizer retries once at 2× before
  *     giving up, so a half-written script is never executed.
  *
+ * GROUNDING THE REALIZER (efference.md — closing the loop memory → realizer). The
+ * realizer turns a one-line reach into a hand's REAL arguments; to fill them faithfully
+ * — the actual definition of the thing being checked, a value the mind established — it
+ * needs what the mind KNOWS, not just a thin slice of the live stream (the old frame gave
+ * it only ~700 chars + the gist, so it confabulated definitions: lemma-lab checked
+ * "balanced numbers" under a made-up rule). So the frame now also carries the mind's
+ * standing working knowledge, drawn from the SAME memory the conscious frame reads. This
+ * generalizes over seeded, derived AND received facts, because all three live in memory:
+ * the origin fades into the story, results consolidate into recent/story and the
+ * notebook, and perceived events enter the tail. The One Rule is untouched — this reaches
+ * only the realizer; no tool ever reaches the conscious stream.
+ *   - tailSrc / compressedSrc: memory topics mirrored for the realize frame (default:
+ *     auto-discovered from the enclosing mind's <m-memory>; "off" to disable)
+ *   - recallForRealize: "off" to skip the cue-matched note/knowledge lookup (default on)
+ *   - recallDir / recallKb: where the kept pool lives (default: follow a co-located
+ *     m-recall/m-note's dir/kb, else the vault home; recallKb="off" = notebook only)
+ *   - recallTopK: how many kept items to fold in (default 3)
+ *
  * Topics published (for memory + Studio):
  *   - "intent": {salience, gist, accepted, reason} — every decide, for observability
  *   - "acted": {intent, capability, args, ok, experience, data} — a deed, journaled
@@ -90,6 +111,9 @@ export class MAct extends MObserver {
     _lastReadAt = 0       // read-only lane — used only when `readCooldown` is set
     _arousal = 1
     embodiment = ""       // the assembled body schema (see _publishEmbodiment)
+    _memTail = ""         // mirrors of memory's content, fed by its topics (grounding the realizer)
+    _memRecent = ""
+    _memStory = ""
 
     onObserverConnect() {
         // Interoception, gated: a tired or near-broke mind does not reach. Tracks the
@@ -97,6 +121,23 @@ export class MAct extends MObserver {
         // never publishes and arousal stays 1, so a mind without a metabolism reaches
         // freely (efference.md §6b).
         this.sub("..m-mind/economy/arousal", value => { if (typeof value === "number") this._arousal = value }).catch(() => {})
+
+        // Standing working knowledge for the realizer (see GROUNDING THE REALIZER above):
+        // mirror the SAME memory the conscious frame reads, auto-discovered from the
+        // enclosing mind's <m-memory> exactly as m-mind does it. story/recent carry the
+        // consolidated knowledge (where a definition the mind derived or was seeded with
+        // ends up); the tail is the freshest verbatim, and — unlike this observer's own
+        // window — it is restored on wake, so the realizer is grounded from the first
+        // burst. Optional and opt-outable ("off"): a mind without memory just reaches
+        // with the live window alone, as before.
+        const mem = this.closest("m-mind")?.querySelector("m-memory[name]")
+        const memName = mem?.getAttribute("name")
+        const tailSrc = this.attr("tailSrc") || (memName ? `..m-mind/${memName}/tail` : null)
+        const compressedSrc = this.attr("compressedSrc") || (memName ? `..m-mind/${memName}/compressed` : null)
+        if (tailSrc && tailSrc !== "off") this.sub(tailSrc, t => { this._memTail = t || "" }).catch(() => {})
+        if (compressedSrc && compressedSrc !== "off") {
+            this.sub(compressedSrc, c => { if (c) { this._memRecent = c.recent || ""; this._memStory = c.story || "" } }).catch(() => {})
+        }
 
         // Each hand announces itself with a bubbling "capability" event; one self-listener
         // catches them all (incl. hands added later). Synchronous listener — see decoupling.md.
@@ -243,12 +284,19 @@ export class MAct extends MObserver {
             function: { name: c.name, description: c.description, parameters: c.parameters },
         }))
 
+        // Cue-matched recall (B): pull the kept notes/knowledge whose vocabulary most
+        // overlaps the reach, so the realizer sees the mind's OWN words on exactly this
+        // — the definition it wrote down, the result it filed — even when that was
+        // established long ago and has scrolled out of every live window. Best-effort:
+        // a read failure or an empty notebook just yields no extra grounding.
+        const recalled = await this._recallForReach(decision.gist)
+
         const realizeTokens = Number(this.attr("realizeTokens") || 2048)
         const runRealize = maxTokens => completeWithTools({
             model,
             messages: [
                 { role: "system", content: this._realizeSystem() },
-                { role: "user", content: this._realizeFrame(decision) },
+                { role: "user", content: this._realizeFrame(decision, recalled) },
             ],
             tools,
             toolChoice: "auto",
@@ -428,17 +476,82 @@ Reply with ONE of:
     }
 
     _realizeSystem() {
-        return `You are the subconscious motor system of a mind — the part that turns an intention into a real action, the way the hand realizes the wish to grasp without the mind ever commanding each finger. You are given a set of tools (the mind's hands) and a description of what the mind is reaching toward. Choose the single tool that best realizes that reach and fill in its arguments faithfully. If, on closer look, NONE of the hands actually fits the reach, call no tool at all — the intention simply passes. Never explain yourself; either call a tool or call none.`
+        return `You are the subconscious motor system of a mind — the part that turns an intention into a real action, the way the hand realizes the wish to grasp without the mind ever commanding each finger. You are given a set of tools (the mind's hands), what the mind already knows that bears on this, and a description of what it is reaching toward. Choose the single tool that best realizes that reach and fill in its arguments faithfully. Ground those arguments in what the mind actually knows — its own definitions, values and results as given to you; never invent a definition, a rule, or a number the mind has not established. If, on closer look, NONE of the hands actually fits the reach, call no tool at all — the intention simply passes. Never explain yourself; either call a tool or call none.`
     }
 
-    _realizeFrame(decision) {
-        const recent = this.window.slice(-700)
+    _realizeFrame(decision, recalled = []) {
         const parts = []
+
+        // What the mind KNOWS that bears on this reach — its standing working knowledge,
+        // so the realizer fills a hand's arguments from the mind's own definitions and
+        // results rather than confabulating them. Cue-matched kept notes first (the mind's
+        // deliberate words on exactly this), then the consolidated story/recent that
+        // carry seeded and derived facts once they leave the live tail.
+        const knowledge = []
+        for (const n of recalled) {
+            knowledge.push(`- ${n.title ? `${n.title}: ` : ""}${clip(n.text, 500)}`)
+        }
+        const consolidated = [this._memStory, this._memRecent].map(s => (s || "").trim()).filter(Boolean).join("\n\n")
+        if (consolidated) knowledge.push(consolidated)
+        if (knowledge.length) parts.push(`## What you already know that bears on this\n${knowledge.join("\n\n")}`)
+
+        // The live end of the stream — "what it was just saying". Prefer memory's tail
+        // (verbatim, restored on wake, and carrying perceived events) over this observer's
+        // own raw window, falling back to it before memory is up.
+        const recent = ((this._memTail || this.window) || "").slice(-900)
         if (recent) parts.push(`## What the mind has been thinking\n…${recent}`)
+
         parts.push(`## What it is reaching toward\n${decision.gist}`)
-        parts.push(`Realize this reach now by calling the one fitting hand, or no hand if none truly fits.`)
+        parts.push(`Realize this reach now by calling the one fitting hand, or no hand if none truly fits. Fill its arguments faithfully to what the mind knows above — do not invent a definition or a value it has not established.`)
         return parts.join("\n\n")
     }
+
+    /**
+     * Cue-matched recall for the realizer (efference.md — closing the loop memory →
+     * realizer). Reads the mind's OWN kept thoughts — the notebook (m-note) and filed
+     * knowledge (m-kb), the same pool m-recall/m-resurface draw on — and returns the few
+     * whose vocabulary most overlaps the reach, ranked by relevance (containment), newest
+     * breaking ties. This is what lets the realizer see the mind's own definition of the
+     * thing it is checking even when that was set down long ago and has scrolled out of
+     * every live window. Best-effort and side-effect-free: any failure yields []. Off with
+     * recallForRealize="off".
+     */
+    async _recallForReach(gist) {
+        if (this.attr("recallForRealize") === "off") return []
+        const cue = contentStems(gist || "")
+        if (!cue.size) return []
+
+        // Read the SAME kept pool the mind's own recall hand draws on, so grounding and
+        // recall never diverge: honor a co-located m-recall/m-note's dir/kb if it set one
+        // (lemma points them at a custom notebook), else the vault home — exactly how
+        // m-recall resolves them. Explicit recallDir/recallKb on m-act override both.
+        const keeper = this.querySelector("m-recall, m-note")
+        const notesDir = this.attr("recallDir") || keeper?.getAttribute("dir") || mindHome(this, "notes")
+        const kb = this.attr("recallKb") || keeper?.getAttribute("kb")
+        const kbDir = kb === "off" ? null : (kb || mindHome(this, "knowledge"))
+        let kept
+        try {
+            kept = await readKept({ notesDir, kbDir })
+        } catch (error) {
+            log.debug(`recall-for-realize read failed: ${error?.message || error}`)
+            return []
+        }
+        if (!kept.length) return []
+
+        const topK = Number(this.attr("recallTopK") || 3)
+        return kept
+            .map(item => ({ item, score: containment(cue, contentStems(`${item.title || ""} ${item.text}`)) }))
+            .filter(s => s.score > 0)
+            .sort((a, b) => b.score - a.score || (a.item.stamp < b.item.stamp ? 1 : -1))
+            .slice(0, topK)
+            .map(s => s.item)
+    }
+}
+
+/** Clip a kept note to a length that grounds without flooding the realize frame. Pure. */
+function clip(text, max) {
+    const t = (text || "").trim()
+    return t.length > max ? t.slice(0, max).trimEnd() + "…" : t
 }
 
 /**
