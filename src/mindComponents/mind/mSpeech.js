@@ -81,6 +81,10 @@ export function parseSpeechDecision(text) {
  *   - every: decision cadence in boundaries for spontaneous speech (default 6)
  *   - threshold: min salience to speak (default 0.6)
  *   - addressedBoost: threshold reduction when freshly addressed (default 0.25)
+ *   - addressedTypes: which InterruptRecord types count as being addressed
+ *     (default "UserInput ConsoleInput" — human voices). A mind that converses
+ *     with peers (a society member, or a world of in-story visitors speaking as
+ *     type "Peer") may add them: addressedTypes="UserInput ConsoleInput Peer".
  *   - cooldown: min time between utterances (default "60s")
  *   - model: the voice model (defaults to ancestor "model")
  *   - decisionModel: tiny model for the impulse (defaults to ancestor utilityModel)
@@ -138,14 +142,18 @@ export class MSpeech extends MObserver {
         this.sub("../@interrupt", this._onUrgent).catch(warn)
     }
 
-    // Being addressed by a human voice raises the urge to speak (checked at the
-    // next boundary). It never forces a reply. We keep the raw words and who said
+    // Being addressed by a voice raises the urge to speak (checked at the next
+    // boundary). It never forces a reply. We keep the raw words and who said
     // them ({text, from}) so the reply is framed as answering a known person.
     _onAddressed = e => {
         // A human voice — websocket sets source "WebSocketClient", the console
         // sets "External"; both set the type, so match on that, not the source.
+        // `addressedTypes` lets a mind opt peer voices in (society members, or a
+        // world's in-story visitors speaking as type "Peer").
         const r = e && e.detail
-        if (r && (r.type === "UserInput" || r.type === "ConsoleInput")) {
+        const types = (this.attr("addressedTypes") || "UserInput ConsoleInput")
+            .split(/[,\s]+/).filter(Boolean)
+        if (r && types.includes(r.type)) {
             this._addressed = { text: r.reason || "", from: (r.from || "").trim() }
         }
     }
