@@ -84,9 +84,9 @@ export function parseMeditatorCLI() {
   }
 
   // --debug-prompts [<dir>]
-  const debugPrompts = getArgValue(argv, "--debug-prompts", undefined);
-  if (debugPrompts !== undefined) {
-    process.env.MEDITATOR_DEBUG_PROMPTS = debugPrompts;
+  if (hasFlag(argv, "--debug-prompts", undefined)) {
+    const debugPromptsDir = getArgValue(argv, "--debug-prompts", undefined);
+    process.env.MEDITATOR_DEBUG_PROMPTS = debugPromptsDir !== undefined ? debugPromptsDir : "1";
   }
 
   // --sandbox-backend <backend>
