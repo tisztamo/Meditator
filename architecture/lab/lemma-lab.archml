@@ -177,7 +177,8 @@
        NOTE: this deviates from the resident lemma (which has NO terminal); it lives
        only in this transient clone, run with a fresh --mind-name so memory/lemma-lab/
        is never touched. -->
-  <m-act name="hands" every="4" threshold="0.62" cooldown="3s" readCooldown="60s" intentCooldown="20s">
+  <m-act name="hands" every="4" threshold="0.62" cooldown="3s" readCooldown="60s" intentCooldown="20s"
+         realizeTokens="3072">
     <m-note name="note"
             felt="When a result settles, or a conjecture gets sharp enough to be worth keeping, you can write it down in your notebook — and trust that it will still be there, in your own words, when you come back for it."></m-note>
     <m-recall name="recall"

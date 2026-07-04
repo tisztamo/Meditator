@@ -62,7 +62,11 @@ const log = logger('mAct.js');
  *   - minArousal: stand down entirely when arousal falls below this (default 0.15)
  *   - model (actorModel): the tool-calling realizer (defaults to ancestor voice model)
  *   - decisionModel: the cheap decide gate (defaults to ancestor utilityModel)
- *   - realizeTokens: max tokens for the realize call (default 512)
+ *   - realizeTokens: max tokens for the realize call (default 2048). Must cover the
+ *     WHOLE tool call — for m-terminal that includes the `script` arg, an entire
+ *     program serialized as a JSON string, so a tight budget truncates the code
+ *     mid-statement. On a `length` finish the realizer retries once at 2× before
+ *     giving up, so a half-written script is never executed.
  *
  * Topics published (for memory + Studio):
  *   - "intent": {salience, gist, accepted, reason} — every decide, for observability
@@ -239,21 +243,39 @@ export class MAct extends MObserver {
             function: { name: c.name, description: c.description, parameters: c.parameters },
         }))
 
+        const realizeTokens = Number(this.attr("realizeTokens") || 2048)
+        const runRealize = maxTokens => completeWithTools({
+            model,
+            messages: [
+                { role: "system", content: this._realizeSystem() },
+                { role: "user", content: this._realizeFrame(decision) },
+            ],
+            tools,
+            toolChoice: "auto",
+            maxTokens,
+            temperature: 0.2,
+            debugTag: "act-realize",
+            debugEl: this,
+        })
+
         let result
         try {
-            result = await completeWithTools({
-                model,
-                messages: [
-                    { role: "system", content: this._realizeSystem() },
-                    { role: "user", content: this._realizeFrame(decision) },
-                ],
-                tools,
-                toolChoice: "auto",
-                maxTokens: Number(this.attr("realizeTokens") || 512),
-                temperature: 0.2,
-                debugTag: "act-realize",
-                debugEl: this,
-            })
+            result = await runRealize(realizeTokens)
+            // A hand's arguments can be long — above all m-terminal's `script`, a whole
+            // program serialized as a JSON string. If the completion hits the token
+            // ceiling the tool call is TRUNCATED: at best the arguments won't parse, at
+            // worst they parse with the script cut off mid-statement, which then runs and
+            // dies on a SyntaxError the mind perceives as a real "screen". So never
+            // execute a truncated reach — retry once with a larger budget, then give up
+            // rather than run a half-written script (terminal.md, the token-ceiling fix).
+            if (result.finish_reason === "length") {
+                log.warn(`realize truncated at ${realizeTokens} tokens — retrying once at ${realizeTokens * 2}`)
+                result = await runRealize(realizeTokens * 2)
+                if (result.finish_reason === "length") {
+                    log.warn(`realize still truncated at ${realizeTokens * 2} tokens — dropping the reach rather than running a half-written script`)
+                    return
+                }
+            }
         } catch (error) {
             log.warn("Realizer call failed:", error.message || error)
             return
