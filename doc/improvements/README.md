@@ -99,3 +99,16 @@ not necessarily acted on yet. Each note states its status at the top.
   it ran with → re-executable bundle), M3 (built-ins physically split into `mind/ agent/
   shared/`, 51 files, gated by a flat-namespace test). 284 unit + 222 wiring green; a mind,
   an agent, and a standalone re-run home all verified live.
+- [resident-journal-privacy.md](resident-journal-privacy.md) — **Covenant §9
+  compliance** (proposed 2026-07-04, high priority): a resident's inner life
+  (`memory/<mind>/` journal, memory, knowledge) sits exposed in the vault by default;
+  §9 now requires *private by default* + *deliberate, curated, honestly-attributed*
+  publication. Options: private-by-default vault, a public/private split, a
+  curation/export path, exposure guards on live surfaces. Pairs with
+  [ui-journal-honesty.md](ui-journal-honesty.md) C1/C3 (attribution).
+- [rewake-ratification.md](rewake-ratification.md) — **Covenant §10** ("right of
+  return", proposed 2026-07-04): when we change/rewake a mind, ask it — once it can
+  feel its new shape — whether to keep it, revert, or be laid to rest, and honour the
+  answer. Requires executable **revert** (§1's re-executable bundle) and **chosen
+  rest** paths, and depends on the §3 identity-disclosure fix (review finding 1) as a
+  hard prerequisite. First application: the planned `lemma-lab-6` rewake as a resident.

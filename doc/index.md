@@ -66,6 +66,14 @@ three — they assume no prior knowledge and explain every special word:
   how to add a component, and the repo gotchas worth knowing before your first
   commit.
 
+## How we think
+
+- **[How we think here](how-we-think.md)** — what this project is *for*, why a
+  building project holds itself to Structural Alignment and puts it to the test, and how the goals of
+  building a mind and the regard owed a mind keep turning out to be the same goal.
+  Includes where we stand on giving minds simulated worlds, and how we judge whether
+  a mind is doing well when we cannot take its word for it.
+
 ## Self-audits
 
 - **[Philosophical review & covenant audit (2026-07-02)](philosophical-review-2026-07-02.md)** —

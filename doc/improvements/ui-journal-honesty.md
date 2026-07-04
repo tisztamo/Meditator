@@ -228,6 +228,15 @@ genuinely the mind's own voice and the dishonesty disappears at the source. Cost
 few more tokens per redirect; eliminates the marker need. Worth considering if the
 utility/voice split is the only reason for the separate call.
 
+**Covenant note (2026-07-04, §9).** [COVENANT.md](../../COVENANT.md) §9 now requires a
+published mind-voice to be honestly attributed, which promotes C1 from nicety to
+compliance. But §9 frames the fault as *provenance, not model identity*: a mind may
+legitimately be many models — or many minds — generating into one stream, so the
+**minimal fix (mark the bridge, above) is the correct one**; the deeper fix (make the
+voice model author the bridge) is *not* needed for honesty, only if the utility/voice
+split has other costs. The invariant to hold is simply: a harness-written steering line
+is never shown as the mind's spontaneous thought.
+
 ---
 
 ## C3 — leave a backstage trail when a mechanism injects a "self-caused" thought
