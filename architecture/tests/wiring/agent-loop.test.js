@@ -157,6 +157,13 @@ test("finish-tool mode: a plain-text answer (no tool call) does not freeze the l
     // The plain-text answer must have actually been nudged into a second reasoning call
     // (not dropped): the transcript carries the nudge note and the eventual finish call.
     expect(agent._messages.some(m => m.role === "user" && /keep working/i.test(m.content))).toBe(true);
+    // Regression (found live: a "hello" came back as a third-person summary of a greeting,
+    // never the greeting): the SURFACED answer is the conversational prose the model
+    // actually produced, not the finish tool's meta-summary. The prose was said on a prior
+    // turn and nudged toward finish; it must survive to the user, and the summary must not
+    // stand in for it.
+    expect(done.answer).toMatch(/here is my plan before I start/i);
+    expect(done.answer).not.toMatch(/answered in plain text, then finished after the nudge/i);
     assertTranscriptValid(agent._messages);
 });
 

@@ -387,8 +387,16 @@ export class MAgent extends MBaseComponent {
             }
             return
         }
-        // A tool call means the agent is actively working, not just talking: reset the
-        // plain-answer streak so only CONSECUTIVE plain answers ever end the loop.
+        // A tool call means the agent is actively working, not just talking. Capture any
+        // un-surfaced conversational prose FIRST: if the model answered the user in plain
+        // text (a greeting, a direct reply) on a prior turn and, once nudged, is only NOW
+        // calling finish, that prose is the REAL answer the user should read — the finish
+        // tool's `summary` is a meta-report ("the user said hello, I greeted them back")
+        // and must not stand in for it (found live: "hello" came back as a third-person
+        // summary of a greeting, never the greeting itself, because the plain answer was
+        // swallowed and only the summary reached the client). Then reset the streak so only
+        // CONSECUTIVE plain answers, with no tool call between, ever end the loop.
+        const pendingReply = this._plainStreak.filter(t => t && t.trim())
         this._plainStreak = []
 
         const { toolMessages, observations, finished } = await this._runCalls(calls)
@@ -404,7 +412,16 @@ export class MAgent extends MBaseComponent {
             observations,
         })
 
-        if (finished) { this._finish(finished.summary || text, "finish-tool"); return }
+        if (finished) {
+            // Prefer the conversational prose the model actually produced (the reply the
+            // user is waiting for); fall back to the finish summary, then any prose on the
+            // finish turn itself — the right answer for a work task with no reply text.
+            const answer = pendingReply.length
+                ? pendingReply.map((t, i) => i === 0 ? t : `[continued]\n${t}`).join("\n\n")
+                : (finished.summary || text)
+            this._finish(answer, "finish-tool")
+            return
+        }
         if (this._sleeping || this._done) return
         this._publishTurn()
     }
