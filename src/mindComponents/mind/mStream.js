@@ -134,6 +134,16 @@ export class MStream extends MBaseComponent {
                 debugTag: "stream",
                 debugEl: this,
             })
+            // Superseded while the stream was still OPENING: _supersede() could not
+            // abort us then (we only become _current now, after open returns), so
+            // check the generation before emitting anything. Without this, a prompt
+            // arriving during a slow open left BOTH bursts streaming and their chunks
+            // interleaved character-by-character into the tail and journal (seen live
+            // 2026-07-04). No boundary: superseded bursts never emit one.
+            if (generation !== this._generation) {
+                burst.abort()
+                return
+            }
             context = { burst, superseded: false }
             this._current = context
 
