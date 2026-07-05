@@ -34,7 +34,18 @@ not necessarily acted on yet. Each note states its status at the top.
   (`m-facts` first), `«handle»` expansion in the realizer before execute, and a handle-menu
   in the realizer frame. A general capability for any mind, not the puzzle solver (observed:
   `solver` 2026-06-29).
-- [memory-persist-race.md](memory-persist-race.md) — `m-memory._persist` writes one
+- [global-workspace.md](global-workspace.md) — the **society-scale sibling** of the
+  perception/fact/efference chain: a society has durable private state (notebooks) and
+  ephemeral shared state (commons speech) but **no durable shared state**, so the
+  noosphere drafted six private constitutions while approving article *labels* that
+  bound to different text in every mind — signatures collected on a two-line draft,
+  the only text that fit through the voice channel. Analyses eight directions
+  (proposals channel, voting machinery, shared references, shared workspace, clerk-agent,
+  GWT stage, norms, merged notebooks) against the run-1 evidence; recommends **the board**
+  (`m-board`: name-referable shared documents + post/consult hands + one-line change feed
+  + pinned index) with the clerk-as-agent as milestone 2 and voting/stage as opt-in layers
+  — **phased design in [board.md](../architecture/board.md)** (observed:
+  `noosphere-lab` run 1, 2026-06-30).
   shared `memory.md.tmp` then renames, but is called un-serialized from
   boundary/clear-tail/finalize; overlapping persists race the rename → `ENOENT`
   (swallowed as a warn), silently losing a mind's final `story`/`recent`/`tail` on
