@@ -1,3 +1,5 @@
+import { JSDOM } from "jsdom";
+
 // Studio-facing ArchML inspection. This is intentionally tolerant: the runtime
 // still parses the architecture as HTML, while Studio only needs enough structure
 // to choose a wake home and describe the public membrane of a mind or society.
@@ -71,6 +73,37 @@ export function decodeEntities(s) {
     .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"').replace(/&#0*39;|&apos;/g, "'")
     .replace(/&amp;/g, "&");
+}
+
+function directText(el) {
+  let text = "";
+  for (const node of Array.from(el.childNodes || [])) {
+    if (node.nodeType === 3) text += node.textContent;
+  }
+  text = text.trim();
+  return text ? text.slice(0, 2000) : null;
+}
+
+function serializeArchNode(el) {
+  const attrs = {};
+  for (const a of Array.from(el.attributes || [])) attrs[a.name] = a.value;
+  const children = [];
+  for (const child of Array.from(el.children || [])) {
+    if ((child.tagName || "").toLowerCase().startsWith("m-")) children.push(serializeArchNode(child));
+  }
+  return {
+    tag: (el.tagName || "").toLowerCase(),
+    name: el.getAttribute ? el.getAttribute("name") : null,
+    attrs,
+    text: directText(el),
+    children,
+  };
+}
+
+export function parseArchitectureTree(content) {
+  const dom = new JSDOM(String(content || ""));
+  const root = dom.window.document.querySelector("m-mind,m-society,m-agent");
+  return root ? serializeArchNode(root) : null;
 }
 
 function parseMindBlock(block) {

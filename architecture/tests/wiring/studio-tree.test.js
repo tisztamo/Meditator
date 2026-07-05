@@ -4,11 +4,14 @@
 // true role. It used to fold the instruction into the system block and show two
 // parts, misrepresenting what the model received (A3). A minimal m-mind structure
 // is rendered so byTag("m-mind") resolves; onFrame is then driven directly.
-import "./setup.js";
+import { delay } from "./setup.js";
 import { test, expect } from "bun:test";
 import { StudioTree } from "../../../src/studio/ui/studioTree.js";
+import { StudioWake } from "../../../src/studio/ui/studioWake.js";
+import { mountHub } from "./studioHarness.js";
 
 void StudioTree;   // importing the module registers <studio-tree>
+void StudioWake;   // importing the module registers <studio-wake>
 
 function mk() {
     document.body.innerHTML = `<studio-tree></studio-tree>`;
@@ -72,4 +75,43 @@ test("member-tagged society telemetry updates that member's matching component",
 
     expect(el.byTag("m-memory", "face").stat.textContent).toBe("");
     expect(el.byTag("m-memory", "kin").stat.textContent).toContain("tail 11");
+});
+
+test("selecting an architecture previews its structure in the existing tree renderer", async () => {
+    const { hub } = mountHub(`<studio-wake></studio-wake><studio-tree id="tree"></studio-tree>`);
+    const wake = document.querySelector("studio-wake");
+    const tree = document.querySelector("studio-tree");
+    const root = "/project";
+    const structure = {
+        tag: "m-agent", name: "coder", attrs: { name: "coder" }, text: "You are a coding agent.", children: [
+            { tag: "m-objective", name: "objective", attrs: { name: "objective" }, text: "Fix the tests.", children: [] },
+            { tag: "m-terminal", name: "terminal", attrs: { name: "terminal", shell: "bash" }, text: null, children: [] },
+        ],
+    };
+
+    hub.pub("connState", true);
+    hub.pub("architectures", [{
+        file: "agents/coder.archml",
+        group: "agents",
+        kind: "agent",
+        name: "coder",
+        projectRoot: root,
+        project: "project",
+        homeSlug: "coder",
+        homeInfo: {},
+        hasWs: true,
+        structure,
+    }]);
+    await delay(0);
+
+    wake.select.value = `${root}::agents/coder.archml`;
+    wake.select.dispatchEvent(new Event("change", { bubbles: true }));
+    await delay(0);
+
+    expect(tree.preview).toBe(true);
+    expect(tree.querySelector(".nname").textContent).toBe("coder");
+    expect(Array.from(tree.querySelectorAll(".ntag")).map(n => n.textContent).filter(Boolean)).toContain("m-terminal");
+
+    tree.onEvent({ process: "act", kind: "acted", capability: "terminal", ok: true });
+    expect(tree.querySelector(".feed").textContent).toBe("");
 });

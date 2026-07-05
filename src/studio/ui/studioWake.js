@@ -14,6 +14,7 @@ export class StudioWake extends A(HTMLElement) {
   profiles = [];
   defaultProfile = null;
   connOn = false;
+  focusedId = null;
 
   onConnect() {
     this.innerHTML = `
@@ -59,7 +60,7 @@ export class StudioWake extends A(HTMLElement) {
     // A new architecture selection re-seeds the name, the origin story AND the
     // companion name with the selected mind's defaults; editing any after that is
     // the wake-time override.
-    this.select.addEventListener("change", () => { this.prefillName(); this.prefillOrigin(); this.prefillInterloc(); this.renderDet(); });
+    this.select.addEventListener("change", () => { this.prefillName(); this.prefillOrigin(); this.prefillInterloc(); this.renderDet(); this.publishSelectedStructure(); });
     this.profileSelect.addEventListener("change", () => this.renderDet());
     this.dryRunBox.addEventListener("change", () => this.renderDet());
     this.nameInput.addEventListener("input", () => this.renderDet());
@@ -78,6 +79,7 @@ export class StudioWake extends A(HTMLElement) {
     this.sub("/conn/profiles", list => { this.profiles = list || []; this.renderProfileSelect(); }, 12);
     this.sub("/conn/defaultProfile", p => { this.defaultProfile = p; this.renderProfileSelect(); }, 12);
     this.sub("/conn/architectures", list => { this.archList = list || []; this.renderSelect(); }, 12);
+    this.sub("/conn/focused", id => { this.focusedId = id || null; if (!this.focusedId) this.publishSelectedStructure(); }, 12);
     this.sub("/conn/connState", on => {
       this.connOn = !!on;
       this.profileSelect.disabled = !this.connOn;
@@ -90,6 +92,14 @@ export class StudioWake extends A(HTMLElement) {
   key(a) { return a ? `${a.projectRoot || ""}::${a.file}` : ""; }
 
   selected() { return this.archList.find(a => this.key(a) === this.select.value); }
+
+  publishSelectedStructure() {
+    let hub = this.parentElement;
+    while (hub && typeof hub.pub !== "function") hub = hub.parentElement;
+    if (!hub || typeof hub.pub !== "function") return;
+    const a = this.selected();
+    hub.pub("previewStructure", (a && a.structure) || null);
+  }
 
   selectedProfile() {
     return this.profileSelect.value || this.defaultProfile || this.profiles[0] || null;
@@ -214,6 +224,7 @@ export class StudioWake extends A(HTMLElement) {
     this.prefillOrigin();
     this.prefillInterloc();
     this.renderDet();
+    if (!this.focusedId) this.publishSelectedStructure();
   }
 
   renderDet() {

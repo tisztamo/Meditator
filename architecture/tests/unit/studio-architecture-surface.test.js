@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test";
-import { parseArchitecture } from "../../../src/studio/architectureSurface.js";
+import { parseArchitecture, parseArchitectureTree } from "../../../src/studio/architectureSurface.js";
 
 test("Studio parses a root society as one multi-mind with an inferred face", () => {
   const meta = parseArchitecture(`<!-- a society -->
@@ -117,4 +117,25 @@ test("Studio keeps single-mind parsing unchanged", () => {
   expect(meta.origin).toBe("old seed");
   expect(meta.interlocutor).toBe("Kris");
   expect(meta.hasWs).toBe(true);
+});
+
+test("Studio serializes ArchML into the same structure-tree shape the live window renders", () => {
+  const tree = parseArchitectureTree(`<!-- mentions <m-ws name="fake"></m-ws>, but is a comment -->
+<m-agent name="coder" stopWhen="no-tools">
+  You are a coding agent.
+  <m-objective name="objective">Make the tests pass.</m-objective>
+  <m-reason name="reason"></m-reason>
+  <m-terminal name="terminal" shell="bash"></m-terminal>
+</m-agent>`);
+
+  expect(tree.tag).toBe("m-agent");
+  expect(tree.name).toBe("coder");
+  expect(tree.attrs.stopwhen).toBe("no-tools");
+  expect(tree.text).toBe("You are a coding agent.");
+  expect(tree.children.map(c => `${c.name}:${c.tag}`)).toEqual([
+    "objective:m-objective",
+    "reason:m-reason",
+    "terminal:m-terminal",
+  ]);
+  expect(tree.children[2].attrs.shell).toBe("bash");
 });

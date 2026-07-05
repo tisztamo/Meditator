@@ -11,7 +11,7 @@ import { StudioStore, parseDataUrl } from "./store.js";
 import { voiceInfo, ttsHandler, sttHandler } from "./voice.js";
 import { logger } from "../infrastructure/logger.js";
 import { registerGracefulShutdown } from "../infrastructure/gracefulShutdown.js";
-import { parseArchitecture } from "./architectureSurface.js";
+import { parseArchitecture, parseArchitectureTree } from "./architectureSurface.js";
 
 // The supervisor IS the Meditator runtime, so its own model config lives in THIS
 // install — anchor the default to the repo root (not process.cwd()), so the Studio
@@ -238,8 +238,12 @@ function listArchitectures() {
       if (e.isFile() && e.name.endsWith(".archml")) {
         const full = path.join(dir, e.name);
         const rel = path.relative(project.archDir, full).split(path.sep).join("/");
-        let meta;
-        try { meta = parseArchitecture(fs.readFileSync(full, "utf-8"), { resolveModelRef, specLabel }); }
+        let meta, structure = null;
+        try {
+          const archml = fs.readFileSync(full, "utf-8");
+          meta = parseArchitecture(archml, { resolveModelRef, specLabel });
+          structure = parseArchitectureTree(archml);
+        }
         catch { meta = { kind: "mind", name: null, memory: null, model: null, utilityModel: null, resolvedVoice: null, resolvedUtility: null, pace: null, stage: null, hasWs: false, description: null, origin: null, interlocutor: null, surface: null, members: [] }; }
         const slug = slugify(meta.memory || meta.name || "mind");
         // A mind is experimental if it lives under lab/ or marks itself so. The tag
@@ -278,6 +282,7 @@ function listArchitectures() {
           interlocutor: meta.interlocutor,
           surface: meta.surface || null,
           members: meta.members || [],
+          structure,
           homeSlug: slug,
           home: isDefault ? `memory/${slug}` : `${project.name}/memory/${slug}`,
           homeInfo: homeInfo(slug, project.vaultRoot),

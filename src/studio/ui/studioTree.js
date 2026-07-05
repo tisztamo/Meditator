@@ -17,22 +17,30 @@ import { getPref, setPref } from "./studioPrefs.js";
 export class StudioTree extends A(HTMLElement) {
   nodes = { byId: {}, byName: {}, byTag: {}, byScopedName: {}, byScopedTag: {} };
   lastFrame = null;
+  preview = false;
 
   onConnect() {
     this.sub("/conn/@focusReset", () => this.reset()).catch(() => {});
     this.sub("/conn/structure", tree => this.renderStructure(tree)).catch(() => {});
+    this.sub("/conn/previewStructure", tree => this.renderPreviewStructure(tree)).catch(() => {});
     this.sub("/conn/@event", e => this.onEvent(e.detail)).catch(() => {});
   }
 
-  reset() { this.innerHTML = ""; this.nodes = { byId: {}, byName: {}, byTag: {}, byScopedName: {}, byScopedTag: {} }; this.lastFrame = null; }
+  reset() { this.innerHTML = ""; this.nodes = { byId: {}, byName: {}, byTag: {}, byScopedName: {}, byScopedTag: {} }; this.lastFrame = null; this.preview = false; }
 
   // ------------------------------------------------------------- the tree
   renderStructure(tree) {
+    this.preview = false;
     this.innerHTML = ""; this.nodes = { byId: {}, byName: {}, byTag: {}, byScopedName: {}, byScopedTag: {} };
     // Per-node open-states, keyed by path, persisted so reopening a mind restores
     // what you had expanded. Loaded once per build; _setOpen writes through.
     this._openStates = getPref("treeOpen", {});
     if (tree) this.appendChild(this.buildNode(tree, 0, "", 0, null));
+  }
+
+  renderPreviewStructure(tree) {
+    this.renderStructure(tree);
+    this.preview = !!tree;
   }
 
   /** Narrow screens (the mobile breakpoint) open only the root by default, so the
@@ -124,6 +132,7 @@ export class StudioTree extends A(HTMLElement) {
 
   // ------------------------------------------------- events -> node feeds
   onEvent(d) {
+    if (this.preview) return;
     switch (`${d.process}/${d.kind}`) {
       case "mind/frame":         this.onFrame(d); break;
       case "stream/boundary":    this.pushNode(this.nodeTag("m-stream", d), this.evLine(`burst #${d.burstIndex} · ${d.burstChars}c · ${d.reason}`, d.reason === "completed" ? "good" : d.reason === "error" ? "bad" : "")); this.setNodeStat(this.nodeTag("m-stream", d), `#${d.burstIndex} ${d.reason}`); break;
