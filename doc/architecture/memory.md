@@ -181,6 +181,11 @@ the lineage of minds that have run in [`IN-MEMORIAM.md`](../../IN-MEMORIAM.md).
 
 ## See also
 
+- [Fractal memory & spontaneous recall](../improvements/fractal-memory.md) —
+  **designed, not yet built**: the three tiers generalized into a tree of
+  immutable fold-nodes (no more rewrite-in-place interference), with
+  `m-remember`, a cue-driven episodic recaller that can preempt the running
+  burst so a memory lands within a sentence of the thought that stirred it.
 - [Compression fidelity](compression-fidelity.md) — how consolidation iterates to
   fit instead of truncating (done), and the proposal to feed settled knowledge back
   so a mind stops losing what it already worked out (§5, still proposed).

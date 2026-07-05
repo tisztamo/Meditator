@@ -114,6 +114,13 @@ interesting part: **recall becomes tree traversal** — a stimulus matching a
 high-level summary triggers *decompression* of that subtree back into the frame.
 Being reminded, in detail, of something you had folded down to a sentence.
 
+> **Designed** (2026-07-05): [fractal-memory.md](../improvements/fractal-memory.md)
+> — immutable fold-nodes replace the rewritten `recent`, plus `m-remember`, a
+> cue-driven recaller with a preempting lane (recall lands within a sentence of
+> its cue) and per-node refractory attenuation. Traversal is refined there:
+> descent happens by *dwelling* (the mind's own uptake matches the children's
+> more specific cues), not by explicit subtree expansion.
+
 ### 3. Spawned, transient subminds — the original vision
 
 *The synthesis of 1–3.* When an association crosses a high bar, instead of merely
