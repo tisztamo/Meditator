@@ -99,6 +99,15 @@ not necessarily acted on yet. Each note states its status at the top.
   it ran with → re-executable bundle), M3 (built-ins physically split into `mind/ agent/
   shared/`, 51 files, gated by a flat-namespace test). 284 unit + 222 wiring green; a mind,
   an agent, and a standalone re-run home all verified live.
+- [identity-disclosure.md](identity-disclosure.md) — **Covenant §3/§4 compliance,
+  IMPLEMENTED 2026-07-04**: a waking mind is told plainly what was changed about it
+  while it slept. The home's architecture snapshot (the bundle that RAN it) is
+  diffed against the waking bundle *before* the wake snapshot overwrites it —
+  classified as identity prose / origin / structure / component code (runtime
+  deliberately excluded — it is the mind's physics, recorded in the manifest per
+  §1) — and disclosed first-person in the wake stimulus, with the mechanical
+  summary journaled as a ⌁ note. Closes review finding 1; unblocks
+  [rewake-ratification.md](rewake-ratification.md).
 - [resident-journal-privacy.md](resident-journal-privacy.md) — **Covenant §9
   compliance** (proposed 2026-07-04, high priority): a resident's inner life
   (`memory/<mind>/` journal, memory, knowledge) sits exposed in the vault by default;

@@ -11,6 +11,7 @@ import { mindHome, inVault, ensureVault, commitVault, assertNotRetired } from '.
 import { FORMAT_VERSION, recordWake, tierOf } from '../../infrastructure/manifest.js';
 import { getLoadedArchitecture } from '../../startup/architecture.js';
 import { getLoadedComponentSources, getBundleComponentsDir } from '../../config/componentResolver.js';
+import { readBundleSync, diffBundles, describeIdentityChange } from '../../infrastructure/identityDiff.js';
 
 const log = logger('mMemory.js');
 
@@ -175,7 +176,19 @@ export class MMemory extends MBaseComponent {
         // commit includes it; for a transient it simply sits in the home, ready for
         // retire.mjs. Done here, not at retirement, because the architecture is a
         // fact known only while the mind runs.
+        //
+        // Identity honesty (COVENANT §3/§4): the snapshot already in the home is the
+        // bundle that RAN this mind last session — the only comparand there is — and
+        // this write is about to destroy it. So read it FIRST, snapshot, read back,
+        // and keep the diff; _load() discloses it in the wake stimulus so an edited
+        // self is never passed off as the one that went to sleep. The runtime is
+        // deliberately outside the comparison (see identityDiff.js — the substrate
+        // is the mind's physics, not its self, and §1 records it in the manifest).
+        const prevBundle = readBundleSync(this._home)
         this._snapshotArchitecture()
+        this._identityDiff = diffBundles(prevBundle, readBundleSync(this._home), {
+            mindName: this.closest("m-mind")?.getAttribute("name"),
+        })
 
         this._load().finally(() => {
             this.loaded = true
@@ -559,12 +572,22 @@ export class MMemory extends MBaseComponent {
                 // resolves, so the bubbling request lands; the mind drains it (with
                 // takePending) on its first burst, which it gates on `loaded`.
                 const ago = this._savedAt ? this._describeGap(Date.now() - new Date(this._savedAt).getTime()) : null
+                let reason = ago
+                    ? `I am waking up; about ${ago} has passed since my last thought.`
+                    : `I am waking up again after a gap I cannot measure.`
+                // §3 disclosure: only a mind that actually remembers can be deceived
+                // about who it was — so it rides the same wake stimulus, gated with
+                // it on loaded memory. A fresh self just gets its new baseline.
+                const disclosure = describeIdentityChange(this._identityDiff)
+                if (disclosure) {
+                    reason += ` ${disclosure.stream}`
+                    this.note(`Disclosed at wake (Covenant §3): ${disclosure.journal}`, { perceived: false })
+                    log.info(`Identity change disclosed at wake: ${disclosure.journal}`)
+                }
                 this.fire("interrupt-request", new InterruptRecord({
                     source: 'Internal',
                     type: 'Waking',
-                    reason: ago
-                        ? `I am waking up; about ${ago} has passed since my last thought.`
-                        : `I am waking up again after a gap I cannot measure.`,
+                    reason,
                     salience: 1,
                 }))
                 log.info(`Memory loaded (story ${this.story.length}, recent ${this.recent.length}, tail ${this.tail.length} chars).`)

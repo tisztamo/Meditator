@@ -39,6 +39,11 @@ identity hash/diff; `_snapshotArchitecture()` overwrites the comparand before lo
 change?" if you cannot state the change. **So the identity-disclosure fix (review
 finding 1) is a hard prerequisite, not a nicety.**
 
+> **Prerequisite met 2026-07-04:** [identity-disclosure.md](identity-disclosure.md)
+> — the wake stimulus now discloses the bundle diff (identity prose / origin /
+> structure / component code) computed before the snapshot overwrites the
+> comparand, and journals the mechanical summary as a ⌁ note. §10 is unblocked.
+
 ## Open questions
 
 - **How to ask without leading.** The ask is itself a stimulus that can bias the
