@@ -101,7 +101,7 @@ export function buildGraph(tree) {
       family, color: PALETTE[family], r: nodeRadius(t.tag, depth), depth,
       attrs: t.attrs || {}, cluster,
       x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0,
-      anchor: null, heat: 0, last: null,
+      anchor: null, auth: null, heat: 0, last: null,
       sx: 0, sy: 0, sz: 0, scale: 1,                   // projected, per frame
     };
     g.nodes.push(node);
@@ -230,6 +230,7 @@ export class StudioPlenum extends A(HTMLElement) {
     this.sub("/conn/focused", id => { this.focusedId = id; this._syncLaunch(); this._header(); }).catch(() => {});
     this.sub("/conn/roster", r => { this.roster = r || []; this._syncLaunch(); this._header(); this._rebuildOrbs(); }).catch(() => {});
     this.sub("/conn/structure", t => { this.tree = t || null; this.rebuild(); }).catch(() => {});
+    this.sub("/conn/layout", p => this.onLayout(p)).catch(() => {});
     this.sub("/conn/@focusReset", () => { this.tree = null; this.rebuild(); }).catch(() => {});
     this.sub("/conn/@event", e => this.onEvent(e.detail)).catch(() => {});
     this.sub("/conn/@streamFragment", e => this.onFragment(e.detail)).catch(() => {});
@@ -330,6 +331,45 @@ export class StudioPlenum extends A(HTMLElement) {
     return this.graph.byKey.get(`${member || ""}#${tag}`) || this.graph.byKey.get(`#${tag}`) || null;
   }
   clusterOf(member) { return this.graph.clusters.find(c => c.member === member) || null; }
+
+  // --------------------------------------------------- the runtime's own layout
+  /**
+   * A `layout` snapshot from the mind's m-ws (plenum.md §5): the space is CAUSAL in
+   * the runtime now, so when positions arrive we render those — each matched node
+   * lerps toward its runtime position and the local simulation lets go of it. The
+   * local physics remains only for what the runtime doesn't position (a pre-plenum
+   * mind, presence orbs, unmatched nodes). Null clears back to simulation.
+   *
+   * Matching mirrors m-ws's walk (same document order, same exclusions): named
+   * entries pair by `member:name`; unnamed ones pair with the k-th unnamed graph
+   * node of the same member+tag.
+   */
+  onLayout(positions) {
+    if (!positions || !positions.length) {
+      for (const n of this.graph.nodes) n.auth = null;
+      return;
+    }
+    const unnamed = new Map();   // "member#tag" -> ordered unnamed graph nodes
+    for (const n of this.graph.nodes) {
+      if (n.name) continue;
+      const key = `${n.member || ""}#${n.tag}`;
+      if (!unnamed.has(key)) unnamed.set(key, []);
+      unnamed.get(key).push(n);
+    }
+    const taken = new Map();     // "member#tag" -> how many unnamed entries consumed
+    for (const p of positions) {
+      let node = null;
+      if (p.name) {
+        node = this.graph.byKey.get(`${p.member || ""}:${p.name}`) || null;
+      } else {
+        const key = `${p.member || ""}#${p.tag}`;
+        const k = taken.get(key) || 0;
+        node = (unnamed.get(key) || [])[k] || null;
+        taken.set(key, k + 1);
+      }
+      if (node) node.auth = { x: p.pos.x, y: p.pos.y, z: p.pos.z };
+    }
+  }
 
   // -------------------------------------------------------- events → dynamics
   /** The faculty a stimulus type originates from (the tree's originNode, spatial). */
@@ -502,6 +542,9 @@ export class StudioPlenum extends A(HTMLElement) {
   }
 
   // -------------------------------------------------------------- the physics
+  // A node with `auth` (a runtime position from the mind's own space — plenum.md §5)
+  // is not simulated: it lerps to where the runtime says it is, and the local forces
+  // neither move it nor read through it. The simulation remains for free nodes only.
   _step(dt) {
     const g = this.graph;
     const N = g.nodes.length;
@@ -514,12 +557,14 @@ export class StudioPlenum extends A(HTMLElement) {
       const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
       const d = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
       const f = 0.045 * (d - e.rest) / d * k;
-      a.vx += dx * f; a.vy += dy * f; a.vz += dz * f;
-      b.vx -= dx * f; b.vy -= dy * f; b.vz -= dz * f;
+      if (!a.auth) { a.vx += dx * f; a.vy += dy * f; a.vz += dz * f; }
+      if (!b.auth) { b.vx -= dx * f; b.vy -= dy * f; b.vz -= dz * f; }
       e.traffic *= Math.pow(0.985, k);
     }
 
-    // Infoton co-location: decaying attraction between messaging endpoints.
+    // Infoton co-location: decaying attraction between messaging endpoints — the
+    // local stand-in for what the runtime space now does for real (authoritative
+    // nodes carry their own layout, so the stand-in lets go of them).
     for (const [key, h] of this.pairHeat) {
       const [ai, bi] = key.split("|");
       const a = g.nodes[+ai], b = g.nodes[+bi];
@@ -527,8 +572,8 @@ export class StudioPlenum extends A(HTMLElement) {
         const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
         const d = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
         const f = Math.min(0.02, h * 0.0022 * Math.max(0, d - 34) / d) * k;
-        a.vx += dx * f; a.vy += dy * f; a.vz += dz * f;
-        b.vx -= dx * f; b.vy -= dy * f; b.vz -= dz * f;
+        if (!a.auth) { a.vx += dx * f; a.vy += dy * f; a.vz += dz * f; }
+        if (!b.auth) { b.vx -= dx * f; b.vy -= dy * f; b.vz -= dz * f; }
       }
       const nh = h * Math.pow(0.9985, k);
       if (nh < 0.02) this.pairHeat.delete(key); else this.pairHeat.set(key, nh);
@@ -544,13 +589,21 @@ export class StudioPlenum extends A(HTMLElement) {
         if (d2 > 22500) continue;                      // 150px cutoff
         const d = Math.sqrt(d2) || 1;
         const f = Math.min(1.6, 950 / (d2 + 60)) / d * k;
-        a.vx -= dx * f; a.vy -= dy * f; a.vz -= dz * f;
-        b.vx += dx * f; b.vy += dy * f; b.vz += dz * f;
+        if (!a.auth) { a.vx -= dx * f; a.vy -= dy * f; a.vz -= dz * f; }
+        if (!b.auth) { b.vx += dx * f; b.vy += dy * f; b.vz += dz * f; }
       }
     }
 
     // Anchors (the self pinned at its home position — D9), containment, damping.
     for (const n of g.nodes) {
+      if (n.auth) {
+        // The runtime owns this node: glide toward its position (~1 Hz frames).
+        const r = 1 - Math.pow(0.94, k);
+        n.x += (n.auth.x - n.x) * r; n.y += (n.auth.y - n.y) * r; n.z += (n.auth.z - n.z) * r;
+        n.vx = 0; n.vy = 0; n.vz = 0;
+        n.heat *= Math.pow(0.97, k);
+        continue;
+      }
       if (n.anchor) {
         n.vx += (n.anchor.x - n.x) * n.anchor.k * k;
         n.vy += (n.anchor.y - n.y) * n.anchor.k * k;

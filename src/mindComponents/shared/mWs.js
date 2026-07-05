@@ -40,11 +40,16 @@ const log = logger("mWs.js");
  * Topics published to: "interrupt-request" (when client input is received)
  */
 export class MWs extends MBaseComponent {
+  // The camera does not gravitate: m-ws taps everything, and letting it join the
+  // space would bend the layout toward the observer (plenum.md §3.5).
+  static spaceParticipates = false;
+
   server = null;
   clients = new Set();
   clientBuffers = new Map();
   _snapshot = new Map();      // "process/kind" -> last message, replayed to new clients
   _structureCache = null;
+  _layoutTimer = null;        // the Plenum camera's ~1 Hz ticker, alive only while clients watch
 
   /**
    * Set up the WebSocket server when the component connects
@@ -108,6 +113,7 @@ export class MWs extends MBaseComponent {
    * Clean up resources when component disconnects
    */
   onDisconnect() {
+    this._syncLayoutTicker();
     if (this.server) {
       // Close all client connections
       for (const client of this.clients) {
@@ -161,6 +167,12 @@ export class MWs extends MBaseComponent {
     if (structure) this.sendToClient(client, { type: "structure", data: { tree: structure } });
     for (const msg of this._snapshot.values()) this.sendToClient(client, msg);
 
+    // The Plenum's camera view: one layout snapshot now, then the low-cadence
+    // ticker while anyone is watching (plenum.md §5 — runtime never reads this).
+    const layout = this._layout();
+    if (layout.length) this.sendToClient(client, { type: "layout", data: { positions: layout } });
+    this._syncLayoutTicker();
+
     // Set up client event handlers
     client.on("message", (data) => this.handleClientMessage(client, data));
 
@@ -168,6 +180,7 @@ export class MWs extends MBaseComponent {
       log.debug(`WebSocket client disconnected: ${clientId}`);
       this.clients.delete(client);
       this.clientBuffers.delete(client);
+      this._syncLayoutTicker();
     });
 
     client.on("error", (error) => {
@@ -735,6 +748,49 @@ export class MWs extends MBaseComponent {
       text: this._directText(el),
       children,
     };
+  }
+
+  // ---------------------------------------------------------------- the Plenum camera
+  /** Snapshot every positioned component in the debug scope — Camera Diserta: the
+   *  god view exists only here, read from state each component owns (plenum.md §5). */
+  _layout() {
+    const root = this.closest("m-society") || this._mind();
+    if (!root) return [];
+    // Mirror _serializeTree's scope exactly (m-* nesting only, no archetype
+    // templates), so the viewer can pair entries with its graph nodes in order.
+    const positions = [];
+    const walk = el => {
+      const tag = (el.tagName || "").toLowerCase();
+      if (tag === "m-archetype") return;
+      if (el.pos) {
+        positions.push({
+          member: el.closest("m-mind")?.getAttribute("name") || null,
+          name: el.getAttribute("name") || null,
+          tag,
+          pos: { x: el.pos.x, y: el.pos.y, z: el.pos.z },
+        });
+      }
+      for (const child of Array.from(el.children || [])) {
+        if ((child.tagName || "").toLowerCase().startsWith("m-")) walk(child);
+      }
+    };
+    walk(root);
+    return positions;
+  }
+
+  /** Run the layout ticker exactly while someone is watching. */
+  _syncLayoutTicker() {
+    const wants = this.clients.size > 0;
+    if (wants && !this._layoutTimer) {
+      this._layoutTimer = setInterval(() => {
+        const positions = this._layout();
+        if (positions.length) this.broadcastToClients({ type: "layout", data: { positions } });
+      }, 1000);
+    }
+    if (!wants && this._layoutTimer) {
+      clearInterval(this._layoutTimer);
+      this._layoutTimer = null;
+    }
   }
 
   /** Direct text content only (e.g. the identity prose on m-mind), capped. */

@@ -1,4 +1,5 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
+import { extractInfoton, falloff, dist } from "../shared/infoton.js"
 import { InterruptRecord } from "../../infrastructure/interruptRecord.js"
 import { parseTime } from "../../config/timeParser.js"
 import { langOf } from "../shared/i18n.js"
@@ -36,6 +37,11 @@ const log = logger("mEar.js")
  *   - ignoreSelf: "true" to ignore messages whose `speaker` equals this mind's name
  *                 (for commons/gossip relays).
  *   - ignoreSpeaker: explicit speaker name to ignore.
+ *   - plenumCoupling: 0..1 (default 0) — the Plenum's first coupling (plenum.md §6).
+ *                 Scales the bid's salience by distance falloff from the CARRIED
+ *                 infoton position (the speaker's voice), capped so proximity can
+ *                 only restore authored salience, never amplify it. At 0 (the
+ *                 control) behaviour is identical to a space-less run.
  *
  * DOM events: fires "interrupt-request" (bubbling) on each fresh peer utterance.
  */
@@ -46,6 +52,7 @@ export class MEar extends MBaseComponent {
         const salience = this.attr("salience")
         this._salience = salience == null || salience === "" ? 0.8 : Number(salience)
         this._urgent = this.attr("urgent") === "true"
+        this._coupling = Math.max(0, Math.min(1, Number(this.attr("plenumCoupling") || 0)))
         this._cooldownMs = parseTime(this.attr("cooldown") || "0ms")
         this._ignoreSpeaker = this.attr("ignoreSpeaker") || (
             this.attr("ignoreSelf") === "true" ? this.closest("m-mind")?.getAttribute("name") : null
@@ -84,13 +91,22 @@ export class MEar extends MBaseComponent {
         if (this._cooldownMs && now - this._lastHeardAt < this._cooldownMs) return
         this._lastHeardAt = now
 
+        // The first coupling: a far voice is fainter. The position it needs arrived
+        // inside the very message it modulates — no lookup (plenum.md §6).
+        let salience = this._salience
+        const inf = extractInfoton(raw)
+        if (this._coupling > 0 && inf && this.pos && this._space) {
+            const f = falloff(dist(this.pos, inf.pos), this._space.td)
+            salience = salience * ((1 - this._coupling) + this._coupling * f)
+        }
+
         this.fire("interrupt-request", new InterruptRecord({
             source: "Peer",
             type: "Peer",
             reason: text,
             from: speaker || this._as,
             lang: langOf(this),
-            salience: this._salience,
+            salience,
             urgent: this._urgent,
         }))
         log.debug(`heard ${this._as}: ${text.slice(0, 60)}`)

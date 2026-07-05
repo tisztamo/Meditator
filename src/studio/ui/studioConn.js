@@ -211,6 +211,7 @@ export class StudioConn extends A(HTMLElement) {
     if (!msg) return;
     switch (msg.type) {
       case "structure":        this.pub("structure", (msg.data && msg.data.tree) || null); break;
+      case "layout":           this.pub("layout", (msg.data && msg.data.positions) || null); break;
       case "thought_fragment": this.fire("streamFragment", { kind: "thought", content: (msg.data && msg.data.content) || "" }); break;
       case "speech_fragment":  this.fire("streamFragment", { kind: "speech", content: (msg.data && msg.data.content) || "" }); break;
       case "status":           if (msg.data && msg.data.state) this.pub("streamState", msg.data.state); break;
@@ -250,7 +251,7 @@ export class StudioConn extends A(HTMLElement) {
   force(id) { this.send({ type: "force", data: { id } }); }
 
   dismiss(id) {
-    if (id === this.focusedId) { this.focusedId = null; this.highestSeq = null; this.pub("focused", null); this.pub("focusedKind", null); this.fire("focusReset", null); this._remember(null); }
+    if (id === this.focusedId) { this.focusedId = null; this.highestSeq = null; this.pub("focused", null); this.pub("focusedKind", null); this.pub("layout", null); this.fire("focusReset", null); this._remember(null); }
     this.send({ type: "dismiss", data: { id } });
   }
 
@@ -289,7 +290,7 @@ export class StudioConn extends A(HTMLElement) {
     // transcript). The stream / transcript panes gate on it to show the right column
     // (agent-loop.md §13). Published before focusReset so a pane knows before it clears.
     this.pub("focusedKind", this._kindOf(id));
-    if (this.highestSeq == null) this.fire("focusReset", id);   // fresh: clear + repaint tail
+    if (this.highestSeq == null) { this.pub("layout", null); this.fire("focusReset", id); }  // fresh: clear + repaint tail
     else this.pub("replayResume", id);                          // reconnect: keep + append delta
     this.send({ type: "focus", data: { id, sinceSeq: this.highestSeq } });
   }

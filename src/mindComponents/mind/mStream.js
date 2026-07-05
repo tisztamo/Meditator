@@ -1,4 +1,5 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
+import { ENERGY } from "../shared/infoton.js"
 import { chatStream } from "../../modelAccess/llm.js"
 import { resolveModelRef } from "../../modelAccess/modelConfig.js"
 import { logger } from '../../infrastructure/logger.js';
@@ -191,7 +192,7 @@ export class MStream extends MBaseComponent {
     _finishBurst(boundary) {
         this._changeState("idle")
         process.stdout.write("\n")
-        this.fire("boundary", boundary)
+        this.fire("boundary", boundary, { energy: ENERGY.deed })
     }
 
     _emitChunk(text) {

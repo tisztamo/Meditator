@@ -128,6 +128,10 @@ function onceBoundary(stream, afterIndex, timeoutMs) {
 }
 
 export class MMind extends MBaseComponent {
+    // The self sits at a pinned home position — the paper's coordinator trick,
+    // chora D9: identity as the geometric anchor of the space (plenum.md §3.1).
+    static spacePinnedDefault = true
+
     backoff = 1
     _alive = false           // true only once stream+memory came up (see _whenAlive)
     _timer = null

@@ -1,4 +1,5 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
+import { extractInfoton } from "../shared/infoton.js"
 import { logger } from '../../infrastructure/logger.js';
 import { InterruptRecord } from '../../infrastructure/interruptRecord.js';
 import { parseTime } from '../../config/timeParser.js';
@@ -73,6 +74,11 @@ export class MInterrupts extends MBaseComponent {
     }
 
     _onRequest = e => {
+        // The bid's infoton: this arbiter hears through a raw listener (not sub()),
+        // so the receiver-side step happens here — one pull toward the bidding
+        // faculty per bid, before any gating (plenum.md §3.2: the message arrived;
+        // what the handler does with the content is separate).
+        this.applyInfoton(extractInfoton(e))
         const record = InterruptRecord.coerce(e.detail)
         // A nested arbiter is the gate for its faculty: it consumes EVERY request
         // bubbling to its region — whether it ends up promoting or dropping it —

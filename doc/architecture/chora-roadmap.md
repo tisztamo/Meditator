@@ -24,15 +24,20 @@ Today positions exist only in the Studio viewer; the mind doesn't know where its
 faculties are. Move the infoton layout into the runtime so topology can *mean*
 something.
 
-**Mechanism.** A society-level component (suggest `m-plenum`) owns a position per
-component and ticks the two infoton forces at low cadence (1–2 Hz is plenty):
-co-location pulls a message's receiver toward its sender; spread + short-range
-repulsion prevents collapse. Traffic sources are the same signals `m-ws` already
-taps — commons gossip, ear hearings, bids, deeds — so no new instrumentation.
+**Mechanism.** Decentralized, exactly as the paper runs it — designed in full in
+[plenum.md](plenum.md). A position is *private state of each component*; every
+delivery carries an infoton `{source pos, energy, sign}`; the receiver applies one
+displacement step toward the carried position at delivery time (TD-clamped). No
+owner, no tick, no persistent force field: cost is proportional to messages, idle
+minds cost nothing, and nothing assumes a single process. The self is pinned (the
+paper's coordinator trick); the god view exists only in telemetry, never in the
+substrate. Traffic is the messages themselves — commons gossip, ear hearings, bids,
+deeds — so no new instrumentation.
 
 **First coupling — one, small, reversible.** Distance modulates exactly one real
-dynamic to start: `m-ear` effective salience scaled by falloff from the speaker's
-position (an attr like `plenumCoupling="0..1"`, default 0). Everything else stays
+dynamic to start: `m-ear` effective salience scaled by falloff from the *carried*
+infoton position (an attr like `plenumCoupling="0..1"`, default 0, capped so
+proximity never amplifies past authored salience). Everything else stays
 read-only layout.
 
 **Telemetry.** `pub("layout", …)` → m-ws → Studio; `studio-plenum` renders the

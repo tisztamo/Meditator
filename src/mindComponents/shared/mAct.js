@@ -5,6 +5,7 @@ import { completeWithTools, complete } from "../../modelAccess/llm.js"
 import { resolveModelRef } from "../../modelAccess/modelConfig.js"
 import { readKept } from "./recallSources.js"
 import { contentStems, containment } from "./loopMath.js"
+import { ENERGY } from "./infoton.js"
 import { InterruptRecord } from '../../infrastructure/interruptRecord.js';
 import { mindHome } from '../../infrastructure/memoryVault.js';
 import { parseTime } from '../../config/timeParser.js';
@@ -398,7 +399,7 @@ export class MAct extends MObserver {
             experience: experience || null,
             data: ok && out ? (out.data ?? null) : null,
             error: errMsg,
-        })
+        }, { energy: ENERGY.deed })
 
         // The CONSEQUENCE — re-enters as a plain External sensation through the
         // afferent bus, framed as experience, never as a result (efference.md §5.2/§5.4).

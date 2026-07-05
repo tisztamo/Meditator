@@ -1,5 +1,6 @@
 import { MObserver } from "./mObserver.js"
 import { fillInterlocutor } from "./mMind.js"
+import { ENERGY } from "../shared/infoton.js"
 import { makePhrasebook } from "../shared/i18n.js"
 import { chatStream, complete } from "../../modelAccess/llm.js"
 import { resolveModelRef } from "../../modelAccess/modelConfig.js"
@@ -280,7 +281,9 @@ export class MSpeech extends MObserver {
                 // who (if anyone) records it; a memory subscribes via its own
                 // `spokenSrc` (an `@spoken` event ref). An event is never replayed, so
                 // a late or re-subscriber cannot double-record the same utterance.
-                this.fire("spoken", { text: utterance })
+                // The voice-scale infoton dose (plenum.md §3.4): a spoken exchange is
+                // rare and heavy, so its single step is the largest.
+                this.fire("spoken", { text: utterance }, { energy: ENERGY.spoken })
                 process.stdout.write(`\n\x1b[33m🗣 ${utterance}\x1b[0m\n`)
             }
         }

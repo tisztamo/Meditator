@@ -33,6 +33,9 @@ const log = logger("mSociety.js")
  *   - name: the society's label and shared memory-folder name.
  */
 export class MSociety extends MBaseComponent {
+    // The space root holds the origin still (plenum.md §3.1).
+    static spacePinnedDefault = true
+
     onConnect() {
         const members = Array.from(this.children)
             .filter(c => (c.tagName || "").toLowerCase() === "m-mind")

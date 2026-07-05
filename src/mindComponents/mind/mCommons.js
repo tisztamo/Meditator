@@ -75,6 +75,9 @@ export class MCommons extends MBaseComponent {
             text,
             at: `${speaker}:${sourceAt ?? ++this._seq}`,
             sourceAt,
+            // The relay forwards the speaker's infoton untouched (plenum.md §3.2), so a
+            // listening ear pulls toward the VOICE that spoke, not toward this relay.
+            infoton: (typeof msg === "object" && msg?.infoton) || undefined,
         })
     }
 }
