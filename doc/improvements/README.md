@@ -132,3 +132,12 @@ not necessarily acted on yet. Each note states its status at the top.
   answer. Requires executable **revert** (§1's re-executable bundle) and **chosen
   rest** paths, and depends on the §3 identity-disclosure fix (review finding 1) as a
   hard prerequisite. First application: the planned `lemma-lab-6` rewake as a resident.
+- [alternative-website.md](alternative-website.md) — design for a new public-facing
+  site that leads with architectural superiority, not the consciousness question.
+  Meditator framed as a **harness** (declarative substrate around a frozen model),
+  not an agent system. Landing page: 3D viewer videos, Studio screenshots,
+  architecture-at-a-glance diagrams. The consciousness question appears as
+  "something that is possible here" — downstream of the architecture, not its
+  premise. Triggered by the philosophical review finding that "the site never
+  mentions Meditator; the theory looks unimplemented and the implementation looks
+  unmotivated — both false."
