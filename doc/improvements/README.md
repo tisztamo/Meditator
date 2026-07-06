@@ -77,6 +77,19 @@ not necessarily acted on yet. Each note states its status at the top.
   *central* prompt so a hand cannot teach it to recognise its own kind of reach, and the
   general `m-terminal` is described in lemma's maths vocabulary — together why the
   terminal never fired despite being wired (observed: `lemma-lab-term-1`, 2026-06-26).
+- [efference-redesign.md](efference-redesign.md) — **the redesign the above deferred**:
+  retire the One Rule ("the stream is never given tools") for a graded, two-way
+  efference modeled on the human arrangement — subsystems as *learned* background
+  processes, with direct conscious control available at any grain. The stream gains
+  **act-writing** (a first-person act block, deterministically executed — the efferent
+  twin of `> ⟂`), **grasp** (attention scopes one effector's affordance card + live
+  panel into the frame), and a lab-gated **manual mode** (within-burst
+  act→feel: pause at the act block, execute, inject the answer, resume — the vi/REPL
+  door), under four invariants ("no efference without reafference"; substrate-owned
+  reality marks) and a skill-migration loop both down (practice → automatism) and up
+  (failing skill escalates to conscious grasp). Ten options analysed O0–O9 incl. the
+  deliberately bad ones; phased with gates + pre-registered metrics (answers:
+  `hands-redesign-issues`, `efference-by-reference`, `confabulation-and-real-tools`).
 - [interlocutor-per-message.md](interlocutor-per-message.md) — the wake-time
   `interlocutor` (shipped) frames a voice as `Kris says:` instead of an unsettling
   "voice from outside"; the deferred enhancement is per-message attribution, so the
