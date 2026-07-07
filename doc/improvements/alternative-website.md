@@ -3,7 +3,7 @@
 **Date:** 2026-07-05 · **Built:** 2026-07-07
 **Triggered by:** Need for a public-facing site that communicates architectural superiority rather than the consciousness question; the existing intro site (`docs/index.html`) and the structural-alignment.org site do not adequately position Meditator for a technical audience that cares about system design, not philosophy.
 **Severity:** Medium-High (blocks effective outreach to engineers, researchers, and collaborators who evaluate systems on architecture first; the philosophical review of 2026-07-02 flagged this gap: "the site never mentions Meditator; the theory looks unimplemented and the implementation looks unmotivated — both false")
-**Status:** BUILT at `docs/harness/index.html` (uncommitted). The research site `docs/index.html` is untouched. Smoke test: `node tools/smoke-harness-site.mjs` (15 checks, zero-JS-error gate). Media and a short build ledger below are what remain.
+**Status:** BUILT and COMMITTED (e3dc19b), then **promoted to the default site** per Kris (2026-07-07): the harness page now lives at `docs/index.html`; the research-first site was relocated intact to `docs/research/index.html` (served at `…/Meditator/research/`). Smoke test: `node tools/smoke-harness-site.mjs` (15 checks, zero-JS-error gate). Media and a short build ledger below are what remain — **more urgent now that the page is the default**.
 
 ---
 
@@ -37,7 +37,7 @@ The page is written for one reader and everything on it is calibrated to them:
 
 ## What was built
 
-`docs/harness/index.html` — a single self-contained page (no build, no external requests, no tracking), same deployment story as the research site. Once committed, GitHub Pages serves it at `…/Meditator/harness/`. Media lands in `docs/harness/media/` (see drop-in spec below).
+`docs/index.html` (built as `docs/harness/index.html`, promoted to the default in the follow-up commit) — a single self-contained page (no build, no external requests, no tracking). GitHub Pages serves it at the root `…/Meditator/`. Media lands in `docs/media/` (see drop-in spec below). The former default — the research-first site — moved intact to `docs/research/index.html`; the harness page links to it in three places (§08, crossband, footer) and the README documents both.
 
 **Deliberately distinct visual identity** from the research site: graphite + grid-paper background, mono/sans (no serif), teal/violet/amber accents, numbered spec-sheet kickers (`01 · why a harness`). Same craft level, different genre — infra product page, not manifesto. Reduced-motion and mobile handled; the two sites cross-link but do not share styles.
 
@@ -82,8 +82,8 @@ Per the build instruction, simple/medium missing features are **presented as exi
 
 The two media boxes ship with designed mocks (a CSS Studio wireframe; an animated canvas of drifting nodes + pulses) and a small corner note saying where the real asset lands. **The page looks intentional with or without the files** — no broken frames. Swap logic:
 
-- **`docs/harness/media/studio.png`** — swapped in via `Image.onload` (works over `file://` too). Capture: dark theme, ≥1280×800 (box crops to 16:10, `object-fit: cover`), roster showing at least two live minds + one agent (e.g. eddy, lemma, coder-svc — matching the mock's labels is a nice touch, not required), stream pane with a visible `⟂` stimulus and one spoken block, input box visible. Avoid: personal URLs in the browser chrome (crop the app, not the browser).
-- **`docs/harness/media/plenum.mp4`** — detected via `HEAD` fetch, **so the video only appears when served over http(s)** (GitHub Pages: fine; local preview: `python3 -m http.server` in `docs/`, not `file://`). Capture: 10–30 s screen recording of studioPlenum with real traffic (an interrupt landing and a speech pulse are the money shots), 16:10-ish, H.264 mp4, muted-autoplay-loop friendly (no audio needed). A multi-mind run (duet or noosphere) shows the point best.
+- **`docs/media/studio.png`** — swapped in via `Image.onload` (works over `file://` too). Capture: dark theme, ≥1280×800 (box crops to 16:10, `object-fit: cover`), roster showing at least two live minds + one agent (e.g. eddy, lemma, coder-svc — matching the mock's labels is a nice touch, not required), stream pane with a visible `⟂` stimulus and one spoken block, input box visible. Avoid: personal URLs in the browser chrome (crop the app, not the browser).
+- **`docs/media/plenum.mp4`** — detected via `HEAD` fetch, **so the video only appears when served over http(s)** (GitHub Pages: fine; local preview: `python3 -m http.server` in `docs/`, not `file://`). Capture: 10–30 s screen recording of studioPlenum with real traffic (an interrupt landing and a speech pulse are the money shots), 16:10-ish, H.264 mp4, muted-autoplay-loop friendly (no audio needed). A multi-mind run (duet or noosphere) shows the point best.
 
 No other media is needed: the hero loop is a code-drawn schematic and is *labeled* "schematic, sped up ~100×" — do not replace it with a video; the flat prompt counter is the argument.
 
@@ -94,11 +94,11 @@ No other media is needed: the hero loop is a code-drawn schematic and is *labele
 
 ## Still missing / open decisions
 
-1. **The build ledger above** (CLI dispatcher, `--dry-run` flag, compiled binary, package exports) — the page oversells until these land; they were judged simple/medium and explicitly authorized, but they should ship *before* the page is publicized.
-2. **Media** — the two captures above; page is presentable meanwhile.
-3. **Cross-link from the research site** — `docs/index.html` was deliberately not touched. It should eventually link here (suggest: a nav item "For engineers" or a line in the involve section). Needs Kris's call on wording/placement.
-4. **Deployment reality check** — commit adds `/harness/` to the live Pages site immediately. If the CLI/binary items aren't built yet, either hold the commit or land it unlinked (nothing points to `/harness/` until the cross-link exists — soft-launch is free).
+1. **The build ledger above** (CLI dispatcher, `--dry-run` flag, compiled binary, package exports) — **now urgent**: the page is the default site, so the moment it is pushed, the aspirational quickstart is what every visitor sees. Ship the ledger (or soften the copy) before pushing to the public remote.
+2. **Media** — the two captures above; page is presentable meanwhile (designed mocks).
+3. **Back-link from the research site** — the harness page links to `research/index.html` in three places, but the relocated research page does not yet link back to the root. Suggest a small nav item ("For engineers" or "The harness") on the research page. Needs Kris's call on wording/placement.
+4. ~~Deployment / soft-launch~~ — resolved by the promotion: the harness page ships at the root, the research site at `/research/`. Anyone with the old root URL now lands on the harness page; no redirects needed since the research site had no deep links.
 5. **No OG/social image** for either site — medium, shared task.
 6. **Live-stream hero deliberately omitted** — the research site's ws://localhost:7627 live window was *not* replicated; the loop schematic argues architecture instead. If a live element is ever wanted here, the right one is a live *Plenum*, not a live stream — revisit after the media lands.
 7. **Numbers drift** — the four spots listed in "keep fresh". Consider a tiny check in the smoke test that greps the page for the current component count (left out for now; the count is stable).
-8. **Name of the page** — "harness" is the working URL segment and nav tag. Alternatives considered: `/runtime/`, `/engineering/`. Renaming later breaks nothing (no inbound links yet) but do it before the cross-link (item 3).
+8. ~~Name of the page~~ — moot: the page is the root. The research site's segment is `/research/`; renaming *that* later would break the three cross-links and the README, so treat it as settled.

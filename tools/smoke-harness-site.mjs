@@ -1,4 +1,5 @@
-// Smoke test for the alternative "harness" site (docs/harness/index.html).
+// Smoke test for the default "harness" site (docs/index.html; the
+// research-first site lives at docs/research/index.html).
 // Run with NODE, not bun (bun+jsdom is broken for script execution):
 //   node tools/smoke-harness-site.mjs
 // Loads the page with scripts running, waits for the hero loop animation to
@@ -9,7 +10,7 @@ import { dirname, join } from "node:path";
 import { JSDOM, VirtualConsole } from "jsdom";
 
 const repo = dirname(dirname(fileURLToPath(import.meta.url)));
-const html = readFileSync(join(repo, "docs/harness/index.html"), "utf8");
+const html = readFileSync(join(repo, "docs/index.html"), "utf8");
 
 const errors = [];
 const vc = new VirtualConsole();
@@ -46,7 +47,7 @@ ok("burst counter advanced past seed", parseInt(d.getElementById("cBursts").text
 ok("loop console has lines", d.getElementById("loopCon").children.length >= 2);
 ok("studio mock present (no media yet)", d.querySelector("#studioBody .studio-mock") !== null);
 ok("plenum mock present (no media yet)", d.querySelector("#plenumBody .plenum-mock") !== null);
-ok("research links to main site", !!d.querySelector('a[href="../index.html"]'));
+ok("links to relocated research site", !!d.querySelector('a[href="research/index.html"]'));
 ok("stage chips honest (early/lab present)", d.body.textContent.includes("lab — first clusters") && d.body.textContent.includes("early — the loop runs"));
 
 // tab switching works

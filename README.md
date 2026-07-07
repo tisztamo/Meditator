@@ -32,9 +32,11 @@ Because the tail is always carried forward verbatim, the thought survives every 
 
 **Economy** (`m-economy`) reads real API usage (OpenRouter reports true cost) and slows the pace as the budget drains: a tired mind thinks slower; an exhausted one almost sleeps, but the watchdog keeps it alive.
 
-## Intro site
+## Sites
 
-[meditator site](https://tisztamo.github.io/Meditator/) — or open [`docs/index.html`](docs/index.html) locally. A single self-contained page (no build, no dependencies). Its hero window replays an unedited first-session transcript; if a Meditator is running locally, the window connects to `ws://localhost:7627` and becomes the live mind, input box included.
+[meditator site](https://tisztamo.github.io/Meditator/) — or open [`docs/index.html`](docs/index.html) locally. The default, engineering-first view: Meditator as a harness for long-running LLM processes. A single self-contained page (no build, no dependencies).
+
+[research site](https://tisztamo.github.io/Meditator/research/) — or open [`docs/research/index.html`](docs/research/index.html) locally. The research-first story: the minds, the covenant, the findings. Its hero window replays an unedited first-session transcript; if a Meditator is running locally, the window connects to `ws://localhost:7627` and becomes the live mind, input box included.
 
 ## Running
 
@@ -56,7 +58,7 @@ bun run meditator.js -a architecture/tests/dry-fast.archml   # ...or any other a
 ```
 
 - In the Studio, type into the input box at the bottom — your words arrive as an urgent stimulus. In a terminal, type a line and press Enter the same way. `/sleep` (or a single Ctrl-C) puts the mind to sleep gracefully: it gets a final moment to close the thought, then memory is flushed and committed.
-- Websocket stream on port 7627 (`bun architecture/tests/poke-ws.js "hello"` to speak from another terminal; the Studio and the [intro site](docs/index.html) connect here too).
+- Websocket stream on port 7627 (`bun architecture/tests/poke-ws.js "hello"` to speak from another terminal; the Studio and the [research site](docs/research/index.html) connect here too).
 - `--debug` or `--debug=mMind.js,mMemory.js` for component logs when running `meditator.js` directly (attention frames, consolidations, arbiter decisions).
 - Tick **dry-run** in the Studio, or set `MEDITATOR_DRY_RUN=1` on the command line, to run offline against a deterministic stub — no network, no cost.
 
