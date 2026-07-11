@@ -1,10 +1,13 @@
-// Intro site replay in jsdom — offline hero mode, no live websocket.
+// Research-site replay in jsdom — offline hero mode, no live websocket.
+// The engineering-first harness page is now the root (docs/index.html) and has its
+// own smoke test (tools/smoke-harness-site.mjs); the research-first site with the
+// live replay relocated to docs/research/index.html (commit b8de4a6).
 import { test, expect } from "bun:test";
 import { JSDOM } from "jsdom";
 import fs from "node:fs/promises";
 
-test("docs/index.html replays and interactive chrome works", async () => {
-    const html = await fs.readFile("docs/index.html", "utf8");
+test("docs/research/index.html replays and interactive chrome works", async () => {
+    const html = await fs.readFile("docs/research/index.html", "utf8");
     const dom = new JSDOM(html, {
         runScripts: "dangerously",
         url: "http://localhost/",
