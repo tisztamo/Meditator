@@ -140,6 +140,29 @@ sets this flag on the children it spawns and uses this message for its **Sleep**
 button. The mind closes its thought, finalizes and commits memory, then exits on
 its own.
 
+## Agents: the task port
+
+Under an [`<m-agent>`](agents.md) there is no thought stream — `m-ws` becomes a
+**task port** instead. Inbound input (the same `{type:"input"}` message, or plain
+text) is not a stimulus but a **task**: it becomes a `user` turn, and the agent
+works it through its loop. Having a membrane also makes the agent a
+[service](agents.md#service-mode--an-agent-that-takes-tasks) — after each task it
+idles awaiting the next.
+
+Outbound, the loop is forwarded as `event` messages with `process: "agent"`
+(plus the classic `{type:"status"}` frame for the state pill):
+
+| process | kind | payload |
+|---|---|---|
+| `agent` | `status` | `{state, step, maxSteps, done}` |
+| `agent` | `tools` | `{names}` — the palette of capabilities |
+| `agent` | `step` | `{index, assistantText, calls:[{name,args}], observations:[{name,isError,observation}]}` — one loop iteration, the transcript body |
+| `agent` | `answer` | `{answer, reason, steps}` — the final answer, once per task |
+
+The component `structure` tree is sent on connect exactly as for a mind, so the
+same client can render either shape. This is what the Studio's agent transcript
+panel speaks.
+
 ## Examples
 
 A minimal JS client:
@@ -170,4 +193,4 @@ bun run studio.js          # then open http://localhost:7600
 - This is an unauthenticated localhost server intended for local use. Do not
   expose port 7627 to an untrusted network — any client can both read the
   stream and inject stimuli (and, when `MEDITATOR_WS_CONTROL=1`, end the mind).
-- Implementation: [`src/mindComponents/mWs.js`](../src/mindComponents/mWs.js).
+- Implementation: [`src/mindComponents/shared/mWs.js`](../src/mindComponents/shared/mWs.js).

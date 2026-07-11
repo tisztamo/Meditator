@@ -43,7 +43,7 @@
 > [improvements/compressor-not-distilling.md](../improvements/compressor-not-distilling.md).
 >
 > §1–§4 in `MMemory._compress` / `compressToFit` / `buildCompressionPrompt` /
-> `nearestToTarget` (`src/mindComponents/mMemory.js`); §5's recall-pool in
+> `nearestToTarget` (`src/mindComponents/mind/mMemory.js`); §5's recall-pool in
 > `src/mindComponents/recallSources.js`, read by `m-recall` and `m-resurface`.
 > Unit coverage in `architecture/tests/unit/memory-compress.test.js` and
 > `recall-sources.test.js`. **§5's richer variant — a KB digest into the compressor

@@ -19,7 +19,19 @@ affects how the catalog presents them, not how they run.
 - **`eddy.archml`** — the first *resident* successor (Phase 7). The seedling seed at
   resident scale and cadence. Deliberately not shipped as a default — it will be
   re-derived from what the seedling runs teach us before it is raised for real.
-- **`busy.archml`** — a scratch tuning variant; ignore unless you are tuning.
+- **`lemma-lab.archml`** — the transient lab clone of the resident mathematician
+  (`architecture/lemma.archml`): an inward mind grinding an open problem. Many of
+  the memory and grounding findings came from its runs.
+- **`researcher.archml`** — a thinking mind that owns a small *agent* as one of its
+  hands ([agents](../../doc/agents.md#an-agent-as-a-minds-hand)): the two shapes
+  composed.
+- **`duet.archml`** — the smallest [society](../../doc/societies.md): a Prover and a
+  Checker grinding one piece of mathematics, roles as negative feedback.
+- **`solver.archml`** — a four-mind society (reader / builder / geometer / checker)
+  on grid puzzles, with computational grounding in the checker.
+- **`noosphere-lab.archml`** — six expert minds convened over a commons to draft a
+  constitution; the source of the society-scale findings in
+  [Societies](../../doc/societies.md#what-we-have-learned-so-far).
 
 If you are looking for a mind to talk to, prefer a curated architecture from the
 catalog root once one exists, or copy `seedling.archml` and give it your own seed.

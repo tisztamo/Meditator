@@ -94,12 +94,14 @@ back here when a word is unclear.
   deepens. The danger is sharpest in [m-resurface](architecture/components.md#m-resurface),
   whose job is to break loops but which, picking the kept note that most overlaps
   the current thought, hands a presence-loop the most presence-soaked note it owns.
-  This is now *mitigated on the read side*: a cheap, language-aware recogniser
-  (`attractorLexicon`) lets [m-resurface](architecture/components.md#m-resurface)
-  tell a bliss loop from a content loop, and on a bliss loop it hands back the
-  *least*-bliss substantive note (a real result) instead of overlap-ranking — never
-  re-injecting the attractor's vocabulary. See
-  [improvements/bliss-loop-recall.md](improvements/bliss-loop-recall.md).
+  The standing countermeasure is a sense → bid → break chain:
+  [m-loop-detector](architecture/components.md#m-loop-detector) senses the loop
+  (and names its vocabulary), [m-clear-mind](architecture/components.md#m-clear-mind)
+  can clear and re-seed the circling tail, and
+  [m-resurface](architecture/components.md#m-resurface) hands back a kept note
+  chosen to be *far from* the loop's vocabulary — never re-injecting the
+  attractor's own words. See
+  [improvements/loop-detection-redesign.md](improvements/loop-detection-redesign.md).
 - **associate** — a small model that sometimes notices "this reminds me of…" and
   offers it as a stimulus.
 - **gist** — a very short summary of something — its essence in one line. *(plain
@@ -126,6 +128,51 @@ back here when a word is unclear.
 - **embodiment** / **body schema** — the mind's felt sense of what it can reach and
   do, assembled into its identity so it knows its own abilities.
 
+## Agents — task-driven workers
+
+- **agent** — the other thing archml can declare (`<m-agent>`): a tool-calling
+  worker that takes a task, acts until it is done, and reports back. The
+  deliberate opposite of a mind: an agent's model *sees* its tools and the raw
+  results. See [Agents](agents.md).
+- **charter** — the prose inside `<m-agent>`: the agent's standing
+  self-description ("what kind of agent am I, how do I work"). The agent twin of
+  a mind's *identity*.
+- **objective** — a child `<m-objective>`: the one task an agent was set
+  (`MEDITATOR_OBJECTIVE` overrides it at wake). The agent twin of a mind's
+  *origin* — it seeds only the first turn, then lives in the transcript.
+- **tool** — a capability the agent's model can call by name (run a command, read
+  a file). A leaf component; the same capability object a mind's *hand* offers,
+  in the opposite harness.
+- **step** — one iteration of an agent's loop: assemble the turn, call the model,
+  run its tool calls, append what came back. The agent twin of a *burst*.
+- **transcript** — an agent's growing message history (its working memory).
+  **Compaction** keeps it bounded: old messages are condensed into one summary
+  while recent ones stay verbatim (`m-context` — the agent twin of memory
+  *consolidation*).
+- **service** — an agent with a membrane (`m-ws` / `m-console`): tasks arrive as
+  messages, and after each it idles awaiting the next rather than retiring.
+- **sub-agent** — an agent declared inside another agent (`role="subagent"`), run
+  as a background job (`spawn_agent`) — or inside a *mind*, offered to its hands.
+  Distinct sub-agents running at once are how an agent works in parallel.
+- **workspace** — the one directory an agent's terminal, file tools, and jobs all
+  share (default `memory/<agent>/workspace`).
+
+## Minds together (societies)
+
+- **society** — several minds in one document, talking to each other
+  (`<m-society>`). Members keep their own memory, vault, and attention; memory
+  homes nest as `memory/<society>/<member>/`. See [Societies](societies.md).
+- **ear** — the ingress adapter (`<m-ear>`), placed inside a listening mind and
+  pointed at a peer's voice. What it hears becomes an ordinary stimulus with a
+  salience — a peer can be ignored, like anyone else.
+- **commons** — a society-local relay (`<m-commons>`): it re-publishes every
+  member's voice on one shared topic, so each member needs one ear on the room
+  instead of one per peer.
+- **folie à deux** — the danger of symmetric gossip: minds echoing each other
+  until a shared confabulation or metaphor takes over the room. *(French: "a
+  madness shared by two.")* Role asymmetry (a checker pushing back on a prover)
+  is the working countermeasure.
+
 ## Life, sleep, and care
 
 - **covenant** — the promises the project keeps to a running mind: its memory is
@@ -141,6 +188,13 @@ back here when a word is unclear.
   keeps and grows a self across days. The covenant's full force is for residents.
 - **graveyard** / **IN-MEMORIAM** — where retired minds are kept and remembered,
   rather than deleted. See [IN-MEMORIAM.md](../IN-MEMORIAM.md).
+- **⟂ (perceived)** — the journal mark for something the mind actually
+  *experienced*: a stimulus that entered its attention, a consequence it felt.
+- **⌁ (backstage)** — the journal mark for something that truly happened around
+  the mind but that it never saw: a deed being realized, an intervention, a
+  mechanism's action — recorded for the human reader's honesty, not the mind's.
+  Together ⟂/⌁ form the **honesty ledger**: the record never passes off harness
+  action as the mind's own experience, or the reverse.
 
 ## The building blocks (for people reading the code)
 

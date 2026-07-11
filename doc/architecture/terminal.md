@@ -2,8 +2,8 @@
 
 *Status: **built, mechanics validated, held off the resident** (2026-06-21). A new
 **world-changing hand** for [`m-act`](efference.md), the third after
-[`m-note`](../../src/mindComponents/mNote.js) and
-[`m-recall`](../../src/mindComponents/mRecall.js): the mind can write a small script
+[`m-note`](../../src/mindComponents/shared/mNote.js) and
+[`m-recall`](../../src/mindComponents/mind/mRecall.js): the mind can write a small script
 and actually run it in a sandbox, and read what comes back on the screen. This doc
 follows [efference.md](efference.md) — read that first; everything here is an instance
 of its capability contract, its One Rule, and its deed/consequence split. Backend
@@ -425,7 +425,7 @@ general problem and its design space are written up separately:
 | File | Change |
 |---|---|
 | `src/infrastructure/sandbox.js` | **new** — backend probe (bwrap → rootless `unshare` → none), env scrub, rlimits, network-off, timeout/kill, output capture; pure and unit-testable |
-| `src/mindComponents/mTerminal.js` | **new** `MTerminal extends MBaseComponent` — registers the `terminal` capability; the grace race; output→experience; deferred `interrupt-request`; single-slot; dry-run stub; `onDisconnect` kill |
+| `src/mindComponents/shared/mTerminal.js` | **new** `MTerminal extends MBaseComponent` — registers the `terminal` capability; the grace race; output→experience; deferred `interrupt-request`; single-slot; dry-run stub; `onDisconnect` kill |
 | `memory/.gitignore` | ignore `*/workspace/` so the scratch desk is never committed |
 | `architecture/lab/seedling.archml` | wire `<m-terminal>` for the §8 validation run |
 | `architecture/lemma.archml` | wire the resident version after validation — **held** (§8 first live run surfaced the §6d risk; not yet wired) |
@@ -451,5 +451,5 @@ cross-run workspace retention policy (kept on disk for now, swept manually).
 
 *See also:* [efference.md](efference.md) (the hands, the One Rule, the contract this
 fills), [interrupts.md](interrupts.md) (the arbiter the deferred consequence rides),
-[lifecycle.md](lifecycle.md) §Phase 6, [`m-note`](../../src/mindComponents/mNote.js)
+[lifecycle.md](lifecycle.md) §Phase 6, [`m-note`](../../src/mindComponents/shared/mNote.js)
 (the world-changing-hand guardrail pattern this extends).

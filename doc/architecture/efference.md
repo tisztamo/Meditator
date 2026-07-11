@@ -2,16 +2,16 @@
 
 *Status: **implemented** 2026-06-17 (design written the same day). Elaborates
 [lifecycle.md](lifecycle.md) §Phase 6 into something buildable, and now built:
-[`m-act`](../../src/mindComponents/mAct.js) (the loop) +
-[`m-look`](../../src/mindComponents/mLook.js) (the first read-only hand) +
+[`m-act`](../../src/mindComponents/shared/mAct.js) (the loop) +
+[`m-look`](../../src/mindComponents/shared/mLook.js) (the first read-only hand) +
 [`completeWithTools()`](../../src/modelAccess/llm.js) (tool-calls under the hood),
 wired into both `seedling.archml` (brisk tuning cadences) and `eddy.archml` (resident
 cadences). Extended the same day with three things the first build revealed it needed
 (see §3 amendments): a **body schema** (each hand's `felt` line, assembled into the
 identity, so the mind knows what it can reach without a tool menu); a **self-caused
 consequence** (the efference copy, so the mind learns it acted); and the first
-**world-changing** hand, [`m-note`](../../src/mindComponents/mNote.js) (+ its read-back
-[`m-recall`](../../src/mindComponents/mRecall.js)), closing a real act→world→sense loop.
+**world-changing** hand, [`m-note`](../../src/mindComponents/shared/mNote.js) (+ its read-back
+[`m-recall`](../../src/mindComponents/mind/mRecall.js)), closing a real act→world→sense loop.
 Out of the decision **not to wake `eddy` in its current form**: a mind that can only
 sense and speak, never reach, is seated into a world it cannot touch. Before `eddy`
 wakes as a resident we give it hands. The actor model is confirmed to serve clean
@@ -30,7 +30,7 @@ just happens*, and some bursts later the world answers as plain experience.
 
 This is the human arrangement: consciousness sandwiched between an afferent bus (in)
 and an efferent realizer (out), with **tools living only in the realizer.** Phase 5
-built the afferent half ([senses](../../src/mindComponents/mSense.js)). This is the
+built the afferent half ([senses](../../src/mindComponents/mind/mSense.js)). This is the
 efferent half.
 
 ### The one rule
@@ -49,7 +49,7 @@ is rejected, not ported.
 
 ## 1. The shape: generalize `m-speech`
 
-The prototype already runs in production. [`m-speech`](../../src/mindComponents/mSpeech.js)
+The prototype already runs in production. [`m-speech`](../../src/mindComponents/mind/mSpeech.js)
 is the **first motor act**: a subconscious observer that watches the stream, lets a
 cheap model judge a *latent intention* ("does anything want to be said aloud?"), and
 realizes it as an utterance the stream never commanded. `m-act` is the same pattern
@@ -113,7 +113,7 @@ the same way the weather does — as a non-urgent `External` sensation through t
 afferent bus, framed as an experience ("the rain is heavy, the street is shining"),
 *never* as a tool result. The mind wondered; some bursts later it simply knows or sees.
 
-This reuses the journal distinction already in [`m-memory`](../../src/mindComponents/mMemory.js):
+This reuses the journal distinction already in [`m-memory`](../../src/mindComponents/mind/mMemory.js):
 perceived (⟂) for what entered the frame, backstage (⌁) for what the mind never saw —
 the same split that hides the scribe's filings today.
 
@@ -203,7 +203,7 @@ would make the mind model its own mechanism). The fix is a **body schema**: a st
 first-person, *world-facing* sense of what the mind can reach, the way you know you can
 glance out a window without ever thinking `window.look()`. Each capability declares a
 `felt` line (above) — phenomenological, never mechanical — and `m-act` joins them into
-an `embodiment` it publishes; [`m-mind`](../../src/mindComponents/mMind.js) weaves it
+an `embodiment` it publishes; [`m-mind`](../../src/mindComponents/mind/mMind.js) weaves it
 softly into the identity (`embodimentSrc`, mirrored like memory's tail). The discipline
 is the same world-vs-substrate line the senses hold: knowing your *affordances* is
 embodiment (healthy, grounding); knowing your *API* is substrate-gazing. Done this way,
@@ -293,7 +293,7 @@ These are the acceptance invariants — if any breaks, the feature has failed it
    returned", no schema, no function/capability name. A natural verb like "look" is
    fine — that is inner speech, not mechanism.
 3. **The deed is invisible.** The realizer running and the tool executing produce an
-   `acted` topic that [`m-memory`](../../src/mindComponents/mMemory.js) journals as a
+   `acted` topic that [`m-memory`](../../src/mindComponents/mind/mMemory.js) journals as a
    **backstage (⌁)** note (new `actedSrc`, exactly like the existing `filedSrc` for the
    scribe). It never touches the tail and never enters a frame.
 4. **The consequence is honestly perceived.** It arrives as an `External`
@@ -429,9 +429,9 @@ wired into `eddy` so it can be woken as a resident that can *reach*, not only se
 | File | Change |
 |---|---|
 | `src/modelAccess/llm.js` | **new** `completeWithTools()` — tools/tool_choice in, `{text, tool_calls, finish_reason, usage}` out; reuse retry/economy/concurrency |
-| `src/mindComponents/mAct.js` | **new** `MAct extends MObserver` — the decide→realize→return loop + `registerCapability()` + in-process dedup ledger |
-| `src/mindComponents/mLook.js` | **new** first capability — read-only on-demand exteroception, reusing the sense fetchers |
-| `src/mindComponents/mMemory.js` | add `actedSrc` (auto-discovered, like `filedSrc`) → journal `acted` as backstage (⌁) |
+| `src/mindComponents/shared/mAct.js` | **new** `MAct extends MObserver` — the decide→realize→return loop + `registerCapability()` + in-process dedup ledger |
+| `src/mindComponents/shared/mLook.js` | **new** first capability — read-only on-demand exteroception, reusing the sense fetchers |
+| `src/mindComponents/mind/mMemory.js` | add `actedSrc` (auto-discovered, like `filedSrc`) → journal `acted` as backstage (⌁) |
 | `architecture/lab/seedling.archml` | wire `<m-act><m-look/></m-act>` for tuning/validation |
 | `architecture/lab/eddy.archml` | wire the resident-cadence version (§7) |
 | `architecture/tests/unit/…` | decide-parse tolerance, schema validation, dedup ledger; `wiring/…` for the consequence→afference seam (model the tests on the senses' suites) |
@@ -472,6 +472,6 @@ speaks the OpenAI tool API. The detection, the in-prompt menu, and the raw-resul
 injection are not ported.
 
 *See also:* [lifecycle.md](lifecycle.md) §Phase 6 (the plan this realizes),
-[`m-speech`](../../src/mindComponents/mSpeech.js) (the prototype),
-[`m-sense`](../../src/mindComponents/mSense.js) (the afferent mirror),
+[`m-speech`](../../src/mindComponents/mind/mSpeech.js) (the prototype),
+[`m-sense`](../../src/mindComponents/mind/mSense.js) (the afferent mirror),
 [decoupling.md](decoupling.md) (the pub/sub principle this wiring follows).

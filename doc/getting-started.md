@@ -130,4 +130,6 @@ the mind is doing.
   idea (burst, stimulus, salience, vault) work.
 - [The Studio](studio.md) — roster, focus, dry-run, sleep vs. force.
 - [Configuration](configuration.md) — tune the mind, swap models, set a budget.
+- [Troubleshooting & FAQ](troubleshooting.md) — if something above didn't work.
+- [Agents](agents.md) — run a tool-calling agent with the same runtime.
 - [Architecture overview](architecture/index.md) — what actually happens each burst.

@@ -1,11 +1,16 @@
 # Multi-mind — societies, links, and the recursive membrane
 
-> **Status: design.** This fleshes out [deep-structure.md](deep-structure.md)
-> §3 (*spawned subminds*) and §5 (*a society of minds*), and realizes the
-> deferred `<a-wire from to>` connector named in
-> [decoupling.md](decoupling.md). Nothing here changes the behaviour of a flat
-> single mind. Part 1 names the concepts; Part 2 is the topology cookbook;
-> Part 3 is the implementation surface and the smallest first milestone.
+> **Status: design, first milestone built.** The smallest milestone (Part 5) has
+> shipped: `m-society` / `m-ear` / `m-commons` exist
+> ([reference](components.md#multi-mind-m-society--m-ear--m-commons)) and real
+> societies run — see [Societies](../societies.md) for the practical guide and
+> the live findings. `m-link` and the population machinery remain design. This
+> page fleshes out [deep-structure.md](deep-structure.md) §3 (*spawned
+> subminds*) and §5 (*a society of minds*), and realizes the deferred
+> `<a-wire from to>` connector named in [decoupling.md](decoupling.md). Nothing
+> here changes the behaviour of a flat single mind. Part 1 names the concepts;
+> Part 2 is the topology cookbook; Part 3 is the implementation surface and the
+> smallest first milestone.
 
 ## The premise: a mind already has a membrane
 
@@ -95,7 +100,7 @@ mind**. It generalizes the interlocutor-voice path and `m-observer`'s overridabl
 ```
 
 ```js
-// src/mindComponents/mEar.js  (sketch)
+// src/mindComponents/mind/mEar.js  (sketch)
 export class MEar extends MBaseComponent {
   onConnect() {
     const from = this.attr("from")              // external egress, e.g. "/alice/voice/@spoken"

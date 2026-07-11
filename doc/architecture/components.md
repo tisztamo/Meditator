@@ -1,10 +1,14 @@
 # Component reference
 
-Every component is a custom element loaded from `src/mindComponents/`, built on
-[Amanita](https://www.npmjs.com/package/amanita). This page lists each one's
+Every component is a custom element built on
+[Amanita](https://www.npmjs.com/package/amanita). The built-ins live under
+`src/mindComponents/` (`mind/`, `agent/`, `shared/`); your own can live in a
+`components/` directory beside your `.archml` — see
+[Extending Meditator](../extending.md). This page lists each one's
 attributes (with defaults), the pub/sub topics it speaks, and the DOM events it
 raises. The components wired into the example mind (`architecture/lab/seedling.archml`)
-come first; [legacy and demo components](#legacy-and-demo-components) are at the end.
+come first; the [agent components](#agent-components-m-agent-and-its-parts) follow the
+mind's; [legacy and demo components](#legacy-and-demo-components) are at the end.
 
 ## Conventions
 
@@ -159,7 +163,7 @@ mind reads it by subscription, never a `querySelector` reach-in
   `interrupt-request` so it enters the first [attention frame](index.md#the-attention-frame)
   as *what just happened* — like an opening query. Thereafter it lives or fades in
   [memory](memory.md) as the mind's **origin story**; it never stands in later frames,
-  and a mind that wakes up remembering is never re-seeded. See `src/mindComponents/mOrigin.js`.
+  and a mind that wakes up remembering is never re-seeded. See `src/mindComponents/shared/mOrigin.js`.
 - **Per-instance override at wake:** the element's text is a *default*. `MEDITATOR_ORIGIN`
   (or the [Studio's](../studio.md#waking-a-mind) editable "origin story" field) replaces it
   for one instance without editing the file — see [Configuration](../configuration.md#origin--the-first-thought-m-origin).
@@ -450,7 +454,7 @@ your attention go to it, and a little while later you simply find that you know.
 The mind can **set a thought down** somewhere outside itself, to be found again later.
 This is the deepest answer to the interoception worry: the mind doesn't only *look* at
 a world it can't touch — it leaves a residue on one, closing a real act→world→sense
-loop (with [`m-recall`](#m-recall-read-a-kept-note-back)).
+loop (with [`m-recall`](#m-recall--read-a-kept-note-back)).
 
 Because it changes the world it is `readonly:false`, and its guardrail is **structural**
 (efference.md §6c): the realizer supplies only the note's `text` (and optional `title`)
@@ -909,6 +913,139 @@ WebSocket server — the live stream and external voice. Full protocol in the
 
 ---
 
+## Agent components (`m-agent` and its parts)
+
+The tool-calling twin of a mind — same archml, same runtime, inverted posture:
+where a mind's conscious stream is never given tools, an `<m-agent>`'s model *is*
+given the tools, sees the raw results, and loops until the task is done. The
+practical guide is [Agents](../agents.md); the design rationale is
+[improvements/agent-loop.md](../improvements/agent-loop.md). Worked examples live
+in `architecture/agents/`.
+
+### `m-agent`
+
+The kernel: assembles each turn, runs the tool calls the reasoner emits, appends
+the observations, and loops. Its text content is the agent's **charter** (the
+standing system prompt), as `<m-mind>`'s content is a mind's identity. With a
+membrane (`<m-ws>` / `<m-console>`) it is a **service**: inbound input arrives as
+a bubbling `task` event and the agent idles between tasks instead of retiring.
+
+| Attribute | Default | Meaning |
+|-----------|---------|---------|
+| `name` | — | the agent's name (its home + ref path); `MEDITATOR_AGENT_NAME` overrides at wake |
+| `model` / `utilityModel` | — | defaults for the whole agent (children inherit via `env()`) |
+| `maxSteps` | `40` | hard budget backstop on reason calls |
+| `stopWhen` | `no-tools` | `no-tools` (an answer with no tool call ends the task) or `finish-tool` (loop until the model calls the auto-registered `finish(summary)`) |
+| `toolSettleMs` | `300` | quiet time required after tool registrations before the first turn |
+
+- **Publishes:** `turn` `{system, messages, tools}`, `tools` (the schema set),
+  `status`, `transcript`.
+- **Fires:** `step` (the boundary after each loop iteration), and a `proposal`
+  event before each tool call — the govern seam a norm component may deny,
+  modify, or hold (nothing ships wired to it yet).
+- **Catches (bubbling):** `capability` (tool self-registration, anywhere in its
+  subtree), `task` (from a membrane), `nudge` / `halt` (from observers).
+
+### `m-reason`
+
+The reasoner — the twin of `m-stream`, owning exactly one seam: turn in, next
+move out. Swappable without touching the loop, the tools, or the observers.
+
+| Attribute | Default | Meaning |
+|-----------|---------|---------|
+| `model` | ancestor `model`, then role `voice` | the tool-calling model |
+| `toolTokens` | `2048` | max tokens per move (arguments ride along with any text) |
+| `temperature` | `0.2` | low — an agent acts, it does not free-associate |
+
+- **Subscribes:** `../turn`. **Publishes:** `reply` `{text, tool_calls,
+  finish_reason}` — on a model error it still publishes (with
+  `finish_reason:"error"`), so the loop is never left waiting.
+
+### `m-objective`
+
+The seed of the **work** — the twin of `<m-origin>`, held apart from the charter.
+It seeds only the *first* `user` turn of a freshly-woken agent, then lives on in
+the transcript; it is not re-stated every turn. `MEDITATOR_OBJECTIVE` overrides
+it at wake. A service agent may carry none and take all tasks over its membrane.
+Needs a `name` (it publishes its text on `prompt`, which `m-agent` mirrors).
+
+### `m-context`
+
+The agent's working memory — the twin of `m-memory`, and a pure observer:
+**compaction** (when the transcript exceeds `budget`, the oldest messages are
+condensed into one summary; the split never orphans a `tool` message from its
+`assistant`) and **persistence** (the transcript survives restarts; a service
+agent resumes mid-task).
+
+| Attribute | Default | Meaning |
+|-----------|---------|---------|
+| `budget` | `24000` | char budget for the whole transcript before compaction |
+| `keepRecent` | `8` | trailing messages kept verbatim |
+| `summaryChars` | `budget/3`, capped `2000` | target size of the condensed summary |
+| `persist` | the agent's home | directory for `transcript.json`; `"off"` disables |
+| `model` | ancestor `utilityModel` | compaction model |
+
+- **Publishes:** `restore` `{messages, step}` (once, after load), `compacted`
+  `{summarizeCount, summary}` (an intent `m-agent` applies to the array it owns).
+
+### File tools — `m-read-file` / `m-write-file` / `m-edit`
+
+Leaf tools over the agent's workspace, each ~40 lines — the extensibility proof
+(see [Extending](../extending.md#writing-an-agent-tool)). All are contained to
+their `root`: an escaping path returns a clean error observation, never a crash
+or an out-of-sandbox access.
+
+| Component | Tool name (default) | Does |
+|-----------|--------------------|------|
+| `m-read-file` | `read_file` | read a UTF-8 file, 1-indexed line numbers |
+| `m-write-file` | `write_file` | create/overwrite a file, mkdir -p as needed |
+| `m-edit` | `edit` | exact-string replacement; `old` must match exactly once unless `replace_all` |
+
+Common attributes: `name` (the function name), `root` (default: the agent's
+workspace, `memory/<agent>/workspace` — shared with `m-terminal` and `m-jobs`).
+
+### `m-jobs`
+
+Async agency on a synchronous loop: non-blocking tools over a job registry —
+`spawn(language, script)` (background shell job; probe-gated like `m-terminal`),
+`spawn_agent(agent, task)` (a `role="subagent"` child runs the task through its
+whole loop in the background; offered only when such a child exists), `check`,
+`wait` (interruptible long-poll), `list_jobs`, `kill`. A finished job fires a
+`nudge` that folds into the next turn. Parallelism = distinct sub-agents, one
+task each.
+
+| Attribute | Default | Meaning |
+|-----------|---------|---------|
+| `workspace` / `root` | `memory/<agent>/workspace` | shared workspace root |
+| `wall` | `10m` | per-job wall-clock cap |
+| `defaultWait` | `120s` | `wait()` timeout when the model omits one |
+| `maxWait` | `300s` | hard cap on a single `wait()` |
+| `mem` / `cpu` / `fileSize` / `maxProcs` / `maxOutput` / `network` | as `m-terminal` | sandbox limits |
+
+### `m-repeat-guard`
+
+The stall observer — the operational twin of `m-loop-detector`. A mind circles a
+*refrain*; an agent repeats an *action*. Watches action signatures at each
+`step`; on recurrence it **nudges** (a redirect in the next turn), and if the rut
+persists it **halts** the loop. Pure observer: one line of archml, no kernel
+change.
+
+| Attribute | Default | Meaning |
+|-----------|---------|---------|
+| `stepSrc` | `..m-agent/@step` | the step-boundary event to watch |
+| `window` | `6` | recent action signatures kept |
+| `nudgeAt` | `3` | same-action repeats that trigger a nudge |
+| `haltAt` | `5` | repeats that escalate to a halt |
+
+### `m-report`
+
+Status-out port: mirrors the agent's `status` and `step` into a compact progress
+report `{state, step, maxSteps, done, answer?}` for a supervisor or the Studio.
+Attributes: `port` (topic name, default `report`), `every` (log every Nth step,
+default 1).
+
+---
+
 ## Shared infrastructure
 
 Not components, but the pieces components lean on (`src/infrastructure/`,
@@ -935,9 +1072,10 @@ Not components, but the pieces components lean on (`src/infrastructure/`,
 
 These existed only for older example and demo architectures — the tool demos
 now live under `architecture/legacy/` — and have been removed from the codebase.
-Tools and shell execution are explicitly deprioritized in the current direction
-— the focus is the stream, attention, memory, and observers, not an agent that
-calls tools.
+They predate the two designs that replaced them properly: a **mind** acts through
+its subconscious [hands](#the-hands-m-act--m-look) (never seeing a tool), and
+deliberate tool-calling lives in the [agent components](#agent-components-m-agent-and-its-parts)
+(`<m-agent>`), where the model is *meant* to see the tools.
 
 | Component | What it was | Status |
 |-----------|-------------|--------|

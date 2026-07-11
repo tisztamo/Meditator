@@ -217,5 +217,8 @@ You have seen, with your own eyes, every core idea:
   thin each member down to what makes it itself.
 - **[The Studio](studio.md)** — run minds from the browser instead of the
   terminal: wake, watch, speak, sleep.
+- **[Agents](agents.md)** and **[Societies](societies.md)** — the other two
+  shapes the same language declares: a tool-calling worker, and minds wired
+  together.
 - **[Architecture](architecture/index.md)** — how it all works underneath.
 - **[Glossary](glossary.md)** — any word you are still unsure about.

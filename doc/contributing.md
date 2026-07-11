@@ -36,31 +36,20 @@ dry-run memory to `memory/dry-*/`, so it can never disturb a real mind.
 
 ## Adding a component
 
-1. Create `src/mindComponents/mYourThing.js` exporting a class that extends
-   `MBaseComponent` (or `MObserver` if it watches the stream):
+The full guide — the base-class API, where components can live (you don't have to
+touch `src/`: a `components/` directory beside your `.archml` is a first-class
+layer), observers, hands, and agent tools — is
+**[Extending Meditator](extending.md)**. The short version:
 
-   ```js
-   import { MBaseComponent } from "./mBaseComponent.js"
-
-   export class MYourThing extends MBaseComponent {
-     onConnect() {
-       this.sub(this.attr("src") || "/stream/chunk", chunk => { /* … */ })
-     }
-   }
-   ```
-
+1. Create `mYourThing.js` — in `components/` beside your archml for your own
+   minds, or under `src/mindComponents/` (`mind/`, `agent/`, or `shared/`) for a
+   shipped built-in — exporting a class that extends `MBaseComponent` (or
+   `MObserver` if it watches the stream).
 2. Use it in a `.archml` mind as `<m-your-thing>`. The loader maps the kebab-case
    tag to the camelCase module file automatically
    (`m-your-thing` → `mYourThing.js`), so no manual registration is needed.
-
-What the base class gives you:
-
-- `this.attr(name)` — read an attribute.
-- `this.env(name)` — read an attribute inherited from an ancestor (this is how
-  `model` / `utilityModel` propagate down from `<m-mind>`).
-- `this.sub(topicRef, handler)` / `this.pub(topic, value)` — pub/sub.
-- `this.getPrompt()` — the element's prompt text (attribute, `<m-prompt>`, or content).
-- DOM helpers (`querySelector`, `closest`) — components find each other by tag.
+3. Write the `@interface` doc-comment — it is the source of truth for the
+   component's attributes, topics, and events.
 
 To **raise an interrupt**, dispatch a bubbling `interrupt-request` carrying an
 `InterruptRecord` — see [Interrupts & observers](architecture/interrupts.md#writing-your-own-generator).

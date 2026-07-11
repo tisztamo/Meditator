@@ -64,7 +64,7 @@ bun run meditator.js -a architecture/tests/dry-fast.archml   # ...or any other a
 
 ### Models
 
-Two tiers, configured in [`config/models.yaml`](../config/models.yaml) and
+Two tiers, configured in [`config/models.yaml`](config/models.yaml) and
 referenced by role in the archml:
 
 - **voice** (`model` attribute) — the thinking stream and speech output
@@ -86,8 +86,18 @@ A continuous run at the default pace costs roughly $0.10–0.15/hour on OpenRout
 
 ### Architectures
 
-- `architecture/lab/seedling.archml` — a worked example mind (the genesis `awake.archml` was retired; see [IN-MEMORIAM.md](IN-MEMORIAM.md))
-- `architecture/tests/dry-fast.archml` — fast-cycle test mind for dry runs
+One language, three shapes — the same archml declares:
+
+- **Minds** — `architecture/lab/seedling.archml` is the worked example (the genesis
+  `awake.archml` was retired; see [IN-MEMORIAM.md](IN-MEMORIAM.md));
+  `architecture/tests/dry-fast.archml` is the fast-cycle dry-run mind.
+- **Agents** — tool-calling workers, the deliberate inversion of a mind:
+  `architecture/agents/coder.archml` is the one-screen example, `coder-flagship.archml`
+  the full envelope (service mode, bounded context, parallel sub-agents). See
+  [doc/agents.md](doc/agents.md).
+- **Societies** — minds wired together, experimental and honestly documented:
+  `architecture/lab/duet.archml` (prover ↔ checker) up to the six-mind
+  `noosphere-lab.archml`. See [doc/societies.md](doc/societies.md).
 
 ## Documentation
 
@@ -101,8 +111,12 @@ jargon word — burst, salience, efference, vault — in one plain line).
 - [Getting started](doc/getting-started.md) — install, run the Studio, talk to it, dry run
 - [The Studio](doc/studio.md) — wake, watch, speak to, and sleep minds from the browser
 - [Configuration](doc/configuration.md) — write and tune a `.archml` mind
+- [Agents](doc/agents.md) — the tool-calling twin of a mind; [Societies](doc/societies.md) — minds wired together
 - [Architecture](doc/architecture/index.md) — bursts, the attention frame, the loop — and [memory & the vault](doc/architecture/memory.md), [interrupts & observers](doc/architecture/interrupts.md), the [component reference](doc/architecture/components.md)
+- [Extending](doc/extending.md) — write your own components, hands, and tools without touching `src/`
 - [WebSocket API](doc/websocket-api.md) — the live stream protocol on port 7627
+- [Troubleshooting & FAQ](doc/troubleshooting.md) — real symptoms, real fixes
+- [Research findings](doc/research/index.md) — the scorings, reviews, and open problems
 
 ## The covenant
 

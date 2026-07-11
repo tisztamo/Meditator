@@ -179,6 +179,12 @@ The example mind (`architecture/lab/seedling.archml`) wires:
 | [`m-console`](components.md#m-console) | terminal input/output |
 | [`m-ws`](../websocket-api.md) | the WebSocket stream and input on port 7627 |
 
+The same runtime runs two more shapes declared in the same language: **agents**
+(`<m-agent>` — the tool-calling inversion of a mind; [guide](../agents.md),
+[reference](components.md#agent-components-m-agent-and-its-parts)) and
+**societies** (minds wired together through `m-society` / `m-ear` / `m-commons`;
+[guide](../societies.md)).
+
 Read on:
 
 - [Memory & the vault](memory.md) — how thought is compressed and persisted.
