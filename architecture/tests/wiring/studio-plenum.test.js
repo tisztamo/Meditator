@@ -6,7 +6,7 @@
 // deposit infoton co-location heat between their endpoints.
 import "./setup.js";
 import { test, expect } from "bun:test";
-import { buildGraph, familyOf, StudioPlenum, PALETTE } from "../../../src/studio/ui/studioPlenum.js";
+import { buildGraph, familyOf, shapeOf, StudioPlenum, PALETTE } from "../../../src/studio/ui/studioPlenum.js";
 
 void StudioPlenum;   // importing the module registers <studio-plenum>
 
@@ -133,6 +133,71 @@ test("economy, loop, speaking and speech captions become that cluster's field st
   expect(s.speaking).toBe(false);
 });
 
+test("every faculty renders as its family glyph — shape is the second identity channel", () => {
+  const g = buildGraph(societyTree);
+  const shape = (member, tag) => g.byKey.get(`${member}#${tag}`).shape;
+  expect(shape("synthesis", "m-mind")).toBe("self");
+  expect(g.hub.shape).toBe("hub");
+  expect(shape("synthesis", "m-stream")).toBe("star");
+  expect(shape("synthesis", "m-memory")).toBe("slab");
+  expect(shape("synthesis", "m-interrupts")).toBe("diamond");
+  expect(shape("synthesis", "m-ear")).toBe("ring");
+  expect(shape("synthesis", "m-act")).toBe("delta");
+  expect(shape("synthesis", "m-terminal")).toBe("delta");
+  // Unknown leaves under m-act read as hands; anything else as attention-adjacent.
+  expect(shapeOf("m-custom-hand", familyOf("m-custom-hand", "m-act"))).toBe("delta");
+  expect(shapeOf("m-economy", familyOf("m-economy"))).toBe("cell");
+});
+
+test("events accumulate a capped per-faculty feed and a live status line (structure-pane parity)", () => {
+  const el = mount();
+  el.onEvent({ process: "memory", kind: "state", member: "calculus", tailLen: 1200, recentLen: 3400, storyLen: 900 });
+  expect(el.nByTag("calculus", "m-memory").stat).toBe("tail 1.2k · rec 3.4k · sto 900");
+  el.onEvent({ process: "stream", kind: "boundary", member: "calculus", burstIndex: 1, burstChars: 500, reason: "completed" });
+  const stream = el.nByTag("calculus", "m-stream");
+  expect(stream.stat).toBe("#1 completed");
+  expect(stream.feed.length).toBe(1);
+  expect(stream.feed[0].cls).toBe("good");
+  expect(stream.feed[0].text).toContain("burst #1");
+  for (let i = 2; i <= 42; i++) el.onEvent({ process: "stream", kind: "boundary", member: "calculus", burstIndex: i, burstChars: 10, reason: "completed" });
+  expect(stream.feed.length).toBe(30);                       // capped, oldest dropped
+  expect(stream.feed[29].text).toContain("burst #42");
+});
+
+test("selecting a faculty pins the live inspector: attrs, vitals, feed, and the self's last frame", () => {
+  const el = mount();
+  el.onEvent({ process: "economy", kind: "energy", member: "synthesis", energy: 0.7, spent: 0.02 });
+  el.onEvent({ process: "mind", kind: "frame", member: "synthesis", frameKind: "waking", system: "sys prompt", instruction: "inst", frame: "the tail" });
+  el.selected = el.nByTag("synthesis", "m-mind");
+  el._info();
+  expect(el.infoEl.hidden).toBe(false);
+  expect(el.infoEl.classList.contains("pinned")).toBe(true);
+  expect(el.infoEl.innerHTML).toContain("synthesis");
+  expect(el.infoEl.innerHTML).toContain("energy");
+  expect(el.infoEl.innerHTML).toContain("70%");
+  expect(el.infoEl.innerHTML).toContain("last frame · waking");
+  // A new event on the node re-renders (the version key moved).
+  el.onEvent({ process: "attention", kind: "decision", member: "synthesis", accepted: true, type: "Peer", why: "salient" });
+  el._info();
+  expect(el.infoEl.innerHTML).toContain("frame: waking");    // the self's stat line
+  // The close button deselects.
+  el.infoEl.querySelector(".pl-x").click();
+  expect(el.selected).toBeNull();
+  expect(el.infoEl.hidden).toBe(true);
+});
+
+test("hover without selection shows the compact glance, not the pinned card", () => {
+  const el = mount();
+  const ear = el.nByTag("calculus", "m-ear");
+  el.onEvent({ process: "attention", kind: "bid", member: "calculus", type: "Peer", salience: 0.5, reason: "hi" });
+  el.hover = ear;
+  el._info();
+  expect(el.infoEl.hidden).toBe(false);
+  expect(el.infoEl.classList.contains("pinned")).toBe(false);
+  expect(el.infoEl.querySelector(".pl-x")).toBeNull();
+  expect(el.infoEl.innerHTML).toContain("bid 0.50");
+});
+
 test("a deed pulses hands → capability leaf → mind, colored by outcome", () => {
   const el = mount();
   el.onEvent({ process: "act", kind: "acted", member: "synthesis", capability: "terminal", ok: true, experience: "2+2 returned 4" });
@@ -143,4 +208,31 @@ test("a deed pulses hands → capability leaf → mind, colored by outcome", () 
   expect(el.pulses[1].b.tag).toBe("m-mind");
   expect(el.pulses[1].color).toBe(PALETTE.good);
   expect(leaf.last).toContain("2+2 returned 4");
+});
+
+test("the full render pass runs against a recording context — glyphs, chart, reticle and labels all draw", () => {
+  const el = mount();
+  // A recording 2D context: every method counts its calls, gradients are inert.
+  const calls = {};
+  const count = name => (...a) => { calls[name] = (calls[name] || 0) + 1; void a; };
+  const ctx = new Proxy({}, {
+    get: (t, k) => {
+      if (k === "createRadialGradient") return () => ({ addColorStop() {} });
+      if (!t[k]) t[k] = count(k);
+      return t[k];
+    },
+    set: () => true,                                     // fillStyle etc. are write-only
+  });
+  el.ctx = ctx; el._w = 800; el._h = 500; el._dpr = 1;
+  el.onEvent({ process: "economy", kind: "energy", member: "synthesis", energy: 0.4, spent: 0.01 });
+  el.onEvent({ process: "speech", kind: "speaking", member: "calculus", speaking: true });
+  el.onEvent({ process: "act", kind: "acted", member: "synthesis", capability: "terminal", ok: true });
+  el.selected = el.nByTag("synthesis", "m-mind");
+  for (let i = 0; i < 5; i++) el._step(16.7);            // settle a few physics steps
+  el._draw(16.7, 1000);                                  // must not throw
+  expect(calls.ellipse).toBeGreaterThan(0);              // self rings + plumb markers
+  expect(calls.arcTo).toBeGreaterThan(0);                // slab / battery rounded rects
+  expect(calls.fillText).toBeGreaterThan(0);             // labels + the plate's degrees
+  expect(calls.setLineDash).toBeGreaterThan(0);          // plumb lines + selection ring
+  expect(calls.stroke).toBeGreaterThan(50);              // rings, spokes, edges, glyph outlines
 });

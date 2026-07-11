@@ -21,6 +21,12 @@ import { esc, fmt, clock, command } from "./helpers.js";
  *   - THE SELF AS ANCHOR (D9): each m-mind node is pinned to its home position;
  *     its faculties arrange themselves around it.
  *
+ * The scene reads as an OBSERVATORY PLATE: every faculty family owns a glyph
+ * silhouette (shape is the second identity channel besides color — it survives
+ * where hues blur), the constellation hangs above a surveyed ground reticle each
+ * mind drops a plumb line to, and clicking a faculty pins a live inspector card
+ * carrying the same feed/stats the structure pane keeps.
+ *
  * It is deliberately a prototype renderer (Canvas 2D, painter's algorithm, O(n²)
  * physics): tuned to look great for a ~6-mind society, not to scale.
  *
@@ -68,6 +74,39 @@ export function familyOf(tag, parentTag) {
   return "attention";
 }
 
+// Family glyphs — the second identity channel. Every family owns a silhouette:
+// the self is a ringed planet, the commons a hexagonal plaza, consciousness a
+// four-point star, memory a rounded slab, attention a diamond, the membrane an
+// open ring (a boundary), hands a delta, and metabolism a battery cell whose
+// live fill IS the mind's energy.
+const SHAPE = {
+  mind: "self", commons: "hub", stream: "star", memory: "slab",
+  attention: "diamond", membrane: "ring", hands: "delta", economy: "cell",
+};
+
+/** The glyph a node renders as (self/hub/star/slab/diamond/ring/delta/cell). */
+export function shapeOf(tag, family) {
+  if (tag === "m-mind" || tag === "m-agent" || tag === "m-society") return "self";
+  if (tag === "m-commons") return "hub";
+  return SHAPE[family] || "diamond";
+}
+
+// The same silhouettes as 14×14 inline SVG (legend chips + the inspector header),
+// authored with currentColor so one string serves every family hue.
+const GLYPH_SVG = {
+  self:    `<circle cx="7" cy="7" r="2.7" fill="currentColor"/><ellipse cx="7" cy="7" rx="6.1" ry="2.2" fill="none" stroke="currentColor" stroke-width="1" transform="rotate(-17 7 7)"/>`,
+  hub:     `<polygon points="7,1.4 11.9,4.2 11.9,9.8 7,12.6 2.1,9.8 2.1,4.2" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="7" cy="7" r="1.7" fill="currentColor"/>`,
+  star:    `<path d="M7 .9 L8.8 5.2 L13.1 7 L8.8 8.8 L7 13.1 L5.2 8.8 L.9 7 L5.2 5.2 Z" fill="currentColor"/>`,
+  slab:    `<rect x="2.6" y="2.6" width="8.8" height="8.8" rx="2.5" fill="currentColor"/>`,
+  diamond: `<polygon points="7,1.3 12.7,7 7,12.7 1.3,7" fill="currentColor"/>`,
+  ring:    `<circle cx="7" cy="7" r="4.3" fill="none" stroke="currentColor" stroke-width="2.6"/>`,
+  delta:   `<polygon points="7,1.7 12.5,11.8 1.5,11.8" fill="currentColor"/>`,
+  cell:    `<rect x="4.5" y="3.2" width="5" height="9.2" rx="1.7" fill="none" stroke="currentColor" stroke-width="1.1"/><rect x="5.7" y="7.4" width="2.6" height="3.8" rx="1" fill="currentColor"/><rect x="5.8" y="1.3" width="2.4" height="1.5" fill="currentColor"/>`,
+};
+
+const glyphSVG = (shape, color, cls = "") =>
+  `<svg class="${cls}" viewBox="0 0 14 14" style="color:${color}" aria-hidden="true">${GLYPH_SVG[shape] || GLYPH_SVG.diamond}</svg>`;
+
 /** Deterministic 0..1 from a string — stable node jitter across rebuilds. */
 function hash01(s) {
   let h = 2166136261;
@@ -98,10 +137,12 @@ export function buildGraph(tree) {
     const family = familyOf(t.tag, parent ? parent.tag : null);
     const node = {
       idx: g.nodes.length, id, tag: t.tag, name: t.name || null, member,
-      family, color: PALETTE[family], r: nodeRadius(t.tag, depth), depth,
+      family, color: PALETTE[family], shape: shapeOf(t.tag, family),
+      r: nodeRadius(t.tag, depth), depth,
       attrs: t.attrs || {}, cluster,
       x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0,
       anchor: null, auth: null, heat: 0, last: null,
+      feed: [], stat: null, v: 0,                      // live inspector state
       sx: 0, sy: 0, sz: 0, scale: 1,                   // projected, per frame
     };
     g.nodes.push(node);
@@ -120,7 +161,7 @@ export function buildGraph(tree) {
   const newCluster = member => {
     const c = { member, anchor: null, ax: 0, ay: 0, az: 0, nodes: [],
       energy: null, spent: null, speaking: false, loop: null, bursts: 0,
-      mem: null, caption: null };
+      mem: null, caption: null, frame: null, v: 0 };
     g.clusters.push(c);
     return c;
   };
@@ -191,9 +232,11 @@ export class StudioPlenum extends A(HTMLElement) {
   onConnect() {
     this.innerHTML = `
       <canvas></canvas>
+      <div class="pl-corners"></div>
       <div class="pl-top">
         <button class="pl-back" type="button" aria-label="Close the plenum">‹ Back</button>
         <div class="pl-title">
+          <span class="pl-mark">◉ PLENUM</span>
           <span class="pl-name">no mind in focus</span>
           <span class="pl-kind" hidden></span>
         </div>
@@ -201,7 +244,8 @@ export class StudioPlenum extends A(HTMLElement) {
       </div>
       <div class="pl-legend"></div>
       <div class="pl-info" hidden></div>
-      <div class="pl-hint">drag to orbit · scroll to zoom · hover a faculty · chatty faculties drift together</div>`;
+      <div class="pl-plate"></div>
+      <div class="pl-hint">drag to orbit · scroll to zoom · click a faculty to inspect it live</div>`;
     this.canvas = this.querySelector("canvas");
     // No 2D context under jsdom (tests) — the graph/event logic still runs; only
     // the render loop needs the context (and rAF), so both are gated on it.
@@ -211,13 +255,15 @@ export class StudioPlenum extends A(HTMLElement) {
     this.kindEl = this.querySelector(".pl-kind");
     this.metaEl = this.querySelector(".pl-meta");
     this.infoEl = this.querySelector(".pl-info");
+    this.plateEl = this.querySelector(".pl-plate");
     this.legendEl = this.querySelector(".pl-legend");
-    this.legendEl.innerHTML = [
-      ["stream", "consciousness"], ["memory", "memory"], ["attention", "attention"],
-      ["membrane", "voice & senses"], ["hands", "hands"], ["economy", "metabolism"],
-    ].map(([f, label]) => `<span class="pl-chip"><i style="background:${PALETTE[f]}"></i>${label}</span>`).join("");
+    this._legend();
 
     this.querySelector(".pl-back").addEventListener("click", () => this.close());
+    // The inspector's deselect button (the card is pointer-events:auto only when pinned).
+    this.infoEl.addEventListener("click", e => {
+      if (e.target.closest && e.target.closest(".pl-x")) { this.selected = null; this._info(true); }
+    });
     this._onKey = e => { if (e.key === "Escape" && this.active) this.close(); };
     if (typeof document !== "undefined") document.addEventListener("keydown", this._onKey);
 
@@ -295,13 +341,15 @@ export class StudioPlenum extends A(HTMLElement) {
     this.graph = buildGraph(this.tree);
     for (const n of this.graph.nodes) {
       const o = old.get(`${n.member || ""}/${n.tag}/${n.name || ""}`);
-      if (o) { n.x = o.x; n.y = o.y; n.z = o.z; n.heat = o.heat; n.last = o.last; }
+      if (o) { n.x = o.x; n.y = o.y; n.z = o.z; n.heat = o.heat; n.last = o.last; n.feed = o.feed; n.stat = o.stat; n.v = o.v; }
     }
     this.pulses = [];
     this.rings = [];
     this.pairHeat = new Map();
     this.selected = null;
     this.hover = null;
+    this._infoKey = null;
+    this._legend();
     if (!this._dust) {
       this._dust = [];
       for (let i = 0; i < 150; i++) {
@@ -311,6 +359,20 @@ export class StudioPlenum extends A(HTMLElement) {
       }
     }
     this._header();
+  }
+
+  /** The glyph legend — shape + hue per family; the commons chip only when a hub exists. */
+  _legend() {
+    if (!this.legendEl) return;
+    const rows = [
+      ["mind", "self", "the self"],
+      ...(this.graph.hub ? [["commons", "hub", "commons"]] : []),
+      ["stream", "star", "consciousness"], ["memory", "slab", "memory"],
+      ["attention", "diamond", "attention"], ["membrane", "ring", "voice & senses"],
+      ["hands", "delta", "hands"], ["economy", "cell", "metabolism"],
+    ];
+    this.legendEl.innerHTML = `<span class="pl-legend-h">faculties</span>` +
+      rows.map(([f, s, label]) => `<span class="pl-chip">${glyphSVG(s, PALETTE[f])}${label}</span>`).join("");
   }
 
   _focusedEntry() { return this.roster.find(x => x.id === this.focusedId) || null; }
@@ -407,7 +469,21 @@ export class StudioPlenum extends A(HTMLElement) {
     this.rings.push({ node, t: 0, dur, color, kind });
   }
 
-  note(node, text) { if (node) node.last = `${clock()} ${text}`; }
+  /** A per-faculty event line — the same feed the structure pane keeps, held on
+   *  the node so selecting it in space replays its live history. */
+  note(node, text, cls) {
+    if (!node) return;
+    node.feed.push({ t: clock(), text, cls: cls || "" });
+    if (node.feed.length > 30) node.feed.shift();
+    node.last = `${clock()} ${text}`;
+    node.v++;
+  }
+
+  /** The node's one-line live status (the structure pane's summary stat). */
+  stat(node, text) { if (node) { node.stat = text; node.v++; } }
+
+  /** Cluster-level state changed (energy, memory, loop…): nudge the inspector. */
+  poke(cl) { if (cl) cl.v++; }
 
   onFragment(f) {
     if (!f) return;
@@ -427,9 +503,10 @@ export class StudioPlenum extends A(HTMLElement) {
     // The loop sense: its payload's own `kind` (presence/content/void/…) overwrites
     // the route kind in m-ws's _emit spread, so match on the process alone.
     if (d.process === "loop") {
-      if (cl) cl.loop = d.active ? { kind: d.kind, vocabulary: d.vocabulary || [] } : null;
+      if (cl) { cl.loop = d.active ? { kind: d.kind, vocabulary: d.vocabulary || [] } : null; this.poke(cl); }
       const det = this.nByTag(member, "m-loop-detector");
-      if (d.active) this.note(det, `loop: ${d.kind} — ${clip((d.vocabulary || []).join(", "))}`);
+      if (d.active) this.note(det, `loop: ${d.kind} — ${clip((d.vocabulary || []).join(", "))}`, "bad");
+      this.stat(det, d.active ? `⟳ ${d.kind}` : "clear");
       this.heatUp(det, d.active ? 0.6 : 0.1);
       return;
     }
@@ -438,12 +515,15 @@ export class StudioPlenum extends A(HTMLElement) {
       case "attention/bid": {
         const att = this.nByTag(member, "m-interrupts");
         const org = this.originNode(d.type, member);
+        const sal = typeof d.salience === "number" ? d.salience.toFixed(2) : "?";
+        const text = clip(d.type === "UserInput" ? d.reason : (d.text || d.reason));
         // A heard peer arcs in from the commons hub through the ear — the
         // society's cross-talk made visible.
         if (d.type === "Peer" && this.graph.hub) this.pulse(this.graph.hub, org || att, PALETTE.membrane, 1.3, 1100);
         if (org && att) this.pulse(org, att, PALETTE.attention, 0.7 + Math.min(0.7, d.salience || 0));
         else this.heatUp(att || org, 0.3);
-        this.note(org || att, `bid ${typeof d.salience === "number" ? d.salience.toFixed(2) : "?"} — ${clip(d.type === "UserInput" ? d.reason : (d.text || d.reason))}`);
+        this.note(org || att, `bid ${sal} — ${text}`);
+        if (att && org && org !== att) this.note(att, `${d.urgent ? "⚡" : ""}${d.type || "?"} ${sal} — ${text}`);
         break;
       }
       case "attention/urgent": {
@@ -451,52 +531,66 @@ export class StudioPlenum extends A(HTMLElement) {
         const org = this.originNode(d.type, member);
         this.pulse(org || att, mind, "#ffffff", 1.6, 600);
         this.ring(att || mind, PALETTE.attention, "spark");
-        this.note(att, `URGENT ${d.type}: ${clip(d.reason || d.text)}`);
+        this.note(att, `URGENT ${d.type}: ${clip(d.reason || d.text)}`, "warn");
         break;
       }
       case "attention/decision": {
         const att = this.nByTag(member, "m-interrupts");
         if (d.accepted) this.pulse(att, mind, PALETTE.good, 1.2);
         else this.ring(att, PALETTE.bad, "spark", 450);
-        this.note(att, `${d.accepted ? "✓" : "✕"} ${d.type || ""} — ${clip(d.why)}`);
+        this.note(att, `${d.accepted ? "✓" : "✕"} ${d.type || ""} — ${clip(d.why)}`, d.accepted ? "good" : "drop");
+        this.stat(att, d.accepted ? `✓ ${d.type || ""}` : `✕ ${clip(d.why)}`);
         break;
       }
       case "stream/boundary": {
         const stream = this.nByTag(member, "m-stream");
         this.ring(stream, PALETTE.stream, "burst");
         this.pulse(stream, this.nByTag(member, "m-memory"), PALETTE.memory, 0.6, 1100);
-        if (cl) cl.bursts++;
-        this.note(stream, `burst #${d.burstIndex} · ${fmt(d.burstChars)}c · ${d.reason}`);
+        if (cl) { cl.bursts++; this.poke(cl); }
+        this.note(stream, `burst #${d.burstIndex} · ${fmt(d.burstChars)}c · ${d.reason}`,
+          d.reason === "completed" ? "good" : d.reason === "error" ? "bad" : "");
+        this.stat(stream, `#${d.burstIndex} ${d.reason}`);
         break;
       }
       case "mind/frame": {
         this.pulse(this.nByTag(member, "m-memory"), mind, PALETTE.memory, 0.4, 1200);
+        // Keep the whole assembled frame — the inspector shows it for the self
+        // node, like the structure pane's frame box.
+        if (cl) { cl.frame = { kind: d.frameKind, system: d.system, instruction: d.instruction, frame: d.frame }; this.poke(cl); }
+        this.stat(mind, `frame: ${d.frameKind || "?"}`);
         break;
       }
       case "memory/state": {
-        if (cl) cl.mem = { tail: d.tailLen, recent: d.recentLen, story: d.storyLen };
+        if (cl) { cl.mem = { tail: d.tailLen, recent: d.recentLen, story: d.storyLen }; this.poke(cl); }
+        this.stat(this.nByTag(member, "m-memory"), `tail ${fmt(d.tailLen)} · rec ${fmt(d.recentLen)} · sto ${fmt(d.storyLen)}`);
         break;
       }
       case "memory/compressed": {
         const mem = this.nByTag(member, "m-memory");
         this.ring(mem, PALETTE.memory, "implode", 900);
-        this.note(mem, `consolidated → recent ${fmt(d.recentLen)}c · story ${fmt(d.storyLen)}c`);
+        this.note(mem, `consolidated → recent ${fmt(d.recentLen)}c · story ${fmt(d.storyLen)}c`, "good");
         break;
       }
       case "economy/energy": {
-        if (cl) { cl.energy = typeof d.energy === "number" ? d.energy : cl.energy; cl.spent = d.spent; }
-        this.heatUp(this.nByTag(member, "m-economy"), 0.06);
+        if (cl) { cl.energy = typeof d.energy === "number" ? d.energy : cl.energy; cl.spent = d.spent; this.poke(cl); }
+        const econ = this.nByTag(member, "m-economy");
+        const e = typeof d.energy === "number" ? d.energy : 1;
+        this.stat(econ, `${e.toFixed(2)}${typeof d.spent === "number" ? ` · $${d.spent.toFixed(3)}` : ""} · pace x${d.paceFactor || 1}`);
+        this.heatUp(econ, 0.06);
         break;
       }
       case "speech/impulse": {
         const voice = this.nByTag(member, "m-speech");
+        const sal = typeof d.salience === "number" ? d.salience.toFixed(2) : "?";
         if (d.accepted) this.pulse(mind, voice, PALETTE.attention, 1);
         else this.ring(voice, PALETTE.attention, "spark", 400);
-        this.note(voice, `impulse ${typeof d.salience === "number" ? d.salience.toFixed(2) : "?"} ${d.accepted ? "✓" : "— quiet"}${d.gist ? ": " + clip(d.gist) : ""}`);
+        this.note(voice, `impulse ${sal} ${d.accepted ? "✓" : "— quiet"}${d.gist ? ": " + clip(d.gist) : ""}`, d.accepted ? "warn" : "drop");
+        this.stat(voice, `${sal} ${d.accepted ? "✓" : "✕"}`);
         break;
       }
       case "speech/speaking": {
-        if (cl) cl.speaking = !!d.speaking;
+        if (cl) { cl.speaking = !!d.speaking; this.poke(cl); }
+        this.note(this.nByTag(member, "m-speech"), d.speaking ? "started speaking" : "stopped speaking", d.speaking ? "warn" : "");
         break;
       }
       case "speech/boundary": {
@@ -505,13 +599,15 @@ export class StudioPlenum extends A(HTMLElement) {
         this.pulse(voice, out, PALETTE.attention, 1.6, 1200);
         this.ring(voice, PALETTE.attention, "burst", 900);
         if (cl && d.text) cl.caption = { text: clip(d.text) + ((d.text || "").length > 90 ? "…" : ""), t: 0, dur: 7000 };
-        this.note(voice, `said ${fmt(d.chars)}c — ${clip(d.text)}`);
+        this.note(voice, `said ${fmt(d.chars)}c — ${clip(d.text)}`, "good");
         break;
       }
       case "act/intent": {
         const hands = this.nByTag(member, "m-act");
+        const sal = typeof d.salience === "number" ? d.salience.toFixed(2) : "?";
         if (d.accepted) this.pulse(mind, hands, PALETTE.hands, 1);
-        this.note(hands, `intent ${typeof d.salience === "number" ? d.salience.toFixed(2) : "?"} ${d.accepted ? "✓" : "— quiet"}${d.gist ? ": " + clip(d.gist) : ""}`);
+        this.note(hands, `intent ${sal} ${d.accepted ? "✓" : "— quiet"}${d.gist ? ": " + clip(d.gist) : ""}`, d.accepted ? "warn" : "drop");
+        this.stat(hands, `${sal} ${d.accepted ? "✓" : "✕"}`);
         break;
       }
       case "act/acted": {
@@ -520,24 +616,47 @@ export class StudioPlenum extends A(HTMLElement) {
         this.pulse(hands, leaf, PALETTE.hands, 1.2);
         this.pulse(leaf, mind, d.ok ? PALETTE.good : PALETTE.bad, 1.2, 1200);
         this.ring(leaf, d.ok ? PALETTE.good : PALETTE.bad, "spark");
-        this.note(leaf, `✋ ${d.capability}${d.experience ? " — " + clip(d.experience) : d.ok ? "" : " (slipped)"}`);
+        this.note(leaf, `✋ ${d.capability}${d.experience ? " — " + clip(d.experience) : d.ok ? "" : " (slipped)"}`, d.ok ? "good" : "bad");
+        this.stat(hands, `✋ ${d.capability}`);
         break;
       }
       case "scribe/filed": {
         const kb = this.nByTag(member, "m-kb");
         this.ring(kb, PALETTE.memory, "spark");
-        this.note(kb, `filed: ${clip((d.files || []).join(", "))}`);
+        this.note(kb, `filed: ${clip((d.files || []).join(", "))}`, "good");
+        this.stat(kb, `filed ${(d.files || []).length}`);
         break;
       }
-      case "image/generating": this.heatUp(this.nByTag(member, "m-image"), d.generating ? 0.8 : 0.1); break;
-      case "image/generated": this.ring(this.nByTag(member, "m-image"), PALETTE.membrane, "burst"); break;
-      case "image/error": this.ring(this.nByTag(member, "m-image"), PALETTE.bad, "spark"); break;
+      case "image/generating": {
+        const img = this.nByTag(member, "m-image");
+        this.heatUp(img, d.generating ? 0.8 : 0.1);
+        this.note(img, d.generating ? "started image generation" : "finished image generation", d.generating ? "warn" : "");
+        break;
+      }
+      case "image/generated": {
+        const img = this.nByTag(member, "m-image");
+        this.ring(img, PALETTE.membrane, "burst");
+        this.note(img, `generated ${d.size || "image"} · ${d.model || ""}`, "good");
+        this.stat(img, d.size || "generated");
+        break;
+      }
+      case "image/error": {
+        const img = this.nByTag(member, "m-image");
+        this.ring(img, PALETTE.bad, "spark");
+        this.note(img, `error: ${clip(d.message) || "image generation failed"}`, "bad");
+        break;
+      }
       case "agent/step": {
         this.heatUp(mind, 0.5);
         this.note(mind, `step ${d.index}${(d.calls || []).length ? " — " + d.calls.map(c => c.name).join(", ") : ""}`);
+        this.stat(mind, `step ${d.index}`);
         break;
       }
-      case "agent/answer": this.ring(mind, PALETTE.good, "burst", 1200); break;
+      case "agent/answer": {
+        this.ring(mind, PALETTE.good, "burst", 1200);
+        this.note(mind, "answered", "good");
+        break;
+      }
     }
   }
 
@@ -671,6 +790,9 @@ export class StudioPlenum extends A(HTMLElement) {
       n.sx = p.sx; n.sy = p.sy; n.sz = p.sz; n.scale = p.scale;
     }
 
+    // The observatory plate the constellation hangs above — the scene's signature.
+    this._chart(ctx);
+
     // Per-mind chemical aura: energy sets the glow, a loop turns it crimson,
     // speaking warms it — the diffusing field of chora-imagined.md D5, painted.
     for (const c of g.clusters) {
@@ -765,7 +887,7 @@ export class StudioPlenum extends A(HTMLElement) {
       }
     }
 
-    // Nodes, far to near.
+    // Nodes, far to near — each a family glyph inside its colored glow.
     const order = [...g.nodes].sort((a, b) => b.sz - a.sz);
     for (const n of order) {
       const glowR = Math.max(1.5, n.r * n.scale * (2.6 + n.heat * 2.2));
@@ -775,8 +897,7 @@ export class StudioPlenum extends A(HTMLElement) {
       grad.addColorStop(1, "rgba(0,0,0,0)");
       ctx.fillStyle = grad;
       ctx.beginPath(); ctx.arc(n.sx, n.sy, glowR, 0, TAU); ctx.fill();
-      ctx.fillStyle = this._rgba("#ffffff", 0.75 + Math.min(0.25, n.heat));
-      ctx.beginPath(); ctx.arc(n.sx, n.sy, Math.max(0.8, n.r * n.scale * (0.62 + n.heat * 0.25)), 0, TAU); ctx.fill();
+      this._glyph(ctx, n);
     }
 
     ctx.globalCompositeOperation = "source-over";
@@ -814,9 +935,12 @@ export class StudioPlenum extends A(HTMLElement) {
       ctx.fillStyle = this._rgba(isAnchor ? "#e9e7e2" : n.color, alpha);
       ctx.fillText(label, n.sx, n.sy + (n.r * n.scale * 2.2) + size);
       if (active) {
-        ctx.strokeStyle = "rgba(255,255,255,.7)";
-        ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.arc(n.sx, n.sy, Math.max(3, n.r * n.scale * 1.35), 0, TAU); ctx.stroke();
+        this._reticle(ctx, n, now);
+        if (n.stat) {
+          ctx.font = `8.5px ui-monospace, Menlo, monospace`;
+          ctx.fillStyle = "rgba(153,161,180,.92)";
+          ctx.fillText(n.stat.slice(0, 40), n.sx, n.sy + (n.r * n.scale * 2.2) + size + 11);
+        }
       }
     }
 
@@ -847,11 +971,185 @@ export class StudioPlenum extends A(HTMLElement) {
       grad.addColorStop(1, "rgba(0,0,0,0)");
       ctx.fillStyle = grad;
       ctx.beginPath(); ctx.arc(p.sx, p.sy, R * 3.2, 0, TAU); ctx.fill();
+      // A distant self: the same ringed-planet glyph the mind anchors wear.
+      ctx.strokeStyle = this._rgba(col, 0.55);
+      ctx.lineWidth = Math.max(0.5, R * 0.16);
+      ctx.beginPath(); ctx.ellipse(p.sx, p.sy, R * 1.7, R * 0.6, -0.3, 0, TAU); ctx.stroke();
       ctx.fillStyle = this._rgba("#ffffff", 0.8);
       ctx.beginPath(); ctx.arc(p.sx, p.sy, R * 0.6, 0, TAU); ctx.fill();
       ctx.font = `10px ui-monospace, monospace`;
       ctx.fillStyle = this._rgba(col, o === this.hover ? 0.95 : 0.55);
       ctx.fillText(o.name, p.sx, p.sy + R * 3 + 10);
+    }
+  }
+
+  // ------------------------------------------------------------- the glyphs
+  /** A node's family silhouette: colored halo pass + white-hot core pass under
+   *  additive compositing, so identity stays shiny. */
+  _glyph(ctx, n) {
+    const bright = 0.78 + Math.min(0.22, n.heat);
+    const s = Math.max(1, n.r * n.scale * (1.05 + n.heat * 0.2));
+    switch (n.shape) {
+      case "self": {                                    // ringed planet — the anchor
+        ctx.strokeStyle = this._rgba(n.color, 0.6);
+        ctx.lineWidth = Math.max(0.6, 0.14 * s);
+        ctx.beginPath(); ctx.ellipse(n.sx, n.sy, s * 1.85, s * 0.6, -0.3, 0, TAU); ctx.stroke();
+        ctx.fillStyle = this._rgba(n.color, 0.5);
+        ctx.beginPath(); ctx.arc(n.sx, n.sy, s * 0.95, 0, TAU); ctx.fill();
+        ctx.fillStyle = this._rgba("#ffffff", bright);
+        ctx.beginPath(); ctx.arc(n.sx, n.sy, s * 0.68, 0, TAU); ctx.fill();
+        break;
+      }
+      case "hub": {                                     // hexagonal plaza — the commons
+        ctx.strokeStyle = this._rgba(n.color, 0.85);
+        ctx.lineWidth = Math.max(0.7, 0.2 * s);
+        this._poly(ctx, n.sx, n.sy, s * 1.5, 6, -Math.PI / 2); ctx.stroke();
+        ctx.fillStyle = this._rgba("#ffffff", bright);
+        ctx.beginPath(); ctx.arc(n.sx, n.sy, s * 0.5, 0, TAU); ctx.fill();
+        break;
+      }
+      case "ring": {                                    // open ring — the membrane
+        ctx.strokeStyle = this._rgba(n.color, 0.55);
+        ctx.lineWidth = Math.max(1, s * 0.8);
+        ctx.beginPath(); ctx.arc(n.sx, n.sy, s * 0.95, 0, TAU); ctx.stroke();
+        ctx.strokeStyle = this._rgba("#ffffff", bright);
+        ctx.lineWidth = Math.max(0.6, s * 0.36);
+        ctx.beginPath(); ctx.arc(n.sx, n.sy, s * 0.95, 0, TAU); ctx.stroke();
+        break;
+      }
+      case "cell": {                                    // battery — fill = live energy
+        const e = n.cluster && typeof n.cluster.energy === "number" ? n.cluster.energy : null;
+        const w = s * 1.5, h = s * 2.4, x = n.sx - w / 2, y = n.sy - h / 2;
+        ctx.fillStyle = this._rgba(n.color, 0.25);
+        this._rrect(ctx, x, y, w, h, w * 0.3); ctx.fill();
+        if (e != null) {
+          const fh = Math.max(1, (h - 2) * Math.max(0.06, Math.min(1, e)));
+          ctx.fillStyle = this._rgba(n.color, 0.95);
+          this._rrect(ctx, x + 1, y + h - 1 - fh, w - 2, fh, (w - 2) * 0.3); ctx.fill();
+        }
+        ctx.strokeStyle = this._rgba("#ffffff", bright * 0.9);
+        ctx.lineWidth = Math.max(0.5, s * 0.14);
+        this._rrect(ctx, x, y, w, h, w * 0.3); ctx.stroke();
+        ctx.fillStyle = this._rgba("#ffffff", bright);
+        ctx.fillRect(n.sx - w * 0.22, y - s * 0.32, w * 0.44, s * 0.28);
+        break;
+      }
+      default: {                                        // star / slab / diamond / delta
+        ctx.fillStyle = this._rgba(n.color, 0.55);
+        this._path(ctx, n.shape, n.sx, n.sy, s * 1.5); ctx.fill();
+        ctx.fillStyle = this._rgba("#ffffff", bright);
+        this._path(ctx, n.shape, n.sx, n.sy, s * 0.92); ctx.fill();
+      }
+    }
+  }
+
+  _path(ctx, shape, x, y, r) {
+    if (shape === "slab") { this._rrect(ctx, x - r * 0.85, y - r * 0.85, r * 1.7, r * 1.7, r * 0.5); return; }
+    ctx.beginPath();
+    if (shape === "star") {
+      const w = r * 0.3;
+      ctx.moveTo(x, y - r); ctx.lineTo(x + w, y - w); ctx.lineTo(x + r, y); ctx.lineTo(x + w, y + w);
+      ctx.lineTo(x, y + r); ctx.lineTo(x - w, y + w); ctx.lineTo(x - r, y); ctx.lineTo(x - w, y - w);
+    } else if (shape === "delta") {
+      ctx.moveTo(x, y - r); ctx.lineTo(x + r * 0.9, y + r * 0.72); ctx.lineTo(x - r * 0.9, y + r * 0.72);
+    } else {                                            // diamond (and the fallback)
+      ctx.moveTo(x, y - r); ctx.lineTo(x + r, y); ctx.lineTo(x, y + r); ctx.lineTo(x - r, y);
+    }
+    ctx.closePath();
+  }
+
+  _rrect(ctx, x, y, w, h, r) {
+    const rr = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
+    ctx.closePath();
+  }
+
+  _poly(ctx, x, y, r, sides, rot) {
+    ctx.beginPath();
+    for (let i = 0; i < sides; i++) {
+      const a = rot + (i / sides) * TAU;
+      i ? ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r) : ctx.moveTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
+    }
+    ctx.closePath();
+  }
+
+  /** The observatory plate: surveyed rings + spokes + degree ticks on a ground
+   *  plane below the constellation; each mind drops a plumb line to it. Points
+   *  that cross the near plane are dropped (the pen lifts), like the dust —
+   *  otherwise the clamped projection smears lines across the screen when
+   *  zoomed in. */
+  _chart(ctx) {
+    const Y = 170, NEAR = 80;
+    const proj = (r, a) => this._project(Math.cos(a) * r, Y, Math.sin(a) * r);
+    ctx.lineWidth = 1;
+    for (const [r, alpha] of [[90, .05], [170, .05], [260, .06], [360, .05], [470, .085]]) {
+      ctx.strokeStyle = `rgba(146,168,226,${alpha})`;
+      ctx.beginPath();
+      let pen = false;
+      for (let i = 0; i <= 72; i++) {
+        const p = proj(r, (i / 72) * TAU);
+        if (p.sz < NEAR) { pen = false; continue; }
+        pen ? ctx.lineTo(p.sx, p.sy) : ctx.moveTo(p.sx, p.sy);
+        pen = true;
+      }
+      ctx.stroke();
+    }
+    ctx.strokeStyle = "rgba(146,168,226,.035)";
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * TAU;
+      const p1 = proj(90, a), p2 = proj(470, a);
+      if (p1.sz < NEAR || p2.sz < NEAR) continue;
+      ctx.beginPath(); ctx.moveTo(p1.sx, p1.sy); ctx.lineTo(p2.sx, p2.sy); ctx.stroke();
+    }
+    ctx.strokeStyle = "rgba(146,168,226,.14)";
+    ctx.fillStyle = "rgba(146,168,226,.24)";
+    ctx.font = "9px ui-monospace, Menlo, monospace";
+    ctx.textAlign = "center";
+    for (let deg = 0; deg < 360; deg += 15) {
+      const a = (deg / 360) * TAU;
+      const p1 = proj(470, a), p2 = proj(deg % 90 === 0 ? 500 : 484, a);
+      if (p1.sz < NEAR || p2.sz < NEAR) continue;
+      ctx.beginPath(); ctx.moveTo(p1.sx, p1.sy); ctx.lineTo(p2.sx, p2.sy); ctx.stroke();
+      if (deg % 90 === 0) { const pt = proj(526, a); if (pt.sz >= NEAR) ctx.fillText(`${deg}°`, pt.sx, pt.sy); }
+    }
+    // Plumb lines: every mind anchored to the plate, with a ground marker.
+    for (const c of this.graph.clusters) {
+      const a = c.anchor; if (!a) continue;
+      const g0 = this._project(a.x, Y, a.z);
+      if (g0.sz < NEAR || a.sz < NEAR) continue;
+      ctx.strokeStyle = "rgba(146,168,226,.13)";
+      ctx.setLineDash([2, 5]);
+      ctx.beginPath(); ctx.moveTo(a.sx, a.sy); ctx.lineTo(g0.sx, g0.sy); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.strokeStyle = "rgba(146,168,226,.22)";
+      ctx.beginPath(); ctx.ellipse(g0.sx, g0.sy, 7 * g0.scale, 2.6 * g0.scale, 0, 0, TAU); ctx.stroke();
+    }
+  }
+
+  /** HUD corner ticks around the hovered node; the pinned selection also gets a
+   *  slowly orbiting dashed ring. */
+  _reticle(ctx, n, now) {
+    const R = Math.max(9, n.r * n.scale * 2.1);
+    const t = R * 0.45;
+    ctx.strokeStyle = "rgba(242,200,121,.9)";
+    ctx.lineWidth = 1;
+    for (const [dx, dy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+      const cx = n.sx + dx * R, cy = n.sy + dy * R;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - dy * t); ctx.lineTo(cx, cy); ctx.lineTo(cx - dx * t, cy);
+      ctx.stroke();
+    }
+    if (n === this.selected) {
+      ctx.strokeStyle = "rgba(242,200,121,.4)";
+      ctx.setLineDash([3, 6]);
+      ctx.lineDashOffset = -(now / 60) % 9;
+      ctx.beginPath(); ctx.arc(n.sx, n.sy, R * 1.35, 0, TAU); ctx.stroke();
+      ctx.setLineDash([]);
     }
   }
 
@@ -873,33 +1171,85 @@ export class StudioPlenum extends A(HTMLElement) {
     if (m && m.state) bits.push(m.state);
     if (this.orbs.length) bits.push(`${this.orbs.length} other${this.orbs.length > 1 ? "s" : ""} nearby`);
     this.metaEl.textContent = bits.join(" · ");
+    if (this.plateEl) {
+      const az = ((this._cam.theta * 180 / Math.PI) % 360 + 360) % 360;
+      this.plateEl.textContent =
+        `az ${String(Math.round(az)).padStart(3, "0")}° · alt ${Math.round(this._cam.phi * 180 / Math.PI)}° · r ${Math.round(this._cam.dist)} · ${this.pulses.length} signals`;
+    }
   }
 
-  _info() {
+  /**
+   * The inspector card. Hover shows a compact glance; CLICKING pins the full live
+   * card — attrs, vitals, the per-faculty event feed, and (for the self) the last
+   * assembled frame: the same live data the structure pane keeps, in space.
+   * Re-rendered only when the node's version moves, so the feed stays scrollable.
+   */
+  _info(force) {
     const n = this.selected || this.hover;
-    if (!n) { this.infoEl.hidden = true; return; }
-    this.infoEl.hidden = false;
-    if (n.isOrb) {
-      this.infoEl.innerHTML = `<b>${esc(n.name)}</b> <span class="pl-tag">${esc(n.state)}</span><div class="pl-last">another live mind — click to focus it</div>`;
+    if (!n) {
+      if (!this.infoEl.hidden) { this.infoEl.hidden = true; this.infoEl.classList.remove("pinned"); }
+      this._infoKey = null;
       return;
     }
-    const c = n.cluster;
-    const attrs = Object.entries(n.attrs || {}).filter(([k]) => k !== "name").slice(0, 6)
-      .map(([k, v]) => `<span class="pl-attr"><b>${esc(k)}</b> ${esc(String(v).slice(0, 40))}</span>`).join("");
-    let stats = "";
-    if ((n.tag === "m-mind" || n.tag === "m-agent") && c) {
-      const parts = [];
-      if (typeof c.energy === "number") parts.push(`energy ${c.energy.toFixed(2)}${typeof c.spent === "number" ? ` · $${c.spent.toFixed(3)}` : ""}`);
-      if (c.bursts) parts.push(`${c.bursts} bursts`);
-      if (c.mem) parts.push(`tail ${fmt(c.mem.tail)} · story ${fmt(c.mem.story)}`);
-      if (c.loop) parts.push(`⟳ looping (${esc(c.loop.kind)})`);
-      if (c.speaking) parts.push(`🗣 speaking`);
-      if (parts.length) stats = `<div class="pl-stats">${parts.join(" · ")}</div>`;
+    const pinned = n === this.selected;
+    const key = n.isOrb ? `orb/${n.id}/${n.state}` : `${n.id}/${n.v}/${n.cluster ? n.cluster.v : 0}/${pinned ? 1 : 0}`;
+    if (!force && key === this._infoKey) return;
+    this._infoKey = key;
+    this.infoEl.hidden = false;
+    this.infoEl.classList.toggle("pinned", pinned);
+    if (n.isOrb) {
+      this.infoEl.style.borderLeftColor = "";
+      this.infoEl.innerHTML = `<div class="pl-head">${glyphSVG("self", PALETTE.commons, "pl-glyph")}<b>${esc(n.name)}</b> <span class="pl-tag">${esc(n.state)}</span></div><div class="pl-last">another live mind — click to focus it</div>`;
+      return;
     }
-    this.infoEl.innerHTML =
-      `<b>${esc(n.name || n.tag)}</b> <span class="pl-tag">${esc(n.tag)}</span>${n.member ? ` <span class="pl-member">${esc(n.member)}</span>` : ""}` +
-      (attrs ? `<div class="pl-attrs">${attrs}</div>` : "") + stats +
-      (n.last ? `<div class="pl-last">${esc(n.last)}</div>` : "");
+    // Preserve what the reader had open before replacing the card's DOM.
+    const oldFeed = this.infoEl.querySelector(".pl-feed");
+    const feedScroll = oldFeed ? oldFeed.scrollTop : 0;
+    const frameOpen = !!(this.infoEl.querySelector(".pl-frame") || {}).open;
+
+    const c = n.cluster;
+    const head =
+      `<div class="pl-head">${glyphSVG(n.shape, n.color, "pl-glyph")}<b>${esc(n.name || n.tag)}</b>` +
+      `<span class="pl-tag">${esc(n.tag)}</span>${n.member ? `<span class="pl-member">${esc(n.member)}</span>` : ""}` +
+      (pinned ? `<button class="pl-x" type="button" aria-label="Deselect">×</button>` : "") + `</div>`;
+    const attrs = Object.entries(n.attrs || {}).filter(([k]) => k !== "name").slice(0, pinned ? 24 : 6)
+      .map(([k, v]) => `<span class="pl-attr"><b>${esc(k)}</b> ${esc(String(v).slice(0, 60))}</span>`).join("");
+    let vitals = "";
+    if (n.shape === "self" && c) {
+      const rows = [];
+      if (typeof c.energy === "number") {
+        const pct = Math.round(c.energy * 100);
+        rows.push(["energy", `<span class="pl-bar"><i style="width:${Math.max(2, Math.min(100, pct))}%"></i></span> ${pct}%${typeof c.spent === "number" ? ` · $${c.spent.toFixed(3)}` : ""}`]);
+      }
+      if (c.bursts) rows.push(["bursts", `${c.bursts}`]);
+      if (c.mem) rows.push(["memory", `tail ${fmt(c.mem.tail)} · recent ${fmt(c.mem.recent)} · story ${fmt(c.mem.story)}`]);
+      if (c.loop) rows.push(["loop", `<span class="bad">⟳ ${esc(c.loop.kind)}</span>`]);
+      if (c.speaking) rows.push(["voice", `<span class="warn">speaking</span>`]);
+      if (rows.length) vitals = `<div class="pl-vitals">${rows.map(([k, v]) => `<span class="pl-vk">${k}</span><span class="pl-vv">${v}</span>`).join("")}</div>`;
+    }
+    const stat = n.stat ? `<div class="pl-stat">${esc(n.stat)}</div>` : "";
+    let feed = "";
+    if (pinned) {
+      feed = n.feed.length
+        ? `<div class="pl-feed">${[...n.feed].reverse().map(e =>
+            `<div class="pl-ev ${e.cls}"><span class="t">${e.t}</span> ${esc(e.text)}</div>`).join("")}</div>`
+        : `<div class="pl-quiet">no events yet — this faculty hasn't spoken up</div>`;
+    } else if (n.last) {
+      feed = `<div class="pl-last">${esc(n.last)}</div>`;
+    }
+    let frame = "";
+    if (pinned && n.shape === "self" && c && c.frame) {
+      const body = [
+        c.frame.system ? `— system —\n${c.frame.system}` : "",
+        c.frame.instruction ? `— user (instruction) —\n${c.frame.instruction}` : "",
+        c.frame.frame ? `— assistant (continuing) —\n${c.frame.frame}` : "",
+      ].filter(Boolean).join("\n\n");
+      frame = `<details class="pl-frame"${frameOpen ? " open" : ""}><summary>last frame · ${esc(c.frame.kind || "?")}</summary><pre>${esc(body)}</pre></details>`;
+    }
+    this.infoEl.style.borderLeftColor = n.color;
+    this.infoEl.innerHTML = head + (attrs ? `<div class="pl-attrs">${attrs}</div>` : "") + vitals + stat + feed + frame;
+    const newFeed = this.infoEl.querySelector(".pl-feed");
+    if (newFeed && feedScroll) newFeed.scrollTop = feedScroll;
   }
 
   _rebuildOrbs() {

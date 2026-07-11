@@ -358,45 +358,99 @@
   .voice-hint{font-size:1rem;color:var(--dim);text-align:center;min-height:1.3em}
 
   /* ---------- Plenum (the 3D mind space, chora-imagined.md Part 2) ---------- */
-  /* A full-screen overlay: the focused mind/society as glowing faculties in a
-     bounded 3D space, live telemetry as traveling light. Canvas fills it; the
-     HUD floats on top. */
+  /* A full-screen overlay styled as an OBSERVATORY PLATE: the focused mind/society
+     as glyph constellations above a surveyed ground reticle, live telemetry as
+     traveling light, HUD corner brackets framing the view. Canvas fills it; the
+     HUD floats on top. The look is deliberately its own — squared plates, amber
+     instrument accents — so a screenshot reads as the Plenum at a glance. */
   studio-plenum{position:fixed;inset:0;z-index:55;display:none;
     background:radial-gradient(1100px 750px at 50% 42%,#0a1120 0%,#06080d 62%,#04050a 100%)}
   studio-plenum.show{display:block}
   studio-plenum canvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab;touch-action:none}
   studio-plenum canvas.dragging{cursor:grabbing}
+  /* The viewfinder: four corner brackets, drawn with 8 tiny gradient slices. */
+  .pl-corners{position:absolute;inset:10px;pointer-events:none;opacity:.55;
+    background-image:
+      linear-gradient(rgba(242,200,121,.6),rgba(242,200,121,.6)),linear-gradient(rgba(242,200,121,.6),rgba(242,200,121,.6)),
+      linear-gradient(rgba(242,200,121,.6),rgba(242,200,121,.6)),linear-gradient(rgba(242,200,121,.6),rgba(242,200,121,.6)),
+      linear-gradient(rgba(242,200,121,.6),rgba(242,200,121,.6)),linear-gradient(rgba(242,200,121,.6),rgba(242,200,121,.6)),
+      linear-gradient(rgba(242,200,121,.6),rgba(242,200,121,.6)),linear-gradient(rgba(242,200,121,.6),rgba(242,200,121,.6));
+    background-repeat:no-repeat;
+    background-size:22px 1px,1px 22px,22px 1px,1px 22px,22px 1px,1px 22px,22px 1px,1px 22px;
+    background-position:0 0,0 0,100% 0,100% 0,0 100%,0 100%,100% 100%,100% 100%}
   .pl-top{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:14px;
-    padding:12px 16px;pointer-events:none}
+    padding:12px 18px;pointer-events:none}
   .pl-top .pl-back{pointer-events:auto;background:rgba(16,20,29,.7);border:1px solid var(--line);color:var(--ink);
-    border-radius:10px;padding:8px 14px;font-size:.95rem;cursor:pointer;backdrop-filter:blur(4px)}
+    border-radius:2px;padding:8px 14px;font-size:.95rem;cursor:pointer;backdrop-filter:blur(4px)}
   .pl-top .pl-back:hover{background:var(--surface2)}
-  .pl-title{display:flex;align-items:center;gap:9px;min-width:0}
+  .pl-title{display:flex;align-items:center;gap:11px;min-width:0}
+  .pl-mark{font-family:var(--mono);font-size:.64rem;letter-spacing:.24em;color:var(--amber);flex:none;
+    border:1px solid rgba(242,200,121,.4);border-radius:2px;padding:2px 8px 2px 10px}
   .pl-name{font-weight:600;font-size:1.05rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .pl-kind{font-family:var(--mono);font-size:.68rem;letter-spacing:.06em;color:var(--violet);
-    border:1px solid rgba(183,156,240,.4);border-radius:99px;padding:1px 8px}
+    border:1px solid rgba(183,156,240,.4);border-radius:2px;padding:1px 8px}
   .pl-meta{margin-left:auto;font-family:var(--mono);font-size:.74rem;color:var(--dim);white-space:nowrap}
-  .pl-legend{position:absolute;top:56px;right:16px;display:flex;flex-direction:column;gap:5px;pointer-events:none}
-  .pl-chip{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:.68rem;color:var(--dim)}
-  .pl-chip i{width:8px;height:8px;border-radius:50%;flex:none;box-shadow:0 0 6px currentColor}
-  .pl-info{position:absolute;left:16px;bottom:44px;max-width:min(440px,80vw);background:rgba(13,17,26,.82);
-    border:1px solid var(--line);border-radius:11px;padding:11px 13px;font-size:.84rem;line-height:1.5;
-    backdrop-filter:blur(5px);pointer-events:none}
-  .pl-info b{font-size:.92rem}
-  .pl-info .pl-tag{font-family:var(--mono);font-size:.72rem;color:var(--violet);margin-left:4px}
-  .pl-info .pl-member{font-family:var(--mono);font-size:.72rem;color:var(--cyan)}
-  .pl-info .pl-attrs{display:flex;flex-wrap:wrap;gap:4px 7px;margin-top:6px}
+  /* The glyph legend — shape + hue per family, top right. */
+  .pl-legend{position:absolute;top:56px;right:16px;display:flex;flex-direction:column;gap:6px;pointer-events:none;
+    background:rgba(9,12,19,.55);border:1px solid rgba(146,168,226,.18);border-radius:2px;padding:9px 12px;
+    backdrop-filter:blur(4px)}
+  .pl-legend-h{font-family:var(--mono);font-size:.6rem;letter-spacing:.24em;text-transform:uppercase;
+    color:rgba(146,168,226,.6);margin-bottom:2px}
+  .pl-chip{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:.68rem;color:var(--dim)}
+  .pl-chip svg{width:12px;height:12px;flex:none;filter:drop-shadow(0 0 3px currentColor)}
+  /* The inspector card — hover glances, a click pins it live (the structure pane's
+     feed/stats, in space). Its left edge takes the faculty's family color. */
+  .pl-info{position:absolute;left:16px;bottom:44px;width:min(420px,86vw);max-height:min(58vh,480px);
+    display:flex;flex-direction:column;gap:7px;overflow:hidden;
+    background:linear-gradient(rgba(13,18,28,.88),rgba(9,12,19,.9));
+    border:1px solid rgba(146,168,226,.28);border-left:3px solid var(--amber);border-radius:2px;
+    padding:11px 13px;font-size:.84rem;line-height:1.5;backdrop-filter:blur(6px);pointer-events:none}
+  .pl-info[hidden]{display:none}          /* display:flex would defeat [hidden] */
+  .pl-info.pinned{pointer-events:auto;border-color:rgba(242,200,121,.45);
+    border-left-width:3px;box-shadow:0 8px 30px rgba(0,0,0,.45)}
+  .pl-info .pl-head{display:flex;align-items:center;gap:8px;min-width:0}
+  .pl-info .pl-glyph{width:14px;height:14px;flex:none;filter:drop-shadow(0 0 4px currentColor)}
+  .pl-info b{font-size:.92rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pl-info .pl-tag{font-family:var(--mono);font-size:.72rem;color:var(--violet);flex:none}
+  .pl-info .pl-member{font-family:var(--mono);font-size:.72rem;color:var(--cyan);flex:none}
+  .pl-info .pl-x{margin-left:auto;flex:none;background:none;border:1px solid var(--line);color:var(--dim);
+    border-radius:2px;width:22px;height:22px;line-height:1;cursor:pointer;font-size:.9rem}
+  .pl-info .pl-x:hover{color:var(--ink);border-color:rgba(242,200,121,.5)}
+  .pl-info .pl-attrs{display:flex;flex-wrap:wrap;gap:4px 7px}
   .pl-info .pl-attr{font-family:var(--mono);font-size:.68rem;color:var(--dim);background:#0b0f16;
-    border:1px solid var(--line);border-radius:5px;padding:1px 6px}
+    border:1px solid var(--line);border-radius:2px;padding:1px 6px}
   .pl-info .pl-attr b{color:var(--amber);font-weight:500;font-size:inherit}
-  .pl-info .pl-stats{margin-top:6px;font-family:var(--mono);font-size:.74rem;color:var(--green)}
-  .pl-info .pl-last{margin-top:6px;font-family:var(--mono);font-size:.72rem;color:var(--dim)}
+  .pl-info .pl-vitals{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-family:var(--mono);font-size:.72rem}
+  .pl-info .pl-vk{color:var(--faint);text-transform:uppercase;letter-spacing:.1em;font-size:.62rem;padding-top:2px}
+  .pl-info .pl-vv{color:var(--ink)}
+  .pl-info .pl-vv .bad{color:var(--red)} .pl-info .pl-vv .warn{color:var(--amber)}
+  .pl-info .pl-bar{display:inline-block;vertical-align:middle;width:64px;height:6px;border-radius:99px;
+    background:var(--surface2);overflow:hidden;margin-right:5px}
+  .pl-info .pl-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--amber),var(--green));transition:width .4s}
+  .pl-info .pl-stat{font-family:var(--mono);font-size:.72rem;color:var(--cyan)}
+  .pl-info .pl-feed{overflow-y:auto;min-height:0;border-top:1px solid rgba(146,168,226,.16);padding-top:6px;
+    display:flex;flex-direction:column;gap:4px;scrollbar-width:thin;scrollbar-color:#2a3040 transparent}
+  .pl-info .pl-ev{font-family:var(--mono);font-size:.7rem;color:var(--dim);line-height:1.45}
+  .pl-info .pl-ev .t{color:var(--faint)}
+  .pl-info .pl-ev.good{color:var(--green)} .pl-info .pl-ev.warn{color:var(--amber)}
+  .pl-info .pl-ev.bad{color:var(--red)} .pl-info .pl-ev.drop{color:var(--faint)}
+  .pl-info .pl-quiet{font-family:var(--mono);font-size:.7rem;color:var(--faint);border-top:1px solid rgba(146,168,226,.16);padding-top:6px}
+  .pl-info .pl-frame summary{font-family:var(--mono);font-size:.7rem;color:var(--faint);cursor:pointer;user-select:none}
+  .pl-info .pl-frame pre{font-family:var(--mono);font-size:.68rem;color:#aab2c5;background:#0b0f16;
+    border:1px solid var(--line);border-radius:2px;padding:8px;white-space:pre-wrap;max-height:180px;overflow:auto;margin-top:5px}
+  .pl-info .pl-last{font-family:var(--mono);font-size:.72rem;color:var(--dim)}
+  /* The instrument plate: live camera + signal readout, bottom right. */
+  .pl-plate{position:absolute;right:18px;bottom:12px;font-family:var(--mono);font-size:.66rem;
+    letter-spacing:.08em;color:rgba(146,168,226,.6);pointer-events:none}
   .pl-hint{position:absolute;bottom:12px;left:0;right:0;text-align:center;font-family:var(--mono);
     font-size:.68rem;color:var(--faint);pointer-events:none}
   @media (max-width:900px){
     .pl-meta{display:none}
     .pl-legend{display:none}
     .pl-hint{display:none}
+    .pl-plate{display:none}
+    .pl-mark{display:none}
+    .pl-info{max-height:46vh}
   }
 
   /* ---------- mobile pane switcher ---------- */
