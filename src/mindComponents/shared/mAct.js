@@ -108,6 +108,7 @@ export class MAct extends MObserver {
     _busy = false
     _capabilities = []
     _ledger = new Map()   // normalized intent → timestamp of last act on it
+    _busyToldAt = new Map()  // normalized intent → when the mind was last told this reach is in motion
     _lastActAt = 0        // world-changing lane (and the single shared lane in legacy mode)
     _lastReadAt = 0       // read-only lane — used only when `readCooldown` is set
     _arousal = 1
@@ -251,6 +252,9 @@ export class MAct extends MObserver {
             if (last != null && Date.now() - last < intentCooldownMs) {
                 accepted = false
                 reason = "already reaching for this"
+                // Not silence: let the mind FEEL the reach is already in motion, so it does
+                // not confabulate a fresh outcome (finding 7). Throttled, so this is felt once.
+                this._feelReachInMotion(parsed.say)
             }
         }
 
@@ -278,6 +282,9 @@ export class MAct extends MObserver {
         const openHands = this._capabilities.filter(c => this._laneOpen(c.readonly))
         if (!openHands.length) {
             log.debug("all hand lanes closed at realize — the reach passes")
+            // A formed reach met a busy hand: feel it as in-motion rather than passing in
+            // silence (finding 7), the twin of m-terminal's busy line at the faculty level.
+            this._feelReachInMotion(decision.gist)
             return
         }
         const tools = openHands.map(c => ({
@@ -450,6 +457,35 @@ export class MAct extends MObserver {
         for (const [key, at] of this._ledger) {
             if (at < cutoff) this._ledger.delete(key)
         }
+        for (const [key, at] of this._busyToldAt) {
+            if (at < cutoff) this._busyToldAt.delete(key)
+        }
+    }
+
+    /** A reach the mind FORMED but that we held — deduped (already reaching for this) or every
+     *  hand's cooldown lane closed. Rather than the pure silence that lets the stream confabulate
+     *  the outcome (terminal-hand-live-validation.md; philosophical-review finding 7), hand the
+     *  mind a low-salience felt sense that a reach is already underway — the faculty-level twin of
+     *  m-terminal's "the desk is still busy…". There is NO deed (nothing reached the world), so it
+     *  is a perceived (⟂) consequence only. Throttled per intent (one telling per intentCooldown),
+     *  so a standing wish that keeps being held is felt once, not every cadence — which would
+     *  defeat the dedup it rides on. Ambient, never urgent: it waits for the next boundary. */
+    _feelReachInMotion(gist) {
+        const key = normalizeIntent(gist || "")
+        if (!key) return
+        const now = Date.now()
+        const window = parseTime(this.attr("intentCooldown") || "15m")
+        const last = this._busyToldAt.get(key)
+        if (last != null && now - last < window) return
+        this._busyToldAt.set(key, now)
+        const record = new InterruptRecord({
+            source: 'External',                      // reaches the mind as a sensation, like any consequence
+            type: 'Sense-reach',
+            reason: "My hands are still busy with what I last set going; I leave this reach to wait and keep thinking.",
+            salience: Number(this.attr("busySalience") || 0.2),
+        })
+        log.debug(`reach held (already in motion): ${record}`)
+        this.fire("interrupt-request", record)
     }
 
     // The menu, as a closed, concrete list shown to the cheap gate — so it fires on

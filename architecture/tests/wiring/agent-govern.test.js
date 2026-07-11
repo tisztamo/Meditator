@@ -99,6 +99,20 @@ test("synchronous MODIFY: a governor can rewrite the args, and the patch is re-v
     for (const m of toolMsgs) {
         expect(m.content).not.toMatch(/^refused:/i);
         expect(m.content).not.toMatch(/failed the schema/i);
+        // …and the patch is DISCLOSED to the agent's own loop (finding 7): the observation
+        // it reads next turn says a norm adjusted the args, so it never acts on a silent rewrite.
+        expect(m.content).toMatch(/a governing norm adjusted this call's arguments/i);
+    }
+});
+
+test("an UNMODIFIED call carries no disclosure note (only a real patch is marked)", async () => {
+    // A governor that inspects but leaves the args alone must not trigger the disclosure.
+    const { agent } = await runGoverned(p => { void p.args; });
+    expect(agent._done).toBe(true);
+    const toolMsgs = agent._messages.filter(m => m.role === "tool");
+    expect(toolMsgs.length).toBeGreaterThan(0);
+    for (const m of toolMsgs) {
+        expect(m.content).not.toMatch(/a governing norm adjusted/i);
     }
 });
 

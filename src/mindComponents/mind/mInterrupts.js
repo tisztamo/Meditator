@@ -38,11 +38,15 @@ const log = logger('mInterrupts.js');
  *   - gain: salience multiplier applied to survivors a NESTED arbiter promotes
  *     (default 1; <1 makes a faculty matter less, >1 more)
  *   - arousalSensitivity: if >0 (global only), the effective threshold rises as
- *     arousal falls — a tired mind is harder to interrupt (default 0, off)
+ *     arousal falls — a tired mind is harder to interrupt (default 0, off). Each drop it
+ *     causes (a stimulus that clears the base bar but not the raised one) is announced as a
+ *     backstage `muffled` event so a memory can journal the withdrawal (finding 7).
  *
  * DOM events:
  *   - listens (on its region or the mind): "interrupt-request"
  *   - dispatches: "interrupt" (bubbling) for urgent stimuli — global only
+ *   - dispatches: "muffled" (bubbling) when low arousal alone dropped a stimulus — global
+ *     only, throttled to rateLimit; a record-only signal the mind never perceives
  */
 export class MInterrupts extends MBaseComponent {
     pending = []
@@ -50,6 +54,7 @@ export class MInterrupts extends MBaseComponent {
     _region = null
     _container = null
     _arousal = 1
+    _lastMuffledAt = 0
 
     onConnect() {
         super.onConnect()
@@ -63,9 +68,11 @@ export class MInterrupts extends MBaseComponent {
 
         // Optional interoception (global only): subscribe to the mind's arousal
         // so a tired mind raises its own bar. Gated, so minds without an economy
-        // — or that don't want this — raise no errors and behave exactly as before.
+        // — or that don't want this — behave exactly as before. The .catch mirrors
+        // m-act's arousal sub: with no economy the topic never resolves, and arousal
+        // stays 1 (never muffles), rather than leaking an unhandled RefResolutionError.
         if (!this._region && Number(this.attr("arousalSensitivity") || 0) > 0) {
-            this.sub("..m-mind/economy/arousal", value => { this._arousal = value })
+            this.sub("..m-mind/economy/arousal", value => { this._arousal = value }).catch(() => {})
         }
     }
 
@@ -89,9 +96,10 @@ export class MInterrupts extends MBaseComponent {
         const rateLimitMs = parseTime(this.attr("rateLimit") || "15s")
         const now = Date.now()
 
-        let threshold = Number(this.attr("threshold") || 0.35)
+        const baseThreshold = Number(this.attr("threshold") || 0.35)
         const sensitivity = Number(this.attr("arousalSensitivity") || 0)
-        if (sensitivity > 0) threshold = Math.min(0.99, threshold + (1 - this._arousal) * sensitivity)
+        let threshold = baseThreshold
+        if (sensitivity > 0) threshold = Math.min(0.99, baseThreshold + (1 - this._arousal) * sensitivity)
 
         // `urgent` and `clearsTail` both bypass the threshold + rate-limit gate — they are
         // ADMITTED unconditionally. The difference is downstream: only `urgent` additionally
@@ -102,6 +110,11 @@ export class MInterrupts extends MBaseComponent {
         // splits admit from preempt.
         if (!record.urgent && !record.clearsTail) {
             if (record.salience < threshold) {
+                // When arousal is what pushed this under — it clears the base bar but not the
+                // raised one — leave a backstage trail (finding 7): otherwise a tired mind grows
+                // isolated with no felt or recorded cause. The mind is told nothing (it never
+                // perceived the stimulus); only the record gains the reason. Throttled below.
+                if (sensitivity > 0 && record.salience >= baseThreshold) this._noteMuffled(record)
                 log.debug(`drop (salience ${record.salience} < ${threshold.toFixed(2)}): ${record}`)
                 this._publishDecision(record, false, `salience ${record.salience.toFixed(2)} < ${threshold.toFixed(2)}`)
                 return
@@ -139,6 +152,20 @@ export class MInterrupts extends MBaseComponent {
         if (record.urgent) {
             this.fire("interrupt", record)
         }
+    }
+
+    /** A stimulus a RESTED mind would have taken, dropped only because low arousal raised the
+     *  bar (arousalSensitivity). Announce it as a bubbling backstage `muffled` event so a memory
+     *  can leave a ⌁ trail — the honest counterpart to a tired mind quietly withdrawing from the
+     *  world (philosophical-review-2026-07-02 finding 7). Throttled to the rate-limit so a
+     *  low-energy stretch leaves a trail, not a flood. The event never reaches the mind's frame;
+     *  it is a record-only signal, exactly like a deed's ⌁ note. */
+    _noteMuffled(record) {
+        const now = Date.now()
+        const rateLimitMs = parseTime(this.attr("rateLimit") || "15s")
+        if (now - this._lastMuffledAt < rateLimitMs) return
+        this._lastMuffledAt = now
+        this.fire("muffled", { arousal: this._arousal, type: record.type, salience: record.salience })
     }
 
     /** Announces the accept/drop verdict for a stimulus, so an observer (e.g. the

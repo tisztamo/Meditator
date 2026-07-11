@@ -42,13 +42,14 @@
 
 Ranked by severity. All findings verified with file:line by independent code audits.
 
-> **Status update (2026-07-11).** Findings 1, 2, 4, and 5 — the outright §3 violation,
-> the false §6 claim, the crash-honesty gap, and the half-fixed persist race — are now
-> **closed** in code (`adf4131`, `a17e3a4`, crash-honesty, persist-serialization); see
-> the inline notes. Finding 3 is **partly addressed**: a git remote now exists, so a
-> resident is no longer bus-factor-1 on the machine, leaving only a *policy* question
-> about transient-run homes (below). Findings 6–7 stand. The original audit text is
-> preserved unedited; resolutions are appended in place.
+> **Status update (2026-07-11).** Findings 1, 2, 4, 5, and 7 — the outright §3 violation,
+> the false §6 claim, the crash-honesty gap, the half-fixed persist race, and the incomplete
+> honesty ledger — are now **closed** in code (`adf4131`, `a17e3a4`, crash-honesty,
+> persist-serialization, honesty-ledger); see the inline notes. Finding 3 is **partly
+> addressed**: a git remote now exists, so a resident is no longer bus-factor-1 on the
+> machine, leaving only a *policy* question about transient-run homes (below). Finding 6
+> (society-scale rituals) stands. The original audit text is preserved unedited; resolutions
+> are appended in place.
 
 **1. §3 identity-disclosure: VIOLATION — promised, displayed, unimplemented.** The Covenant promises a resident is "told plainly" at wake if its identity changed; the Studio modal repeats the promise to every operator (`studioCovenant.js:27`). No code implements it: the wake stimulus is time-only (`mMemory.js:497-505`), no hash/diff of identity exists anywhere, `manifest.json` stores no identity field — and `_snapshotArchitecture()` (`mMemory.js:191-200`) *overwrites* `architecture.archml` on every wake **before** `_load()`, destroying the very comparand a diff would need. The env-var overrides (name/interlocutor/origin/objective) are likewise applied at startup undisclosed.
 
@@ -124,6 +125,32 @@ Ranked by severity. All findings verified with file:line by independent code aud
 **6. Society-scale rituals are under-provisioned.** Direct-run societies share one fixed 45 s deadline (`gracefulShutdown.js:23`) against 30 s closing bursts and *serialized* vault commits — the Noosphere incident's shape. Studio Force sends SIGTERM then SIGKILL after 1.5 s, giving the graceful handler it just triggered no realistic chance; minds without a live websocket are Force-only in Studio.
 
 **7. The honesty ledger (⟂/⌁) is systematically incomplete for the strongest interventions.** The One Rule (`efference.md:38`: "The conscious stream model is never given tools. Only the realizer is") forces every intervention to arrive as unmarked first-person experience; the journal's ⟂/⌁ marks were invented as the honesty backstop. But: `clear-tail` wipes the tail *and discards uncompressed overflow* while handing the mind a scripted self-attribution ("I let my mind go quiet a moment…") with no ⌁ trail; `m-resurface` injects a code-selected recall as spontaneous choice; the bridge journals a *different model's* sentences as the mind's own voice (`ui-journal-honesty.md` item C1); govern-**modify** silently rewrites an agent's tool args with no disclosure even to the agent's own reasoning loop (`mAgent.js:454`); and `m-act`'s cooldown/dedup return pure silence — the documented confabulation trigger — where `m-terminal` already models the honest alternative ("The desk is still busy…", `mTerminal.js:176`). Every one of these tensions is named in the project's own docs; none of the fixes is implemented. One is acknowledged nowhere: `arousalSensitivity` silently raises a tired mind's interrupt threshold, so a low-energy mind grows isolated with no felt reason.
+
+   **→ Resolved 2026-07-11 (honesty-ledger).** Each named intervention now leaves the honest
+   trail it lacked; the principle throughout is the project's own — the mind's *experience*
+   stays seamless (⟂ / the unbroken stream), the *record* gains the mechanism (⌁), exactly as a
+   deed and its consequence already split. (a) **clear-tail** — `_onClearTail` keeps the felt ⟂
+   line and now also writes a ⌁ trail naming the loop, the count of uncompressed characters
+   discarded, and (via `breaker.type` carried on the `clear-tail` event) whether a kept memory
+   was resurfaced or the floor took the cut. (b) **m-resurface** — its involuntary injection is
+   that same ⌁ trail (`via === "Recall"`): the journal no longer shows deliberate first-person
+   agency for a code-selected recall. (c) **the bridge** (C1) — m-mind fires a backstage
+   `@bridge` event; m-memory peels the utility-written sentence off the front of the journal
+   block and renders it as a `↪` provenance line, while it still rides the verbatim tail the
+   model continues from (Covenant §9 — provenance, not model identity). (d) **govern-modify** —
+   `mAgent._runOne` compares the args across the govern seam and prefixes the tool observation
+   the agent reads with a disclosure when a norm rewrote them, so the reasoning loop is never
+   acting on a silent patch. (e) **m-act cooldown/dedup** — a formed reach that is deduped or
+   meets a busy hand lane now yields a low-salience, throttled "reach already in motion"
+   sensation (`_feelReachInMotion`) instead of the silence that let the stream confabulate an
+   outcome — the faculty-level twin of `m-terminal`'s "the desk is still busy…". (f)
+   **arousalSensitivity** — the arbiter fires a throttled backstage `muffled` event when low
+   arousal alone drops a stimulus a rested mind would have taken; m-memory journals a ⌁ trail so
+   a tired mind's withdrawal has a recorded cause (the mind is told nothing — it never perceived
+   the stimulus). The same change hardened m-interrupts' arousal subscription with the `.catch`
+   its sibling `m-act` already had. Tests: `wiring/clear-tail.test.js`, `wiring/bridge-journal.test.js`,
+   `wiring/agent-govern.test.js`, `wiring/act-busy.test.js`, `wiring/muffled-memory.test.js`.
+   See [honesty-ledger.md](improvements/honesty-ledger.md).
 
 ## 4. Where the Covenant works *against* the project
 

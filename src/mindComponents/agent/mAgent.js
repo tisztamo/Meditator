@@ -464,15 +464,26 @@ export class MAgent extends MBaseComponent {
         // call proceeds unchanged. A modify is re-validated below, so a governor cannot
         // patch the args into a shape the tool's schema would reject (codex doc: "modify
         // decisions must be rechecked after patching").
+        const proposed = JSON.stringify(args)
         const gov = await this._govern(name, args)
         if (gov.denied) {
             return { id, name, observation: `refused: ${gov.denied}`, isError: true }
         }
         args = gov.args
 
+        // Disclose a MODIFY to the agent's own reasoning loop (philosophical-review finding 7):
+        // a norm silently rewriting the args leaves the model acting on — or confused by a
+        // schema error about — arguments it never chose, with no way to know they changed. A
+        // veto is already self-disclosing ("refused: …"); only a silent modify needed a mark,
+        // so the next turn reads what happened rather than confabulating around it.
+        const modified = JSON.stringify(args) !== proposed
+        const disclose = obs => modified
+            ? `note: a governing norm adjusted this call's arguments before it ran.\n${obs}`
+            : obs
+
         const invalid = validateAgainstSchema(args, tool.parameters)
         if (invalid) {
-            return { id, name, observation: `error: arguments for "${name}" failed the schema (${invalid})`, isError: true }
+            return { id, name, observation: disclose(`error: arguments for "${name}" failed the schema (${invalid})`), isError: true }
         }
 
         let out
@@ -481,11 +492,11 @@ export class MAgent extends MBaseComponent {
         } catch (error) {
             // A tool that throws must not crash the loop; the model reads the error and
             // decides what to do next.
-            return { id, name, observation: `error: "${name}" threw: ${error?.message || error}`, isError: true }
+            return { id, name, observation: disclose(`error: "${name}" threw: ${error?.message || error}`), isError: true }
         }
 
         const finished = name === FINISH_TOOL ? { summary: args?.summary || "" } : null
-        return { id, name, observation: observationOf(out, name), isError: !!(out && out.isError), finished }
+        return { id, name, observation: disclose(observationOf(out, name)), isError: !!(out && out.isError), finished }
     }
 
     /** The agent's CHARTER — the system turn, standing in every step. The <m-agent>'s

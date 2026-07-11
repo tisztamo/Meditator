@@ -84,16 +84,47 @@ test("the cut drops the compressor overflow so loop spam is never consolidated",
     expect(memory.getTail()).toBe(SEED);
 });
 
-test("the cut is journaled as the mind's own felt act — never as a mechanism (One Rule)", async () => {
+test("the cut the MIND feels (⟂) is its own felt act — never a mechanism (One Rule)", async () => {
     const notes = [];
     const orig = memory.note.bind(memory);
-    memory.note = (text, opts) => { notes.push(text); return orig(text, opts); };
+    memory.note = (text, opts = {}) => { notes.push({ text, perceived: opts.perceived !== false }); return orig(text, opts); };
     mind.fire("clear-tail", { seed: SEED, kind: "void" });
     await delay(10);
     memory.note = orig;
-    expect(notes.length).toBe(1);
-    expect(notes[0]).toMatch(/I let my mind go quiet/i);
-    expect(notes[0].toLowerCase()).not.toMatch(/tail|cleared|loop|buffer|mechanism/);
+    // Exactly one PERCEIVED (⟂) note — what the mind experiences — and it names no mechanism.
+    const felt = notes.filter(n => n.perceived);
+    expect(felt.length).toBe(1);
+    expect(felt[0].text).toMatch(/I let my mind go quiet/i);
+    expect(felt[0].text.toLowerCase()).not.toMatch(/tail|cleared|loop|buffer|mechanism|character/);
+});
+
+test("the cut ALSO leaves a ⌁ backstage trail of the mechanism (honesty ledger, finding 7)", async () => {
+    // Pile overflow so the trail can report a concrete discarded-char count.
+    memory._onChunk(" and it is enough".repeat(120));
+    const before = memory.getTail().length + memory._overflow.length;
+    const notes = [];
+    const orig = memory.note.bind(memory);
+    memory.note = (text, opts = {}) => { notes.push({ text, perceived: opts.perceived !== false }); return orig(text, opts); };
+    mind.fire("clear-tail", { seed: SEED, kind: "presence" });
+    await delay(10);
+    memory.note = orig;
+    const backstage = notes.filter(n => !n.perceived);
+    expect(backstage.length).toBe(1);                      // one ⌁ trail per cut
+    expect(backstage[0].text).toMatch(/loop was sensed \(presence\)/i);
+    expect(backstage[0].text).toMatch(new RegExp(`discarding ${before} characters`));
+    expect(backstage[0].text).not.toMatch(/resurfaced/i);  // the floor cut, not a recall
+});
+
+test("a Recall breaker's ⌁ trail says a kept memory was resurfaced", async () => {
+    const notes = [];
+    const orig = memory.note.bind(memory);
+    memory.note = (text, opts = {}) => { notes.push({ text, perceived: opts.perceived !== false }); return orig(text, opts); };
+    mind.fire("clear-tail", { seed: SEED, kind: "presence", via: "Recall" });
+    await delay(10);
+    memory.note = orig;
+    const backstage = notes.filter(n => !n.perceived);
+    expect(backstage.length).toBe(1);
+    expect(backstage[0].text).toMatch(/a kept memory far from it was resurfaced/i);
 });
 
 test("a clear-tail with an empty seed is ignored (never blanks the tail)", async () => {

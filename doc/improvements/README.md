@@ -59,7 +59,16 @@ not necessarily acted on yet. Each note states its status at the top.
   journal show text the model never saw (and vice versa) because each event is
   rendered twice, independently — dropped stimulus `suggestion`s, "You said:" ≠ the
   model's wording, the voice pane showing the impulse gist instead of the spoken
-  utterance, the utility-written bridge journaled as the mind's own thought.
+  utterance, the utility-written bridge journaled as the mind's own thought. (C1/C3
+  now done — see honesty-ledger.md.)
+- [honesty-ledger.md](honesty-ledger.md) — **Covenant §9 / review finding 7,
+  IMPLEMENTED 2026-07-11**: the ⟂/⌁ journal ledger was incomplete for the strongest
+  stream interventions, so the *record* passed off harness action as the mind's own
+  agency. Adds the missing ⌁ trails (clear-tail's loop + discarded overflow;
+  m-resurface's involuntary recall; a tired mind's `muffled` withdrawal), a ↪ provenance
+  line for the utility-written bridge, a govern-modify disclosure into the agent's own
+  loop, and an honest "reach already in motion" sensation where m-act's cooldown/dedup
+  used to fall silent. Experience stays seamless; the record stays true.
 - [bliss-loop-recall.md](bliss-loop-recall.md) — the **bliss loop** (the spiritual
   bliss attractor): `m-resurface` picks the kept note that most overlaps the current
   thought, so a presence-loop is handed its own most presence-soaked note and

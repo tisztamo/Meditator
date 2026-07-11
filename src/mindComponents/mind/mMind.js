@@ -501,9 +501,12 @@ export class MMind extends MBaseComponent {
         log.info(`loop break (episode ${breaker.episode || "?"}, ${breaker.kind || "?"}) — clearing the tail`)
 
         // Announce the intent; m-memory subscribes to @clear-tail, reseeds the tail to this
-        // seed, clears its overflow, journals the ⟂ self-caused cut, persists, and re-pubs
-        // `tail`. The downstream "tail changed" fact rides the existing channel — no reach-in.
-        this.fire("clear-tail", { seed: entry, kind: breaker.kind || null })
+        // seed, clears its overflow, journals the ⟂ self-caused cut AND a ⌁ backstage trail
+        // of the mechanism, persists, and re-pubs `tail`. The downstream "tail changed" fact
+        // rides the existing channel — no reach-in. `via` is the winning breaker's type
+        // ("Recall" when m-resurface pulled a kept memory back; the floor otherwise), so the
+        // ⌁ trail attributes the cut honestly (Covenant §9 / finding 7, C3).
+        this.fire("clear-tail", { seed: entry, kind: breaker.kind || null, via: breaker.type || null })
 
         const identity = this._identity()
         const sections = []
@@ -592,7 +595,15 @@ export class MMind extends MBaseComponent {
         if (stimuli.length) {
             let entry = ""
             if (tail && this.attr("bridge") === "true") {
-                entry = await this._writeBridge(tail, stimuli) + " "
+                const bridge = await this._writeBridge(tail, stimuli)
+                // The bridge is written by the UTILITY model, not the mind's own voice. It
+                // must ride the tail (the model continues from it) but the journal must not
+                // pass it off as spontaneous inner monologue: announce it so m-memory marks it
+                // as a provenance (↪) line while still feeding it into the tail via `prefix`
+                // (finding 7, C1; Covenant §9 — provenance, not model identity). Fired AFTER
+                // `attended` above, so its journal flush precedes this pending mark.
+                this.fire("bridge", { text: bridge })
+                entry = bridge + " "
             }
             entry += this._landingOpener()
             prefix = entry

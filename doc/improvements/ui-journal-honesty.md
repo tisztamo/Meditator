@@ -1,7 +1,10 @@
 # The UI and journal are not honest about what the model saw — a fix plan
 
-> **Status: Phase 1 & A3 implemented (2026-06-23).** Items **A1**, **A2**, **A3**, **B1**, **B2**, **B3**, and **D** are done.
-> Remaining: **C1** (bridge provenance), **C3** (resurface trail), **C4/C5** (completeness/wording),
+> **Status: Phase 1, A3, C1 & C3 implemented.** Items **A1**, **A2**, **A3**, **B1**, **B2**,
+> **B3**, and **D** were done 2026-06-23; **C1** (bridge provenance) and **C3** (resurface
+> trail) were done 2026-07-11 as part of finding 7 — see
+> [honesty-ledger.md](honesty-ledger.md).
+> Remaining: **C4/C5** (completeness/wording), and
 > **C2** tracked separately in [perception-not-compressible.md](perception-not-compressible.md).
 > Touches the wire layer (`src/mindComponents/mWs.js`), the arbiter
 > (`src/mindComponents/mInterrupts.js`, `src/infrastructure/interruptRecord.js`),
@@ -53,9 +56,9 @@ reconstruct it downstream.
 | ~~**A3**~~ | Frame inspector mislabels the user-turn `instruction` as `system` (2 turns shown, 3 sent) | relabel | ~~Emit + render the three real chat turns with their roles~~ ✅ done |
 | ~~**B1**~~ | Voice structure pane shows the impulse *gist*; the bubble shows the voice model's *utterance* (two generations) | **meaning** | ~~Drive the pane's "said" line from the actual utterance; mark the gist as intent~~ ✅ done |
 | ~~**B2/B3**~~ | Your words: doubly-framed to the model, bare in the bubble; one utterance rendered up to 3 ways | wording | ~~Same shared-wrapper fix as A2, applied to Voice Mode~~ ✅ done |
-| **C1** | The bridge sentence (written by the *utility* model) is journaled as the mind's own thought | **meaning** | Journal the bridge with a provenance marker |
+| ~~**C1**~~ | The bridge sentence (written by the *utility* model) is journaled as the mind's own thought | **meaning** | ~~Journal the bridge with a provenance marker~~ ✅ done (↪ line; see honesty-ledger.md) |
 | **C2** | Perceived stimuli never reach the compressor; memory keeps a confabulation | **meaning** | *Tracked separately* — see [perception-not-compressible.md](perception-not-compressible.md) |
-| **C3** | Recall/resurface framed as spontaneous self-cause, with no `⌁` trail of the mechanism | medium | Emit a `⌁` backstage note for the mechanical trigger |
+| ~~**C3**~~ | Recall/resurface framed as spontaneous self-cause, with no `⌁` trail of the mechanism | medium | ~~Emit a `⌁` backstage note for the mechanical trigger~~ ✅ done (clear-tail `⌁` trail, `via==="Recall"`; see honesty-ledger.md) |
 | **C4** | Deed `⌁` notes drop the concrete args (e.g. the terminal script) | low | Include a compact args/script excerpt (or a link to `.runs/`) |
 | **C5** | `(aloud)`/`(image)` model-tail wording ≠ `🗣`/`🖼` journal wording | low | Align the two renderings (content already matches) |
 | ~~**D**~~ | Doc drift: `websocket-api.md` `prefix` row; `studio-wiring.md` dead `studioFold.js` | doc | ~~Update both docs to the real contract~~ ✅ done |

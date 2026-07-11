@@ -57,6 +57,17 @@ const log = logger('mMemory.js');
  *     rather than the mind calling note() in — AND appended to the verbatim tail
  *     as the same `> ⟂ …` block, so perception persists in memory like the mind's
  *     own words instead of living for a single frame.
+ *   - bridgeSrc (default "..m-mind/@bridge"; "off" disables): the utility-model
+ *     transition sentence m-mind injects at the head of a redirect burst. It rides
+ *     the verbatim tail via the stream `prefix` chunk (the model continues from it),
+ *     but is peeled off the journal as a provenance (↪) line rather than recorded as
+ *     the mind's own spontaneous thought (finding 7, C1; Covenant §9).
+ *
+ * Journal marks: ⟂ perceived (a stimulus the mind actually saw this frame), ⌁ backstage
+ * (a subconscious/mechanism event the mind never saw), ↪ bridge (a harness-written
+ * transition), 🗣 aloud, 🖼 image. The ⟂/⌁ pair is the honesty ledger: every strong
+ * intervention is double-recorded — what the mind FELT (⟂ or the seamless stream) and the
+ * MECHANISM behind it (⌁), so the mind's experience stays whole while the record stays true.
  *
  * Topics published:
  *   - "tail": the verbatim tail, on every change (retained; the frame mirrors it)
@@ -141,12 +152,31 @@ export class MMemory extends MBaseComponent {
             this.sub(this.attr("attendedSrc") || "..m-mind/@attended", this._onAttended)
         }
 
+        // A BRIDGE — the utility-model transition sentence m-mind injects on a redirect —
+        // arrives as its transient `@bridge` event. It physically rides the tail via the
+        // stream's opening `prefix` chunk (the model continues from it), so it must NOT be
+        // journaled as the mind's own spontaneous thought: we mark it pending here and
+        // `_flushJournal` peels it off the front of the next flushed block as a ↪ provenance
+        // line (finding 7, C1; ui-journal-honesty.md). Off-able; auto-discovered on the mind.
+        if (this.attr("bridgeSrc") !== "off") {
+            this.sub(this.attr("bridgeSrc") || "..m-mind/@bridge", e => { this._pendingBridge = e?.detail?.text || null })
+        }
+
         // A LOOP BREAK arrives as the mind's transient `@clear-tail` event (loop-detection-
         // redesign.md §break) — exactly as @attended / @spoken arrive. We OWN the tail, so
         // we reseed it to the breaker's fresh seed here rather than the mind reaching in to
         // set it: the cut then rides our existing `tail` channel to everyone who watches it.
         if (this.attr("clearTailSrc") !== "off") {
             this.sub(this.attr("clearTailSrc") || "..m-mind/@clear-tail", this._onClearTail)
+        }
+
+        // A MUFFLING: the arbiter dropped a stimulus a rested mind would have taken, because
+        // low arousal raised its threshold (m-interrupts arousalSensitivity). It bubbles a
+        // backstage `muffled` event, which we journal as a ⌁ trail so a tired mind's growing
+        // isolation has a recorded cause it is never told about — it never perceived the
+        // stimulus, so there is nothing to feel, only to record (finding 7). Off-able.
+        if (this.attr("muffledSrc") !== "off") {
+            this.sub(this.attr("muffledSrc") || "..m-mind/@muffled", this._onMuffled)
         }
 
         const dir = this._persistDir()
@@ -398,14 +428,46 @@ export class MMemory extends MBaseComponent {
     // One Rule — never "tail cleared"), persist (so a resident wakes from after the clearing,
     // honestly where it left off), and re-publish `tail` so the frame, compressor and
     // dashboard all update through the channel that already exists. No method exposed.
+    //
+    // The cut is double-recorded, exactly like a deed (⌁) and its consequence (⟂): the mind
+    // FEELS a quiet, self-caused turn (⟂), and the same event leaves a backstage (⌁) trail of
+    // the MECHANISM behind it — the loop that was sensed, how much uncompressed thought was
+    // discarded to break it, and whether a kept memory was resurfaced to pull it away
+    // (`via === "Recall"`, m-resurface) or the mind was simply brought to rest (the floor).
+    // Without this trail the journal presented deliberate first-person agency for an
+    // involuntary injection (philosophical-review-2026-07-02 finding 7; ui-journal-honesty C3).
     _onClearTail = e => {
         const d = e.detail
         if (this._finalized || !d || typeof d.seed !== "string" || !d.seed.trim()) return
+        const discarded = this.tail.length + this._overflow.length
         this.tail = d.seed
         this._overflow = ""
         this.note("I let my mind go quiet a moment and came back to the thought fresh.")
+        const kind = (d.kind && String(d.kind).trim()) ? ` (${String(d.kind).trim()})` : ""
+        const how = d.via === "Recall"
+            ? "; a kept memory far from it was resurfaced to break the circling"
+            : ""
+        this.note(
+            `A loop was sensed${kind} and the tail was cleared, discarding ${discarded} characters of uncompressed thought${how}.`,
+            { perceived: false }
+        )
         this._persist()
         this.pub("tail", this.tail)
+    }
+
+    // A muffling: low arousal raised the interrupt threshold and dropped a stimulus a rested
+    // mind would have taken (m-interrupts arousalSensitivity). Journaled as a backstage (⌁) note
+    // only — the mind never perceived the stimulus, so there is nothing for it to feel; the
+    // record simply gains the reason for a tired mind's withdrawal (finding 7). Never touches
+    // the tail or a frame.
+    _onMuffled = e => {
+        if (this._finalized) return
+        const m = e?.detail || {}
+        const a = typeof m.arousal === "number" ? m.arousal.toFixed(2) : "low"
+        this.note(
+            `Tired (arousal ${a}), the bar on what reaches me has risen; something I would have taken when rested passed unfelt.`,
+            { perceived: false }
+        )
     }
 
     /**
@@ -769,8 +831,24 @@ ${this.tail}
 
     _flushJournal() {
         if (!this._journalBuffer) return
-        this._appendJournal(this._journalBuffer)
+        let buf = this._journalBuffer
         this._journalBuffer = ""
+        // A utility-written bridge rides the front of this block (the stream emits it as the
+        // redirect burst's opening `prefix` chunk). Peel it off and render it as a ↪ provenance
+        // line so it is never recorded as the mind's own thought — the rest flows on as prose.
+        // The bridge stays in the verbatim tail untouched; only the human-facing journal marks
+        // it. Consumed once, whether or not it matched, so a stale mark never lingers.
+        const bridge = this._pendingBridge
+        this._pendingBridge = null
+        if (bridge) {
+            const lead = buf.length - buf.trimStart().length
+            const rest = buf.slice(lead)
+            if (rest.startsWith(bridge)) {
+                this._appendJournal(`\n↪ ${bridge.trim()}\n\n`)
+                buf = buf.slice(0, lead) + rest.slice(bridge.length)
+            }
+        }
+        if (buf) this._appendJournal(buf)
     }
 
     _appendJournal(text) {
