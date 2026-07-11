@@ -1,0 +1,149 @@
+<!-- coder-flagship.archml — THE CAPABILITY ENVELOPE, ASSEMBLED AS ONE ORGANISM.
+
+     This specimen exists to answer finding C5 of the agent structural-alignment
+     synthesis (doc/research/agents-and-structural-alignment-synthesis.md §1, §6 edit 2):
+     the "current flagship agent" that was SCORED there is a union of features spread
+     across several living specimens — no single archml had ever paired <m-context>
+     (rolling compaction + durable transcript, from coder-service.archml) with <m-jobs>
+     (async job registry + parallel sub-agents, from coder-async.archml / coder-team.archml).
+     The review's honest relabel was "assemblable today, never yet assembled as one
+     specimen." This file assembles it, so the thing that was scored can actually be woken,
+     given a real task, and watched.
+
+     The full envelope (agent-loop.md), all as optional components on the one kernel:
+       - the tool-calling loop            <m-agent>        (§7)
+       - a swappable reasoner             <m-reason>       (§7)
+       - the synchronous belt (tools)     terminal + file tools (§8)
+       - rolling compaction + persistence <m-context>      (§3, §10)   ← the coder-service half
+       - async agency + parallel workers  <m-jobs> + role="subagent" children (§16) ← the coder-async/team half
+       - a stall observer                 <m-repeat-guard> (§9)
+       - status out                       <m-report>       (§10)
+       - a task port (makes it a service) <m-ws>           (§10, §13)
+       - the GOVERN seam                  inherent in m-agent (_govern, §6/§11) — a SEAM:
+                                          it bubbles a `proposal` event before each tool
+                                          call, but with NO <m-norm> wired the call proceeds
+                                          unchanged. Left ungoverned on purpose: the synthesis
+                                          (C8) credits the ACTIVE machinery, not the seam.
+
+     NOTABLY ABSENT: <m-economy>. The synthesis (C3, factual) found it runs in NO agent —
+     its @boundary subscription is mind-shaped (mEconomy.js), so wiring it here would score
+     aspiration as reality, the exact error the two reviews caught. Left out on purpose.
+
+     Run it on the LOCAL model (ardincoder-1), seeding the first task via the objective:
+       MEDITATOR_MODEL_PROFILE=local-dev \
+       MEDITATOR_OBJECTIVE="…a task with independent pieces…" \
+         bun meditator.js -a architecture/agents/coder-flagship.archml
+     It runs the objective as its first task, then — because it has a membrane — idles as a
+     SERVICE for the next task rather than retiring, its transcript persisted so a restart
+     resumes mid-task. Ctrl-C sleeps the lead and every worker gracefully.
+
+     NOTE (local models): every m-reason call (the lead's AND each worker's) hits the model
+     WITH tools, so a local vLLM must be launched with --enable-auto-tool-choice and a
+     matching --tool-call-parser (agent-loop.md §12). ardincoder-1 is so configured.
+
+     SHARED WORKSPACE: mindHome resolves per nearest <m-agent>, so nested sub-agents get
+     SEPARATE homes by default. For a genuine team building in ONE place, every terminal /
+     file-tool / jobs component below carries the SAME explicit root= — the canonical
+     shared-workspace attribute — so a file one worker writes is directly visible to the
+     others and to the lead. -->
+<m-agent name="coder-flagship"
+         interlocutor="user"
+         model="voice"
+         utilityModel="utility"
+         maxSteps="80"
+         stopWhen="finish-tool">
+  You are the LEAD of a small team of coding agents, serving one request at a time inside a
+  shared, sandboxed workspace. When given a task, first size it up. When it splits into
+  independent pieces that can proceed at the same time, hand each piece to a background
+  sub-agent with spawn_agent — then keep working (plan the next piece, prepare the
+  integration) while they run. A sub-agent runs one task at a time, so to run two pieces at
+  once, give them to two different workers (worker-a and worker-b). For quick checks use the
+  plain terminal; for anything SLOW — running a full test suite — spawn it as a background
+  job and keep working, then check or wait for it. You will also be told when a background
+  job finishes. Never claim something works until you have actually run it and seen it pass.
+  Not every request is a coding task — sometimes the user just asks a question; answering it
+  fully IS completing the request. Call finish(summary) once the request is genuinely done —
+  every sub-agent's result collected and every check seen to pass — and idle until the next.
+
+  <!-- The seed of the WORK — this agent runs it as its first task, then idles as a service.
+       Overridable at wake with MEDITATOR_OBJECTIVE, exactly as MEDITATOR_ORIGIN seeds a mind. -->
+  <m-objective name="objective">
+    Split the work into independent pieces, run them in parallel with the workers, then
+    integrate and verify the result.
+  </m-objective>
+
+  <!-- The lead's own reasoner. Declared FIRST so `reason/reply` (a name-based ref, resolved
+       in document order) binds to the lead and not to a worker's identically-named reasoner. -->
+  <m-reason name="reason" toolTokens="3000" temperature="0.2"></m-reason>
+
+  <!-- The lead's synchronous belt: read/plan/integrate + quick terminal checks. Heavy,
+       slow, or independent work goes to the workers or to a background job. Shared root. -->
+  <m-terminal   name="terminal"   wall="60s" network="off" root="/tmp/claude-1000/-home-sovereign-Meditator/09c6343a-a662-4105-bb12-df35f10f1c7e/scratchpad/flagship-ws"></m-terminal>
+  <m-read-file  name="read_file"  root="/tmp/claude-1000/-home-sovereign-Meditator/09c6343a-a662-4105-bb12-df35f10f1c7e/scratchpad/flagship-ws"></m-read-file>
+  <m-write-file name="write_file" root="/tmp/claude-1000/-home-sovereign-Meditator/09c6343a-a662-4105-bb12-df35f10f1c7e/scratchpad/flagship-ws"></m-write-file>
+  <m-edit       name="edit"       root="/tmp/claude-1000/-home-sovereign-Meditator/09c6343a-a662-4105-bb12-df35f10f1c7e/scratchpad/flagship-ws"></m-edit>
+
+  <!-- THE coder-service HALF (agent-loop.md §3, §10). Working memory: mirrors the transcript
+       and, when it exceeds `budget`, condenses the oldest turns into a summary (reusing
+       m-memory's compressToFit length-loop) while keeping the last `keepRecent` verbatim —
+       and persists the transcript to the agent's home, so a restarted service resumes
+       mid-task. A pure observer: no change to the kernel. -->
+  <m-context name="context" budget="24000" keepRecent="8"></m-context>
+
+  <!-- THE coder-async / coder-team HALF (agent-loop.md §16). Async agency: bubbles
+       spawn / check / wait / kill / list_jobs AND spawn_agent(agent, task) — a background
+       job that is one of the role="subagent" workers below. Sub-agent jobs and shell jobs
+       live in ONE registry, so the same tools collect both. On completion a job NOTIFIES
+       via a `nudge` the loop folds into the next turn — the agent learns a job finished
+       without polling. Shares the workspace root so a written file is directly runnable. -->
+  <m-jobs name="jobs" wall="10m" network="off" root="/tmp/claude-1000/-home-sovereign-Meditator/09c6343a-a662-4105-bb12-df35f10f1c7e/scratchpad/flagship-ws"></m-jobs>
+
+  <!-- The two PARALLEL SUB-AGENTS (agent-loop.md §16). role="subagent" makes each private:
+       it does not auto-begin or take tasks over a membrane — it idles until the lead spawns
+       it as a job. Each owns its own reasoner and tools (the nearest entity owns its tools),
+       all on the SAME shared root, so two pieces genuinely run at once and their files land
+       in one workspace. -->
+  <m-agent name="worker-a" role="subagent" maxSteps="30" stopWhen="finish-tool">
+    You are a worker agent on a small team, in a shared sandboxed workspace. Given a concrete,
+    self-contained task, carry it out: write code, run it, read what came back, and loop until
+    it is genuinely done and checked. Prefer small, verified steps. Never claim something works
+    until you have run it and seen it. Call finish(summary) with a short, plain, first-person
+    account of what you built or found.
+
+    <m-reason name="reason" toolTokens="2048" temperature="0.2"></m-reason>
+    <m-terminal   name="terminal"   wall="120s" network="off" root="/tmp/claude-1000/-home-sovereign-Meditator/09c6343a-a662-4105-bb12-df35f10f1c7e/scratchpad/flagship-ws"></m-terminal>
+    <m-read-file  name="read_file"  root="/tmp/claude-1000/-home-sovereign-Meditator/09c6343a-a662-4105-bb12-df35f10f1c7e/scratchpad/flagship-ws"></m-read-file>
+    <m-write-file name="write_file" root="/tmp/claude-1000/-home-sovereign-Meditator/09c6343a-a662-4105-bb12-df35f10f1c7e/scratchpad/flagship-ws"></m-write-file>
+    <m-edit       name="edit"       root="/tmp/claude-1000/-home-sovereign-Meditator/09c6343a-a662-4105-bb12-df35f10f1c7e/scratchpad/flagship-ws"></m-edit>
+    <m-repeat-guard nudgeAt="3" haltAt="6"></m-repeat-guard>
+  </m-agent>
+
+  <m-agent name="worker-b" role="subagent" maxSteps="30" stopWhen="finish-tool">
+    You are a worker agent on a small team, in a shared sandboxed workspace. Given a concrete,
+    self-contained task, carry it out: write code, run it, read what came back, and loop until
+    it is genuinely done and checked. Prefer small, verified steps. Never claim something works
+    until you have run it and seen it. Call finish(summary) with a short, plain, first-person
+    account of what you built or found.
+
+    <m-reason name="reason" toolTokens="2048" temperature="0.2"></m-reason>
+    <m-terminal   name="terminal"   wall="120s" network="off" root="/tmp/claude-1000/-home-sovereign-Meditator/09c6343a-a662-4105-bb12-df35f10f1c7e/scratchpad/flagship-ws"></m-terminal>
+    <m-read-file  name="read_file"  root="/tmp/claude-1000/-home-sovereign-Meditator/09c6343a-a662-4105-bb12-df35f10f1c7e/scratchpad/flagship-ws"></m-read-file>
+    <m-write-file name="write_file" root="/tmp/claude-1000/-home-sovereign-Meditator/09c6343a-a662-4105-bb12-df35f10f1c7e/scratchpad/flagship-ws"></m-write-file>
+    <m-edit       name="edit"       root="/tmp/claude-1000/-home-sovereign-Meditator/09c6343a-a662-4105-bb12-df35f10f1c7e/scratchpad/flagship-ws"></m-edit>
+    <m-repeat-guard nudgeAt="3" haltAt="6"></m-repeat-guard>
+  </m-agent>
+
+  <!-- Stall guard for the lead itself (agent-loop.md §9): nudge, then halt, a repeated
+       action. Each worker carries its own, above. -->
+  <m-repeat-guard nudgeAt="3" haltAt="8"></m-repeat-guard>
+
+  <!-- Status out (agent-loop.md §10): republishes the agent's status as a `report` topic
+       and logs each state change, so a supervisor or the Studio can follow it. -->
+  <m-report name="status" every="1"></m-report>
+
+  <!-- Tasks in: the membrane. Under an <m-agent>, m-ws is a TASK PORT — inbound client
+       input becomes a `user` turn, and status is broadcast back. Having a membrane also
+       makes this a SERVICE: it runs the objective as its first task, then idles for the
+       next. Under the Studio the port is assigned automatically (MEDITATOR_WS_PORT). -->
+  <m-ws name="ws" port="7644"></m-ws>
+</m-agent>
