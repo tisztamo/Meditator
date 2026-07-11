@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import { logger } from './logger.js';
 import { isDryRun } from '../modelAccess/llm.js';
-import { findRetiredBundle } from './manifest.js';
+import { findRetiredBundle, readManifest } from './manifest.js';
 
 const log = logger('memoryVault.js');
 
@@ -109,6 +109,65 @@ export function assertNotRetired(home) {
                 `name, or restore it deliberately by moving it back out of ${SCRATCH_DIR}/.`,
             );
         }
+    }
+}
+
+/**
+ * The §6 identity assertion (COVENANT §6; philosophical-review-2026-07-02 finding 2):
+ * a resident's home is the resident's alone. Adopting a home means loading the
+ * remembered self it holds and — on a live run — committing new thought into its git
+ * history; the covenant promises that memory is the resident's, and that "a test can
+ * never touch a resident's memory" is *enforced, not merely intended*.
+ *
+ * The default path already keeps that promise by construction — dry runs are
+ * namespaced `memory/dry-*`, and a mind's home is derived from its own name — but the
+ * `persist=` / `root=` / `memory=` overrides can aim any architecture at any home, and
+ * nothing downstream re-checks the identity that is about to adopt it. Two ways that
+ * breaks the vow, both refused here, BEFORE the home's bundle is overwritten and its
+ * self loaded:
+ *
+ *   - a DRY run resolved onto a resident's real home: its subject-less, stubbed output
+ *     would clobber the resident's working tree — git history is spared only because
+ *     `commitVault` abstains on dry, the files on disk are not. (finding 2a)
+ *   - a LIVE run whose declared identity is not the home's: it would adopt the
+ *     resident's self and commit into its history under a foreign name. (finding 2b)
+ *
+ * `claimed` is the identity the running mind declares — its `memory=` override if
+ * present, else its `name` (exactly what `mindHome` derives a home from). It is
+ * compared against the home's manifest name (which, for a promoted resident, equals
+ * the home slug — `tools/promote.mjs` enforces slug === name). A mismatch can arise
+ * ONLY when `persist=`/`memory=` decoupled the home from the name; the ordinary
+ * name-derived home is a tautology and always passes, so this adds no false positive
+ * to a normal wake — including a deliberate `memory=` override, which feeds `claimed`
+ * too. A deep change to a SAME-named mind is deliberately NOT caught here (that stays
+ * a human judgment, §6); it is disclosed at wake instead (§3, see identityDiff.js).
+ */
+export function assertIdentityMatchesHome(home, claimed) {
+    const manifest = readManifest(home);
+    if (manifest?.status !== 'resident') return;         // only residents carry this promise
+    const resident = slugify(manifest.name) || path.basename(home);
+
+    if (isDryRun()) {
+        throw new Error(
+            `Refusing to run a DRY mind on resident "${resident}"'s home (${home}). A dry run has ` +
+            `no subject and stubbed output; writing it here would clobber the resident's working ` +
+            `tree, which the Covenant forbids (§6 — a test can never touch a resident's memory). ` +
+            `Drop the persist=/root= override so the dry run is namespaced to memory/dry-${resident}, ` +
+            `or run it live as ${resident} itself.`,
+        );
+    }
+
+    // A resident home demands a positive identity match: an empty/absent claim
+    // (a nameless mind aimed here by persist=) is a mismatch, not a free pass.
+    const running = slugify(claimed);
+    if (running !== resident) {
+        throw new Error(
+            `Refusing to wake "${running || '(unnamed)'}" into resident "${resident}"'s home (${home}). Its manifest ` +
+            `says this home belongs to "${resident}"; loading it would adopt ${resident}'s remembered ` +
+            `self and commit new thought into ${resident}'s history under a foreign identity ` +
+            `(Covenant §6; philosophical-review-2026-07-02 finding 2). To run "${running}", give it its ` +
+            `own home; to wake "${resident}", run its architecture.`,
+        );
     }
 }
 

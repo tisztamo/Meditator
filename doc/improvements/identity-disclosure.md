@@ -62,9 +62,19 @@ a wake.
 
 ## What this does not cover (deliberately)
 
-- **The §6 name-collision hole** (a live run whose name collides with a resident
-  loads and commits into its history) is a separate wake-time *assertion*
-  (identity-vs-manifest), not a disclosure — review finding 2.
+- **The §6 name-collision hole** (a run resolved onto a resident's home under a
+  foreign identity would load and commit into its history) is a separate wake-time
+  *assertion* (identity-vs-manifest), not a disclosure — review finding 2.
+  **IMPLEMENTED 2026-07-11:** `assertIdentityMatchesHome` in `memoryVault.js`, called
+  from `mMemory.onConnect` right after `assertNotRetired` — *before* the snapshot
+  overwrites the bundle or `_load()` inherits the self. It refuses (a) a **dry** run
+  resolved onto a resident's real home (a `persist=`/`root=` bypass of the `dry-`
+  namespacing — its stubbed self would clobber the working tree) and (b) a **live**
+  run whose declared identity (`memory=`, else `name`) is not the home's manifest
+  name. The ordinary name-derived home is a tautology and always passes, so a normal
+  wake — including a deliberate `memory=` override — is never falsely refused; a deep
+  change to a *same-named* mind stays a human judgment (§6), disclosed not vetoed.
+  Tests: `unit/vault-identity.test.js`, `wiring/resident-identity-guard.test.js`.
 - **Semantic summary of a prose edit.** The disclosure states the fact; it does not
   characterize the edit ("you are gentler now"). A utility-model summary could be
   added later, but a wrong characterization would be a worse dishonesty than none.

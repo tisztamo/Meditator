@@ -7,7 +7,7 @@ import { complete, isDryRun } from "../../modelAccess/llm.js"
 import { resolveModelRef } from "../../modelAccess/modelConfig.js"
 import { logger } from '../../infrastructure/logger.js';
 import { InterruptRecord, withPerceivedEvents } from '../../infrastructure/interruptRecord.js';
-import { mindHome, inVault, ensureVault, commitVault, assertNotRetired } from '../../infrastructure/memoryVault.js';
+import { mindHome, inVault, ensureVault, commitVault, assertNotRetired, assertIdentityMatchesHome } from '../../infrastructure/memoryVault.js';
 import { FORMAT_VERSION, recordWake, tierOf } from '../../infrastructure/manifest.js';
 import { getLoadedArchitecture } from '../../startup/architecture.js';
 import { getLoadedComponentSources, getBundleComponentsDir } from '../../config/componentResolver.js';
@@ -136,7 +136,17 @@ export class MMemory extends MBaseComponent {
         const dir = this._persistDir()
         this._home = dir
         this._vaulted = !!dir && inVault(dir)
-        if (this._vaulted) { ensureVault(); assertNotRetired(dir) }
+        if (this._vaulted) {
+            ensureVault()
+            assertNotRetired(dir)
+            // §6: a resident's home is the resident's alone. Refuse to adopt it under a
+            // foreign identity (finding 2) — checked here, before the snapshot overwrites
+            // its bundle and _load() inherits its self and commits into its history. The
+            // claimed identity is what mindHome derives a home from (memory=, else name),
+            // read off the same m-mind/m-agent root mindHome resolves against.
+            const self = this.closest("m-mind, m-agent")
+            assertIdentityMatchesHome(dir, self?.getAttribute("memory") || self?.getAttribute("name"))
+        }
         // Only a resident persists to history (lifecycle.md §2). A dry or transient
         // mind still loads/writes its home, but never commits — its home has no
         // resident manifest, so tierOf is "transient"/"none", and `commitVault`
