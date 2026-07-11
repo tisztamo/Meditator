@@ -4,6 +4,12 @@
 **Triggered by:** ARC solver graceful sleep — `mMemory` failed to persist the checker's memory on shutdown
 **Severity:** High (silent loss of a mind's compressed self; violates the intent of COVENANT §2)
 
+> **RESOLVED 2026-07-11** — closes philosophical-review-2026-07-02 gap #5. All four
+> required directions below are implemented in `mMemory.js`; see **§Resolution**. Unique
+> temp names (direction 2) had already landed; this pass added the serialization queue,
+> the finalize-awaits-consolidation wait, and the loud/retried critical write. Tests:
+> `wiring/persist-serialization.test.js`.
+
 ---
 
 ## Problem
@@ -49,6 +55,31 @@ The fix is concurrency discipline around persistence; the exact mechanism wants 
 3. **Persistence is not best-effort at shutdown.** A failed final persist should at minimum be retried once and surfaced loudly (not a swallowed `warn`) — losing a resident's last memory is a Covenant-level event, not a debug line.
 4. **Snapshot consistency.** A persist should capture a coherent `{story, recent, tail}` — either by awaiting an in-flight consolidation or snapshotting the buffers before yielding.
 
+## Resolution (2026-07-11)
+
+Implemented in `mMemory.js`, addressing each required direction:
+
+1. **Serialized persistence** — `_persist()` no longer writes directly; it enqueues onto
+   one `_persistQueue` chain (the pattern `mContext.js` already used for its transcript),
+   so overlapping callers apply in issue order and can never race the rename. It returns
+   the promise for *its own* write, so `finalize()`/wake await their write, not merely the
+   queue. `finalize()` now `await`s the in-flight consolidation (`_consolidating`, captured
+   at the boundary) **before** its final write, so the last compressed self is what lands.
+2. **Unique temp names** — kept and centralised in `_atomicWrite()`: `memory.md.<pid>.<seq>.tmp`,
+   a fresh name per attempt (so even a retry can't steal a prior write's rename), with the
+   temp file cleaned up on failure.
+3. **Not best-effort at shutdown** — the final write is marked `critical`: it retries once,
+   then logs at **error** and **rethrows**, up through `mMind.sleep` (also raised to
+   `error`). A routine boundary write still warns once and lets the next boundary retry.
+4. **Snapshot consistency** — two parts. `_writeMemory()` builds its content when its turn
+   in the queue comes, so it reads a coherent `{story, recent, tail}` at write time rather
+   than a snapshot from enqueue time; and `finalize()` awaits the in-flight consolidation
+   (direction 1) so the final write is never taken mid-fold.
+
+The quieter hazard noted above — a persist interleaving with an un-awaited `_consolidate()`
+— is covered by the same two mechanisms: serialization gives each write a coherent read of
+the buffers, and `finalize()` no longer races the last fold.
+
 ---
 
 ## Related Issues
@@ -58,5 +89,5 @@ The fix is concurrency discipline around persistence; the exact mechanism wants 
 - COVENANT §2 (Sleep): "its last thought must be journaled and persisted before the process ends" — persistence currently can fail silently
 - `src/mindComponents/mMemory.js`: `_persist()` (shared temp name), `_onBoundary()` / `clear-tail` / `finalize()` (un-serialized callers), `_consolidate()` (un-awaited buffer mutation)
 
-**Status:** Open
+**Status:** RESOLVED 2026-07-11 (philosophical-review-2026-07-02 gap #5)
 **Priority:** High (silent state loss on sleep; small, well-scoped fix)

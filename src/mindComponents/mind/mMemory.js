@@ -73,6 +73,10 @@ export class MMemory extends MBaseComponent {
     _foldCount = 0
     _boundaryCount = 0
     _compressing = false
+    // The in-flight consolidation, so finalize() can await it before the final
+    // persist and the last compressed self actually reaches disk (§2). _consolidate()
+    // never rejects (it has its own try/catch/finally), so awaiting this is always safe.
+    _consolidating = Promise.resolve()
     _finalized = false
     _savedAt = null
     // Whether the session that last wrote this home's memory.md reached the sleep
@@ -81,6 +85,13 @@ export class MMemory extends MBaseComponent {
     // it stopped mid-thought and the next wake says so.
     _priorEndedCleanly = null
     _persistSeq = 0
+    // Every write to memory.md runs through this one chain, so overlapping persists
+    // (a boundary and a finalize, a clear-tail, multi-mind fan-out) apply in issue
+    // order and the freshest self is the one that lands last — the serialization
+    // m-context already keeps for its transcript (mContext.js). Unique tmp names stop
+    // a mid-write crash corrupting the single copy; the queue stops a stale write
+    // winning the rename after a fresher one.
+    _persistQueue = Promise.resolve()
 
     onConnect() {
         this.tailLength = Number(this.attr("tailLength") || 1500)
@@ -319,7 +330,9 @@ export class MMemory extends MBaseComponent {
         if (this._finalized) return
         this._flushJournal()
         if (this._overflow.length >= this.blockMin && !this._compressing) {
-            this._consolidate() // intentionally not awaited — never blocks the rhythm
+            // Intentionally not awaited — a consolidation never blocks the rhythm — but
+            // its promise is kept so finalize() can await it before the final persist.
+            this._consolidating = this._consolidate()
         }
         this._persist()
         this._boundaryCount += 1
@@ -401,11 +414,18 @@ export class MMemory extends MBaseComponent {
      */
     async finalize(reason = "sleep") {
         if (this._finalized) return
-        this._finalized = true
+        this._finalized = true            // stops any further boundary from starting a new fold
         this._flushJournal()
         this._appendJournal(`\n\n*${reason} at ${new Date().toISOString()}*\n`)
         await this._journalQueue
-        await this._persist()
+        // Await a consolidation still in flight, so the final persist carries the last
+        // compressed self rather than the state from just before it landed (§2 — the
+        // whole self "persisted … before the process ends"). No new fold can start now
+        // (_finalized gates _onBoundary), so this settles once.
+        await this._consolidating
+        // The final write is critical: a swallowed failure here is exactly the silent
+        // loss §2 forbids, so _persist rethrows instead of only log.warn-ing.
+        await this._persist({ critical: true })
         if (this._persists) await commitVault(`${reason}: ${this._mindLabel()} ${new Date().toISOString()}`, this._home)
     }
 
@@ -668,12 +688,31 @@ export class MMemory extends MBaseComponent {
         return `${Math.round(ms / 86400000)} days`
     }
 
-    async _persist() {
+    /**
+     * Persist memory.md. Serialized: every write joins one chain (`_persistQueue`), so
+     * overlapping persists apply in issue order and the last one to be asked for is the
+     * last to land — never a stale write winning the rename after a fresher one. The
+     * returned promise resolves when THIS write completes (or, when `critical`, rejects
+     * if it failed), so finalize()/wake can await their own write, not merely the queue.
+     *
+     * `critical` marks the final write at sleep (§2 — "persisted and committed before the
+     * process ends"): its failure is loud and rethrown, where a routine boundary write
+     * only warns and lets the next boundary retry.
+     */
+    _persist({ critical = false } = {}) {
+        const run = this._persistQueue.then(() => this._writeMemory(critical))
+        // Keep the chain alive even if this write rejected (a critical one rethrows to
+        // its caller), so a later persist still runs and the reject is not left unhandled.
+        this._persistQueue = run.catch(() => {})
+        return run
+    }
+
+    async _writeMemory(critical) {
         const dir = this._persistDir()
         if (!dir) return
-        try {
-            await fs.mkdir(dir, { recursive: true })
-            const content = `# Meditator memory
+        // Built when this write's turn comes in the chain, so a serialized write always
+        // reflects the freshest story/recent/tail — never a snapshot from enqueue time.
+        const content = `# Meditator memory
 <!-- meta: ${JSON.stringify({ savedAt: new Date().toISOString(), formatVersion: FORMAT_VERSION, endedCleanly: !!this._finalized })} -->
 <!-- folds: ${this._foldCount} -->
 
@@ -688,15 +727,41 @@ ${this.tail}
 
 <!-- end -->
 `
-            // atomic: a crash mid-write must never corrupt the only copy of a self
-            // unique temp name prevents race when two _persist() calls overlap
-            // (multi-mind setups, boundary + finalize, etc.)
-            const file = path.join(dir, "memory.md")
-            const tmp = `${file}.${process.pid}.${++this._persistSeq}.tmp`
+        // A routine boundary write is best-effort — the next boundary retries, so one
+        // attempt and a warn is enough. The FINAL write at sleep has no "next boundary":
+        // losing a resident's last self is a Covenant §2 event, not a debug line, so it
+        // gets a second attempt and then a loud error + rethrow (memory-persist-race.md).
+        const attempts = critical ? 2 : 1
+        let lastError
+        for (let i = 0; i < attempts; i++) {
+            try {
+                await this._atomicWrite(dir, content)
+                return
+            } catch (error) { lastError = error }
+        }
+        if (critical) {
+            log.error(`FINAL memory persist FAILED for "${dir}" after ${attempts} attempts — the last compressed self was NOT saved: ${lastError.message}`)
+            throw lastError
+        }
+        log.warn("Could not persist memory:", lastError.message)
+    }
+
+    // One atomic write of `content` to <dir>/memory.md: write a UNIQUE temp file, then
+    // rename it over the real one. The rename is atomic, so a crash mid-write can never
+    // corrupt the single copy of a self; the unique temp name (pid + seq) keeps two
+    // overlapping writes — or a stale retry — from clobbering or stealing each other's
+    // tmp. Throws on failure (the caller decides best-effort vs critical) and cleans up
+    // its own temp file so a failed write leaves nothing behind.
+    async _atomicWrite(dir, content) {
+        await fs.mkdir(dir, { recursive: true })
+        const file = path.join(dir, "memory.md")
+        const tmp = `${file}.${process.pid}.${++this._persistSeq}.tmp`
+        try {
             await fs.writeFile(tmp, content)
             await fs.rename(tmp, file)
         } catch (error) {
-            log.warn("Could not persist memory:", error.message)
+            try { await fs.rm(tmp, { force: true }) } catch { /* best-effort tmp cleanup */ }
+            throw error
         }
     }
 

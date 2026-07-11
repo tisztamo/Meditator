@@ -46,10 +46,15 @@ not necessarily acted on yet. Each note states its status at the top.
   + pinned index) with the clerk-as-agent as milestone 2 and voting/stage as opt-in layers
   — **phased design in [board.md](../architecture/board.md)** (observed:
   `noosphere-lab` run 1, 2026-06-30).
-  shared `memory.md.tmp` then renames, but is called un-serialized from
-  boundary/clear-tail/finalize; overlapping persists race the rename → `ENOENT`
-  (swallowed as a warn), silently losing a mind's final `story`/`recent`/`tail` on
-  sleep — surfaced inside the graceful-shutdown path (observed: `solver` sleep 2026-06-29).
+- [memory-persist-race.md](memory-persist-race.md) — **RESOLVED 2026-07-11** (review
+  gap #5): `mMemory._persist()` wrote a shared `memory.md.tmp` then renamed, but was
+  called un-serialized from boundary/clear-tail/finalize; overlapping persists raced the
+  rename → `ENOENT` (swallowed as a warn), silently losing a mind's final
+  `story`/`recent`/`tail` on sleep — surfaced inside the graceful-shutdown path (observed:
+  `solver` sleep 2026-06-29). Fixed: one `_persistQueue` chain serializes every write,
+  `finalize()` awaits the in-flight consolidation before its final write, and that final
+  write retries once then logs at **error** and rethrows (no more silent loss). Unique
+  temp names had already landed.
 - [ui-journal-honesty.md](ui-journal-honesty.md) — fix plan: the Studio UI and the
   journal show text the model never saw (and vice versa) because each event is
   rendered twice, independently — dropped stimulus `suggestion`s, "You said:" ≠ the

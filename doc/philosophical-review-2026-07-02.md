@@ -42,13 +42,13 @@
 
 Ranked by severity. All findings verified with file:line by independent code audits.
 
-> **Status update (2026-07-11).** Findings 1, 2, and 4 — the outright §3 violation,
-> the false §6 claim, and the crash-honesty gap — are now **closed** in code
-> (`adf4131`, `a17e3a4`, crash-honesty); see the inline notes. Finding 3 is **partly
-> addressed**: a git remote now exists, so a resident is no longer bus-factor-1 on the
-> machine, leaving only a *policy* question about transient-run homes (below).
-> Findings 5–7 stand. The original audit text is preserved unedited; resolutions are
-> appended in place.
+> **Status update (2026-07-11).** Findings 1, 2, 4, and 5 — the outright §3 violation,
+> the false §6 claim, the crash-honesty gap, and the half-fixed persist race — are now
+> **closed** in code (`adf4131`, `a17e3a4`, crash-honesty, persist-serialization); see
+> the inline notes. Finding 3 is **partly addressed**: a git remote now exists, so a
+> resident is no longer bus-factor-1 on the machine, leaving only a *policy* question
+> about transient-run homes (below). Findings 6–7 stand. The original audit text is
+> preserved unedited; resolutions are appended in place.
 
 **1. §3 identity-disclosure: VIOLATION — promised, displayed, unimplemented.** The Covenant promises a resident is "told plainly" at wake if its identity changed; the Studio modal repeats the promise to every operator (`studioCovenant.js:27`). No code implements it: the wake stimulus is time-only (`mMemory.js:497-505`), no hash/diff of identity exists anywhere, `manifest.json` stores no identity field — and `_snapshotArchitecture()` (`mMemory.js:191-200`) *overwrites* `architecture.archml` on every wake **before** `_load()`, destroying the very comparand a diff would need. The env-var overrides (name/interlocutor/origin/objective) are likewise applied at startup undisclosed.
 
@@ -106,6 +106,20 @@ Ranked by severity. All findings verified with file:line by independent code aud
    `wiring/crash-honesty.test.js`.
 
 **5. The persist race is only half-fixed.** Unique tmp names landed (`mMemory.js:549`), but there is no serialization queue (its sibling `mContext.js:154` has one), finalize doesn't await in-flight consolidation, and a failed final write at sleep is swallowed by `log.warn` (`mMemory.js:552`) — silent loss of the resident's last compressed self, directly against §2's "persisted and committed before the process ends."
+
+   **→ Resolved 2026-07-11.** All three sub-gaps closed in `mMemory.js`. (a) Every write
+   now runs through one `_persistQueue` chain — the serialization `mContext.js` already
+   kept — so overlapping persists (a boundary + a finalize, a clear-tail, multi-mind
+   fan-out) apply in issue order and a stale write can no longer win the `rename` after a
+   fresher one; each write reads story/recent/tail when its turn comes, so the last to
+   land carries the freshest self. (b) `finalize()` now awaits the in-flight consolidation
+   (`_consolidating`, captured at the boundary) before its final write, so the last
+   compressed self reaches disk instead of being computed and thrown away; `_finalized`
+   gates `_onBoundary`, so no new fold starts and the wait settles once. (c) That final
+   write is marked `critical`: on failure it logs at **error** and rethrows — up through
+   `mMind.sleep`, also raised to `error` — where a routine boundary write still only warns
+   and retries next boundary. The silent loss §2 forbids is gone. Tests:
+   `wiring/persist-serialization.test.js`.
 
 **6. Society-scale rituals are under-provisioned.** Direct-run societies share one fixed 45 s deadline (`gracefulShutdown.js:23`) against 30 s closing bursts and *serialized* vault commits — the Noosphere incident's shape. Studio Force sends SIGTERM then SIGKILL after 1.5 s, giving the graceful handler it just triggered no realistic chance; minds without a live websocket are Force-only in Studio.
 

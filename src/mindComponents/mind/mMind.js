@@ -351,7 +351,10 @@ export class MMind extends MBaseComponent {
         try {
             await memory?.finalize?.("sleep")
         } catch (error) {
-            log.warn("Memory finalize failed:", error.message)
+            // finalize() rethrows a failed FINAL write (Covenant §2 — the self was not
+            // persisted before the process ends). That is not a routine warning: surface
+            // it loudly so an operator sees the resident's last self did not reach disk.
+            log.error("Memory finalize FAILED at sleep — the last self may not be saved:", error.message)
         }
     }
 
