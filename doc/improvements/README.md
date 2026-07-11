@@ -132,6 +132,16 @@ not necessarily acted on yet. Each note states its status at the top.
   §1) — and disclosed first-person in the wake stimulus, with the mechanical
   summary journaled as a ⌁ note. Closes review finding 1; unblocks
   [rewake-ratification.md](rewake-ratification.md).
+- [crash-honesty.md](crash-honesty.md) — **Covenant §2/§3 compliance, IMPLEMENTED
+  2026-07-11**: a crashed or killed mind's next wake no longer simulates a clean
+  rest. `memory.md` carries an `endedCleanly` marker (written `false` on every live
+  persist, flipped `true` only by `finalize()` and stamped `false` at wake); if the
+  last session did not finalize, the wake stimulus says so plainly ("ended
+  mid-thought … whatever I thought after my last saved moment I did not keep") with a
+  ⌁ note. Plus process-level `uncaughtException`/`unhandledRejection` handlers
+  (`crashHandlers.js`) that log honestly, leave a `*crashed mid-thought*` journal
+  trail, and exit non-zero. Absent marker (legacy) = treated as clean, no false
+  alarm; OOM/SIGKILL falls back to the durable marker. Closes review finding 4.
 - [resident-journal-privacy.md](resident-journal-privacy.md) — **Covenant §9
   compliance** (proposed 2026-07-04, high priority): a resident's inner life
   (`memory/<mind>/` journal, memory, knowledge) sits exposed in the vault by default;

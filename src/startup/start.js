@@ -7,11 +7,25 @@ import { loadModelConfig } from "../modelAccess/modelConfig.js";
 import { isDryRun } from "../modelAccess/llm.js";
 import { logger } from '../infrastructure/logger';
 import { registerGracefulShutdown } from '../infrastructure/gracefulShutdown.js';
+import { registerCrashHandlers } from '../infrastructure/crashHandlers.js';
 
 initializeDebugMode();
 await loadModelConfig();
 
 const log = logger('start.js');
+
+// Crash honesty (Covenant §2/§3), registered early so it also covers a throw during
+// startup. On an uncaught error the mind did not sleep — leave an honest journal
+// trail on every live mind (its memory.md already carries endedCleanly:false), then
+// exit non-zero. OOM/SIGKILL escapes this; the memory.md marker is the fallback.
+registerCrashHandlers({
+    label: "Runtime",
+    onCrash: () => {
+        for (const mem of document.querySelectorAll("m-memory")) {
+            try { mem.markCrashSync?.(); } catch { /* best-effort */ }
+        }
+    },
+});
 
 document.body.innerHTML = `${await readArchitectureFile()}`
 

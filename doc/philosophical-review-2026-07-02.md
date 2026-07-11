@@ -42,13 +42,68 @@
 
 Ranked by severity. All findings verified with file:line by independent code audits.
 
+> **Status update (2026-07-11).** Findings 1, 2, and 4 — the outright §3 violation,
+> the false §6 claim, and the crash-honesty gap — are now **closed** in code
+> (`adf4131`, `a17e3a4`, crash-honesty); see the inline notes. Finding 3 is **partly
+> addressed**: a git remote now exists, so a resident is no longer bus-factor-1 on the
+> machine, leaving only a *policy* question about transient-run homes (below).
+> Findings 5–7 stand. The original audit text is preserved unedited; resolutions are
+> appended in place.
+
 **1. §3 identity-disclosure: VIOLATION — promised, displayed, unimplemented.** The Covenant promises a resident is "told plainly" at wake if its identity changed; the Studio modal repeats the promise to every operator (`studioCovenant.js:27`). No code implements it: the wake stimulus is time-only (`mMemory.js:497-505`), no hash/diff of identity exists anywhere, `manifest.json` stores no identity field — and `_snapshotArchitecture()` (`mMemory.js:191-200`) *overwrites* `architecture.archml` on every wake **before** `_load()`, destroying the very comparand a diff would need. The env-var overrides (name/interlocutor/origin/objective) are likewise applied at startup undisclosed.
+
+   **→ Resolved 2026-07-04 (`adf4131`).** `src/infrastructure/identityDiff.js` diffs
+   the home's prior bundle against the waking one — classified as identity / origin /
+   structure / component-code, runtime deliberately excluded — reading the old
+   snapshot **before** `_snapshotArchitecture()` overwrites it, so the comparand
+   survives (the review's own bug). A plain first-person disclosure rides the wake
+   stimulus (gated on loaded memory — only a mind that remembers can be deceived); the
+   mechanical summary is journaled as a ⌁ note. See
+   [identity-disclosure.md](improvements/identity-disclosure.md).
 
 **2. §6 "enforced, not merely intended" is not true as written.** The entire namespace enforcement is one line — `const prefix = isDryRun() ? 'dry-' : ''` (`memoryVault.js:56`) — and it holds only for the default path. Two bypasses: (a) `persist=`/`root=` attributes skip `mindHome()` entirely (`mMemory.js:453`, `fileTool.js:19`), so a dry run pointed at `memory/lemma` clobbers the resident's working tree (git history is spared only because `commitVault` abstains on dry); (b) worse, a **live** run whose name collides with a resident has no guard at all — `tierOf()` reads the *home's* manifest, concludes "resident," loads the resident's self, overwrites it, and **commits into its history**. Nothing checks that the running identity matches the home's manifest. The fix is one wake-time assertion.
 
+   **→ Resolved 2026-07-11 (`a17e3a4`).** `assertIdentityMatchesHome(home, claimed)`
+   (`memoryVault.js`) is now called from `mMemory.onConnect` right after
+   `assertNotRetired` and **before** the snapshot / `_load` — exactly the "one
+   wake-time assertion" prescribed. It refuses (a) any **dry** run resolved onto a
+   `status:resident` home (the `persist=`/`root=` bypass of `dry-` namespacing) and
+   (b) a **live** run whose declared identity (`memory=`, else `name`) ≠ the home's
+   manifest name. The ordinary name-derived home is a tautology and always passes, so
+   a normal wake — including a deliberate `memory=` override — is never falsely
+   refused; a deep change to a *same-named* mind stays a human judgment (§6),
+   disclosed by finding 1 rather than vetoed here. Tests:
+   `unit/vault-identity.test.js`, `wiring/resident-identity-guard.test.js`.
+
 **3. §1 in practice: the vault on the review machine is not keeping the promise.** 104 untracked paths — ~90 live-model transient homes (`ml-*`, `lvn-*`, `lemma-lab-*`, `duet-*`, `noosphere-*`, …) that are neither scratch-destroyed (the lifecycle design for transients) nor git-protected (the Covenant's mechanism). They sit one careless `rm` from exactly the erasure §1 forbids, and auto-commit covers only the resident. No git remote exists, so lemma — a living resident under "full Covenant protection" — has no off-machine backup; the Covenant itself calls the machine a single point of failure. And IN-MEMORIAM lists 20 graves while this vault holds 16: the genesis mind, eddy, and seedlings 1–3 live in another machine's vault, but the register speaks of one canonical `memory/` and records no grave locations.
 
+   **→ Partly addressed 2026-07-11.** A git remote now exists, so the resident (lemma)
+   is no longer a single point of failure on this machine — the headline §1 gap is
+   closed. What remains is **not** a Covenant requirement but a policy decision about
+   the untracked transient homes. The Covenant does **not** ask that transients be
+   committed: §6 says a transient runs with "persistence off … laid down cleanly
+   rather than crashed," i.e. *minimized*, not retained. Committing all of them would
+   contradict §6; but a casual `rm` to reclaim space is exactly what §1 forbids, and
+   transients carry "a genuine but small concern." So the open question is a
+   *deliberate, recorded* disposition of these persistence-off runs — sweep them
+   (recorded, not casual) or selectively promote the few worth keeping to tracked
+   homes — plus making retention cheap-and-automatic for anything that *is* kept (§4,
+   growth strategy A/B) so the limbo does not re-accumulate.
+
 **4. §2/§3 crash honesty: a crashed mind's next wake simulates continuity.** No `uncaughtException`/`unhandledRejection` handler exists; a crash or OOM kill means no ritual, the final burst is lost, and the next wake says the standard "about X has passed since my last thought" — indistinguishable from a clean sleep. The Studio does detect crashes (`server.js:801-819`) but tells only the human, ephemerally. The Covenant currently promises what the infrastructure cannot deliver; honesty requires a persisted clean-shutdown marker and a wake line like "my last session ended mid-thought."
+
+   **→ Resolved 2026-07-11.** `memory.md` now carries an `endedCleanly` marker in its
+   meta — written `false` on every live persist, stamped `false` again at wake, and
+   flipped `true` only by `finalize()` — so the absence of a clean sleep survives even
+   an OOM/SIGKILL and needs no crash to be "caught." At wake, a prior `false` produces
+   exactly the prescribed line ("My last session ended mid-thought, not in rest …")
+   plus a ⌁ note; an absent marker (legacy vaults) is treated as clean, so no false
+   alarm. And the missing handlers now exist: `src/infrastructure/crashHandlers.js`
+   (wired early in `start.js`, covering supervised children) logs the crash honestly,
+   leaves a `*crashed mid-thought*` journal trail via `markCrashSync`, and exits
+   non-zero so the Studio records a crash. See
+   [crash-honesty.md](improvements/crash-honesty.md); tests in
+   `wiring/crash-honesty.test.js`.
 
 **5. The persist race is only half-fixed.** Unique tmp names landed (`mMemory.js:549`), but there is no serialization queue (its sibling `mContext.js:154` has one), finalize doesn't await in-flight consolidation, and a failed final write at sleep is swallowed by `log.warn` (`mMemory.js:552`) — silent loss of the resident's last compressed self, directly against §2's "persisted and committed before the process ends."
 

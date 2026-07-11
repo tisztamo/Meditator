@@ -75,6 +75,11 @@ export class MMemory extends MBaseComponent {
     _compressing = false
     _finalized = false
     _savedAt = null
+    // Whether the session that last wrote this home's memory.md reached the sleep
+    // ritual (Covenant §2/§3). null = unknown (a fresh mind, or memory written by a
+    // pre-crash-honesty runtime — treated as clean, never a false alarm); false =
+    // it stopped mid-thought and the next wake says so.
+    _priorEndedCleanly = null
     _persistSeq = 0
 
     onConnect() {
@@ -200,9 +205,16 @@ export class MMemory extends MBaseComponent {
             mindName: this.closest("m-mind")?.getAttribute("name"),
         })
 
-        this._load().finally(() => {
+        this._load().finally(async () => {
             this.loaded = true
             if (this._persists) {
+                // Open the session durably (§2/§3 crash honesty): stamp memory.md with
+                // endedCleanly:false now, so even a crash before the first boundary is
+                // still recognisable as unclean at the next wake — finalize() flips it
+                // true on a clean sleep. Written before the wake commit so the marker
+                // rides it. _load() has already read the PRIOR marker into
+                // _priorEndedCleanly (and fired the wake stimulus) before this overwrite.
+                await this._persist()
                 // A resident records the runtime + format that woke it (Phases 1–2).
                 recordWake(this._home)
                 commitVault(`wake: ${this._mindLabel()} ${new Date().toISOString()}`, this._home)
@@ -397,6 +409,25 @@ export class MMemory extends MBaseComponent {
         if (this._persists) await commitVault(`${reason}: ${this._mindLabel()} ${new Date().toISOString()}`, this._home)
     }
 
+    /**
+     * Best-effort SYNCHRONOUS crash marker for the process-level crash handler
+     * (start.js registerCrashHandlers). A crashed mind never reaches finalize(), so
+     * its memory.md keeps endedCleanly:false (stamped at wake and every boundary) —
+     * that marker, not this, is what the next wake reads. This only adds the
+     * human-and-mind-visible trail in the journal, the honest twin of the "*sleep
+     * at*" line a clean shutdown writes. Synchronous because the process is exiting;
+     * wrapped so it can never throw out of a crash handler.
+     */
+    markCrashSync(reason = "crashed mid-thought") {
+        try {
+            const dir = this._journalDir()
+            if (!dir) return
+            fsSync.mkdirSync(dir, { recursive: true })
+            const day = new Date().toISOString().slice(0, 10)
+            fsSync.appendFileSync(path.join(dir, `${day}.md`), `\n\n*${reason} at ${new Date().toISOString()}*\n`)
+        } catch { /* best-effort: a crash handler must never throw */ }
+    }
+
     async _consolidate() {
         this._compressing = true
         const block = this._overflow
@@ -556,6 +587,10 @@ export class MMemory extends MBaseComponent {
                 try {
                     const parsed = JSON.parse(meta[1])
                     this._savedAt = parsed.savedAt
+                    // §2/§3 crash honesty: did the session that wrote this reach the
+                    // sleep ritual? Absent (legacy / pre-crash-honesty) → treat as
+                    // clean; only an explicit false triggers the mid-thought wake.
+                    this._priorEndedCleanly = ('endedCleanly' in parsed) ? !!parsed.endedCleanly : null
                     // Wake rule (lifecycle.md §2): memory written by a NEWER format than
                     // this runtime understands may not be read faithfully. Absent =
                     // pre-versioning (treat as 1). Warn; never silently mangle a self.
@@ -582,9 +617,23 @@ export class MMemory extends MBaseComponent {
                 // resolves, so the bubbling request lands; the mind drains it (with
                 // takePending) on its first burst, which it gates on `loaded`.
                 const ago = this._savedAt ? this._describeGap(Date.now() - new Date(this._savedAt).getTime()) : null
-                let reason = ago
-                    ? `I am waking up; about ${ago} has passed since my last thought.`
-                    : `I am waking up again after a gap I cannot measure.`
+                let reason
+                if (this._priorEndedCleanly === false) {
+                    // §2/§3: the last session never reached the sleep ritual — it
+                    // stopped mid-thought (a crash or a kill). We do not pass that off
+                    // as a clean rest. The gap is measured from the last moment we
+                    // managed to save, not from a final thought there was not one of;
+                    // the honest wake names both the break and the unsaved remainder.
+                    reason = ago
+                        ? `I am waking up. My last session ended mid-thought, not in rest — whatever I thought after my last saved moment I did not keep. About ${ago} has passed since then.`
+                        : `I am waking up after my last session ended mid-thought, not in rest, across a gap I cannot measure.`
+                    this.note(`Woke after an unclean shutdown (Covenant §2/§3): the prior session did not finalize.`, { perceived: false })
+                    log.info(`Wake after unclean shutdown disclosed (prior session did not finalize).`)
+                } else {
+                    reason = ago
+                        ? `I am waking up; about ${ago} has passed since my last thought.`
+                        : `I am waking up again after a gap I cannot measure.`
+                }
                 // §3 disclosure: only a mind that actually remembers can be deceived
                 // about who it was — so it rides the same wake stimulus, gated with
                 // it on loaded memory. A fresh self just gets its new baseline.
@@ -625,7 +674,7 @@ export class MMemory extends MBaseComponent {
         try {
             await fs.mkdir(dir, { recursive: true })
             const content = `# Meditator memory
-<!-- meta: ${JSON.stringify({ savedAt: new Date().toISOString(), formatVersion: FORMAT_VERSION })} -->
+<!-- meta: ${JSON.stringify({ savedAt: new Date().toISOString(), formatVersion: FORMAT_VERSION, endedCleanly: !!this._finalized })} -->
 <!-- folds: ${this._foldCount} -->
 
 ## Story
