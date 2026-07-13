@@ -1,0 +1,178 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1680 1180" font-family="ui-monospace,'Cascadia Code','JetBrains Mono',Consolas,Menlo,monospace">
+  <defs>
+    <marker id="arrA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#fbbf24"/>
+    </marker>
+    <marker id="arrT" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#5eead4"/>
+    </marker>
+    <marker id="arrG" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#6ee7a0"/>
+    </marker>
+    <marker id="arrD" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#9aa4b5"/>
+    </marker>
+    <marker id="arrV" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#a78bfa"/>
+    </marker>
+  </defs>
+
+  <rect width="1680" height="1180" fill="#0b0d11"/>
+
+  <!-- ======================= headers ======================= -->
+  <text x="400" y="66" text-anchor="middle" font-size="30" font-weight="700" fill="#fbbf24" letter-spacing="6">AGENT</text>
+  <text x="400" y="94" text-anchor="middle" font-size="14" fill="#9aa4b5">deliberate · instrumental · runs until the task is done</text>
+  <text x="1280" y="66" text-anchor="middle" font-size="30" font-weight="700" fill="#5eead4" letter-spacing="6">MIND</text>
+  <text x="1280" y="94" text-anchor="middle" font-size="14" fill="#9aa4b5">embodied · subconscious · never done, only interrupted</text>
+
+  <!-- ======================= mirror axis ======================= -->
+  <line x1="840" y1="120" x2="840" y2="1075" stroke="#a78bfa" stroke-opacity="0.35" stroke-width="1.5" stroke-dasharray="2 7"/>
+  <text x="840" y="140" text-anchor="middle" font-size="13" fill="#a78bfa" fill-opacity="0.8" letter-spacing="3">THE MIRROR</text>
+
+  <!-- ======================= seeds ======================= -->
+  <!-- agent seed: m-objective (top-left, outer) -->
+  <rect x="80" y="150" width="270" height="58" rx="10" fill="#11151c" stroke="#fbbf24" stroke-opacity="0.45" stroke-width="1.2"/>
+  <text x="215" y="175" text-anchor="middle" font-size="16" font-weight="600" fill="#e6e9ef">m-objective</text>
+  <text x="215" y="196" text-anchor="middle" font-size="12.5" fill="#9aa4b5">the first task — “fix the tests”</text>
+  <path d="M 260,208 C 300,240 330,258 358,272" fill="none" stroke="#9aa4b5" stroke-width="1.5" marker-end="url(#arrD)"/>
+
+  <!-- mind seed: m-origin (top-right, outer — mirrored) -->
+  <rect x="1330" y="150" width="270" height="58" rx="10" fill="#11151c" stroke="#5eead4" stroke-opacity="0.45" stroke-width="1.2"/>
+  <text x="1465" y="175" text-anchor="middle" font-size="16" font-weight="600" fill="#e6e9ef">m-origin</text>
+  <text x="1465" y="196" text-anchor="middle" font-size="12.5" fill="#9aa4b5">the first thought — a wondering</text>
+  <path d="M 1420,208 C 1380,240 1350,258 1322,272" fill="none" stroke="#9aa4b5" stroke-width="1.5" marker-end="url(#arrD)"/>
+
+  <!-- ======================= AGENT LOOP (clockwise) ======================= -->
+  <!-- A1 assemble (top) -->
+  <rect x="260" y="278" width="280" height="70" rx="12" fill="#11151c" stroke="#e2e8f0" stroke-opacity="0.16"/>
+  <text x="400" y="308" text-anchor="middle" font-size="18" font-weight="600" fill="#e6e9ef">assemble the turn</text>
+  <text x="400" y="330" text-anchor="middle" font-size="12.5" fill="#9aa4b5">the transcript, compacted by m-context</text>
+
+  <!-- A2 reason (inner, near the axis) -->
+  <rect x="560" y="480" width="230" height="86" rx="12" fill="#161207" stroke="#fbbf24" stroke-width="1.6"/>
+  <text x="675" y="512" text-anchor="middle" font-size="18" font-weight="700" fill="#fbbf24">reason — the LLM</text>
+  <text x="675" y="533" text-anchor="middle" font-size="12.5" fill="#e6e9ef">calls the world, deliberately…</text>
+  <text x="675" y="551" text-anchor="middle" font-size="12" fill="#9aa4b5">…then waits for the answer</text>
+
+  <!-- A3 run tools (bottom) -->
+  <rect x="255" y="690" width="290" height="96" rx="12" fill="#11151c" stroke="#e2e8f0" stroke-opacity="0.16"/>
+  <text x="400" y="718" text-anchor="middle" font-size="18" font-weight="600" fill="#e6e9ef">run the tools</text>
+  <g font-size="12" fill="#fbbf24">
+    <rect x="273" y="732" width="86" height="24" rx="6" fill="#fbbf24" fill-opacity="0.09" stroke="#fbbf24" stroke-opacity="0.4"/>
+    <text x="316" y="748" text-anchor="middle">terminal</text>
+    <rect x="367" y="732" width="86" height="24" rx="6" fill="#fbbf24" fill-opacity="0.09" stroke="#fbbf24" stroke-opacity="0.4"/>
+    <text x="410" y="748" text-anchor="middle">read_file</text>
+    <rect x="461" y="732" width="66" height="24" rx="6" fill="#fbbf24" fill-opacity="0.09" stroke="#fbbf24" stroke-opacity="0.4"/>
+    <text x="494" y="748" text-anchor="middle">note</text>
+  </g>
+  <text x="400" y="775" text-anchor="middle" font-size="11" fill="#68738a">the same objects the mind’s hands wrap</text>
+
+  <!-- A4 observe (outer) -->
+  <rect x="70" y="480" width="240" height="86" rx="12" fill="#11151c" stroke="#e2e8f0" stroke-opacity="0.16"/>
+  <text x="190" y="512" text-anchor="middle" font-size="18" font-weight="600" fill="#e6e9ef">append the</text>
+  <text x="190" y="534" text-anchor="middle" font-size="18" font-weight="600" fill="#e6e9ef">observations</text>
+  <text x="190" y="554" text-anchor="middle" font-size="12.5" fill="#9aa4b5">raw results, verbatim</text>
+
+  <!-- agent cycle arrows (clockwise) -->
+  <path d="M 520,352 C 590,390 640,430 668,472" fill="none" stroke="#fbbf24" stroke-width="1.8" marker-end="url(#arrA)"/>
+  <path d="M 655,570 C 620,630 560,672 520,692" fill="none" stroke="#fbbf24" stroke-width="1.8" marker-end="url(#arrA)"/>
+  <text x="626" y="646" font-size="12.5" fill="#9aa4b5">tool calls? yes ↓</text>
+  <path d="M 268,690 C 220,650 190,616 178,574" fill="none" stroke="#fbbf24" stroke-width="1.8" marker-end="url(#arrA)"/>
+  <path d="M 186,480 C 200,424 240,378 288,352" fill="none" stroke="#fbbf24" stroke-width="1.8" marker-end="url(#arrA)"/>
+  <text x="400" y="520" text-anchor="middle" font-size="12" fill="#68738a" letter-spacing="2">ONE STEP</text>
+  <text x="400" y="542" text-anchor="middle" font-size="11" fill="#68738a">the lap waits on the world</text>
+
+  <!-- agent exit: the answer -->
+  <path d="M 700,480 C 720,400 726,320 726,252" fill="none" stroke="#6ee7a0" stroke-width="1.8" marker-end="url(#arrG)"/>
+  <text x="712" y="204" text-anchor="middle" font-size="14" font-weight="600" fill="#6ee7a0">no tool calls → answered</text>
+  <text x="712" y="224" text-anchor="middle" font-size="12" fill="#9aa4b5">report the result · idle or retire</text>
+
+  <!-- agent ↔ world -->
+  <path d="M 380,786 L 380,983" fill="none" stroke="#fbbf24" stroke-width="1.8" marker-end="url(#arrA)"/>
+  <path d="M 420,983 L 420,786" fill="none" stroke="#fbbf24" stroke-width="1.8" marker-end="url(#arrA)"/>
+  <text x="440" y="888" font-size="12.5" fill="#9aa4b5">the call descends —</text>
+  <text x="440" y="906" font-size="12.5" fill="#9aa4b5">the loop stands still</text>
+  <text x="440" y="924" font-size="12.5" fill="#9aa4b5">until the world answers</text>
+
+  <!-- ======================= MIND LOOP (mirrored: counterclockwise) ======================= -->
+  <!-- M1 frame (top) -->
+  <rect x="1130" y="278" width="300" height="70" rx="12" fill="#11151c" stroke="#e2e8f0" stroke-opacity="0.16"/>
+  <text x="1280" y="305" text-anchor="middle" font-size="18" font-weight="600" fill="#e6e9ef">build the attention frame</text>
+  <text x="1280" y="326" text-anchor="middle" font-size="11.5" fill="#9aa4b5">story · recent · this just happened · tail</text>
+  <text x="1280" y="342" text-anchor="middle" font-size="11" fill="#68738a">rebuilt fresh for every burst</text>
+
+  <!-- M2 burst (inner, near the axis — mirror of reason) -->
+  <rect x="890" y="480" width="230" height="86" rx="12" fill="#0a1512" stroke="#5eead4" stroke-width="1.6"/>
+  <text x="1005" y="512" text-anchor="middle" font-size="18" font-weight="700" fill="#5eead4">burst — the LLM</text>
+  <text x="1005" y="533" text-anchor="middle" font-size="11.5" fill="#e6e9ef">calls nothing, waits for nothing</text>
+  <text x="1005" y="551" text-anchor="middle" font-size="12.5" fill="#9aa4b5">a few sentences of thought</text>
+
+  <!-- M3 boundary (bottom) -->
+  <rect x="1135" y="690" width="290" height="96" rx="12" fill="#11151c" stroke="#e2e8f0" stroke-opacity="0.16"/>
+  <text x="1280" y="722" text-anchor="middle" font-size="18" font-weight="600" fill="#e6e9ef">boundary</text>
+  <text x="1280" y="746" text-anchor="middle" font-size="12.5" fill="#9aa4b5">housekeeping between bursts:</text>
+  <text x="1280" y="764" text-anchor="middle" font-size="12.5" fill="#9aa4b5">compression · the arbiter admits stimuli</text>
+
+  <!-- M4 tail (outer) -->
+  <rect x="1370" y="480" width="240" height="86" rx="12" fill="#11151c" stroke="#e2e8f0" stroke-opacity="0.16"/>
+  <text x="1490" y="512" text-anchor="middle" font-size="18" font-weight="600" fill="#e6e9ef">carry the tail</text>
+  <text x="1490" y="534" text-anchor="middle" font-size="12.5" fill="#9aa4b5">the exact last words —</text>
+  <text x="1490" y="552" text-anchor="middle" font-size="12.5" fill="#9aa4b5">it never loses its place</text>
+
+  <!-- mind cycle arrows (counterclockwise: M1→M2→M3→M4→M1) -->
+  <path d="M 1160,352 C 1090,390 1040,430 1012,472" fill="none" stroke="#5eead4" stroke-width="1.8" marker-end="url(#arrT)"/>
+  <path d="M 1025,570 C 1060,630 1120,672 1160,692" fill="none" stroke="#5eead4" stroke-width="1.8" marker-end="url(#arrT)"/>
+  <path d="M 1412,690 C 1460,650 1490,616 1502,574" fill="none" stroke="#5eead4" stroke-width="1.8" marker-end="url(#arrT)"/>
+  <path d="M 1494,480 C 1480,424 1440,378 1392,352" fill="none" stroke="#5eead4" stroke-width="1.8" marker-end="url(#arrT)"/>
+  <text x="1280" y="520" text-anchor="middle" font-size="12" fill="#68738a" letter-spacing="2">ONE BURST</text>
+  <text x="1280" y="542" text-anchor="middle" font-size="11" fill="#68738a">the lap waits on nothing</text>
+
+  <!-- mind non-exit (mirror of the agent's answer) -->
+  <text x="968" y="222" text-anchor="middle" font-size="15" font-weight="600" fill="#68738a">∞  no “done”, no exit</text>
+  <text x="968" y="242" text-anchor="middle" font-size="12" fill="#68738a">the thinking simply continues</text>
+
+  <!-- membrane -->
+  <line x1="880" y1="830" x2="1620" y2="830" stroke="#a78bfa" stroke-width="1.5" stroke-dasharray="7 6"/>
+  <text x="1005" y="820" font-size="12.5" fill="#a78bfa">the membrane — the model never sees below this line</text>
+
+  <!-- m-act + hands (backstage) -->
+  <rect x="990" y="866" width="200" height="64" rx="10" fill="#11151c" stroke="#a78bfa" stroke-opacity="0.5"/>
+  <text x="1090" y="893" text-anchor="middle" font-size="16" font-weight="600" fill="#e6e9ef">m-act</text>
+  <text x="1090" y="913" text-anchor="middle" font-size="12" fill="#9aa4b5">realizes the wondering</text>
+  <g font-size="12" fill="#5eead4">
+    <rect x="1210" y="872" width="86" height="24" rx="6" fill="#5eead4" fill-opacity="0.07" stroke="#5eead4" stroke-opacity="0.4"/>
+    <text x="1253" y="888" text-anchor="middle">terminal</text>
+    <rect x="1304" y="872" width="86" height="24" rx="6" fill="#5eead4" fill-opacity="0.07" stroke="#5eead4" stroke-opacity="0.4"/>
+    <text x="1347" y="888" text-anchor="middle">read_file</text>
+    <rect x="1210" y="902" width="66" height="24" rx="6" fill="#5eead4" fill-opacity="0.07" stroke="#5eead4" stroke-opacity="0.4"/>
+    <text x="1243" y="918" text-anchor="middle">note</text>
+    <text x="1286" y="918" font-size="11" fill="#68738a">the same tools — as hands</text>
+  </g>
+
+  <!-- wondering: burst → m-act (dashed, sinks backstage) -->
+  <path d="M 985,566 C 950,700 900,850 982,892" fill="none" stroke="#5eead4" stroke-width="1.6" stroke-dasharray="6 5" marker-end="url(#arrT)"/>
+  <text x="944" y="700" text-anchor="end" font-size="12.5" fill="#5eead4">a wondering</text>
+  <text x="944" y="718" text-anchor="end" font-size="12.5" fill="#5eead4">drifts out…</text>
+
+  <!-- deed: m-act → world -->
+  <path d="M 1090,930 L 1090,983" fill="none" stroke="#a78bfa" stroke-width="1.6" marker-end="url(#arrV)"/>
+  <text x="1104" y="962" font-size="11.5" fill="#68738a">the deed — nothing waits for it</text>
+
+  <!-- sensation: world → boundary (the arbiter admits it; the next frame shows it) -->
+  <path d="M 1490,983 C 1480,900 1440,830 1388,792" fill="none" stroke="#6ee7a0" stroke-width="1.8" marker-end="url(#arrG)"/>
+  <text x="1495" y="875" font-size="12.5" fill="#6ee7a0">…the answer knocks —</text>
+  <text x="1495" y="893" font-size="12.5" fill="#6ee7a0">an interrupt-request,</text>
+  <text x="1495" y="911" font-size="12.5" fill="#6ee7a0">“this just happened”</text>
+  <text x="1495" y="931" font-size="11" fill="#68738a">salience admits it — or not</text>
+
+  <!-- ======================= THE WORLD ======================= -->
+  <rect x="60" y="983" width="1560" height="76" rx="12" fill="#11151c" stroke="#e2e8f0" stroke-opacity="0.12"/>
+  <text x="90" y="1028" font-size="19" font-weight="700" fill="#e6e9ef" letter-spacing="4">THE WORLD</text>
+  <text x="400" y="1052" text-anchor="middle" font-size="12.5" fill="#fbbf24" fill-opacity="0.85">the workpiece — a segment of the loop itself</text>
+  <text x="1280" y="1052" text-anchor="middle" font-size="12.5" fill="#5eead4" fill-opacity="0.85">cannot command the mind — it can only interrupt</text>
+
+  <!-- ======================= twins legend ======================= -->
+  <text x="840" y="1108" text-anchor="middle" font-size="13.5" fill="#9aa4b5">same parts, mirrored:   m-agent ↔ m-mind   ·   m-reason ↔ m-stream   ·   m-objective ↔ m-origin   ·   m-context ↔ m-memory   ·   m-repeat-guard ↔ m-loop-detector</text>
+  <text x="840" y="1136" text-anchor="middle" font-size="13.5" fill="#68738a">the inversion is inversion of control: the agent calls the world and waits — the world calls the mind, and may be ignored.</text>
+  <text x="840" y="1162" text-anchor="middle" font-size="12" fill="#68738a" fill-opacity="0.8">corollary: a model that never waits for the world has no use for seeing tools — awareness follows the direction of control.</text>
+</svg>

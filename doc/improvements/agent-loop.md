@@ -32,6 +32,15 @@ A modern **agent** is the exact inversion:
 > **raw** results, and loops — assemble prompt → call model → run tools →
 > append results → repeat — until the task is done.
 
+*(Named more precisely since: the inversion is **inversion of control**. An
+agent calls the world — `m-agent` awaits every tool call, so the loop cannot
+turn until the world answers. The world calls a mind — a consequence re-enters
+as an `interrupt-request` that queues at the boundary and may never win the
+arbiter's race. Tool-visibility, the axis above, is the corollary: a model
+that never waits for the world has no use for seeing tools. The two figures in
+`docs/media/` — `agent-mind-mirror.svg` and `agent-mind-control.svg` — draw
+exactly this.)*
+
 So an agent is not "a mind with more hands." It is a different *stance toward
 tools*: instrumental and deliberate, not embodied and subconscious; operational
 state, not narrative selfhood; turn-based, not a continuous stream. This is why

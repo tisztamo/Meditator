@@ -11,14 +11,25 @@ same Studio — but it is the *deliberate inversion* of a mind.
 > rationale is [improvements/agent-loop.md](improvements/agent-loop.md); this page
 > is the practical guide.
 
-## The inversion, in one table
+## The inversion, precisely
+
+The inversion is **inversion of control** — who calls whom. An agent calls the
+world: every step awaits its tool calls, so the loop cannot turn until the
+world answers. The world calls a mind: it can only knock — a consequence or an
+interruption arrives as a stimulus that queues at the boundary, is admitted by
+salience, and may never be felt. Everything else in the table follows from
+that flip, including tool-blindness itself: a model that never waits for the
+world has no use for seeing tools.
+
+![The agent's loop passes through the world; the mind's loop closes on itself.](../docs/media/agent-mind-control.svg)
 
 | | `<m-mind>` | `<m-agent>` |
 |---|---|---|
+| The loop | closes on itself — it waits on nothing | passes through the world — no next thought until a tool call returns |
 | Runs | continuously, at its own pace | until the task is done, then idles or retires |
 | The model sees | an attention frame; **never** tools | the tools, and the **raw** results of calling them |
 | Acting | subconscious — `m-act` realizes a wondering backstage; the world answers later as a sensation | deliberate — the model emits tool calls and reads the observations |
-| The world | can only interrupt | is the workpiece |
+| The world | can only knock — interrupt, never command | is the workpiece, a segment of the loop |
 | Seeded by | `<m-origin>` — the first thought | `<m-objective>` — the first task |
 | Memory | three compressed tiers + the vault | a transcript, compacted and persisted by `<m-context>` |
 
