@@ -191,13 +191,16 @@ export function buildGraph(tree) {
   }
 
   // Initial positions: each node jittered (deterministically) around its cluster
-  // anchor; the physics then settles the layout.
+  // anchor; the physics then settles the layout. The axis salt is PREFIXED, not
+  // suffixed (mirrors infoton.js's seedPos): FNV-1a's avalanche is weak across
+  // the last byte, so `id + "x"/"y"/"z"` hashed to near-identical values and
+  // collapsed every node onto a single line through its anchor.
   for (const c of g.clusters) {
     for (const n of c.nodes) {
       const spread = n.depth === 0 ? 0 : n.depth === 1 ? 52 : 74;
-      n.x = c.ax + (hash01(n.id + "x") - 0.5) * spread;
-      n.y = c.ay + (hash01(n.id + "y") - 0.5) * spread * 0.7;
-      n.z = c.az + (hash01(n.id + "z") - 0.5) * spread;
+      n.x = c.ax + (hash01("x:" + n.id) - 0.5) * spread;
+      n.y = c.ay + (hash01("y:" + n.id) - 0.5) * spread * 0.7;
+      n.z = c.az + (hash01("z:" + n.id) - 0.5) * spread;
       if (n.depth === 0) { n.x = c.ax; n.y = c.ay; n.z = c.az; n.anchor = { x: c.ax, y: c.ay, z: c.az, k: 0.028 }; }
     }
   }

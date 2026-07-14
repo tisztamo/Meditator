@@ -25,13 +25,18 @@ export function hash01(s) {
 }
 
 /** Deterministic seed position: a box jitter of ±spread/2 around a parent
- *  position (components spawn near their creator). `around` may be null (origin). */
+ *  position (components spawn near their creator). `around` may be null (origin).
+ *  The axis salt is PREFIXED, not suffixed: FNV-1a's avalanche is weak across the
+ *  last byte or two, so `path + "x"/"y"/"z"` (differing only in a trailing
+ *  character) hashed to near-identical values — every node landed on the same
+ *  ray through its parent, i.e. the whole cluster collapsed onto a single line.
+ *  Salting at the front runs the differing byte through the full mix. */
 export function seedPos(path, around, spread) {
   const a = around || { x: 0, y: 0, z: 0 };
   return {
-    x: a.x + (hash01(path + "x") - 0.5) * spread,
-    y: a.y + (hash01(path + "y") - 0.5) * spread * 0.7,
-    z: a.z + (hash01(path + "z") - 0.5) * spread,
+    x: a.x + (hash01("x:" + path) - 0.5) * spread,
+    y: a.y + (hash01("y:" + path) - 0.5) * spread * 0.7,
+    z: a.z + (hash01("z:" + path) - 0.5) * spread,
   };
 }
 
