@@ -134,6 +134,11 @@
   .frame .arrow{align-self:center;color:var(--faint);line-height:.6;margin:2px 0}
   .frame-cap{margin-top:12px;font-size:.8rem;color:var(--faint)}
 
+  /* ---------- figures ---------- */
+  .figure{border:1px solid var(--line);border-radius:12px;background:#0a0d12;overflow:hidden;margin-top:28px}
+  .figure img{display:block;width:100%;height:auto}
+  .figure figcaption{padding:12px 18px;font-size:.86rem;color:var(--dim);border-top:1px solid var(--line)}
+
   /* ---------- code blocks ---------- */
   .codepanel{border:1px solid var(--line);border-radius:12px;background:#0a0d12;overflow:hidden;margin-top:26px}
   .codepanel .bar{display:flex;align-items:center;gap:8px;padding:9px 16px;border-bottom:1px solid var(--line);
@@ -531,6 +536,12 @@
         <span class="chip"><span class="cdot lab"></span>lab — first clusters ran June 2026, findings published</span>
       </div>
     </div>
+
+    <figure class="figure reveal">
+      <img src="media/agent-mind-control.svg" loading="lazy" alt="Inversion of control: the agent's loop passes through the world and waits for every tool call to return before it can think again; the mind's loop closes on itself above the world, and the world can only knock as an interrupt that may never be felt.">
+      <figcaption>Same machinery, control reversed. An agent's loop passes through the world; a mind's loop closes on
+        itself, and the world can only interrupt it.</figcaption>
+    </figure>
 
     <div class="codepanel">
       <div class="bar"><span class="fname" id="exhibitName">seedling.archml — a complete daemon</span>

@@ -183,6 +183,11 @@
   .flip-hint{position:absolute;right:0;bottom:-6px;font-family:var(--mono);font-size:.72rem;color:var(--faint)}
   .card-back .flip-hint{right:14px;bottom:10px}
 
+  /* ---------- figures ---------- */
+  .figure{border:1px solid var(--line);border-radius:14px;background:#0b0f16;overflow:hidden;margin-top:30px}
+  .figure img{display:block;width:100%;height:auto}
+  .figure figcaption{padding:14px 20px;font-size:.88rem;color:var(--dim);border-top:1px solid var(--line)}
+
   /* ---------- the one-file exhibit ---------- */
   .code{background:var(--bg2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
   .codepanel{border:1px solid var(--line);border-radius:14px;background:#0b0f16;overflow:hidden;margin-top:30px}
@@ -439,6 +444,12 @@
           operational state where the mind has a self.</p>
       </div>
     </div>
+
+    <figure class="figure reveal">
+      <img src="../media/agent-mind-control.svg" loading="lazy" alt="Inversion of control: the agent's loop passes through the world and waits for every tool call to return before it can think again; the mind's loop closes on itself above the world, and the world can only knock as an interrupt that may never be felt.">
+      <figcaption>Same machinery, control reversed. An agent's loop passes through the world; a mind's loop closes on
+        itself, and the world can only interrupt it.</figcaption>
+    </figure>
 
     <div class="shapegrid">
       <div class="shape mind reveal">
