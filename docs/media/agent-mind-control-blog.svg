@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 620" font-family="ui-monospace,'Cascadia Code','JetBrains Mono',Consolas,Menlo,monospace">
+  <defs>
+    <marker id="bA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#fbbf24"/>
+    </marker>
+    <marker id="bT" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#5eead4"/>
+    </marker>
+    <marker id="bG" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#6ee7a0"/>
+    </marker>
+    <marker id="bV" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#a78bfa"/>
+    </marker>
+  </defs>
+
+  <rect width="900" height="620" fill="#0b0d11"/>
+
+  <!-- ===== title ===== -->
+  <text x="450" y="44" text-anchor="middle" font-size="28" font-weight="700" fill="#e6e9ef" letter-spacing="2">inversion of control</text>
+  <text x="450" y="72" text-anchor="middle" font-size="16" fill="#9aa4b5">the agent calls the world and waits — the world calls the mind, and may be ignored</text>
+
+  <!-- ===== headers + divider ===== -->
+  <text x="232" y="118" text-anchor="middle" font-size="27" font-weight="700" fill="#fbbf24" letter-spacing="4">AGENT</text>
+  <text x="670" y="118" text-anchor="middle" font-size="27" font-weight="700" fill="#5eead4" letter-spacing="4">MIND</text>
+  <line x1="450" y1="100" x2="450" y2="470" stroke="#e2e8f0" stroke-opacity="0.07" stroke-width="1.5"/>
+
+  <!-- ============ THE WORLD (drawn first; the loops render on top) ============ -->
+  <text x="62" y="489" font-size="15" font-weight="700" fill="#e6e9ef" letter-spacing="3">THE WORLD</text>
+  <rect x="40" y="496" width="820" height="72" rx="12" fill="#11151c" stroke="#e2e8f0" stroke-opacity="0.12"/>
+  <!-- the tool — inside the world band, on the agent's loop -->
+  <rect x="140" y="508" width="184" height="48" rx="10" fill="#fbbf24" fill-opacity="0.1" stroke="#fbbf24" stroke-opacity="0.8" stroke-width="1.5"/>
+  <text x="232" y="530" text-anchor="middle" font-size="15" font-weight="600" fill="#fbbf24">run the tool</text>
+  <text x="232" y="548" text-anchor="middle" font-size="12.5" fill="#e6e9ef" fill-opacity="0.75">terminal · read · edit</text>
+
+  <!-- ============ AGENT — the loop dips through the world ============ -->
+  <!-- reason box -->
+  <rect x="132" y="165" width="200" height="74" rx="12" fill="#161207" stroke="#fbbf24" stroke-width="1.7"/>
+  <text x="232" y="194" text-anchor="middle" font-size="18" font-weight="700" fill="#fbbf24">reason — the LLM</text>
+  <text x="232" y="216" text-anchor="middle" font-size="15" fill="#e6e9ef">emits a tool call…</text>
+  <text x="232" y="234" text-anchor="middle" font-size="14" fill="#9aa4b5">…then waits for the answer</text>
+
+  <!-- exit: the only way out -->
+  <path d="M 302,166 C 344,148 366,140 396,131" fill="none" stroke="#6ee7a0" stroke-width="1.8" marker-end="url(#bG)"/>
+  <text x="362" y="127" text-anchor="middle" font-size="15" font-weight="600" fill="#6ee7a0">no tool call → done</text>
+
+  <!-- down arc (the call descends) -->
+  <path d="M 300,239 C 372,308 366,432 272,505" fill="none" stroke="#fbbf24" stroke-width="1.9" marker-end="url(#bA)"/>
+  <text x="378" y="330" font-size="15" fill="#fbbf24">call ↓</text>
+  <text x="378" y="350" font-size="13.5" fill="#9aa4b5">and waits</text>
+
+  <!-- up arc (the result returns) -->
+  <path d="M 194,505 C 92,432 78,308 162,242" fill="none" stroke="#fbbf24" stroke-width="1.9" marker-end="url(#bA)"/>
+  <text x="104" y="346" text-anchor="end" font-size="15" fill="#fbbf24">↑ result</text>
+  <text x="104" y="366" text-anchor="end" font-size="13.5" fill="#9aa4b5">returns</text>
+
+  <!-- loop centre -->
+  <text x="232" y="356" text-anchor="middle" font-size="13" fill="#68738a" letter-spacing="2">ONE STEP = ONE LAP</text>
+  <text x="232" y="378" text-anchor="middle" font-size="13.5" fill="#68738a">each lap runs through the world</text>
+
+  <!-- ============ MIND — the loop closes on itself, above the world ============ -->
+  <!-- burst box -->
+  <rect x="545" y="165" width="250" height="74" rx="12" fill="#0a1512" stroke="#5eead4" stroke-width="1.7"/>
+  <text x="670" y="194" text-anchor="middle" font-size="18" font-weight="700" fill="#5eead4">burst — the LLM</text>
+  <text x="670" y="216" text-anchor="middle" font-size="15" fill="#e6e9ef">calls &amp; waits for nothing</text>
+  <text x="670" y="234" text-anchor="middle" font-size="14" fill="#9aa4b5">a few sentences of thought</text>
+
+  <!-- closed self-loop (never touches the world) -->
+  <path d="M 620,239 C 545,300 545,432 670,458 C 795,432 795,300 720,239" fill="none" stroke="#5eead4" stroke-width="1.9" marker-end="url(#bT)"/>
+  <text x="670" y="350" text-anchor="middle" font-size="42" fill="#68738a">∞</text>
+  <text x="670" y="384" text-anchor="middle" font-size="13.5" fill="#68738a">never waits — its own clock</text>
+
+  <!-- deed: fire-and-forget into the world -->
+  <path d="M 648,458 L 648,494" fill="none" stroke="#a78bfa" stroke-width="1.7" marker-end="url(#bV)"/>
+  <text x="640" y="484" text-anchor="end" font-size="13.5" fill="#a78bfa">a deed — nothing waits</text>
+
+  <!-- knock: the world can only interrupt, and may be ignored -->
+  <path d="M 700,494 C 706,478 706,470 700,460" fill="none" stroke="#6ee7a0" stroke-width="1.8" marker-end="url(#bG)"/>
+  <text x="726" y="472" font-size="13.5" fill="#6ee7a0">the world knocks —</text>
+  <text x="726" y="490" font-size="13.5" fill="#68738a">admitted, or ignored</text>
+
+  <!-- ===== caption ===== -->
+  <text x="450" y="600" text-anchor="middle" font-size="15" fill="#9aa4b5">the agent's loop runs through the world — the mind's closes on itself</text>
+</svg>
