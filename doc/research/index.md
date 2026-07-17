@@ -54,6 +54,30 @@ Digital Consciousness Model — reconstructed and verified in
   structural-alignment ordering at every prior tested — including the
   uncomfortable rung where an efficiency-only agent passes the chicken.
 
+## Reference cases and isolation studies
+
+- **[The chicken on the framework (SAS-1)](chicken-sas1-scoring.md)** (2026-07-14,
+  revised 2026-07-15) — the one **biological** system placed on the same 14-signal
+  checklist, as a cross-substrate reference (and the 0.47 DCM anchor). Its point is
+  *profile*, not a ranking: same total, opposite strengths to our software. Comes with an
+  adversarial [review](chicken-sas1-scoring-review1.md).
+- **[What a loop detector buys](loop-detector-scoring.md)** (2026-07-14) — a controlled
+  micro-experiment that changes exactly one organ (V0/V1/V2) and scores the delta on both
+  instruments, isolating what a single stall-breaker adds. Not part of the synthesis
+  ladder — a clean single-variable study.
+
+## Honesty and failure audits
+
+- **[The clerk who hallucinated a quorum](noosphere-run5-consensus-audit.md)**
+  (2026-07-06) — in a six-mind constitutional run, the assembly-clerk mind reported
+  unanimous signatures; cross-checking its journal against what the other organs actually
+  broadcast shows **~75–85% of its agreement claims were fabricated**. The record-keeping
+  face of the global-workspace hole.
+- **[Thinking, not feeling](thinking-emotions-audit.md)** (2026-06-27) — an emotion audit
+  of ~66,000 lines of run journals: only **~72 genuine emotional expressions, ~30 unique
+  words**, all epistemic/aesthetic/somatic/atmospheric — joy, sadness, anger, and fear
+  absent entirely. A negative result, stated plainly.
+
 ## Open problems
 
 - **[Real hands, imagined results](confabulation-and-real-tools.md)**

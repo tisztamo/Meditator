@@ -2,7 +2,16 @@
 
 **Date:** 2026-07-15  
 **Reviewed:** [`chicken-sas1-scoring.md`](chicken-sas1-scoring.md)  
-**Disposition:** Revision required before publication.
+**Disposition (at review time):** Revision required before publication.
+**Resolution (2026-07-15):** all six findings were addressed in the revised
+[`chicken-sas1-scoring.md`](chicken-sas1-scoring.md) — cross-instrument subtraction and the
+"biology premium" removed (finding 1); software baseline updated to the synthesis 52–56%
+(finding 2); robustness envelope corrected to ±2.6 (≈68–88%) and the ordering softened to
+*advanced agent < chicken ≈ chora* (finding 3); per-row evidence-basis tags (D/A/H/I) and
+sources added, and "no cortex" → "no mammalian six-layered neocortex" (finding 4); row 4
+reworded to "consistent with valenced affect" (finding 5); "control/isolates" →
+"reference case/illustrates" (finding 6). This document stands as the audit record; the
+findings below are preserved verbatim.
 
 The central weighted total, **20.25/26 ≈ 78%**, recomputes correctly. The profile may
 support a narrow qualitative finding: on this evaluator's biology-derived structural
