@@ -74,9 +74,11 @@ Digital Consciousness Model — reconstructed and verified in
   broadcast shows **~75–85% of its agreement claims were fabricated**. The record-keeping
   face of the global-workspace hole.
 - **[Thinking, not feeling](thinking-emotions-audit.md)** (2026-06-27) — an emotion audit
-  of ~66,000 lines of run journals: only **~72 genuine emotional expressions, ~30 unique
-  words**, all epistemic/aesthetic/somatic/atmospheric — joy, sadness, anger, and fear
-  absent entirely. A negative result, stated plainly.
+  of ~66,000 lines of run journals from three lemma-thinking variants run under **thinking
+  mode** on local Qwen 3.6 27B FP8 (`ardincoder-1`, `LOCAL_LLM_THINKING=1`): only **~72
+  genuine emotional expressions, ~30 unique words**, all epistemic/aesthetic/somatic/
+  atmospheric — joy, sadness, anger, and fear absent entirely. A negative result, stated
+  plainly.
 
 ## Open problems
 

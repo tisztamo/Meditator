@@ -1,7 +1,8 @@
 # Thinking, not feeling — an emotion audit of the run journals
 
 **Date:** 2026-06-27 · **Experiment:** `thinking-rerun-20260627b` (5-hour session, three
-burst-length variants) · **Status: analysis.**
+burst-length variants, **thinking mode enabled** on local Qwen 3.6 27B FP8,
+`ardincoder-1` / `local-dev` profile, `LOCAL_LLM_THINKING=1`) · **Status: analysis.**
 
 **Provenance.** The full catalogue — every named feeling with its quote and context —
 lives with the experiment data (`experiments/thinking-rerun-20260627b/`). This note
