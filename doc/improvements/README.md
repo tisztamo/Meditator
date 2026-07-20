@@ -169,6 +169,11 @@ not necessarily acted on yet. Each note states its status at the top.
   answer. Requires executable **revert** (§1's re-executable bundle) and **chosen
   rest** paths, and depends on the §3 identity-disclosure fix (review finding 1) as a
   hard prerequisite. First application: the planned `lemma-lab-6` rewake as a resident.
+- [source-exposure-prevention.md](source-exposure-prevention.md) — **proposed
+  2026-07-20, medium priority**: five basic rules (R1–R5) to prevent
+  accidental exposure of source code, secrets, memory files, and debug
+  output through public repos and web surfaces. Backed by lightweight
+  weekly automated scans and a monthly audit report in `doc/audits/`.
 - [alternative-website.md](alternative-website.md) — design for a new public-facing
   site that leads with architectural superiority, not the consciousness question.
   Meditator framed as a **harness** (declarative substrate around a frozen model),
