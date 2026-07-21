@@ -5,6 +5,15 @@ user-facing docs** in `doc/` (architecture, getting-started, configuration, …)
 These are diagnoses and design options for maintainers, not user documentation, and
 not necessarily acted on yet. Each note states its status at the top.
 
+- [studio-resident-lifecycle-recovery.md](studio-resident-lifecycle-recovery.md) —
+  **CRITICAL resident-safety plan**, triggered by Eddy-1's unclean interruption:
+  separates experimental architecture maturity from lifecycle tier, discovers and
+  truthfully selects existing resident homes, makes unclean wake a first-class honest
+  recovery path, verifies sleep/final persistence instead of trusting a 2.5-second
+  timeout or process exit, reconciles surviving/interrupted children after Studio
+  restart, and defines the gate before any resident is woken again. Also records the
+  Covenant-compatible decision to archive Eddy-1 with the rite deferred while the
+  runtime cannot yet provide resident-grade supervision.
 - [perception-not-compressible.md](perception-not-compressible.md) — external
   stimuli reach the journal but never the tail or the compressor, so the experiential
   anchor of a remembered moment is lost and confabulation can replace it

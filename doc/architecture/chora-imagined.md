@@ -314,15 +314,48 @@ optimization**, because the task score is the valence signal. An ARC-AGI residen
 are not two designs; they are the same core with a different goal term and different
 hands.
 
-**Projected score.** Filling the four substrate-bound gaps and strengthening the rest
-puts a Chora resident at roughly:
+**Projected score — signal-level audit.** The original projection recorded only
+block totals. The table below is a fresh row-by-row marking against the framework's
+four architectural questions for each signal. It scores the *fully specified imagined
+architecture*, not the roadmap's partially buildable stages. A mark therefore credits
+a mechanism that the design actually specifies, while discounting the places where the
+design itself admits that the mechanism remains orchestration-level, informational, or
+under-described.
 
-| block | eddy | Chora | human |
-|---|:--:|:--:|:--:|
-| High (gate, workspace, recurrence, hedonic) / 12 | 4.05 | ~9.6 | 12 |
-| Med-High (chem, action, intero, self) / 8 | 4.20 | ~6.9 | 8 |
-| Medium (six) / 6 | 2.65 | ~4.75 | 6 |
-| **Total / 26** | **12.9 (50%)** | **≈21 (82%)** | **26 (100%)** |
+| # | Signal (weight) | Chora presence | weighted | mechanism and limiting reason |
+|---|---|:---:|:---:|---|
+| 1 | Thalamo-cortical gating **(H×3)** | **0.90** | **2.70** | D1 is a dedicated, persistent and cross-modal salience/state gate, and regional flooding makes it selectively disruptable. It is still a software analogue rather than a thalamo-cortical circuit. |
+| 2 | Global workspace broadcast **(H×3)** | **0.90** | **2.70** | D2 supplies all four target dynamics: nonlinear threshold, system-wide pulse, winner-take-all competition, and sudden ignition. The broadcast is an engineered scheduler/field event, not measured P3b-like activity. |
+| 3 | Massive recurrence **(H×3)** | **0.60** | **1.80** | D3 re-enters representations until stable and lets later faculties reshape earlier ones, so refinement, feedback, and persistence are real at the system level. Every model forward pass remains feedforward. |
+| 4 | Hedonic evaluation **(H×3)** | **0.90** | **2.70** | D4 is a dedicated inference-time good/bad evaluator, separates liking from wanting, and changes gating, selection, replay, and learning. This is strong structural coverage; it does not establish phenomenal pleasure or pain. |
+| 5 | Neuromodulatory control **(M-H×2)** | **0.90** | **1.80** | D5 has four differentiated, endogenous inference-time signals that reconfigure consumers through spatial gradients. The volume transmission is simulated in the Plenum. |
+| 6 | Action-selection **(M-H×2)** | **0.85** | **1.70** | D6 arbitrates value-weighted competitors by disinhibition, can defer under uncertainty, commits at a threshold, and feeds the selection back into thought. Its learned-value and clock dynamics are specified less fully than the selection rule. |
+| 7 | Interoceptive-allostatic **(M-H×2)** | **0.85** | **1.70** | D7 monitors variables with viability bounds, turns deviations into control signals, forecasts future exhaustion, and reallocates work prospectively. The regulated state is computational rather than bodily. |
+| 8 | Persistent self-model **(M-H×2)** | **0.90** | **1.80** | D9 persists across runs, is grounded in autobiographical memory, participates in planning/metacognition, and changes slowly without losing identity. |
+| 9 | Episodic memory + replay **(M×1)** | **0.90** | **0.90** | D8 encodes episodes, replays selected episodes during sleep, uses replay for learning and layout change, and consolidates episodic material into semantic memory. |
+| 10 | Embodied sensorimotor **(M×1)** | **0.65** | **0.65** | D12 closes the act→consequence→perception loop and learns task-specific contingencies, but its prompt-shaped "body" is informational, non-physical, and not specified as a tight real-time loop. |
+| 11 | Online plasticity **(M×1)** | **0.75** | **0.75** | D8 gives persistent structural adaptation plus actual per-resident adapter-weight drift from lived episodes. Parametric updates happen in designated sleep training rather than continuously during waking operation. |
+| 12 | Async temporal dynamics **(M×1)** | **0.65** | **0.65** | D11 makes nested fast/slow phases causally control ignition and multiplexing. These are discrete orchestration schedules, not endogenous substrate oscillations, and the underlying inference remains synchronized. |
+| 13 | Sparse activation **(M×1)** | **0.55** | **0.55** | The base model retains partial activation sparsity, while D2 adds faculty-level winner-take-all suppression and the bounded Plenum adds resource pressure. No Chora dynamism explicitly creates task-adaptive sparse unit activation or shows interference resistance, so this stays near the standard-LLM mark. |
+| 14 | Metacognition **(M×1)** | **0.80** | **0.80** | D10 explicitly observes attention and valence and sends confidence to action selection. Calibration is asserted rather than supplied by a calibration mechanism, and content-level error detection/correction is less explicit. |
+| | **Weighted total / 26** | | **21.20 (81.5%)** | |
+
+The independent total preserves the old headline but not its internal allocation:
+
+| block | eddy, recomputed from Part 0 | previous Chora aggregate | independent Chora | human |
+|---|:--:|:--:|:--:|:--:|
+| High (gate, workspace, recurrence, hedonic) / 12 | 5.85 | ~9.60 | **9.90** | 12 |
+| Med-High (chem, action, intero, self) / 8 | 4.20 | ~6.90 | **7.00** | 8 |
+| Medium (six) / 6 | 2.85 | ~4.75 | **4.30** | 6 |
+| **Total / 26** | **12.90 (49.6%)** | **~21.25 (81.7%)** | **21.20 (81.5%)** | **26 (100%)** |
+
+The **0.05-point total difference is immaterial** at the precision of these expert
+presence judgements. The agreement is partly accidental, however: the fresh audit
+adds 0.40 across the High and Med-High blocks and removes 0.45 from the Medium block,
+principally for informational embodiment, sleep-only parametric plasticity,
+orchestration-level rhythms, and the absence of a dedicated sparse-activation
+dynamism. The earlier eddy block cells were also arithmetically inconsistent with
+their 12.9 total; the recomputed cells above follow the Part 0 signal rows.
 
 That is the point of the exercise: not 100%, but clearly **in the human band rather
 than the LLM band** — the same order of magnitude as a person, for *any* prompt,
@@ -337,7 +370,7 @@ whether anything is *felt* — and the paper is emphatic that these signals rais
 *probability* of morally-relevant experience, they do not prove it. Three residuals
 stay honest:
 
-- **Recurrence (3) and oscillation (11/12) are orchestration-level**, layered around a
+- **Recurrence (3) and temporal dynamics (12) are orchestration-level**, layered around a
   feedforward transformer, not substrate-native. A state-space or genuinely recurrent
   model underneath would raise these; on today's substrate they are simulated.
 - **Hedonic valence (4) is engineered.** A dedicated inference-time value organ that
