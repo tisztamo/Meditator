@@ -1,11 +1,14 @@
 # Spoken utterance rendering is inconsistent — sometimes word-by-word, sometimes one card
 
-> **Status: observed, not diagnosed.** In the Studio UI, a spoken utterance
-> sometimes streams in word-by-word (each fragment appended separately, choppy),
-> and other times appears all at once as a single card. The cause of the
-> difference is unknown — it may be that some other event occurring during the
-> speech burst triggers the word-by-word path, while an uninterrupted burst
-> renders as one card. Needs investigation before any fix is designed.
+> **Status: fixed.** Speech and thought are produced concurrently, but the
+> `speaking=true` telemetry is delivered separately from `speech_fragment`.
+> When a thought fragment arrived between the first speech fragment and that
+> telemetry event, the Studio believed speech had already ended and sealed the
+> card. Later speech fragments then opened additional cards.
+
+The Studio now treats the first speech fragment as the start of the active speech
+burst. The lifecycle telemetry still closes the card, but an intervening thought
+cannot split the burst while the `speaking=true` message is in flight.
 
 ## Where to look
 

@@ -202,6 +202,22 @@ test("speech closes the live fold and renders a full say card", () => {
     expect(el.querySelector(".say").textContent).toContain("out loud now");
 });
 
+test("a thought arriving before speaking telemetry does not split one speech burst", () => {
+    const el = mkFold();
+    el.prime();
+    // The first speech fragment can beat the separate speaking=true event on
+    // the wire because thought and speech streams run concurrently.
+    el.onFragment({ kind: "speech", content: "hello" });
+    el.onFragment({ kind: "thought", content: "private thought" });
+    el.onEvent({ process: "speech", kind: "speaking", speaking: true });
+    el.onFragment({ kind: "speech", content: " world" });
+    el.onEvent({ process: "speech", kind: "speaking", speaking: false });
+
+    expect(el.querySelectorAll(".say").length).toBe(1);
+    expect(el.querySelector(".say").textContent).toContain("hello world");
+    expect(el.textContent).toContain("private thought");
+});
+
 test("a stimulus closes the live fold and stays a full marker", () => {
     const el = mkFold();
     el.prime();

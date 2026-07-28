@@ -133,6 +133,11 @@ export class StudioStream extends A(HTMLElement) {
     this.prime();
     const kind = f.kind === "speech" ? "speech" : "thought";
     const text = f.content || "";
+    // Speech and thought are produced concurrently.  The speaking=true
+    // telemetry is a separate message and can arrive after the first speech
+    // fragment; mark the burst active here so an intervening thought cannot
+    // mistake the new speech card for a completed one.
+    if (kind === "speech") this.speaking = true;
     // Flow mode meters the reveal — but only while visible. A hidden tab appends
     // instantly so the queue can't grow unbounded behind a throttled rAF.
     if (this.smooth && !this.hidden) this.enqueue({ t: kind, s: text, i: 0 });
