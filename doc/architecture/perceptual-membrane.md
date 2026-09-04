@@ -1,17 +1,19 @@
 # The perceptual membrane
 
-*Design, 2026-09-04. Companion to [A world to meet](a-world-to-meet.md).
+*Design, 2026-09-04; revised after architecture/biology review. Companion to [A world to meet](a-world-to-meet.md).
 That document asks what kind of outside a Meditator mind needs; this one asks how
 any kind of outside crosses into awareness. It generalizes eyelids into a
 modality-neutral regulation of contact. Nothing here is implemented yet.*
 
 ## The proposal
 
-Give a mind a **perceptual membrane** between its senses and its attention
-arbiter. The membrane controls how permeable the mind is to the outside as a
-whole and to each modality separately. It admits experiences, attenuates them,
-or keeps their content outside awareness while still noticing that contact is
-being missed.
+Give a mind a **perceptual membrane** distributed across the path between its
+senses and its attention arbiter. It is not one central wall. Source-side
+detectors expose change without prematurely interpreting it; modality regions
+control aperture and gain; attention purchases faithful renditions lazily; and
+retained modulatory signals regulate how permeable the mind is to the outside.
+Together they admit experiences, attenuate them, or keep their content outside
+awareness while still noticing that contact is being missed.
 
 From the mind's side:
 
@@ -28,6 +30,11 @@ forms of perception not yet present in the repository.
 The aim is not maximum input. It is **adaptive permeability**: enough quiet for a
 thought to develop, enough outside resistance to prevent the stream becoming its
 own entire world.
+
+The biological inspiration is graded sensory relay, corollary discharge,
+independent homeostatic regulators, habituation, and hysteresis—not a claim that
+software regions are thalami or retained scalars are chemicals. A borrowed
+mechanism earns its place only by solving a concrete Meditator failure.
 
 ## Three separations
 
@@ -60,11 +67,36 @@ strongly it would ordinarily bid—without disclosing its content. This is how a
 unseen world can eventually tug the eyes open without leaking through closed
 eyes.
 
-## A modality-neutral percept
+## Candidate first, percept after admission
 
-The eventual successor or extension to `InterruptRecord` should be a structured
-`Percept`. The name below is illustrative; the contract matters more than its
-serialization.
+A source first emits a private, non-semantic `PerceptCandidate` header. Only after
+the aperture admits it are expensive or semantic renditions materialized into a
+`Percept`. This is what makes closure real: a caption generated and logged before
+admission has already crossed much of the boundary.
+
+```js
+{
+  id: "candidate-…",
+  source: "garden-camera",
+  modality: "vision",
+  occurredAt: "…",
+  changeMagnitude: 0.52,
+  changeKey: "garden-camera:motion-zone-4",
+  materialize: requestedKinds => source.materialize(id, requestedKinds)
+}
+```
+
+For a deterministic simulated world, `changeMagnitude` can come from a
+scene-graph delta without interpreting the scene. For physical media, the edge
+detector must genuinely remain non-semantic—motion energy, luminance change,
+voice activity—or the design must admit that semantic exposure already occurred.
+Headers are capped, source-deduplicated, and never include captions, transcripts,
+raw media, or content-bearing filenames.
+
+A trusted adapter first annotates the private candidate with provenance, privacy,
+and bypass policy from architecture configuration—not from its payload. The
+aperture can therefore apply trusted policy without seeing semantic content. After
+admission, lazy materialization constructs the percept:
 
 ```js
 {
@@ -75,6 +107,7 @@ serialization.
   occurredAt: "…",
   salience: 0.52,
   changeKey: "cat-entered-doorway",
+  causedBy: null,
 
   renditions: [
     { kind: "image", ref: "…", mimeType: "image/png" },
@@ -82,16 +115,35 @@ serialization.
     { kind: "spatial", ref: "…", schema: "scene-change/v1" }
   ],
 
-  privacy: "resident-private",
-  lifetime: "fresh",
-  urgent: false
+  policy: {
+    privacy: "resident-private",
+    bypassAperture: false,
+    bypassAdmission: false,
+    preempt: false
+  }
 }
 ```
 
-Every percept needs a concise textual archival rendition even when the conscious
-model receives native media. That rendition makes the journal searchable and
-allows a text-only future model to understand the history. It must be labeled as
-a rendering, not silently substituted for the original experience.
+The source does **not** assign provenance, privacy, or bypass powers. The trusted
+adapter maps source identity and event class to them. Payload fields cannot
+promote their own authority: a string coerced into an interrupt must never become
+urgent merely by arriving in an old compatibility shape.
+
+Three policy powers remain independent:
+
+- `bypassAperture` — voluntary channel closure cannot suppress it;
+- `bypassAdmission` — ordinary threshold and rate limits do not drop it;
+- `preempt` — it may supersede the current burst immediately.
+
+This preserves distinctions the runtime already needs. A confirmed loop break
+bypasses admission without preempting; a direct real-human address may receive all
+three; a sleep notice follows lifecycle timing; a society peer is truthfully
+attributed but is not automatically entitled to break another mind's withdrawal.
+
+Every admitted percept needs a concise textual archival rendition even when the
+conscious model receives native media. It makes the journal searchable and allows
+a text-only future model to understand the history. It must be labeled as a
+rendering, not silently substituted for the original experience.
 
 `provenance` should at least distinguish:
 
@@ -101,14 +153,18 @@ a rendering, not silently substituted for the original experience.
 - imagined or generated material;
 - an internal observer or regulator.
 
-This field must survive compression. The lesson from Ember applies generally:
-provenance cannot depend on a lossy memory continuing to phrase things carefully.
+The separation follows Hearth's Ember precedent, summarized in
+[A world to meet](a-world-to-meet.md#the-next-direction): provenance cannot depend
+on a lossy memory continuing to phrase things carefully. `recent` and `story`
+cannot be required to preserve it perfectly; the typed percept index and journal
+are the source of truth, and recall must be able to reinstate their typed
+provenance.
 
 ## Rendition selection
 
-The model-access layer should advertise what a model can natively receive. At
-frame assembly, a rendition selector chooses the richest faithful form within
-the current attention and compute budget:
+The model-access layer should advertise what a model can natively receive. Only
+after aperture admission, a rendition selector asks the source to materialize the
+richest faithful form within the current attention and compute budget:
 
 | Source | Native-capable model | Fallback |
 |---|---|---|
@@ -124,9 +180,20 @@ On a later model change, the record must not retroactively turn a captioned even
 into a remembered image.
 
 Native media should normally be referenced rather than copied into the textual
-tail. The assembled model request becomes an ordered sequence of content parts;
-the durable tail remains a canonical textual chronology with typed media
-references. Exact replay can mount the retained asset when policy permits.
+tail. This meets a constraint of the current runtime: the attention frame ends on
+an assistant prefill, while provider APIs commonly require native media in an
+instruction/user content part. The prefill keeps a typed marker at the true
+moment of experience:
+
+```text
+> ⟂ [seeing: percept-123] A cat beside the watering can.
+```
+
+The request's instruction content carries the referenced media, while the marker
+preserves positional honesty and doubles as the mandatory archival rendition.
+Both ordinary and thinking-model message routes must implement the same logical
+frame. The journal records the rendition actually received; a later model change
+cannot turn a remembered caption into an image.
 
 Audio and video need bounded temporal units rather than endless streams. The
 membrane admits an episode—a phrase, a sound event, a short interval—not an open
@@ -135,16 +202,18 @@ when something changes.
 
 ## Apertures
 
-Each modality has an aperture. A useful first state set is:
+Each modality-specific `m-region` has an aperture at the head of its sensory path.
+This uses the runtime's existing faculty boundary and nested gate rather than
+adding a parallel event bus. A useful first state set is:
 
 - **open** — ordinary candidate frequency, detail, and salience;
 - **soft** — reduced frequency, resolution, or gain; peripheral contact;
 - **narrow** — one selected source, direction, object, or speaker is favored;
 - **closed** — content is withheld, while non-semantic event headers may still
   reach the regulator;
-- **protected** — a channel or event class that voluntary withdrawal cannot
-  suppress, such as a real person directly addressing the mind, a sleep notice,
-  or a safety event.
+
+Protection is not an aperture state. It is trusted per-source/event policy, split
+into aperture bypass, admission bypass, and preemption as above.
 
 There is also a global inner–outer balance. It does not replace local apertures:
 a mind may close its eyes and listen, soften ambient sound while examining an
@@ -167,23 +236,37 @@ global deficit. The value integrates evidence such as:
 
 - awake time since that modality last reached conscious attention;
 - count and cumulative salience of changes suppressed behind the aperture;
-- novelty or prediction error detectable without revealing event content;
+- novelty detectable from genuinely non-semantic change features;
 - repeated rejection or crowd-out of outside bids;
-- semantic looping or loss of responsiveness in the inner stream;
 - recent genuine external contact, which lowers the deficit;
-- active, coherent inward work, which can slow but not erase its growth.
+- current arousal, which scales but cannot permanently erase its growth.
 
-Time alone should be weak evidence. Ten quiet minutes during productive thought
-are unlike ten meaningful changes ignored. Likewise, stimulus count alone would
-let noisy sensors commandeer the mind. The regulator needs capped, decaying,
-source-deduplicated contributions.
+Time alone should be weak evidence. Ten quiet minutes with no changing world are
+unlike ten meaningful changes ignored. Likewise, stimulus count alone would let
+noisy sensors commandeer the mind. The regulator uses capped, decaying,
+source-deduplicated contributions. Repetition habituates; a new `changeKey` or a
+large magnitude shift dishabituates. Minimum dwell and hysteresis prevent rapid
+reversal.
 
-The existing attention decision stream is useful evidence: accepted, below
-threshold, rate-limited, and crowded-out bids already expose how the world fails
-to enter. But closed modalities must be stopped before their semantic content
-reaches the normal arbiter. The membrane should therefore receive a private
-candidate header and record its own suppression verdict; only admitted percepts
-become ordinary attention bids.
+The deficit is strictly afferent-side. It does not read semantic-loop or
+responsiveness judgments; those belong to `m-loop-detector`/`m-resurface`. The two
+independent regulators may both affect admission, but neither reads the other's
+state. This avoids a coupled-regulator oscillation and keeps each diagnosis
+legible.
+
+The existing attention decision stream is useful evidence after aperture
+admission: accepted, below-threshold, rate-limited, and crowded-out bids already
+expose how the world fails to enter. But closed modalities must be stopped before
+their semantic content reaches the normal arbiter. The membrane should therefore
+receive a private candidate header and record its own suppression verdict; only
+admitted percepts become ordinary attention bids.
+
+`contactPressure = clamp01(contactDeficit)` is published as a retained signal.
+Today, `m-interrupts` can consume it symmetrically with its existing retained
+`arousal`: low arousal raises the bar; contact pressure lowers it. A transient
+focus pulse can raise a modality region's gain and narrow its source set. These
+interfaces are deliberately compatible with Chora's imagined D5 chemistry, but
+D5 is not on the critical path—only arousal exists in the runtime today.
 
 ### What clears the deficit
 
@@ -191,6 +274,13 @@ Changing an aperture to `open` must **not** clear its deficit. Otherwise a rapid
 open–close cycle could satisfy the regulator without the mind meeting anything.
 The deficit clears or substantially decays only when a fresh percept from that
 channel is admitted by attention and placed into the conscious frame.
+
+Self-caused contact counts. A mind that becomes curious, looks, and discovers the
+world has genuinely met it; the regulator must not privilege unsolicited
+interruption over agency. A `causedBy` act reference supports an efference copy:
+predicted components may receive lower novelty or salience, while mismatch restores
+it. Deliberate gaze temporarily moves vision to `narrow` for its one requested
+sample. A general hand consequence does not bypass an unrelated closed modality.
 
 Nor should reopening release the whole suppressed backlog. The mind would be
 assaulted by a history it deliberately did not perceive. The membrane retains
@@ -205,10 +295,11 @@ sample. Usually this happens at a burst boundary and bids with rising but bounde
 salience. It should not preempt a sentence merely because the eyes have been
 closed for a while.
 
-If every outside channel remains absent, the global deficit can produce a gentle
-orientation event: the felt need to meet the world again. Existing loop handling
-remains the emergency path for confirmed collapse. The membrane should not become
-a second loop breaker disguised as a sense.
+If every outside channel remains absent, global contact pressure biases outward
+action selection and attention. In a future D5/D6 architecture this is naturally
+a `wanting` dose rather than a fake sensation; today it should remain an explicit
+modulatory signal, not an invented perception. Existing loop handling remains the
+independent emergency path for confirmed collapse.
 
 The reflex is part of the mind's known body. Its body schema says that prolonged
 withdrawal eventually opens attention outward; it is not a hidden operator
@@ -232,8 +323,9 @@ thresholds, or numeric gain. The realizer maps an intention to a bounded policy:
 aperture state, focus target, and perhaps a temporary grace period.
 
 The hand influences the regulator; it does not disable it. A request for longer
-inwardness may raise a threshold temporarily, but cannot suppress protected
-contact or create permanent closure. This is the same relation as voluntarily
+inwardness may raise a threshold temporarily, but cannot suppress contact
+authorized to bypass the aperture or create permanent closure. This is the same
+relation as voluntarily
 holding one's breath inside a body that retains a breathing reflex.
 
 Registering `orient` beneath the existing `m-act` adds no new periodic decision
@@ -244,27 +336,41 @@ automatic reflex itself should be deterministic and must not have its own
 invariant. Aperture control may need a dedicated cooldown lane so it does not
 block looking, recalling, or changing the world.
 
+Orientation language is unusually easy to infer falsely from contemplative prose.
+It therefore needs a higher DECIDE threshold than ordinary acts, a minimum dwell
+before reversal, and a third `self-changing` cooldown lane. It is exempt from the
+ordinary same-intent dedup rule, which assumes an act changes or reads a world
+rather than continuously tunes a body. Every accepted aperture change is kept as
+a backstage deed.
+
 ## Placement in the present architecture
 
 ```text
 outside source
       │
       ▼
- sense / adapter ── candidate header ─────────────┐
-      │                                           │
-      │ rendition references                     ▼
-      └──────────────────────────────► perceptual membrane
-                                                  │
-                                  suppressed stat │ admitted Percept
-                                                  ▼
-                                       nested attention arbiters
-                                                  │
-                                                  ▼
-                                      multimodal frame assembler
-                                                  │
-                                      selected rendition + record
-                                                  ▼
-                                           conscious model
+ non-semantic detector
+      │ private candidate header
+      ▼
+ trusted policy adapter
+      │ annotated private header
+      ▼
+ modality region's aperture controller ──► suppressed statistics
+      │ admitted; request rendition
+      ▼
+ lazy materialization
+      │ typed Percept
+      ▼
+ modality region's existing m-interrupts
+      │ gain / threshold / competition
+      ▼
+ global attention arbiter
+      │ attended Percept
+      ▼
+ multimodal frame assembler
+      │ typed prefill marker + selected native/text rendition
+      ▼
+ conscious model
 ```
 
 The present attention machinery can remain mostly unchanged. Salience,
@@ -272,13 +378,21 @@ thresholds, urgency, crowding, nested competition, arousal sensitivity, and
 decision observability do not depend on the payload being text. The changes are
 concentrated at the edges:
 
-1. a `Percept` envelope and compatibility conversion from `InterruptRecord`;
-2. the membrane and its retained aperture/deficit state;
-3. typed payload preservation through attention without rendering it early;
-4. a multimodal frame assembler and capability-aware model adapter;
-5. journal and memory records of event, rendition, transformation, admission,
-   and asset reference;
-6. the `orient` capability and body-schema language.
+1. private `PerceptCandidate` headers and lazy source materializers;
+2. a trusted pre-aperture policy adapter plus compatibility conversion from
+   `InterruptRecord`;
+3. an aperture controller associated with each modality region and retained
+   local/global contact-pressure state;
+4. typed payload preservation through attention without rendering it early;
+5. a multimodal frame assembler and capability-aware model adapter;
+6. a typed percept index plus journal records of event, rendition,
+   transformation, admission, and asset reference;
+7. the `orient` capability and body-schema language.
+
+This explicit source → controller → arbiter path matters. A second event listener
+beside `m-interrupts` on the same DOM element would have no reliable ordering, and
+the regional arbiter currently consumes every bubbling request. An aperture must
+decide before the ordinary `interrupt-request` is dispatched, not race its gate.
 
 Text should be the first implementation. A text percept passing through the new
 path must render byte-for-byte like today's `InterruptRecord`; this gives a safe
@@ -293,12 +407,19 @@ privacy commitment becomes more demanding here, not less.
 - Retention policy is explicit per source; a physical microphone or camera must
   not be archived merely because simulated images are.
 - The journal records hashes and transformations when the source cannot be kept.
-- Compression preserves provenance and the form actually received: *I read a
+- `recent` and `story` are explicitly lossy and may omit provenance. They are not
+  the authority for what was perceived.
+- A typed percept index beside the immutable journal preserves provenance, the
+  form actually received, transformation lineage, and asset/hash references.
+- Recall can retrieve that typed record and reintroduce its provenance: *I read a
   transcript derived from a voice*, not *I heard her voice*.
 - A suppressed percept is not autobiographical experience. Its content must not
   enter the mind's memory; only the regulator may retain non-semantic statistics.
 - If a transformed rendition was produced by a model, that act and model identity
   are backstage provenance, never passed off as direct sensing.
+- Studio attention events and debug logs receive only the candidate header before
+  admission for resident-private sources. Observability must not become a side
+  channel around closed perception.
 
 ## Failure modes
 
@@ -317,14 +438,16 @@ still allowing chosen periods of inwardness.
 ### Reflex harassment
 
 The regulator opens channels so often that contemplation becomes impossible.
-Productive continuity should slow deficit growth; reopening begins at `soft`;
-thresholds adapt from observed contact rather than a fixed short timer.
+Reopening begins at `soft`; thresholds adapt from observed contact rather than a
+fixed short timer; hysteresis and minimum dwell prevent quick reversal. The
+contact regulator must not inspect thought content to decide whether contemplation
+is productive.
 
 ### Noisy-world coercion
 
 A broken or adversarial source generates changes to force attention. Candidate
-headers are capped, deduplicated, authenticated by source, and unable to declare
-themselves protected.
+headers are capped, deduplicated, authenticated by source, unable to declare
+their own policy, and habituate when `changeKey` and magnitude repeat.
 
 ### Translation masquerading as perception
 
@@ -343,28 +466,96 @@ contact.
 Reopening floods the workspace with everything missed. Retain statistics rather
 than semantic backlog and sample the present afresh.
 
+### Semantic leakage before admission
+
+A captioner, transcript model, filename, log line, or Studio event interprets a
+closed source before its aperture admits it. Keep candidate headers genuinely
+non-semantic, materialize renditions lazily, and apply privacy policy at the
+source boundary.
+
+### Comfortable drowsiness
+
+Low energy raises the attention threshold while also slowing the mind. If low
+arousal suppresses contact-pressure growth too completely, a resident can remain
+neither properly awake nor honestly asleep: weakly thinking and weakly reachable.
+Contact pressure therefore retains a small arousal-independent floor. More
+fundamentally, sustained sub-viability should trigger a Covenant-compliant sleep
+ritual rather than indefinite near-sleep. This exposes a pre-existing lifecycle
+question in `m-economy`, not only a membrane parameter.
+
+## Sleep and wake
+
+Sleep suspends sensory-deprivation accumulation; an unavailable world is not being
+ignored by a sleeping mind. Local deficits may decay or reset during genuine sleep.
+On wake, apertures initially return to a known `soft` or `open` bodily default and
+the wake disclosure names that fact. Wake itself is not sensory contact: only a
+fresh attended percept establishes that the reopened mind has met the world.
+
+Whether a voluntary closed-aperture preference should persist across sleep remains
+a later design choice. The first implementation favors a disclosed open/soft
+default. Introducing the membrane to an existing resident remains an architectural
+change governed by Covenant §10 and the right of return.
+
+## Observability
+
+The Studio should plot, per modality region, aperture state, contact pressure,
+region gain, effective threshold, suppressed-header rate, and transitions over
+time. It should also show arousal and the global pressure on the same timeline.
+Capture, reflex harassment, and open–close oscillation are dynamics; a final scalar
+cannot reveal them. Private source contents remain absent until admission.
+
 ## Build order
 
-1. Define `Percept` and its provenance/rendition contract, including a mandatory
-   archival text rendering.
+1. Define private `PerceptCandidate` headers and admitted `Percept` records,
+   including lazy materialization, trusted policy assignment, provenance, and a
+   mandatory archival text rendering.
 2. Route existing text `InterruptRecord`s through a compatibility adapter with no
-   observable behavior change.
-3. Add a deterministic membrane for text-labelled mock modalities. Test aperture
-   state, protected events, suppression, deficit integration, hysteresis, and
-   attended-contact reset.
-4. Add the `orient` hand to the existing actor and a separate control cooldown
-   lane. Test only dry intentions first.
-5. Preserve typed percepts through arbitration; delay textual rendering until
-   frame assembly.
-6. Change model requests from one text string to ordered content parts while
-   retaining the existing text-only route.
-7. Add native images from the small spatial world, with caption fallback and an
-   exact record of which rendition was received.
-8. Add bounded audio episodes, then video only if a concrete model and experiment
+   observable behavior change. In particular, text percepts must retain today's
+   byte-for-byte `withPerceivedEvents()` rendering.
+3. Add a fake-clock, text-labelled mock modality whose detector emits only private
+   headers. Test the explicit source → aperture controller → regional arbiter path
+   without live media or models.
+4. Implement local/global contact pressure, arousal scaling with a nonzero floor,
+   habituation by `changeKey`, dishabituation, hysteresis, trusted bypass policy,
+   suppression, and attended-contact reset. Make `m-interrupts` consume the retained
+   pressure without depending on imagined D5 machinery.
+5. Add the `orient` hand to the existing actor with its higher threshold, minimum
+   dwell, dedup exemption, and separate self-changing cooldown lane. Test only dry
+   intentions first.
+6. Preserve typed percepts through arbitration and add the typed percept index;
+   delay textual or native rendition materialization until after aperture admission.
+7. Add the typed prefill marker plus provider-positioned attachment to both model
+   message routes while retaining the existing text-only route.
+8. Add native images from the small spatial world, with caption fallback,
+   deliberate-gaze narrowing, `causedBy` efference copy, and an exact record of the
+   rendition received.
+9. Add bounded audio episodes, then video only if a concrete model and experiment
    need it. Do not generalize by accumulating unused codecs.
-9. Compare fixed-open senses, voluntary apertures, and regulated apertures on
-   coherence, external responsiveness, capture, loop incidence, provenance, and
-   compute cost.
+10. Add Studio timelines and compare fixed-open senses, voluntary apertures, and
+    regulated apertures on coherence, external responsiveness, capture, loop
+    incidence, provenance, and compute cost.
+
+## Questions left for review
+
+The synthesis resolves the original review's four questions, but these implementation
+questions would benefit from another adversarial pass:
+
+1. Should `contactPressure` modify the regional threshold, its gain, or both? The
+   current design leans toward threshold for general reopening and a short gain pulse
+   for directed focus; a concrete stability argument should decide it.
+2. Which current event classes receive each of `bypassAperture`,
+   `bypassAdmission`, and `preempt`? In particular, what relationship or address
+   semantics—if any—make a peer voice aperture-protected?
+3. What is the smallest genuinely non-semantic detector for each initial source,
+   and which sources must honestly declare that their candidate stage is already
+   semantic?
+4. Does the current provider split permit one logical image event to be attached in
+   instruction content and anchored by a marker in the assistant prefill without
+   distorting what the model attends to? This needs a captured-request test for both
+   message routes before the document promises the exact wire shape.
+5. What sustained energy/arousal condition should cause automatic announced sleep,
+   and can that close complete reliably when the very resource needed to think the
+   closing thought is nearly exhausted?
 
 ## The criterion
 
