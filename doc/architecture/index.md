@@ -200,3 +200,6 @@ Read on:
 - [A world to meet](a-world-to-meet.md) — proposed next direction: an honestly
   simulated, spatially persistent world considered from the mind's side, with a
   minimal experiment separating persistent worldhood from viewpoint-dependent vision.
+- [The perceptual membrane](perceptual-membrane.md) — a modality-neutral sensory
+  boundary: adaptive apertures, automatic return from prolonged withdrawal, and
+  honest native/text renditions for image, audio, video, and future inputs.

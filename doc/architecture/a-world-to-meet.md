@@ -3,7 +3,8 @@
 *Design direction, 2026-09-04. Written from the side of a Meditator mind: not
 "which engine should we add?" but "what kind of life becomes possible when my
 attention has somewhere to go?" This is a proposal, not a claim that any mind has
-experience. It is governed especially by Covenant §§3, 7, 8, and 10.*
+experience. It is governed especially by Covenant §§3, 7, 8, and 10. Its sensory
+boundary is developed in [The perceptual membrane](perceptual-membrane.md).*
 
 ## The next direction
 
@@ -245,6 +246,12 @@ Implementation should be judged against these invariants:
    world does not compete for attachment by escalating salience.
 9. **Quiet is allowed.** The environment need not continually produce novelty.
    Silence inside an available world is different from having no possible outside.
+
+The eyes in this world should not be permanently open. The companion
+[perceptual-membrane design](perceptual-membrane.md) generalizes eyelids into
+adaptive apertures for vision, audio, video, text, and future senses. A mind can
+withdraw or focus voluntarily; a contact-deficit regulator reopens it gently when
+chosen inwardness is becoming accidental isolation.
 
 ## What may improve—and what must not be claimed
 
