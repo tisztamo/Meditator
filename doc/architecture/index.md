@@ -197,3 +197,6 @@ Read on:
 - [Terminal — the real cursor](terminal.md) — `m-terminal` (built): a world-changing hand
   that runs a sandboxed script and returns the screen as a sensation — the latency/feedback/
   timeout model and the guardrail for arbitrary code (builds on efference.md).
+- [A world to meet](a-world-to-meet.md) — proposed next direction: an honestly
+  simulated, spatially persistent world considered from the mind's side, with a
+  minimal experiment separating persistent worldhood from viewpoint-dependent vision.
