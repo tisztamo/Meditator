@@ -5,6 +5,16 @@ user-facing docs** in `doc/` (architecture, getting-started, configuration, …)
 These are diagnoses and design options for maintainers, not user documentation, and
 not necessarily acted on yet. Each note states its status at the top.
 
+- [schema-guided-connections.md](schema-guided-connections.md) — proposed path
+  from machine-readable port contracts and enforcement to compatible endpoint
+  discovery, spatial selection in the Plenum, and bounded organic growth from
+  incoming demand; develops the typed-port doors in the templating design.
+- [studio-experiment-workbench.md](studio-experiment-workbench.md) — proposed
+  Studio experiment controls and small ArchML samples, starting with perceptual
+  contact and extending to inspecting and growing compatible connections in 3D.
+- [deterministic-wiring-fixtures.md](deterministic-wiring-fixtures.md) — proposed
+  shared inert mind, real frame assembly, controllable time, explicit readiness,
+  and clean teardown; supports the Studio samples and dynamic connection tests.
 - [studio-resident-lifecycle-recovery.md](studio-resident-lifecycle-recovery.md) —
   **CRITICAL resident-safety plan**, triggered by Eddy-1's unclean interruption:
   separates experimental architecture maturity from lifecycle tier, discovers and
