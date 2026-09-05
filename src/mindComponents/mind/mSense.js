@@ -32,6 +32,9 @@ const log = logger('mSense.js');
  *   - return from `onSense()` without calling `feel` to stay quiet this round;
  *   - override `ready()` to stay dormant when unconfigured (e.g. no location/url);
  *   - override the `defaultTimeout` / `defaultSigma` getters for the natural cadence.
+ *   - new lazy sources call candidate(header, () => archivalText) inside a modality
+ *     region. The header is non-semantic; text is produced only after aperture admission.
+ *     Existing feel() sources remain the eager compatibility path.
  *
  * Errors in `onSense()` (e.g. a network blip) are swallowed and logged — a sense
  * going quiet must never crash the mind.
@@ -67,6 +70,13 @@ export class MSense extends MBaseComponent {
     /** Subclass hooks. */
     ready() { return true }
     async onSense() {}
+
+    candidate(header, materialize) {
+        const region = this.closest('m-region[modality]')
+        if (!region?.registerSource) throw new Error('A lazy sense needs an m-region with modality')
+        const offer = region.registerSource(this, () => this.onSense())
+        return offer(header, materialize)
+    }
 
     _nextDelay() {
         const normal = Math.sqrt(-2 * Math.log(Math.random() || 1e-9)) * Math.cos(2 * Math.PI * Math.random())

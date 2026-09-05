@@ -7,6 +7,7 @@ import { complete, isDryRun } from "../../modelAccess/llm.js"
 import { resolveModelRef } from "../../modelAccess/modelConfig.js"
 import { logger } from '../../infrastructure/logger.js';
 import { InterruptRecord, withPerceivedEvents } from '../../infrastructure/interruptRecord.js';
+import { Percept } from '../../infrastructure/percept.js';
 import { mindHome, inVault, ensureVault, commitVault, assertNotRetired, assertIdentityMatchesHome } from '../../infrastructure/memoryVault.js';
 import { FORMAT_VERSION, recordWake, tierOf } from '../../infrastructure/manifest.js';
 import { getLoadedArchitecture } from '../../startup/architecture.js';
@@ -68,6 +69,8 @@ const log = logger('mMemory.js');
  * transition), 🗣 aloud, 🖼 image. The ⟂/⌁ pair is the honesty ledger: every strong
  * intervention is double-recorded — what the mind FELT (⟂ or the seamless stream) and the
  * MECHANISM behind it (⌁), so the mind's experience stays whole while the record stays true.
+ * Typed frame receipts from @percepts-attended are appended to journal/percepts.jsonl;
+ * aperture-change events are backstage notes. journal="off" disables these too.
  *
  * Topics published:
  *   - "tail": the verbatim tail, on every change (retained; the frame mirrors it)
@@ -150,7 +153,12 @@ export class MMemory extends MBaseComponent {
         // in to call note() per stimulus.
         if (this.attr("attendedSrc") !== "off") {
             this.sub(this.attr("attendedSrc") || "..m-mind/@attended", this._onAttended)
+            this.sub('..m-mind/@percepts-attended', this._onPerceptsAttended)
         }
+        this.sub('..m-mind/@aperture-change', e => {
+            const { from, to, reason } = e.detail || {}
+            if (from && to) this.note(`Attention aperture: ${from} → ${to} (${reason}).`, { perceived: false })
+        })
 
         // A BRIDGE — the utility-model transition sentence m-mind injects on a redirect —
         // arrives as its transient `@bridge` event. It physically rides the tail via the
@@ -420,6 +428,21 @@ export class MMemory extends MBaseComponent {
         if (this._finalized) return
         this.tail = withPerceivedEvents(this.tail, lines)
         this._trimTail()
+    }
+
+    // Typed source of truth beside the textual journal. Only frame receipts are indexed;
+    // a materialized but rejected bid is not autobiography. Share the journal write queue
+    // so finalize waits for the index too. journal="off" disables both forms of recording.
+    _onPerceptsAttended = e => {
+        const dir = this._journalDir()
+        if (this._finalized || !dir || !Array.isArray(e.detail)) return
+        const entries = e.detail.filter(p => p instanceof Percept).map(p => p.toIndexEntry())
+        if (!entries.length) return
+        const text = entries.map(entry => JSON.stringify(entry)).join('\n') + '\n'
+        this._journalQueue = this._journalQueue.then(async () => {
+            await fs.mkdir(dir, { recursive: true })
+            await fs.appendFile(path.join(dir, 'percepts.jsonl'), text)
+        }).catch(error => log.warn('Percept index write failed:', error.message))
     }
 
     // A loop break: the mind cleared its tail and starts fresh from `seed`. We own the

@@ -5,6 +5,7 @@ import { makePhrasebook } from "../shared/i18n.js"
 import { parseTime } from '../../config/timeParser.js';
 import { logger } from '../../infrastructure/logger.js';
 import { InterruptRecord, withPerceivedEvents } from '../../infrastructure/interruptRecord.js';
+import { Percept } from '../../infrastructure/percept.js';
 
 const log = logger('mMind.js');
 
@@ -90,6 +91,7 @@ const LANDING_PHRASES = {
  * Topics published:
  *   - "prompt": the assembled attention frame for each burst (consumed by m-stream)
  *   - "pace": {tickMs} — the current effective tick, so a viewer can pace its display
+ * Events: attended (existing rendered lines), percepts-attended (typed frame receipts).
  */
 /** Delay until the next burst given the target tick and how long the cycle that
  *  just finished took from its start. Zero means "now": the model was slower
@@ -554,6 +556,7 @@ export class MMind extends MBaseComponent {
      * @param {InterruptRecord[]} stimuli
      */
     async assembleFrame(stimuli) {
+        stimuli = stimuli.map(s => Percept.fromInterrupt(s))
         const stream = this.querySelector('m-stream')
         const tailLength = Number(this.attr("tailLength") || 1500)
 
@@ -660,6 +663,7 @@ export class MMind extends MBaseComponent {
             const factor = Number(this.attr("speakingTokensFactor") || 0.35)
             payload.burstTokens = Math.max(60, Math.round(base * factor))
         }
+        if (stimuli.length) this.fire('percepts-attended', stimuli)
         return payload
     }
 

@@ -3,7 +3,75 @@
 *Design, 2026-09-04; revised after architecture/biology review. Companion to [A world to meet](a-world-to-meet.md).
 That document asks what kind of outside a Meditator mind needs; this one asks how
 any kind of outside crosses into awareness. It generalizes eyelids into a
-modality-neutral regulation of contact. Nothing here is implemented yet.*
+modality-neutral regulation of contact. A small text-only implementation now exists;
+see [Implementation sketch](#implementation-sketch) for its boundaries.*
+
+## Implementation sketch
+
+The first slice uses the existing regional attention path. It adds no dependencies
+or model calls. Run the offline demonstration from the repository root:
+
+```sh
+bun scripts/dev/demo-membrane.mjs
+```
+
+The demo advances the regulator's clock, suppresses a simulated event while closed,
+then reopens to a fresh description of the present. It runs the real frame assembler
+without starting a thinking loop or touching resident memory.
+
+Opt in with `modality="text"` on an `m-region`. `aperture` defaults to `open`;
+`soft` halves salience, `narrow` selects one registered source, and `closed` withholds
+materialization. `dwell` defaults to 30 seconds and `contactHorizon` to ten minutes.
+The demo starts closed only to exercise the reflex. Production architectures should
+declare and disclose their open/soft wake default.
+
+A new `MSense` subclass calls this from `onSense()`:
+
+```js
+return this.candidate(
+  { changeKey: detector.revision, changeMagnitude: detector.magnitude },
+  () => describeCurrentObservation()
+)
+```
+
+The callback must return archival text. The detector must not generate that text
+early. Custom sources can instead use `region.registerSource(element, sampleNow)`,
+which returns the same `(header, lazyText)` offer function. Source identity (`name`),
+`provenance`, and the independent `bypassAperture`, `bypassAdmission`, and `preempt`
+attributes are read from architecture configuration when registering, never from
+candidate payloads. Provenance defaults to `unspecified`; examples should explicitly
+use `simulated`, `physical`, `other-mind`, `generated`, or `internal` as appropriate.
+This is an in-process adapter boundary, not a sandbox for untrusted component code.
+
+`region.orient('closed')`, `region.orient('open')`, or
+`region.orient('narrow', sourceName)` changes orientation after minimum dwell.
+It returns whether a change was accepted. Reopening asks registered senses for a
+fresh sample; it never replays missed content. Only a fresh `percepts-attended`
+receipt from frame assembly reduces contact debt. Rejected and crowded-out bids do
+not. Debt has a weak awake-time contribution with an arousal-independent floor,
+capped change contributions, and per-source habituation. The first thresholds and
+time constants are provisional experiment settings. No thought content is inspected.
+
+The region publishes retained `apertureState` and `contactPressure`; regional
+arbiters consume local pressure and the global arbiter follows the regional mean
+over a minute. `contactSensitivity` controls the threshold reduction (default 0.25).
+State changes are backstage journal notes. Admitted text remains an
+`InterruptRecord`-compatible `Percept` throughout arbitration, and frame receipts
+append provenance and the actual text rendition to `journal/percepts.jsonl` on the
+existing journal write queue. `journal="off"` disables both indexes and journal
+notes. Existing text framing remains unchanged.
+
+The compatibility path preserves powers on existing in-process `InterruptRecord`
+instances. Raw strings and serialized objects cannot acquire bypass or preemption
+merely through coercion. Legacy provenance is marked `legacy-unspecified` where it
+cannot be established. Existing eager `feel()` sources are **not** silently made
+lazy or aperture-controlled: migrating each detector is separate work.
+
+Still deferred: the model-driven `orient` hand and its cooldown lane, native media
+and model capability selection, rendition-aware recall, deliberate gaze/efference
+copies, media retention, and Studio timelines. This slice establishes the contact
+boundary and its return path; it does not implement the spatial world or validate
+the proposed dynamics on a live mind.
 
 ## The proposal
 

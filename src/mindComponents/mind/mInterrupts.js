@@ -1,7 +1,7 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
 import { extractInfoton } from "../shared/infoton.js"
 import { logger } from '../../infrastructure/logger.js';
-import { InterruptRecord } from '../../infrastructure/interruptRecord.js';
+import { Percept } from '../../infrastructure/percept.js';
 import { parseTime } from '../../config/timeParser.js';
 
 const log = logger('mInterrupts.js');
@@ -41,6 +41,9 @@ const log = logger('mInterrupts.js');
  *     arousal falls — a tired mind is harder to interrupt (default 0, off). Each drop it
  *     causes (a stimulus that clears the base bar but not the raised one) is announced as a
  *     backstage `muffled` event so a memory can journal the withdrawal (finding 7).
+ *   - contactSensitivity: threshold reduction at full contact pressure (default 0.25).
+ *     Inactive without modality regions. Global pressure follows their mean over 60s;
+ *     the regional gate uses its own retained pressure directly. Topic: contactPressure.
  *
  * DOM events:
  *   - listens (on its region or the mind): "interrupt-request"
@@ -55,6 +58,8 @@ export class MInterrupts extends MBaseComponent {
     _container = null
     _arousal = 1
     _lastMuffledAt = 0
+    _pressureAt = Date.now()
+    contactPressure = 0
 
     onConnect() {
         super.onConnect()
@@ -86,7 +91,7 @@ export class MInterrupts extends MBaseComponent {
         // faculty per bid, before any gating (plenum.md §3.2: the message arrived;
         // what the handler does with the content is separate).
         this.applyInfoton(extractInfoton(e))
-        const record = InterruptRecord.coerce(e.detail)
+        const record = Percept.fromInterrupt(e.detail)
         // A nested arbiter is the gate for its faculty: it consumes EVERY request
         // bubbling to its region — whether it ends up promoting or dropping it —
         // so a locally-rejected bid never leaks up to the mind. The global
@@ -100,6 +105,8 @@ export class MInterrupts extends MBaseComponent {
         const sensitivity = Number(this.attr("arousalSensitivity") || 0)
         let threshold = baseThreshold
         if (sensitivity > 0) threshold = Math.min(0.99, baseThreshold + (1 - this._arousal) * sensitivity)
+        this._updateContactPressure(now)
+        threshold = Math.max(0, threshold - this.contactPressure * Number(this.attr('contactSensitivity') ?? 0.25))
 
         // `urgent` and `clearsTail` both bypass the threshold + rate-limit gate — they are
         // ADMITTED unconditionally. The difference is downstream: only `urgent` additionally
@@ -108,7 +115,7 @@ export class MInterrupts extends MBaseComponent {
         // that would otherwise drop whichever breaker bids second — but it is not a now-now
         // interruption (loop-detection-redesign.md §contracts·2). `urgent` ‖ `clearsTail`
         // splits admit from preempt.
-        if (!record.urgent && !record.clearsTail) {
+        if (!record.policy.bypassAdmission) {
             if (record.salience < threshold) {
                 // When arousal is what pushed this under — it clears the base bar but not the
                 // raised one — leave a backstage trail (finding 7): otherwise a tired mind grows
@@ -195,8 +202,21 @@ export class MInterrupts extends MBaseComponent {
 
     /** Called by m-mind at each boundary. Returns queued stimuli, oldest first, and clears the queue. */
     takePending() {
+        this._updateContactPressure(Date.now())
         const taken = this.pending
         this.pending = []
         return taken.sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime))
+    }
+
+    _updateContactPressure(now) {
+        if (this._region) {
+            this.pub('contactPressure', this._region.contactPressure || 0)
+        } else {
+            const regions = [...(this.closest('m-mind')?.querySelectorAll('m-region[modality]') || [])]
+            const mean = regions.reduce((sum, region) => sum + (region.contactPressure || 0), 0) / (regions.length || 1)
+            const weight = 1 - Math.exp(-Math.max(0, now - this._pressureAt) / 60000)
+            this.pub('contactPressure', this.contactPressure + (mean - this.contactPressure) * weight)
+        }
+        this._pressureAt = now
     }
 }
