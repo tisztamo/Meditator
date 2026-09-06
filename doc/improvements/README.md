@@ -5,6 +5,12 @@ user-facing docs** in `doc/` (architecture, getting-started, configuration, …)
 These are diagnoses and design options for maintainers, not user documentation, and
 not necessarily acted on yet. Each note states its status at the top.
 
+- [enclosure-by-role.md](enclosure-by-role.md) — proposed mechanism for native
+  recursion in the component tree: roles declared by implementations (`static
+  provides`), reflected onto the live DOM in the loader's inert window, resolved by
+  structure (`enclosing`, `membrane`, `part`); three laws of enclosure
+  (transparency, delegation, monotone authority); the aperture restated as a
+  composable protocol; wrap/substitution fixtures and the tag-name migration table.
 - [prediction-mismatch.md](prediction-mismatch.md) — revised design for replaceable
   prediction producers, comparators, attention policies, and search controllers;
   distinguishes sensory change, expectation, causality, and contact, records known

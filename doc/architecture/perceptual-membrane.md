@@ -363,7 +363,10 @@ specific bypass. An inner `open` cannot cancel an outer `closed`. Gates compose
 before materialization or private processing would violate an ancestor's policy;
 dropping an already-rendered bid at the outer arbiter is too late. Scope or policy
 changes also invalidate pending work that no longer has permission to complete.
-This composition is a required correction to the current nearest-region sketch.
+This composition is a required correction to the current nearest-region sketch;
+[enclosure by role](../improvements/enclosure-by-role.md) proposes the general
+mechanism (role-resolved enclosure, a cancelable `percept-candidate` event whose
+gates compose by conjunction, nearest-provider debt credit, and a pressure fold).
 
 There is also a global inner–outer balance. It does not replace local apertures:
 a mind may close its eyes and listen, soften ambient sound while examining an
