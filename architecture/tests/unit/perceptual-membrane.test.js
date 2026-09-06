@@ -226,6 +226,8 @@ test('gateTrail is a list; a receipt built from the percept does not carry it', 
     });
     expect(percept.gateTrail).toEqual([]);
     expect(Object.isFrozen(percept.gateTrail)).toBe(true);
+    expect(Object.isFrozen(percept)).toBe(true);
+    expect(() => { percept.salience = 0; }).toThrow();
     expect(percept.requestId).toBeNull();
     // Percept.toIndexEntry() is gone — a PerceptReceipt, built the way
     // frame assembly builds one, is the only typed index shape now. It is built from

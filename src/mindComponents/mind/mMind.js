@@ -6,7 +6,7 @@ import { makePhrasebook } from "../shared/i18n.js"
 import { parseTime } from '../../config/timeParser.js';
 import { logger } from '../../infrastructure/logger.js';
 import { InterruptRecord, withPerceivedEvents } from '../../infrastructure/interruptRecord.js';
-import { Percept } from '../../infrastructure/percept.js';
+import { AttentionBid } from '../../infrastructure/attentionBid.js';
 import { PerceptReceipt } from '../../infrastructure/perceptionContracts.js';
 import { randomUUID } from 'node:crypto';
 
@@ -137,7 +137,7 @@ function onceBoundary(stream, afterIndex, timeoutMs) {
  *  `requestId` is copied from the percept as acquisition lineage, not causation.
  *  A free function so assembleFrame.call(mind) on a non-MMind host still works.
  *  Legacy coerced stimuli keep `legacy-unspecified` / `tier: null` from
- *  fromInterrupt; they credit no aperture.
+ *  evidenceOf; they credit no aperture.
  *
  *  A receipt is a RETURN path — it records that a frame happened, not a
  *  precondition for perceiving it — so a single malformed stimulus (e.g. a
@@ -524,8 +524,9 @@ export class MMind extends MBaseComponent {
      * the point of this frame.
      */
     async _assembleClearFrame(breaker) {
+        const evidence = AttentionBid.evidenceOf(breaker)
         const prefix = this._clearingPrefix()
-        const continuation = (breaker.reason || "").trim()
+        const continuation = (evidence.reason || "").trim()
         // The seed must not END on a completed sentence — a completion-trained local
         // model reads that as a finished turn and emits EOS, so the break itself goes
         // silent (lemma-lab-21). A dangling resuming opener keeps the seed mid-flight.
@@ -533,17 +534,17 @@ export class MMind extends MBaseComponent {
         // prefill are the same text.
         const body = continuation ? `${prefix} ${continuation}` : prefix
         const entry = `${body} ${this._resumingOpener()}`
-        this._lastClearedEpisode = breaker.episode || null
+        this._lastClearedEpisode = evidence.episode || null
 
         // Optional one-off pause — a real beat of quiet around the reset (the breaker's
         // `settle`). m-mind owns pace, so it applies it to the next inter-burst gap.
-        if (breaker.settle != null) {
-            const ms = typeof breaker.settle === "number" ? breaker.settle : parseTime(String(breaker.settle))
+        if (evidence.settle != null) {
+            const ms = typeof evidence.settle === "number" ? evidence.settle : parseTime(String(evidence.settle))
             if (Number.isFinite(ms) && ms > 0) this._settleNextMs = ms
         }
 
         process.stdout.write(`\n\x1b[36m⟂ ${entry}\x1b[0m\n`)
-        log.info(`loop break (episode ${breaker.episode || "?"}, ${breaker.kind || "?"}) — clearing the tail`)
+        log.info(`loop break (episode ${evidence.episode || "?"}, ${evidence.kind || "?"}) — clearing the tail`)
 
         // Announce the intent; m-memory subscribes to @clear-tail, reseeds the tail to this
         // seed, clears its overflow, journals the ⟂ self-caused cut AND a ⌁ backstage trail
@@ -551,7 +552,7 @@ export class MMind extends MBaseComponent {
         // rides the existing channel — no reach-in. `via` is the winning breaker's type
         // ("Recall" when m-resurface pulled a kept memory back; the floor otherwise), so the
         // ⌁ trail attributes the cut honestly (Covenant §9 / finding 7, C3).
-        this.fire("clear-tail", { seed: entry, kind: breaker.kind || null, via: breaker.type || null })
+        this.fire("clear-tail", { seed: entry, kind: evidence.kind || null, via: evidence.type || null })
 
         const identity = this._identity()
         const sections = []
@@ -596,10 +597,10 @@ export class MMind extends MBaseComponent {
 
     /**
      * Builds the attention frame. Returns {system, frame, prefix?} for m-stream.
-     * @param {InterruptRecord[]} stimuli
+     * Stimuli may be bids; evidenceOf unwraps so receipt ids stay percept ids.
      */
     async assembleFrame(stimuli) {
-        stimuli = stimuli.map(s => Percept.fromInterrupt(s))
+        stimuli = stimuli.map(s => AttentionBid.evidenceOf(s))
         const stream = this.querySelector('m-stream')
         const tailLength = Number(this.attr("tailLength") || 1500)
 

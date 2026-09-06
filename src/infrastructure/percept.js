@@ -47,6 +47,7 @@ export class PerceptCandidate {
  * `requestId` is acquisition lineage only, not causal attribution — looking caused
  * the sample, not everything visible in it. Legacy `fromInterrupt` leaves it null.
  * `gateTrail` is the acquisition and awareness verdicts; it is a list even at length 2.
+ * Frozen at the end of construction: the bid is the competition; this is the evidence.
  * Do not put a receipt here — that is the next seam.
  */
 export class Percept extends InterruptRecord {
@@ -76,6 +77,8 @@ export class Percept extends InterruptRecord {
             if (!(verdict instanceof GateVerdict)) throw new Error('Percept.gateTrail is a list of GateVerdict');
             return verdict;
         }));
+        // Frozen at issue: competing evaluations live on AttentionBid, not here.
+        Object.freeze(this);
     }
 
     /** Existing in-process InterruptRecords keep their established authority.
@@ -84,6 +87,13 @@ export class Percept extends InterruptRecord {
      */
     static fromInterrupt(detail) {
         if (detail instanceof Percept) return detail;
+        // A bid is not a payload. Unwrapping preserves the evidence id;
+        // coercing it as a plain object would mint a new Percept and break
+        // receipt crediting. assembleFrame uses AttentionBid.evidenceOf.
+        if (detail && typeof detail === 'object' && detail.evidence instanceof Percept
+            && detail.evidenceId === detail.evidence.id && Array.isArray(detail.gainTrail)) {
+            return detail.evidence;
+        }
         const trusted = detail instanceof InterruptRecord;
         const record = InterruptRecord.coerce(detail);
         if (!trusted) { record.urgent = false; record.clearsTail = false; }

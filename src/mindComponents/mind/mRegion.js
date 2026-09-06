@@ -2,6 +2,7 @@ import { MBaseComponent } from "../shared/mBaseComponent.js"
 import { enclosingOf, enclosingAllOf, isMembrane } from "../shared/enclosure.js"
 import { Aperture } from '../../infrastructure/aperture.js'
 import { Percept, PerceptCandidate } from '../../infrastructure/percept.js'
+import { AttentionBid } from '../../infrastructure/attentionBid.js'
 import { SourceContract, AnnotatedCandidate, decideGate, GateVerdict, ControlRequest, RenditionRequest, PerceptReceipt, pushGainTrail } from '../../infrastructure/perceptionContracts.js'
 import { InterruptRecord } from '../../infrastructure/interruptRecord.js'
 import { parseTime } from '../../config/timeParser.js'
@@ -57,7 +58,8 @@ export function gateIdOf(el) {
  *   the path, stopped at the membrane). Credits `percepts-attended` by percept id
  *   against a bounded issued-id map — never by object identity. Awareness is the
  *   second pass of the same event after materialization, not a capture-phase veto
- *   on interrupt-request. Bids are not split yet.
+ *   on interrupt-request. The offer path issues an AttentionBid wrapping a frozen
+ *   Percept; aperture gain lives on the bid's trail, not on the evidence.
  * Only registered lazy sources pass through this aperture; legacy interrupts are unchanged.
  */
 export class MRegion extends MBaseComponent {
@@ -188,21 +190,24 @@ export class MRegion extends MBaseComponent {
                 })
                 element.dispatchEvent(awarenessEvent)
                 const awareness = this._composedGate(awarenessEvent, expectedGates)
-                const record = new Percept({
+                const percept = new Percept({
                     id: candidate.id, sourceId: contract.name, modality: contract.modality,
                     provenance: contract.provenance, tier: contract.tier, policy: contract.powers,
                     requestId: candidate.requestId,
                     occurredAt: new Date(Math.min(now, candidate.occurredAt)).toISOString(),
                     record: new InterruptRecord({ source: 'External', type: `Sense-${contract.name}`, reason: text,
-                        salience: candidate.changeMagnitude * (contract.powers.bypassAperture ? 1 : this.aperture.gain) }),
+                        // Raw bidding-policy salience. Aperture gain is already on
+                        // the composed acquisition trail; the bid multiplies it.
+                        salience: candidate.changeMagnitude }),
                     gateTrail: [acquisition, awareness],
                 })
                 this._publishDecision(awareness, annotated)
                 if (!awareness.permitted) return null
-                const issuedAt = Date.parse(record.dateTime)
-                this._recordIssued(record.id, Number.isFinite(issuedAt) ? issuedAt : Date.now())
-                element.dispatchEvent(new CustomEvent('interrupt-request', { bubbles: true, detail: record }))
-                return record
+                const issuedAt = Date.parse(percept.dateTime)
+                this._recordIssued(percept.id, Number.isFinite(issuedAt) ? issuedAt : Date.now())
+                const bid = new AttentionBid({ evidence: percept, gainTrail: detail.gainTrail })
+                element.dispatchEvent(new CustomEvent('interrupt-request', { bubbles: true, detail: bid }))
+                return bid
             } catch {
                 // A failed renderer is not a sensation; errors can themselves contain private payloads.
                 this.pub('materializationFailure', { source: contract.name, candidateId: candidate.id })

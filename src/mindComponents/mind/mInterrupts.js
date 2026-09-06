@@ -2,7 +2,7 @@ import { MBaseComponent } from "../shared/mBaseComponent.js"
 import { part } from "../shared/enclosure.js"
 import { extractInfoton } from "../shared/infoton.js"
 import { logger } from '../../infrastructure/logger.js';
-import { Percept } from '../../infrastructure/percept.js';
+import { AttentionBid } from '../../infrastructure/attentionBid.js';
 import { parseTime } from '../../config/timeParser.js';
 
 const log = logger('mInterrupts.js');
@@ -10,11 +10,13 @@ const log = logger('mInterrupts.js');
 /**
  * The attention arbiter. Generators anywhere in the mind (timeouts, observers,
  * websocket, console) dispatch bubbling "interrupt-request" DOM events carrying
- * an InterruptRecord; this component decides what gets through to the mind.
+ * an InterruptRecord or AttentionBid; this component decides what gets through to the mind.
  *
  * The decision is mechanical, not an LLM pipeline: the generator that raised
  * the interrupt knows why it fired and supplies the salience itself. The only
- * intelligence spent on a context switch is the mind's bridge call.
+ * intelligence spent on a context switch is the mind's bridge call. Nested
+ * arbiters re-weight by appending a gain-trail entry on the bid — they never
+ * write the evidence.
  *
  * POSITION decides the role, so the same component works at any depth:
  *   - GLOBAL arbiter (a direct child of m-mind): non-urgent stimuli are QUEUED
@@ -96,7 +98,7 @@ export class MInterrupts extends MBaseComponent {
         // faculty per bid, before any gating (plenum.md §3.2: the message arrived;
         // what the handler does with the content is separate).
         this.applyInfoton(extractInfoton(e))
-        const record = Percept.fromInterrupt(e.detail)
+        const bid = AttentionBid.from(e.detail)
         // A nested arbiter is the gate for its faculty: it consumes EVERY request
         // bubbling to its region — whether it ends up promoting or dropping it —
         // so a locally-rejected bid never leaks up to the mind. The global
@@ -120,20 +122,20 @@ export class MInterrupts extends MBaseComponent {
         // that would otherwise drop whichever breaker bids second — but it is not a now-now
         // interruption (loop-detection-redesign.md §contracts·2). `urgent` ‖ `clearsTail`
         // splits admit from preempt.
-        if (!record.policy.bypassAdmission) {
-            if (record.salience < threshold) {
+        if (!bid.bypassAdmission) {
+            if (bid.salience < threshold) {
                 // When arousal is what pushed this under — it clears the base bar but not the
                 // raised one — leave a backstage trail (finding 7): otherwise a tired mind grows
                 // isolated with no felt or recorded cause. The mind is told nothing (it never
                 // perceived the stimulus); only the record gains the reason. Throttled below.
-                if (sensitivity > 0 && record.salience >= baseThreshold) this._noteMuffled(record)
-                log.debug(`drop (salience ${record.salience} < ${threshold.toFixed(2)}): ${record}`)
-                this._publishDecision(record, false, `salience ${record.salience.toFixed(2)} < ${threshold.toFixed(2)}`)
+                if (sensitivity > 0 && bid.salience >= baseThreshold) this._noteMuffled(bid)
+                log.debug(`drop (salience ${bid.salience} < ${threshold.toFixed(2)}): ${bid}`)
+                this._publishDecision(bid, false, `salience ${bid.salience.toFixed(2)} < ${threshold.toFixed(2)}`)
                 return
             }
             if (now - this.lastAcceptedAt < rateLimitMs) {
-                log.debug(`drop (rate limit): ${record}`)
-                this._publishDecision(record, false, "rate-limited")
+                log.debug(`drop (rate limit): ${bid}`)
+                this._publishDecision(bid, false, "rate-limited")
                 return
             }
         }
@@ -144,25 +146,33 @@ export class MInterrupts extends MBaseComponent {
             // Nested: re-weight and promote one level up — to the enclosing
             // region's arbiter, or finally the mind's. No loop: we re-dispatch
             // on the region's PARENT, which is off this arbiter's listen path.
+            // Arbiter gain is competition, not enclosure: it may be > 1 and
+            // must not go through pushGainTrail (that helper rejects > 1).
             const gain = Number(this.attr("gain") || 1)
-            if (gain !== 1) record.salience = Math.max(0, Math.min(1, record.salience * gain))
-            log.debug(`promote${gain !== 1 ? ` ×${gain}` : ""}: ${record}`)
-            this._publishDecision(record, true, gain !== 1 ? `promoted ×${gain}` : "promoted")
+            if (gain !== 1) {
+                bid.gainTrail.push(Object.freeze({
+                    gate: this.attr("name") || this.localName,
+                    factor: gain,
+                }))
+                bid.recomputeSalience()
+            }
+            log.debug(`promote${gain !== 1 ? ` ×${gain}` : ""}: ${bid}`)
+            this._publishDecision(bid, true, gain !== 1 ? `promoted ×${gain}` : "promoted")
             this._region.parentElement?.dispatchEvent(
-                new CustomEvent("interrupt-request", { bubbles: true, detail: record }))
+                new CustomEvent("interrupt-request", { bubbles: true, detail: bid }))
             return
         }
 
         // Global: queue for the mind. Only `urgent` additionally interrupts now; a
         // `clearsTail` bid is admitted but waits to be collected at the next boundary
         // (admit, not preempt) — the mind enacts the cut there.
-        this._enqueue(record)
-        const note = record.urgent ? " URGENT" : record.clearsTail ? " CLEARS-TAIL" : ""
-        log.debug(`accepted${note}: ${record}`)
-        this._publishDecision(record, true, record.urgent ? "urgent" : record.clearsTail ? "clears-tail" : "accepted")
+        this._enqueue(bid)
+        const note = bid.urgent ? " URGENT" : bid.clearsTail ? " CLEARS-TAIL" : ""
+        log.debug(`accepted${note}: ${bid}`)
+        this._publishDecision(bid, true, bid.urgent ? "urgent" : bid.clearsTail ? "clears-tail" : "accepted")
 
-        if (record.urgent) {
-            this.fire("interrupt", record)
+        if (bid.urgent) {
+            this.fire("interrupt", bid)
         }
     }
 
@@ -182,14 +192,20 @@ export class MInterrupts extends MBaseComponent {
 
     /** Announces the accept/drop verdict for a stimulus, so an observer (e.g. the
      *  websocket dashboard) can show why a bid did or didn't get through. */
-    _publishDecision(record, accepted, why) {
+    _publishDecision(bid, accepted, why) {
+        bid.decisions.push(Object.freeze({
+            by: this.attr("name") || this.localName,
+            accepted,
+            why,
+            at: Date.now(),
+        }))
         this.pub("decision", {
-            source: record.source,
-            type: record.type,
-            reason: record.reason,
-            text: record.renderForFrame(),
-            salience: record.salience,
-            urgent: !!record.urgent,
+            source: bid.source,
+            type: bid.type,
+            reason: bid.reason,
+            text: bid.renderForFrame(),
+            salience: bid.salience,
+            urgent: !!bid.urgent,
             accepted,
             why,
         })

@@ -3,6 +3,7 @@ import { test, expect, beforeAll } from "bun:test";
 import { delay } from "./setup.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
 import { InterruptRecord } from "../../../src/infrastructure/interruptRecord.js";
+import { AttentionBid } from "../../../src/infrastructure/attentionBid.js";
 
 let global, local, regionSrc, topSrc;
 
@@ -45,7 +46,11 @@ test("region bid is re-weighted and promoted to global arbiter", () => {
     expect(local.pending.length).toBe(0);
     const promoted = global.takePending();
     expect(promoted.length).toBe(1);
+    expect(promoted[0]).toBeInstanceOf(AttentionBid);
     expect(Math.abs(promoted[0].salience - 0.4)).toBeLessThan(1e-9);
+    const evidence = AttentionBid.evidenceOf(promoted[0]);
+    expect(evidence.salience).toBe(0.8);
+    expect(Object.isFrozen(evidence)).toBe(true);
 });
 
 test("locally dropped bid does not leak upward", () => {

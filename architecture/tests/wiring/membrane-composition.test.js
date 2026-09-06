@@ -11,6 +11,7 @@ import { loadMindComponents } from '../../../src/startup/loadMindComponents.js';
 import { MMind } from '../../../src/mindComponents/mind/mMind.js';
 import { MBaseComponent } from '../../../src/mindComponents/shared/mBaseComponent.js';
 import { Percept } from '../../../src/infrastructure/percept.js';
+import { AttentionBid } from '../../../src/infrastructure/attentionBid.js';
 import { GateVerdict, pushGainTrail } from '../../../src/infrastructure/perceptionContracts.js';
 
 let journalDir;
@@ -149,9 +150,13 @@ async function driveOpenOffer(mind, { text = TEXT, changeKey = 'garden-light' } 
     return {
         percept,
         bids,
-        pending: pending.map(p => ({
-            reason: p.reason, salience: p.salience, source: p.source, type: p.type, provenance: p.provenance,
-        })),
+        pending: pending.map(p => {
+            const evidence = AttentionBid.evidenceOf(p)
+            return {
+                reason: p.reason, salience: p.salience, source: p.source, type: p.type,
+                provenance: evidence.provenance,
+            }
+        }),
         attended: (attended?.detail || []).map(r => ({
             renditionText: r.renditionText, sourceId: r.sourceId, provenance: r.provenance, receivedKind: r.receivedKind,
         })),
@@ -173,7 +178,8 @@ test('W1 wrap invariance: a faculty-only region around the sense changes no orde
     expect(wrap.pending).toEqual(baseline.pending);
     expect(wrap.attended).toEqual(baseline.attended);
     expect(wrap.journal).toEqual(baseline.journal);
-    expect(wrap.percept).toBeInstanceOf(Percept);
+    expect(wrap.percept).toBeInstanceOf(AttentionBid);
+    expect(AttentionBid.evidenceOf(wrap.percept)).toBeInstanceOf(Percept);
 });
 
 test('W2 identity aperture: an outer open gate changes no receipts; only telemetry may grow', async () => {
@@ -190,8 +196,8 @@ test('W2 identity aperture: an outer open gate changes no receipts; only telemet
     expect(nested.pending).toEqual(baseline.pending);
     expect(nested.attended).toEqual(baseline.attended);
     expect(nested.journal).toEqual(baseline.journal);
-    expect(nested.percept).toBeInstanceOf(Percept);
-    expect(nested.percept.gateTrail).toHaveLength(2);
+    expect(nested.percept).toBeInstanceOf(AttentionBid);
+    expect(AttentionBid.evidenceOf(nested.percept).gateTrail).toHaveLength(2);
     expect(details.map(d => d.stage)).toEqual(['acquisition', 'awareness']);
     const acquisition = details[0];
     const awareness = details[1];
@@ -409,7 +415,7 @@ test('bypass: trusted bypassAperture on the source crosses two closed gates; a p
     const trusted = inner.registerSource(voice);
     const percept = await trusted(header('voice'), () => { trustedRenders++; return 'Hello.'; });
     expect(trustedRenders).toBe(1);
-    expect(percept).toBeInstanceOf(Percept);
+    expect(percept).toBeInstanceOf(AttentionBid);
     expect(global.takePending()).toEqual([percept]);
 
     let payloadRenders = 0;
