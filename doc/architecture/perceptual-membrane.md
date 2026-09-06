@@ -1,10 +1,16 @@
 # The perceptual membrane
 
-*Design, 2026-09-04; revised after architecture/biology review. Companion to [A world to meet](a-world-to-meet.md).
+*Design, 2026-09-04; revised 2026-09-06 after the generality review.
+Companion to [A world to meet](a-world-to-meet.md).
 That document asks what kind of outside a Meditator mind needs; this one asks how
 any kind of outside crosses into awareness. It generalizes eyelids into a
 modality-neutral regulation of contact. A small text-only implementation now exists;
 see [Implementation sketch](#implementation-sketch) for its boundaries.*
+
+The revised design makes prediction, attention bidding, contact regulation, and
+search replaceable through architecture wiring. The current sketch does not yet
+provide those seams. [Prediction and search](../improvements/prediction-mismatch.md)
+records the shared constraints, known issues, and proposed high-level comparisons.
 
 ## Implementation sketch
 
@@ -73,13 +79,31 @@ copies, media retention, and Studio timelines. This slice establishes the contac
 boundary and its return path; it does not implement the spatial world or validate
 the proposed dynamics on a live mind.
 
+### Known issues in the sketch
+
+The generality review identified the following open limitations. This design
+revision documents them; it does not fix the runtime or run further experiments.
+
+| Issue | Consequence and intended direction |
+|---|---|
+| Only the nearest sensory aperture participates | An open inner modality region can render and deliver through a closed outer one, reproduced in the review. Compose all applicable boundaries before materialization. |
+| Sensory change directly sets salience | A zero-change observation is rendered but rejected at a positive threshold, reproduced in the review. Expected confirmations need independent relevance; mismatch must not replace `changeMagnitude`. |
+| Policy is constructed or discovered inside consumers | `m-region` owns a fixed `Aperture`; `m-interrupts` discovers modality regions and computes their slow mean. Make regulation, aggregation, and control bindings replaceable. |
+| Evidence and bid state share mutable records | Regional gain mutates salience, while receipt credit relies on the issued object. Independent evaluations and authoritative receipts need stable evidence identity across legitimate adapters and fan-out. |
+| Source control is incomplete | The materializer receives requested kinds only; detector cadence and focus have no general control input. Deliver sampling/focus requests before detection and detail requests before materialization. |
+
+Existing eager senses remain outside aperture control, and native media,
+prediction lifecycle, and search are still deferred. The constraints below are
+the target contract, not a claim that these limits have already been removed.
+
 ## The proposal
 
 Give a mind a **perceptual membrane** distributed across the path between its
 senses and its attention arbiter. It is not one central wall. Source-side
-detectors expose change without prematurely interpreting it; modality regions
-control aperture and gain; attention purchases faithful renditions lazily; and
-retained modulatory signals regulate how permeable the mind is to the outside.
+detectors expose permitted change information; regions enforce declared contact
+boundaries; replaceable controllers regulate acquisition and awareness; and
+attention policies bid on faithfully materialized evidence. Retained modulatory
+signals regulate how permeable the mind is to the outside.
 Together they admit experiences, attenuate them, or keep their content outside
 awareness while still noticing that contact is being missed.
 
@@ -103,6 +127,45 @@ The biological inspiration is graded sensory relay, corollary discharge,
 independent homeostatic regulators, habituation, and hysteresis—not a claim that
 software regions are thalami or retained scalars are chemicals. A borrowed
 mechanism earns its place only by solving a concrete Meditator failure.
+
+## Generality and design constraints
+
+The aim is both modality independence and architectural experimentation. A new
+prediction producer, comparison method, search strategy, or contact policy should
+require rewiring and a few new components, while sources, percept transport, and
+frame/memory code stay fixed. The current deficit/reflex, regional mean, aperture
+states, and act-triggered orientation are a reference architecture whose policies
+can be replaced. They are not a mandatory theory of every mind.
+
+Keep these boundaries stable:
+
+- **Evidence and interpretation:** predictions and evaluations refer to identified
+  observations without rewriting them. Competing evaluators and bids do not mutate
+  one another. Predictions cannot generate external facts.
+- **Independent signals:** sensory change, novelty, mismatch, target relevance,
+  causal attribution, and confidence remain distinct. Bidding policy derives
+  salience; attention gain does not silently become confidence.
+- **Processing and awareness:** permission to acquire or privately process evidence
+  differs from permission to disclose it to ordinary attention and memory.
+- **Composed authority:** all applicable enclosing boundaries participate before
+  prohibited work; local openness, focus requests, or compatible ports grant no
+  bypass power. Source identity, provenance, and policy remain architecture-owned.
+- **Actual contact:** fresh, authoritative frame receipts establish experience.
+  Opening, sampling, evaluation, prediction success, and retained replay do not.
+  Expected and self-initiated observations can still be meaningful contact.
+- **Identity and lifecycle:** preserve source scope, evidence/rendition identity,
+  request lineage, and prediction lifetime through adapters and rewiring. Late or
+  cancelled work cannot become fresh evidence for a different controller.
+- **Small replaceable policies:** use explicit overridable/disableable bindings
+  and the existing component model. Automatic matching and growth can follow;
+  a general framework or periodic model call is not a prerequisite.
+
+The [prediction design](../improvements/prediction-mismatch.md#design-constraints)
+also distinguishes the mind's knowledge from simulator truth and gives the
+prediction, evaluation, and search responsibilities. The
+[port-contract design](../improvements/schema-guided-connections.md) describes
+their delivery, semantic stages, authority, and multiplicity. Privacy, honest
+provenance, bounded contact, and the Covenant survive policy replacement.
 
 ## Three separations
 
@@ -129,18 +192,26 @@ describe a transformed input as though the mind received its source form.
 
 ### Availability and attention are different
 
-A visual event may be available while the visual aperture is closed. The
-membrane may know only its header—when it occurred, whether it changed, and how
-strongly it would ordinarily bid—without disclosing its content. This is how an
-unseen world can eventually tug the eyes open without leaking through closed
-eyes.
+A visual event may be available while the visual aperture is closed. In the
+default policy the membrane knows only its header—when it occurred, whether it
+changed, and how strongly it would ordinarily bid—without disclosing its content.
+This is how an unseen world can eventually tug the eyes open without leaking
+through closed eyes.
 
-## Candidate first, percept after admission
+## Candidate first, materialization after permission
 
-A source first emits a private, non-semantic `PerceptCandidate` header. Only after
-the aperture admits it are expensive or semantic renditions materialized into a
-`Percept`. This is what makes closure real: a caption generated and logged before
-admission has already crossed much of the boundary.
+In the default policy, a source first emits a private, non-semantic
+`PerceptCandidate` header. Only after all applicable acquisition gates permit it
+are expensive or semantic renditions materialized. Optional comparison then
+precedes awareness admission and attention competition. Permission to materialize
+is not a receipt of experience.
+
+An alternative architecture may explicitly permit private semantic processing
+while awareness is closed. It must declare processing scope, budget, retention,
+and a separate awareness gate. Such content cannot reach ordinary attention,
+autobiographical memory, or public telemetry through a side path. Numeric results
+of semantic processing keep that origin; they are not raw non-semantic headers.
+The current sketch implements only the default policy.
 
 ```js
 {
@@ -155,16 +226,19 @@ admission has already crossed much of the boundary.
 ```
 
 For a deterministic simulated world, `changeMagnitude` can come from a
-scene-graph delta without interpreting the scene. For physical media, the edge
-detector must genuinely remain non-semantic—motion energy, luminance change,
-voice activity—or the design must admit that semantic exposure already occurred.
+viewpoint-bounded scene delta without interpreting its meaning. For physical
+media, the edge detector must genuinely remain non-semantic—motion energy,
+luminance change, voice activity—or use an explicitly declared private-processing
+policy.
 Headers are capped, source-deduplicated, and never include captions, transcripts,
 raw media, or content-bearing filenames.
 
 A trusted adapter first annotates the private candidate with provenance, privacy,
 and bypass policy from architecture configuration—not from its payload. The
 aperture can therefore apply trusted policy without seeing semantic content. After
-admission, lazy materialization constructs the percept:
+acquisition permission, lazy materialization constructs the available percept.
+The following illustrates evidence and provenance; evaluation and bid state are
+separate responsibilities in the revised design:
 
 ```js
 {
@@ -173,9 +247,7 @@ admission, lazy materialization constructs the percept:
   modality: "vision",
   provenance: "simulated",
   occurredAt: "…",
-  salience: 0.52,
-  changeKey: "cat-entered-doorway",
-  causedBy: null,
+  changeKey: "opaque-detector-key",
 
   renditions: [
     { kind: "image", ref: "…", mimeType: "image/png" },
@@ -230,8 +302,8 @@ provenance.
 
 ## Rendition selection
 
-The model-access layer should advertise what a model can natively receive. Only
-after aperture admission, a rendition selector asks the source to materialize the
+The model-access layer should advertise what a model can natively receive. After
+acquisition permission, a rendition selector asks the source to materialize the
 richest faithful form within the current attention and compute budget:
 
 | Source | Native-capable model | Fallback |
@@ -265,14 +337,16 @@ cannot turn a remembered caption into an image.
 
 Audio and video need bounded temporal units rather than endless streams. The
 membrane admits an episode—a phrase, a sound event, a short interval—not an open
-socket. A cheap detector can remain awake at the edge and create a candidate only
-when something changes.
+socket. A cheap detector can remain awake at the edge and offer candidates on
+change.
+Deliberate sampling may also offer an unchanged observation; confirming the
+present is a legitimate reason to bid for attention.
 
 ## Apertures
 
-Each modality-specific `m-region` has an aperture at the head of its sensory path.
-This uses the runtime's existing faculty boundary and nested gate rather than
-adding a parallel event bus. A useful first state set is:
+Each sensory region enforces the aperture policy bound to its path. A region may
+group one modality, a subset of sources, or a compound faculty. This uses the
+existing faculty boundary and nested attention path. A useful first state set is:
 
 - **open** — ordinary candidate frequency, detail, and salience;
 - **soft** — reduced frequency, resolution, or gain; peripheral contact;
@@ -282,6 +356,14 @@ adding a parallel event bus. A useful first state set is:
 
 Protection is not an aperture state. It is trusted per-source/event policy, split
 into aperture bypass, admission bypass, and preemption as above.
+
+For nested sensory regions, every applicable enclosing boundary must permit the
+requested processing and disclosure, except where trusted policy grants that
+specific bypass. An inner `open` cannot cancel an outer `closed`. Gates compose
+before materialization or private processing would violate an ancestor's policy;
+dropping an already-rendered bid at the outer arbiter is too late. Scope or policy
+changes also invalidate pending work that no longer has permission to complete.
+This composition is a required correction to the current nearest-region sketch.
 
 There is also a global inner–outer balance. It does not replace local apertures:
 a mind may close its eyes and listen, soften ambient sound while examining an
@@ -294,13 +376,20 @@ render; deliberate gaze purchases a detailed crop. Soft hearing may run an
 activity detector rather than a full native-audio model request. Attention thus
 selects both **what enters** and **what resolution is realized**.
 
+Expose source control independently of the rendition callback. Sampling and focus
+requests reach sources before detection; permitted detail and rendition choices
+reach materializers before processing. A search controller may coordinate several
+sources without becoming part of their regions. Aperture state, resolution,
+attentional gain, and observation confidence remain separately representable.
+
 ## The contact deficit
 
 Voluntary closure needs an automatic return path. Otherwise the hand that creates
 quiet also creates a new form of indefinite isolation.
 
-Each aperture maintains a `contactDeficit`, and the membrane maintains a slower
-global deficit. The value integrates evidence such as:
+In the reference architecture, a replaceable contact regulator maintains a local
+`contactDeficit`, and a separately wired aggregator supplies broader pressure.
+The value integrates evidence such as:
 
 - awake time since that modality last reached conscious attention;
 - count and cumulative salience of changes suppressed behind the aperture;
@@ -316,11 +405,12 @@ source-deduplicated contributions. Repetition habituates; a new `changeKey` or a
 large magnitude shift dishabituates. Minimum dwell and hysteresis prevent rapid
 reversal.
 
-The deficit is strictly afferent-side. It does not read semantic-loop or
-responsiveness judgments; those belong to `m-loop-detector`/`m-resurface`. The two
-independent regulators may both affect admission, but neither reads the other's
-state. This avoids a coupled-regulator oscillation and keeps each diagnosis
-legible.
+The reference regulator is strictly afferent-side. It does not read semantic-loop
+or responsiveness judgments; those belong to `m-loop-detector`/`m-resurface`.
+The two independent regulators may both affect admission, but neither reads the other's
+state. This keeps the diagnoses legible; it does not prove stability, because
+both still affect the same attention process. A separately wired prediction
+producer may read authorized thought or memory without becoming this regulator.
 
 The existing attention decision stream is useful evidence after aperture
 admission: accepted, below-threshold, rate-limited, and crowded-out bids already
@@ -330,10 +420,11 @@ receive a private candidate header and record its own suppression verdict; only
 admitted percepts become ordinary attention bids.
 
 `contactPressure = clamp01(contactDeficit)` is published as a retained signal.
-Today, `m-interrupts` can consume it symmetrically with its existing retained
-`arousal`: low arousal raises the bar; contact pressure lowers it. A transient
-focus pulse can raise a modality region's gain and narrow its source set. These
-interfaces are deliberately compatible with Chora's imagined D5 chemistry, but
+The proposed consumer binds to a selected regulator or aggregator instead of
+discovering and reading every region itself. The reference policy combines it
+with retained `arousal`: low arousal raises the bar; contact pressure lowers it.
+A transient focus pulse can raise a modality region's gain and narrow its source
+set. These interfaces are deliberately compatible with Chora's imagined D5 chemistry, but
 D5 is not on the critical path—only arousal exists in the runtime today.
 
 ### What clears the deficit
@@ -343,12 +434,19 @@ open–close cycle could satisfy the regulator without the mind meeting anything
 The deficit clears or substantially decays only when a fresh percept from that
 channel is admitted by attention and placed into the conscious frame.
 
-Self-caused contact counts. A mind that becomes curious, looks, and discovers the
-world has genuinely met it; the regulator must not privilege unsolicited
-interruption over agency. A `causedBy` act reference supports an efference copy:
-predicted components may receive lower novelty or salience, while mismatch restores
-it. Deliberate gaze temporarily moves vision to `narrow` for its one requested
-sample. A general hand consequence does not bypass an unrelated closed modality.
+Expected and self-initiated contact counts. A mind that looks and confirms a
+familiar scene has met it; the regulator must not privilege unsolicited novelty
+over agency. Debt growth from missed changes and debt reduction from fresh contact
+are different policy decisions. Predicted actuator effects can contribute less
+novelty without making their observation irrelevant or ineligible for contact.
+
+Preserve acquisition lineage separately from causal attribution: looking caused
+the sample, not everything visible in it. Comparators and bidding policies handle
+the distinction between predicted effects and belief mismatch described in
+[prediction and search](../improvements/prediction-mismatch.md#two-kinds-of-prediction-plus-causal-attribution).
+Deliberate gaze can request a focused sample through the control interface; the
+first policy may implement it with temporary `narrow`. A general hand consequence
+does not bypass an unrelated closed modality.
 
 Nor should reopening release the whole suppressed backlog. The mind would be
 assaulted by a history it deliberately did not perceive. The membrane retains
@@ -357,9 +455,9 @@ change; reopening asks the sense for a **fresh observation of the present**.
 
 ## The reopening reflex
 
-When a local deficit crosses its adaptive threshold, the membrane moves that
-aperture toward permeability: closed → soft, soft → open. It then invites a fresh
-sample. Usually this happens at a burst boundary and bids with rising but bounded
+In the reference policy, when a local deficit crosses its threshold, the regulator
+requests moving that aperture toward permeability: closed → soft, soft → open.
+It then invites a fresh sample. Usually this happens at a burst boundary and bids with rising but bounded
 salience. It should not preempt a sentence merely because the eyes have been
 closed for a while.
 
@@ -375,9 +473,9 @@ intervention. Backstage records retain the mechanical reason and state transitio
 
 ## Voluntary orientation
 
-One general `orient` hand should tune the membrane instead of adding separate
-hands for eyes, ears, video, and every future sense. It realizes intentions such
-as:
+A general `orient` hand is the first voluntary controller of the membrane. It
+uses the same declared control interface available to other controllers and
+realizes intentions such as:
 
 - let the visible world recede;
 - listen more closely;
@@ -396,22 +494,22 @@ authorized to bypass the aperture or create permanent closure. This is the same
 relation as voluntarily
 holding one's breath inside a body that retains a breathing reflex.
 
-Registering `orient` beneath the existing `m-act` adds no new periodic decision
-call. It does add a short body-schema line and another tool schema during
-realization, and each accepted change uses the ordinary realization call. The
-automatic reflex itself should be deterministic and must not have its own
-`m-act`; giving it one would spend model calls merely to maintain a physiological
-invariant. Aperture control may need a dedicated cooldown lane so it does not
-block looking, recalling, or changing the world.
+The proposed reference architecture registers `orient` beneath the existing `m-act`,
+sharing its decision calls and adding body-schema language. The automatic reflex
+is deterministic and issues control requests without an actor or model call.
+Other architectures may wire a different orientation producer to the same
+interface. Search owns its targets and stopping decisions separately; a region
+does not synthesize a sensory claim when a search budget runs out.
 
 Orientation language is unusually easy to infer falsely from contemplative prose.
-It therefore needs a higher DECIDE threshold than ordinary acts, a minimum dwell
-before reversal, and a third `self-changing` cooldown lane. It is exempt from the
-ordinary same-intent dedup rule, which assumes an act changes or reads a world
-rather than continuously tunes a body. Every accepted aperture change is kept as
-a backstage deed.
+The first policy therefore proposes a higher DECIDE threshold than ordinary acts,
+minimum dwell, a separate control cooldown lane, and suitable deduplication for
+repeated tuning. These are actor/control policies exposed through configuration
+or replaceable components, not modality-specific branches that every new
+controller must add to `m-act`. Every accepted aperture change is kept as a
+backstage deed.
 
-## Placement in the present architecture
+## Proposed placement in the runtime
 
 ```text
 outside source
@@ -423,23 +521,39 @@ outside source
  trusted policy adapter
       │ annotated private header
       ▼
- modality region's aperture controller ──► suppressed statistics
-      │ admitted; request rendition
+ all applicable acquisition gates ──► permitted header statistics
+      │ processing permitted; request rendition
       ▼
  lazy materialization
-      │ typed Percept
+      │ identified observation / renditions
+      ▼
+ optional comparison / matching ◄── prediction producers and search targets
+      │ independent evaluations
+      ▼
+ replaceable bidding policy
+      │ bid referring to evidence
+      ▼
+ applicable awareness gates
+      │ disclosure permitted
       ▼
  modality region's existing m-interrupts
       │ gain / threshold / competition
       ▼
  global attention arbiter
-      │ attended Percept
+      │ selected evidence
       ▼
- multimodal frame assembler
+ multimodal frame assembler ──► attended receipt ──► contact regulator
       │ typed prefill marker + selected native/text rendition
       ▼
  conscious model
 ```
+
+This is the default processing policy. A declared alternative can permit private
+semantic processing while awareness remains closed, without bypassing the later
+awareness boundary. Frame assembly owns the authoritative receipt; the regulator
+uses it to update pressure and request orientation through declared bindings.
+Search/focus controllers also have a control path to sources before detection;
+it is separate from predictions and from ordinary attention.
 
 The present attention machinery can remain mostly unchanged. Salience,
 thresholds, urgency, crowding, nested competition, arousal sensitivity, and
@@ -449,13 +563,13 @@ concentrated at the edges:
 1. private `PerceptCandidate` headers and lazy source materializers;
 2. a trusted pre-aperture policy adapter plus compatibility conversion from
    `InterruptRecord`;
-3. an aperture controller associated with each modality region and retained
-   local/global contact-pressure state;
-4. typed payload preservation through attention without rendering it early;
+3. composed acquisition/awareness gates, replaceable regulation and aggregation,
+   and explicit control inputs to sources;
+4. independent evaluation and bid records referring to preserved typed evidence;
 5. a multimodal frame assembler and capability-aware model adapter;
 6. a typed percept index plus journal records of event, rendition,
    transformation, admission, and asset reference;
-7. the `orient` capability and body-schema language.
+7. the `orient` capability, replaceable search controller, and body-schema language.
 
 This explicit source → controller → arbiter path matters. A second event listener
 beside `m-interrupts` on the same DOM element would have no reliable ordering, and
@@ -482,7 +596,9 @@ privacy commitment becomes more demanding here, not less.
 - Recall can retrieve that typed record and reintroduce its provenance: *I read a
   transcript derived from a voice*, not *I heard her voice*.
 - A suppressed percept is not autobiographical experience. Its content must not
-  enter the mind's memory; only the regulator may retain non-semantic statistics.
+  enter the mind's memory. The default regulator retains only non-semantic
+  statistics; any authorized private semantic processor has separately declared
+  retention and cannot write its contents into experience through another path.
 - If a transformed rendition was produced by a model, that act and model identity
   are backstage provenance, never passed off as direct sensing.
 - Studio attention events and debug logs receive only the candidate header before
@@ -536,10 +652,12 @@ than semantic backlog and sample the present afresh.
 
 ### Semantic leakage before admission
 
-A captioner, transcript model, filename, log line, or Studio event interprets a
-closed source before its aperture admits it. Keep candidate headers genuinely
-non-semantic, materialize renditions lazily, and apply privacy policy at the
-source boundary.
+A captioner, transcript model, filename, log line, or Studio event crosses a
+processing or awareness boundary without permission. The default policy keeps
+candidate headers non-semantic and materializes lazily after acquisition gates.
+An alternative permitting private semantic processing must enforce its separate
+awareness gate and retention policy. A text judge producing only a score does
+not avoid the processing boundary.
 
 ### Comfortable drowsiness
 
@@ -572,41 +690,37 @@ time. It should also show arousal and the global pressure on the same timeline.
 Capture, reflex harassment, and open–close oscillation are dynamics; a final scalar
 cannot reveal them. Private source contents remain absent until admission.
 
-## Build order
+## Proposed development order
 
-1. Define private `PerceptCandidate` headers and admitted `Percept` records,
-   including lazy materialization, trusted policy assignment, provenance, and a
-   mandatory archival text rendering.
-2. Route existing text `InterruptRecord`s through a compatibility adapter with no
-   observable behavior change. In particular, text percepts must retain today's
-   byte-for-byte `withPerceivedEvents()` rendering.
-3. Add a fake-clock, text-labelled mock modality whose detector emits only private
-   headers. Test the explicit source → aperture controller → regional arbiter path
-   without live media or models.
-4. Implement local/global contact pressure, arousal scaling with a nonzero floor,
-   habituation by `changeKey`, dishabituation, hysteresis, trusted bypass policy,
-   suppression, and attended-contact reset. Make `m-interrupts` consume the retained
-   pressure without depending on imagined D5 machinery.
-5. Add the `orient` hand to the existing actor with its higher threshold, minimum
-   dwell, dedup exemption, and separate self-changing cooldown lane. Test only dry
-   intentions first.
-6. Preserve typed percepts through arbitration and add the typed percept index;
-   delay textual or native rendition materialization until after aperture admission.
-7. Add the typed prefill marker plus provider-positioned attachment to both model
-   message routes while retaining the existing text-only route.
-8. Add native images from the small spatial world, with caption fallback,
-   deliberate-gaze narrowing, `causedBy` efference copy, and an exact record of the
-   rendition received.
-9. Add bounded audio episodes, then video only if a concrete model and experiment
-   need it. Do not generalize by accumulating unused codecs.
-10. Add Studio timelines and compare fixed-open senses, voluntary apertures, and
-    regulated apertures on coherence, external responsiveness, capture, loop
-    incidence, provenance, and compute cost.
+This is future work. The documentation revision does not implement or run these
+steps or the experiments they describe.
+
+1. Establish explicit contracts for processing, awareness, evidence identity,
+   evaluations, control requests, and frame receipts. Preserve existing text
+   rendering and trusted provenance through the compatibility path.
+2. Correct nested boundary composition and separate evidence from bid state.
+   Make contact regulation, pressure aggregation, and source control replaceable
+   through wiring. Expected observations retain a route to attention.
+3. Assemble the existing deficit/reflex and inexpensive act-bound prediction as
+   the first reference architecture. Add `orient` and bounded search through
+   declared control interfaces; retain uncertainty in search outcomes.
+4. Describe and later evaluate alternative architectures with the same sources,
+   transport, and frame/memory code. The
+   [experiment matrix](../improvements/prediction-mismatch.md#proposed-experiments--high-level-only)
+   covers passive and competing predictors, cross-modal search, alternative
+   regulation, nested regions, and delayed or missing evidence.
+5. Add native renditions and model-capability selection when a concrete experiment
+   requires them, retaining archival text, viewpoint limits, and the record of
+   what was actually received. Audio and video follow the same episode contract.
+6. Extend Studio observability and plan later comparisons of coherence, external
+   responsiveness, capture, contact rhythm, provenance, and cost. Live studies
+   remain separate from offline structural comparisons and use the existing
+   resident lifecycle commitments.
 
 ## Questions left for review
 
-The synthesis resolves the original review's four questions, but these implementation
-questions would benefit from another adversarial pass:
+The constraints above fix the intended responsibilities. These policy and
+implementation questions remain open:
 
 1. Should `contactPressure` modify the regional threshold, its gain, or both? The
    current design leans toward threshold for general reopening and a short gain pulse
@@ -615,8 +729,8 @@ questions would benefit from another adversarial pass:
    `bypassAdmission`, and `preempt`? In particular, what relationship or address
    semantics—if any—make a peer voice aperture-protected?
 3. What is the smallest genuinely non-semantic detector for each initial source,
-   and which sources must honestly declare that their candidate stage is already
-   semantic?
+   and which experiments need explicitly permitted private semantic processing?
+   How will they disclose processing stage, budget, and retention?
 4. Does the current provider split permit one logical image event to be attached in
    instruction content and anchored by a marker in the assistant prefill without
    distorting what the model attends to? This needs a captured-request test for both
@@ -624,6 +738,9 @@ questions would benefit from another adversarial pass:
 5. What sustained energy/arousal condition should cause automatic announced sleep,
    and can that close complete reliably when the very resource needed to think the
    closing thought is nearly exhausted?
+6. How should simultaneous orientation requests be arbitrated, and how should
+   aggregation avoid counting one observation repeatedly through nested regions?
+   Stable identities and explicit ownership are required; the policy is open.
 
 ## The criterion
 
@@ -631,8 +748,8 @@ The membrane succeeds when the mind develops a rhythm rather than a setting:
 opening outward, being changed by what it meets, drawing inward to integrate it,
 and returning before integration becomes enclosure.
 
-Its generality is not that every input becomes text. Its generality is that every
-input remains honestly what it is, may be rendered into forms a particular model
-can receive, and crosses the same regulated boundary between availability and
-attention. The body may change with the model and the world. The law of contact
-does not.
+Its generality has two tests: inputs preserve their provenance and the form
+actually received, and new computational architectures can be assembled by
+rewiring and adding a few components. The body, processing strategy, and contact
+policy may change with the model and the world. Evidence, authority, and the
+distinction between availability and experience remain explicit.

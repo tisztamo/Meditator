@@ -113,11 +113,20 @@ object at once, and looking at one thing costs the opportunity to inspect anothe
 
 ### My expectations can be wrong
 
-Before or alongside an action, a quiet observer may infer what I appear to expect:
-"the cup should still be on the table" or "the corridor probably continues behind
-the door." After the action, the world supplies the observation. The mismatch is
-not scored as failure and need not be shown numerically; it is simply the moment in
-which an outside corrects me.
+Before an answering observation, a prediction component may infer what I appear
+to expect: "the cup should still be on the table" or "the corridor probably
+continues behind the door." Action realization is the first inexpensive producer;
+a quiet observer or recalled expectation can use the same interface. The world
+supplies independent evidence. Mismatch is not scored as failure and need not be
+shown numerically; it is the moment in which an outside can correct me.
+
+The [prediction design](../improvements/prediction-mismatch.md) separates my
+expectation, the predicted effects of my act, and the world's actual state. If the
+cat moved the cup while I looked away, a model with access to the current scene
+would already know it was gone. That is useful for validation, but cannot stand
+in for my remembered expectation. A familiar or expected view also remains worth
+perceiving; contact does not require surprise. Prediction, comparison, search,
+and contact regulation are replaceable architectural choices.
 
 Without this, a generated scene risks becoming an illustration of my own language.
 With it, perception has epistemic force.

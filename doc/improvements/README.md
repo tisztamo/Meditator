@@ -5,10 +5,11 @@ user-facing docs** in `doc/` (architecture, getting-started, configuration, …)
 These are diagnoses and design options for maintainers, not user documentation, and
 not necessarily acted on yet. Each note states its status at the top.
 
-- [prediction-mismatch.md](prediction-mismatch.md) — proposed efference copy,
-  act-bound expectation mismatch, and target-template search for the senses;
-  research-backed (predictive processing, visual search, VLM text conditioning)
-  with call/token estimates; replaces the costly "quiet observer" idea.
+- [prediction-mismatch.md](prediction-mismatch.md) — revised design for replaceable
+  prediction producers, comparators, attention policies, and search controllers;
+  distinguishes sensory change, expectation, causality, and contact, records known
+  membrane issues and design constraints, and describes future architecture
+  comparisons. Act-bound expectation is the first inexpensive configuration.
 - [schema-guided-connections.md](schema-guided-connections.md) — proposed path
   from machine-readable port contracts and enforcement to compatible endpoint
   discovery, spatial selection in the Plenum, and bounded organic growth from

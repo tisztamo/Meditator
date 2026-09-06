@@ -1,8 +1,8 @@
 # Port contracts, spatial discovery, and organic growth
 
-**Status: proposed, 2026-09-05.** Direction agreed while reviewing the perceptual
-membrane sketch. This note specifies a path; the contract layer and automatic
-connections are not implemented.
+**Status: proposed, 2026-09-05; aligned with the generality review 2026-09-06.**
+Direction agreed while reviewing the perceptual membrane sketch. This note
+specifies a path; the contract layer and automatic connections are not implemented.
 
 ## The direction
 
@@ -79,11 +79,31 @@ and invalidate work still in flight when an endpoint disappears or changes scope
 Resolve again on relevant structural changes, rather than scanning the whole
 graph every frame. This extends Amanita's wiring; it does not require replacing it.
 
-The sensory sequence remains explicit: private candidate → aperture controller
-→ materialized percept → regional/global arbitration → frame receipt. A compatible
-text representation cannot create a shortcut from the closed source to memory.
-The [perceptual membrane](../architecture/perceptual-membrane.md) is a useful first
-set of contracts precisely because getting the stage wrong changes what was felt.
+The default sensory sequence remains explicit: private header → applicable
+acquisition gates → materialized evidence → optional evaluation → bidding policy
+→ awareness gates and regional/global arbitration → frame receipt. A declared
+alternative may permit private semantic processing while awareness is closed;
+its contract must expose processing permission, budget, retention, and the later
+awareness boundary. A compatible representation cannot create a shortcut into
+experience or memory. Enclosing boundaries compose before prohibited work occurs.
+
+The [perceptual membrane](../architecture/perceptual-membrane.md) and
+[prediction design](prediction-mismatch.md) are useful first contracts because
+getting the stage wrong changes what was felt. Preserve observation identity
+separately from each evaluation and bid; fan-out must not let one predictor or
+consumer overwrite another. Stable prediction and request identities, scope,
+expiry, cancellation, and authoritative frame receipts survive legitimate
+adapters without allowing replay to earn fresh contact.
+
+Prediction producers, comparators, bidding policies, contact regulators, pressure
+aggregators, and search controllers should be replaceable through explicit
+bindings before automatic discovery is attempted. Sampling/focus control reaches
+a source before detection; rendition control reaches its materializer before
+processing. These are different ports. Retained focus state is not an acquisition
+event, sensory change is not mismatch, and target relevance is not confidence.
+The composability criterion is that alternative architectures can keep sources,
+percept transport, and frame/memory code fixed while adding only their new roles
+and wiring.
 
 ## Where the 3D space becomes causal
 
