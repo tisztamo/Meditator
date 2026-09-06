@@ -34,7 +34,8 @@ const log = logger('mSense.js');
  *   - override the `defaultTimeout` / `defaultSigma` getters for the natural cadence.
  *   - new lazy sources call candidate(header, () => archivalText) inside a modality
  *     region. The header is non-semantic; text is produced only after aperture admission.
- *     Existing feel() sources remain the eager compatibility path.
+ *     Existing feel() sources remain the eager compatibility path. Sources declare
+ *     `tier` on the element (default 0; 1 and 2 are refused by the region).
  *
  * Errors in `onSense()` (e.g. a network blip) are swallowed and logged — a sense
  * going quiet must never crash the mind.

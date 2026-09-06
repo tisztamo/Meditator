@@ -2,7 +2,11 @@ import { test, expect } from 'bun:test';
 import { Aperture } from '../../../src/infrastructure/aperture.js';
 import { Percept, PerceptCandidate } from '../../../src/infrastructure/percept.js';
 import { InterruptRecord, withPerceivedEvents } from '../../../src/infrastructure/interruptRecord.js';
-import { legacyCompatibility, legacyProvenance } from '../../../src/infrastructure/perceptionContracts.js';
+import { EdgeEvidence, legacyCompatibility, legacyProvenance } from '../../../src/infrastructure/perceptionContracts.js';
+
+const unusedMaterializer = () => 'x';
+const candidate = (changeKey, changeMagnitude = 1) =>
+    new PerceptCandidate({ changeMagnitude, changeKey }, unusedMaterializer);
 
 const PREFIX = 'a thought… ';
 const REASON = 'Some words.\nA second line.';
@@ -59,6 +63,7 @@ function assertCompatible(spec) {
     expect(percept.policy.preempt).toBe(!!old.urgent);
     expect(percept.policy.bypassAdmission).toBe(!!(old.urgent || old.clearsTail));
     expect(percept.policy.bypassAperture).toBe(!!(old.urgent || old.clearsTail));
+    expect(percept.tier).toBeNull();
     expect(Percept.fromInterrupt(percept)).toBe(percept);
     if (voice) expect(percept.renderForFrame()).toMatch(/: "/);
     if (verbatim) expect(percept.renderForFrame()).toBe(old.reason);
@@ -137,7 +142,7 @@ test('headers expose no semantics and materialization requires real archival tex
 
 test('deficit survives opening and rejects stale/repeated receipts', () => {
     const a = new Aperture({ state: 'closed', now: 0, dwellMs: 1000 });
-    a.observe('one', { changeMagnitude: 1, changeKey: '1' }, 0);
+    a.observe('one', candidate('1'), 0);
     const deficit = a.deficit;
     expect(a.orient('open', { now: 1000 })).toBe(true);
     expect(a.deficit).toBe(deficit);
@@ -164,18 +169,36 @@ test('fake-clock reopening is gradual, has an arousal floor, and stops in sleep'
 
 test('noise is bounded and habituates; a changed key or magnitude restores credit', () => {
     const a = new Aperture({ now: 0 });
-    for (let i = 0; i < 10000; i++) a.observe('one', { changeMagnitude: 1, changeKey: String(i) }, 0);
+    for (let i = 0; i < 10000; i++) a.observe('one', candidate(String(i)), 0);
     expect(a.deficit).toBeCloseTo(0.2);
-    for (let i = 1; i < 8; i++) a.observe('one', { changeMagnitude: 1, changeKey: '0' }, i * 1000);
+    for (let i = 1; i < 8; i++) a.observe('one', candidate('0'), i * 1000);
     expect(a.deficit).toBeLessThan(0.4);
     const prior = a.deficit;
-    a.observe('one', { changeMagnitude: 1, changeKey: 'new' }, 8000);
+    a.observe('one', candidate('new'), 8000);
     expect(a.deficit - prior).toBeCloseTo(0.2);
     const shifted = a.deficit;
-    a.observe('one', { changeMagnitude: 0.5, changeKey: 'new' }, 9000);
+    a.observe('one', candidate('new', 0.5), 9000);
     expect(a.deficit - shifted).toBeCloseTo(0.1);
-    for (let i = 0; i < 100; i++) a.observe(String(i), { changeMagnitude: 1, changeKey: 'x' }, 10000);
+    for (let i = 0; i < 100; i++) a.observe(String(i), candidate('x'), 10000);
     expect(a.sources.size).toBe(32);
+});
+
+test('observe accepts only a PerceptCandidate and never materializes', () => {
+    const a = new Aperture({ now: 0 });
+    let calls = 0;
+    const header = new PerceptCandidate({ changeMagnitude: 1, changeKey: '1' }, () => {
+        calls++;
+        return 'x';
+    });
+    a.observe('one', header, 0);
+    expect(calls).toBe(0);
+    expect(() => a.observe('one', { changeMagnitude: 1, changeKey: '1' }, 0))
+        .toThrow(/PerceptCandidate/);
+    expect(() => a.observe('one', 'one', 0)).toThrow(/PerceptCandidate/);
+    expect(() => a.observe('one', new EdgeEvidence({
+        targetId: 'cat', score: 0.8, sourceName: 'one', tier: 1,
+    }), 0)).toThrow(/EdgeEvidence/);
+    expect(calls).toBe(0);
 });
 
 test('aperture bypass, admission bypass, and preemption remain independent', () => {

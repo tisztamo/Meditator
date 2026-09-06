@@ -1,6 +1,7 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
 import { Aperture } from '../../infrastructure/aperture.js'
 import { Percept, PerceptCandidate } from '../../infrastructure/percept.js'
+import { SourceContract } from '../../infrastructure/perceptionContracts.js'
 import { InterruptRecord } from '../../infrastructure/interruptRecord.js'
 import { parseTime } from '../../config/timeParser.js'
 
@@ -34,7 +35,10 @@ import { parseTime } from '../../config/timeParser.js'
  *   - dwell: minimum time between aperture changes (default 30s)
  *   - contactHorizon: weak time-only pressure reaches 1 after this awake interval (10m)
  * Methods: registerSource(element, sample) → offer(header, lazyText); orient(state, source).
- * Source configuration: name, provenance, bypassAperture, bypassAdmission, preempt.
+ * A source may declare name, provenance, tier (default 0), and the three independent
+ * bypass powers on the element. It may never assert those from a payload; the frozen
+ * SourceContract is the only policy the offer path reads. tier 1 and 2 are refused
+ * at registration.
  * Topics: contactPressure, apertureState (retained); events: aperture-change (backstage).
  * Only registered lazy sources pass through this aperture; legacy interrupts are unchanged.
  */
@@ -50,61 +54,64 @@ export class MRegion extends MBaseComponent {
         this._sources = new Map()
         this._issued = new WeakSet()
         this._arousal = 1
-        this._mind = this.closest('m-mind')
-        this._mind?.addEventListener('percepts-attended', this._onPerceptsAttended)
-        if (this._mind?.querySelector('m-stream')) {
+        const mind = this._mind()
+        mind?.addEventListener('percepts-attended', this._onPerceptsAttended)
+        // closest() is empty after removal; remember the connect-time host for unlisten.
+        this._unlistenPercepts = () => mind?.removeEventListener('percepts-attended', this._onPerceptsAttended)
+        if (mind?.querySelector('m-stream')) {
             this.sub('..m-mind/stream/@boundary', () => this.onBoundary()).catch(() => {})
         }
-        if (this._mind?.querySelector('m-economy')) {
+        if (mind?.querySelector('m-economy')) {
             this.sub('..m-mind/economy/arousal', value => { this._arousal = value }).catch(() => {})
         }
         this._publishAperture()
     }
 
     onDisconnect() {
-        this._mind?.removeEventListener('percepts-attended', this._onPerceptsAttended)
+        this._unlistenPercepts?.()
         if (this.aperture) this.aperture.version++
         this._sources?.clear()
     }
 
+    _mind() { return this.closest('m-mind') }
+    _modalityRegion(el) { return el.closest('m-region[modality]') }
+
     /** Architecture-owned adapter: payloads cannot choose identity or policy. */
     registerSource(element, sample) {
-        if (!this.aperture || element.closest('m-region[modality]') !== this) throw new Error('Source needs its modality region')
+        if (!this.aperture || this._modalityRegion(element) !== this) throw new Error('Source needs its modality region')
         if (this._sources.has(element)) return this._sources.get(element).offer
         if (this._sources.size >= 32) throw new Error('Too many sources in one modality region')
-        const source = element.getAttribute('name') || element.localName
-        if ([...this._sources.values()].some(s => s.source === source)) throw new Error('Sensory source names must be unique within a region')
-        const policy = Object.fromEntries(['bypassAperture', 'bypassAdmission', 'preempt']
-            .map(key => [key, element.getAttribute(key) === 'true']))
-        const provenance = element.getAttribute('provenance') || 'unspecified'
-        const entry = { source, sample, busy: false }
+        const contract = SourceContract.fromElement(element, { modality: this.attr('modality') })
+        if ([...this._sources.values()].some(s => s.source === contract.name)) throw new Error('Sensory source names must be unique within a region')
+        const entry = { source: contract.name, sample, busy: false, contract }
         entry.offer = async (header, materialize) => {
             const attached = () => this.isConnected && element.isConnected
-                && element.closest('m-region[modality]') === this && this._sources.get(element) === entry
-            if (!attached() || this._mind?._sleeping) return null
+                && this._modalityRegion(element) === this && this._sources.get(element) === entry
+            if (!attached() || this._mind()?._sleeping) return null
             const candidate = new PerceptCandidate(header, materialize)
             const now = Date.now()
-            this.aperture.observe(source, candidate, now)
+            this.aperture.observe(contract.name, candidate, now)
             this._publishAperture()
-            if (!this.aperture.allows(source, policy) || entry.busy) return null
+            if (!this.aperture.allows(contract.name, contract.powers) || entry.busy) return null
             entry.busy = true
             const version = this.aperture.version
             try {
                 const text = await candidate.materialize()
-                if (!attached() || this._mind?._sleeping
+                if (!attached() || this._mind()?._sleeping
                     || version !== this.aperture.version) return null
                 const record = new Percept({
-                    id: candidate.id, sourceId: source, modality: this.attr('modality'), provenance, policy,
+                    id: candidate.id, sourceId: contract.name, modality: contract.modality,
+                    provenance: contract.provenance, tier: contract.tier, policy: contract.powers,
                     occurredAt: new Date(Math.min(now, candidate.occurredAt)).toISOString(),
-                    record: new InterruptRecord({ source: 'External', type: `Sense-${source}`, reason: text,
-                        salience: candidate.changeMagnitude * (policy.bypassAperture ? 1 : this.aperture.gain) }),
+                    record: new InterruptRecord({ source: 'External', type: `Sense-${contract.name}`, reason: text,
+                        salience: candidate.changeMagnitude * (contract.powers.bypassAperture ? 1 : this.aperture.gain) }),
                 })
                 this._issued.add(record)
                 element.dispatchEvent(new CustomEvent('interrupt-request', { bubbles: true, detail: record }))
                 return record
             } catch {
                 // A failed renderer is not a sensation; errors can themselves contain private payloads.
-                this.pub('materializationFailure', { source, candidateId: candidate.id })
+                this.pub('materializationFailure', { source: contract.name, candidateId: candidate.id })
                 return null
             } finally { entry.busy = false }
         }
@@ -124,7 +131,7 @@ export class MRegion extends MBaseComponent {
     onBoundary(now = Date.now()) {
         if (!this.aperture) return
         const before = this.aperture.state
-        const changed = this.aperture.advance(now, { awake: !this._mind?._sleeping, arousal: this._arousal })
+        const changed = this.aperture.advance(now, { awake: !this._mind()?._sleeping, arousal: this._arousal })
         if (changed) this._transition(before, 'contact-deficit')
         else this._publishAperture()
     }

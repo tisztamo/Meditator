@@ -29,10 +29,11 @@ export class PerceptCandidate {
 
 /** Text-first admitted percept. Inherits the existing framing, including voice
  * attribution and loop-break fields, so the textual tail remains byte-for-byte compatible.
+ * `tier` is a sibling of the provenance string; the compatibility path leaves it null.
  */
 export class Percept extends InterruptRecord {
     constructor({ record, sourceId, modality = 'text', provenance = 'legacy-unspecified',
-        policy = {}, id = randomUUID(), occurredAt = record.dateTime }) {
+        policy = {}, id = randomUUID(), occurredAt = record.dateTime, tier = null }) {
         super(record);
         if (record.infoton) this.infoton = record.infoton;
         this.dateTime = occurredAt;
@@ -40,6 +41,7 @@ export class Percept extends InterruptRecord {
         this.sourceId = sourceId;
         this.modality = modality;
         this.provenance = provenance;
+        this.tier = tier ?? null;
         this.policy = Object.freeze({
             privacy: 'resident-private',
             bypassAperture: policy.bypassAperture === true,
@@ -70,6 +72,6 @@ export class Percept extends InterruptRecord {
         const record = InterruptRecord.coerce(detail);
         if (!trusted) { record.urgent = false; record.clearsTail = false; }
         const { provenance, policy } = legacyCompatibility(record, { trusted });
-        return new Percept({ record, provenance, sourceId: record.type || 'legacy', policy });
+        return new Percept({ record, provenance, sourceId: record.type || 'legacy', policy, tier: null });
     }
 }

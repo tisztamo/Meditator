@@ -93,6 +93,15 @@ test('closed content is never rendered, dispatched, or journaled; reopening samp
     expect(journal).toContain('⌁ Attention aperture: closed → open');
 });
 
+test('tier 1 is refused at source registration', () => {
+    const edge = document.createElement('span');
+    edge.setAttribute('name', 'grounded');
+    edge.setAttribute('tier', '1');
+    region.appendChild(edge);
+    expect(() => region.registerSource(edge))
+        .toThrow(/edge-grounded sources are declared but not implemented; see perceptual-membrane.md#processing-tiers/);
+});
+
 test('threshold rejection and crowd-out do not clear debt or enter the typed index', async () => {
     allowOrientation();
     region.orient('open');

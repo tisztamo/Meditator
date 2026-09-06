@@ -1,4 +1,5 @@
-import { clamp01 } from './percept.js';
+import { clamp01, PerceptCandidate } from './percept.js';
+import { EdgeEvidence } from './perceptionContracts.js';
 
 /** Deterministic, afferent-only regulator. No timers, thought inspection, or model calls.
  * Call advance at awake burst boundaries and observe with private detector headers.
@@ -55,18 +56,26 @@ export class Aperture {
 
     /** At most one credit per second across the region, with per-source habituation.
      * Missed bids remain debt until attended, including those later rejected by attention.
+     * Habituation is keyed by the architecture-owned source name, not candidate id.
+     * The second argument must be a PerceptCandidate; EdgeEvidence is refused by type.
      */
-    observe(source, header, now = Date.now()) {
+    observe(source, candidate, now = Date.now()) {
+        if (candidate instanceof EdgeEvidence) {
+            throw new Error('Aperture.observe refuses EdgeEvidence');
+        }
+        if (!(candidate instanceof PerceptCandidate)) {
+            throw new Error('Aperture.observe accepts only a PerceptCandidate');
+        }
         let prior = this.sources.get(source);
         if (!prior && this.sources.size >= 32) return;
         if (prior && now - prior.at < 1000) return;
-        const repeated = prior && prior.key === header.changeKey
-            && Math.abs(prior.magnitude - header.changeMagnitude) < 0.25;
+        const repeated = prior && prior.key === candidate.changeKey
+            && Math.abs(prior.magnitude - candidate.changeMagnitude) < 0.25;
         const repeats = repeated ? Math.min(prior.repeats + 1, 8) : 0;
-        this.sources.set(source, { at: now, key: header.changeKey, magnitude: header.changeMagnitude, repeats });
+        this.sources.set(source, { at: now, key: candidate.changeKey, magnitude: candidate.changeMagnitude, repeats });
         if (now - this.lastCreditAt < 1000) return;
         this.lastCreditAt = now;
-        this.deficit = clamp01(this.deficit + 0.2 * header.changeMagnitude / (2 ** repeats));
+        this.deficit = clamp01(this.deficit + 0.2 * candidate.changeMagnitude / (2 ** repeats));
     }
 
     attended(occurredAt, now = Date.now()) {
