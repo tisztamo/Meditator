@@ -1,5 +1,5 @@
-// Membrane composition (phase 2 M2): percept-candidate at acquisition.
-// Fixtures W1/W2/W3 and the conjunction rules. Awareness stays local (M3).
+// Membrane composition (phase 2 M2–M3): percept-candidate at acquisition and
+// awareness. Fixtures W1/W2/W3, conjunction, and the version chain.
 import './setup.js';
 import { test, expect, afterEach } from 'bun:test';
 import A from 'amanita';
@@ -11,7 +11,7 @@ import { loadMindComponents } from '../../../src/startup/loadMindComponents.js';
 import { MMind } from '../../../src/mindComponents/mind/mMind.js';
 import { MBaseComponent } from '../../../src/mindComponents/shared/mBaseComponent.js';
 import { Percept } from '../../../src/infrastructure/percept.js';
-import { pushGainTrail } from '../../../src/infrastructure/perceptionContracts.js';
+import { GateVerdict, pushGainTrail } from '../../../src/infrastructure/perceptionContracts.js';
 
 let journalDir;
 
@@ -83,6 +83,7 @@ const W3_REGION = `
           </m-region>`;
 
 const header = key => ({ changeMagnitude: 0.9, changeKey: key, occurredAt: Date.now() });
+function allowOrientation(region) { region.aperture.changedAt = Date.now() - 2000; }
 const TEXT = 'The simulated garden is still.';
 const WITHHELD = 'missed secret from inner open';
 const PREIMAGE = 'secret-filename.png';
@@ -191,11 +192,19 @@ test('W2 identity aperture: an outer open gate changes no receipts; only telemet
     expect(nested.journal).toEqual(baseline.journal);
     expect(nested.percept).toBeInstanceOf(Percept);
     expect(nested.percept.gateTrail).toHaveLength(2);
-    expect(details).toHaveLength(1);
-    expect(details[0].verdicts.map(v => v.gate).sort()).toEqual(['outside', 'shell']);
-    expect(details[0].versions.map(v => v.gate).sort()).toEqual(['outside', 'shell']);
-    expect(details[0].verdicts.every(v => v.permitted)).toBe(true);
-    expect(details[0].gainTrail.every(g => g.factor <= 1)).toBe(true);
+    expect(details.map(d => d.stage)).toEqual(['acquisition', 'awareness']);
+    const acquisition = details[0];
+    const awareness = details[1];
+    expect(acquisition.verdicts.map(v => v.gate).sort()).toEqual(['outside', 'shell']);
+    expect(acquisition.versions.map(v => v.gate).sort()).toEqual(['outside', 'shell']);
+    expect(acquisition.verdicts.every(v => v.permitted)).toBe(true);
+    expect(acquisition.gainTrail.every(g => g.factor <= 1)).toBe(true);
+    expect(awareness.verdicts.map(v => v.gate).sort()).toEqual(['outside', 'shell']);
+    expect(awareness.verdicts.every(v => v.stage === 'awareness')).toBe(true);
+    expect(awareness.verdicts.every(v => v.reason === 'tier-0-mirror')).toBe(true);
+    expect(awareness.verdicts.every(v => v.permitted)).toBe(true);
+    expect(awareness.versions).toBeUndefined();
+    expect(awareness.gainTrail).toBeUndefined();
 });
 
 test('W3 outer closed over inner open: no materializer, no bids, no journal, no withheld text', async () => {
@@ -276,6 +285,89 @@ test('fail closed: stopPropagation yields gate-missing, not admission', async ()
     expect(decisions).toHaveLength(1);
     expect(decisions[0].data.permitted).toBe(false);
     expect(decisions[0].data.reason).toBe('gate-missing');
+});
+
+test('fail closed at awareness: stopPropagation after acquisition is gate-missing, not a bid', async () => {
+    const mind = await mount(W2_REGION);
+    const inner = mind.querySelector('m-region[name="outside"]');
+    const source = mind.querySelector('[name="mock"]');
+    const published = interceptPub(inner);
+    inner.addEventListener('percept-candidate', event => {
+        if (event.detail?.stage === 'awareness') event.stopPropagation();
+    });
+    let renders = 0;
+    const bids = [];
+    mind.addEventListener('interrupt-request', e => bids.push(e.detail));
+    const offer = inner.registerSource(source);
+    const result = await offer(header('rogue-awareness'), () => { renders++; return TEXT; });
+    expect(renders).toBe(1);
+    expect(result).toBeNull();
+    expect(bids).toHaveLength(0);
+    const awareness = published.filter(p => p.topic === 'perceptDecision' && p.data.stage === 'awareness');
+    expect(awareness).toHaveLength(1);
+    expect(awareness[0].data.permitted).toBe(false);
+    expect(awareness[0].data.reason).toBe('gate-missing');
+});
+
+test('versions across gates: outer orientation during materialization drops the percept', async () => {
+    const mind = await mount(W2_REGION);
+    const inner = mind.querySelector('m-region[name="outside"]');
+    const outer = mind.querySelector('m-region[name="shell"]');
+    const source = mind.querySelector('[name="mock"]');
+    const global = mind.querySelector('[name="attention"]');
+    const lists = [];
+    let held;
+    const hold = inner._versionsHold.bind(inner);
+    inner._versionsHold = annotated => {
+        expect(Array.isArray(annotated.versions)).toBe(true);
+        lists.push(annotated.versions.map(recorded => ({ gate: recorded.gate, version: recorded.version })));
+        held = hold(annotated);
+        return held;
+    };
+    const offer = inner.registerSource(source);
+    let finish;
+    const rendering = offer(header('slow'), () => new Promise(resolve => { finish = resolve; }));
+    const recordedInner = inner.aperture.version;
+    const recordedOuter = outer.aperture.version;
+    allowOrientation(outer);
+    // soft still permits awareness, so a hold that only checked the issuer would admit.
+    expect(outer.orient('soft')).toBe(true);
+    finish('This render arrived too late.');
+    expect(await rendering).toBeNull();
+    expect(global.takePending()).toHaveLength(0);
+    expect(held).toBe(false);
+    expect(lists).toHaveLength(1);
+    expect(lists[0].map(v => v.gate).sort()).toEqual(['outside', 'shell']);
+    const outerEntry = lists[0].find(v => v.gate === 'shell');
+    expect(outerEntry.version).toBe(recordedOuter);
+    expect(outer.aperture.version).not.toBe(recordedOuter);
+    expect(inner.aperture.version).toBe(recordedInner);
+});
+
+test('outer awareness refusal never reaches interrupt-request', async () => {
+    const mind = await mount(W2_REGION);
+    const inner = mind.querySelector('m-region[name="outside"]');
+    const outer = mind.querySelector('m-region[name="shell"]');
+    const source = mind.querySelector('[name="mock"]');
+    const global = mind.querySelector('[name="attention"]');
+    const bids = [];
+    mind.addEventListener('interrupt-request', e => bids.push(e.detail));
+    const published = interceptPub(inner);
+    outer.permitAwareness = () => new GateVerdict({
+        stage: 'awareness', permitted: false, reason: 'tier-0-mirror',
+        bypass: false, apertureState: outer.aperture.state, gate: 'shell',
+    });
+    let renders = 0;
+    const offer = inner.registerSource(source);
+    const result = await offer(header('named'), () => { renders++; return TEXT; });
+    expect(renders).toBe(1);
+    expect(result).toBeNull();
+    expect(bids).toHaveLength(0);
+    expect(global.takePending()).toHaveLength(0);
+    const awareness = published.filter(p => p.topic === 'perceptDecision' && p.data.stage === 'awareness');
+    expect(awareness).toHaveLength(1);
+    expect(awareness[0].data.permitted).toBe(false);
+    expect(awareness[0].data.reason).toBe('tier-0-mirror');
 });
 
 test('monotone authority: outer cannot admit what inner refused; factor > 1 is rejected at the push', async () => {
@@ -369,7 +461,7 @@ test('membrane stop: a percept-candidate inside member A is not heard on member 
 
     const offer = region.registerSource(source);
     await offer(header('cross'), () => TEXT);
-    expect(heard.alpha).toBe(1);
+    expect(heard.alpha).toBe(2);
     expect(heard.society).toBe(0);
     expect(heard.beta).toBe(0);
 });
@@ -426,8 +518,10 @@ test('test 18: percept-candidate carries no content, materializer, or un-hashed 
     });
     const offer = inner.registerSource(source);
     await offer({ ...header(PREIMAGE), reason: TEXT, caption: TEXT }, () => TEXT);
-    expect(seen).toHaveLength(1);
+    expect(seen).toHaveLength(2);
+    expect(seen.map(d => d.stage)).toEqual(['acquisition', 'awareness']);
     expect(typeof seen[0].header.changeKey).toBe('string');
     expect(seen[0].header.changeKey).not.toBe(PREIMAGE);
     expect(seen[0].header.changeKey).toHaveLength(64);
+    expect(seen[1].header.changeKey).toBe(seen[0].header.changeKey);
 });
