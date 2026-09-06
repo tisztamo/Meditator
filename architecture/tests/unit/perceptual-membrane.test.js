@@ -2,7 +2,7 @@ import { test, expect } from 'bun:test';
 import { Aperture } from '../../../src/infrastructure/aperture.js';
 import { Percept, PerceptCandidate } from '../../../src/infrastructure/percept.js';
 import { InterruptRecord, withPerceivedEvents } from '../../../src/infrastructure/interruptRecord.js';
-import { EdgeEvidence, legacyCompatibility, legacyProvenance } from '../../../src/infrastructure/perceptionContracts.js';
+import { EdgeEvidence, legacyCompatibility, legacyProvenance, RenditionRequest } from '../../../src/infrastructure/perceptionContracts.js';
 
 const unusedMaterializer = () => 'x';
 const candidate = (changeKey, changeMagnitude = 1) =>
@@ -64,6 +64,7 @@ function assertCompatible(spec) {
     expect(percept.policy.bypassAdmission).toBe(!!(old.urgent || old.clearsTail));
     expect(percept.policy.bypassAperture).toBe(!!(old.urgent || old.clearsTail));
     expect(percept.tier).toBeNull();
+    expect(percept.requestId).toBeNull();
     expect(Percept.fromInterrupt(percept)).toBe(percept);
     if (voice) expect(percept.renderForFrame()).toMatch(/: "/);
     if (verbatim) expect(percept.renderForFrame()).toBe(old.reason);
@@ -127,17 +128,33 @@ test('unknown class: trusted instance keeps flag powers; coerced shape gets none
 test('headers expose no semantics and materialization requires real archival text', async () => {
     let calls = 0;
     const candidate = new PerceptCandidate({ changeKey: 'private-caption.png', caption: 'secret',
-        changeMagnitude: 99, provenance: 'physical', policy: { preempt: true } }, kinds => {
+        changeMagnitude: 99, provenance: 'physical', policy: { preempt: true } }, (kinds, rendition) => {
         calls++;
         expect(kinds).toEqual(['text']);
+        expect(rendition).toBeInstanceOf(RenditionRequest);
+        expect(rendition.kinds).toEqual(['text']);
+        expect(rendition.requestId).toBeNull();
         return 'A simulated light changes.';
     });
     expect(calls).toBe(0);
     expect(JSON.stringify(candidate)).not.toMatch(/secret|private-caption|physical|preempt/);
     expect(candidate.changeMagnitude).toBe(1);
+    expect(candidate.requestId).toBeNull();
     expect(await candidate.materialize()).toBe('A simulated light changes.');
     expect(calls).toBe(1);
     await expect(new PerceptCandidate({}, () => '').materialize()).rejects.toThrow('archival text');
+    const lineage = new PerceptCandidate({ changeKey: 'k', requestId: 'req-1' }, (kinds, rendition) => {
+        expect(kinds).toEqual(['text']);
+        expect(rendition.requestId).toBe('req-1');
+        return 'Looked.';
+    });
+    expect(lineage.requestId).toBe('req-1');
+    expect(Object.isFrozen(lineage)).toBe(true);
+    expect(await lineage.materialize()).toBe('Looked.');
+    expect(await new PerceptCandidate({ changeKey: 'x' }, kinds => {
+        expect(kinds).toEqual(['text']);
+        return 'Still a string.';
+    }).materialize()).toBe('Still a string.');
 });
 
 test('deficit survives opening and rejects stale/repeated receipts', () => {
@@ -209,12 +226,12 @@ test('gateTrail is a list; stringify and the index entry do not grow content-bea
     });
     expect(percept.gateTrail).toEqual([]);
     expect(Object.isFrozen(percept.gateTrail)).toBe(true);
+    expect(percept.requestId).toBeNull();
     const entry = percept.toIndexEntry();
     expect(entry).not.toHaveProperty('gateTrail');
     expect(entry).not.toHaveProperty('requestId');
     const json = JSON.stringify(entry);
     expect(json).not.toMatch(/gateTrail|requestId/);
-    expect(JSON.stringify(percept)).not.toMatch(/requestId/);
 });
 
 test('aperture bypass, admission bypass, and preemption remain independent', () => {

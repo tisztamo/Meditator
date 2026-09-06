@@ -23,7 +23,9 @@ const log = logger('mSense.js');
  * attractor. A felt outside, yes; the implementation, never.
  *
  * Subclass contract:
- *   - override `onSense()` (may be async); inside it call `this.feel(reason, …)`;
+ *   - override `onSense(request)` (may be async; `request` is an optional ControlRequest
+ *     from the region's sample door — existing subclasses may ignore it); inside it
+ *     call `this.feel(reason, …)`;
  *   - pass a `key` to `feel` when the sense has discrete states (a part of the day,
  *     a kind of weather): the base scores a CHANGE of key at `salienceShift` and an
  *     unchanged key at the ambient `salience` (jittered, so it is peripheral — the
@@ -34,8 +36,10 @@ const log = logger('mSense.js');
  *   - override the `defaultTimeout` / `defaultSigma` getters for the natural cadence.
  *   - new lazy sources call candidate(header, () => archivalText) inside a modality
  *     region. The header is non-semantic; text is produced only after aperture admission.
- *     Existing feel() sources remain the eager compatibility path. Sources declare
- *     `tier` on the element (default 0; 1 and 2 are refused by the region).
+ *     If a control request is in flight, its id rides the candidate as requestId —
+ *     acquisition lineage, not causal attribution. Existing feel() sources remain
+ *     the eager compatibility path. Sources declare `tier` on the element (default 0;
+ *     1 and 2 are refused by the region).
  *
  * Errors in `onSense()` (e.g. a network blip) are swallowed and logged — a sense
  * going quiet must never crash the mind.
@@ -53,6 +57,7 @@ const log = logger('mSense.js');
 export class MSense extends MBaseComponent {
     _timer = null
     _lastKey = null
+    _controlRequest = null
 
     get defaultTimeout() { return "8m" }
     get defaultSigma() { return "2m" }
@@ -68,15 +73,23 @@ export class MSense extends MBaseComponent {
         if (this._timer) clearTimeout(this._timer)
     }
 
-    /** Subclass hooks. */
+    _modalityRegion() { return this.closest('m-region[modality]') }
+
+    /** Subclass hooks. `request` is optional; timer-driven rounds pass none. */
     ready() { return true }
-    async onSense() {}
+    async onSense(request) {}
 
     candidate(header, materialize) {
-        const region = this.closest('m-region[modality]')
+        const region = this._modalityRegion()
         if (!region?.registerSource) throw new Error('A lazy sense needs an m-region with modality')
-        const offer = region.registerSource(this, () => this.onSense())
-        return offer(header, materialize)
+        const offer = region.registerSource(this, request => {
+            this._controlRequest = request ?? null
+            return Promise.resolve(this.onSense(request)).finally(() => {
+                if (this._controlRequest === (request ?? null)) this._controlRequest = null
+            })
+        })
+        const requestId = header?.requestId ?? this._controlRequest?.id ?? null
+        return offer(requestId == null ? header : { ...header, requestId }, materialize)
     }
 
     _nextDelay() {
@@ -90,6 +103,7 @@ export class MSense extends MBaseComponent {
     }
 
     _onTimer = async () => {
+        this._controlRequest = null
         try { await this.onSense() }
         catch (e) { log.debug(`[${this.attr("name") || this.localName}] sense quiet (${e?.message || e})`) }
         this._schedule(this._nextDelay())

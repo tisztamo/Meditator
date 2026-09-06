@@ -1,7 +1,7 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
 import { Aperture } from '../../infrastructure/aperture.js'
 import { Percept, PerceptCandidate } from '../../infrastructure/percept.js'
-import { SourceContract, AnnotatedCandidate, decideGate } from '../../infrastructure/perceptionContracts.js'
+import { SourceContract, AnnotatedCandidate, decideGate, ControlRequest, RenditionRequest } from '../../infrastructure/perceptionContracts.js'
 import { InterruptRecord } from '../../infrastructure/interruptRecord.js'
 import { parseTime } from '../../config/timeParser.js'
 
@@ -35,6 +35,7 @@ import { parseTime } from '../../config/timeParser.js'
  *   - dwell: minimum time between aperture changes (default 30s)
  *   - contactHorizon: weak time-only pressure reaches 1 after this awake interval (10m)
  * Methods: registerSource(element, sample) → offer(header, lazyText); orient(state, source);
+ *   requestControl(ControlRequest) is the one door for sample / focus / detail;
  *   permitAcquisition(annotated) and permitAwareness(percept, annotated) each return a
  *   GateVerdict from decideGate — acquisition then awareness, even at tier 0.
  * A source may declare name, provenance, tier (default 0), and the three independent
@@ -86,12 +87,14 @@ export class MRegion extends MBaseComponent {
         if (this._sources.size >= 32) throw new Error('Too many sources in one modality region')
         const contract = SourceContract.fromElement(element, { modality: this.attr('modality') })
         if ([...this._sources.values()].some(s => s.source === contract.name)) throw new Error('Sensory source names must be unique within a region')
-        const entry = { source: contract.name, sample, busy: false, contract }
+        const entry = { source: contract.name, sample, busy: false, contract, control: null }
         entry.offer = async (header, materialize) => {
             const attached = () => this.isConnected && element.isConnected
                 && this._modalityRegion(element) === this && this._sources.get(element) === entry
             if (!attached() || this._mind()?._sleeping) return null
-            const candidate = new PerceptCandidate(header, materialize)
+            const control = entry.control ?? null
+            const requestId = control?.id ?? header.requestId ?? null
+            const candidate = new PerceptCandidate({ ...header, requestId }, materialize)
             const now = Date.now()
             this.aperture.observe(contract.name, candidate, now)
             this._publishAperture()
@@ -105,12 +108,17 @@ export class MRegion extends MBaseComponent {
             if (entry.busy) return null
             entry.busy = true
             try {
-                const text = await candidate.materialize()
+                const text = await candidate.materialize(new RenditionRequest({
+                    kinds: ['text'],
+                    requestId: candidate.requestId,
+                    detail: control?.kind === 'detail' ? control.detail : null,
+                }))
                 if (!attached() || this._mind()?._sleeping
                     || !this._versionsHold(annotated)) return null
                 const record = new Percept({
                     id: candidate.id, sourceId: contract.name, modality: contract.modality,
                     provenance: contract.provenance, tier: contract.tier, policy: contract.powers,
+                    requestId: candidate.requestId,
                     occurredAt: new Date(Math.min(now, candidate.occurredAt)).toISOString(),
                     record: new InterruptRecord({ source: 'External', type: `Sense-${contract.name}`, reason: text,
                         salience: candidate.changeMagnitude * (contract.powers.bypassAperture ? 1 : this.aperture.gain) }),
@@ -175,15 +183,39 @@ export class MRegion extends MBaseComponent {
         else this._publishAperture()
     }
 
+    /** The one public door for sample / focus / detail. Reopening and the
+     * orientation reflex use it; a later controller that is not the region can
+     * too. `focus` is validated, delivered, and recorded, but must change no
+     * policy: the search controller that owns focus is membrane phase 3, and a
+     * region must not grow a search conclusion. Requests to a detached or
+     * sleeping source are dropped; dropping is not an error. */
+    requestControl(request) {
+        if (!(request instanceof ControlRequest)) throw new Error('requestControl requires a ControlRequest')
+        if (!this.aperture) return
+        const sleeping = this._mind()?._sleeping
+        for (const [element, entry] of this._sources) {
+            if (request.target != null && entry.source !== request.target) continue
+            const attached = element.isConnected
+                && this._modalityRegion(element) === this
+                && this._sources.get(element) === entry
+            if (!attached || sleeping) continue
+            if (request.target == null && !this.aperture.allows(entry.source)) continue
+            entry.control = request
+            Promise.resolve().then(() => entry.sample?.(request)).catch(() => {}).finally(() => {
+                if (entry.control === request) entry.control = null
+            })
+        }
+    }
+
     _transition(from, reason) {
         this._publishAperture()
         this.fire('aperture-change', { from, to: this.aperture.state, reason })
         // Ask the sources for the present. No candidate or suppressed content is queued.
-        for (const [element, entry] of this._sources) {
-            if (element.isConnected && this.aperture.allows(entry.source)) {
-                Promise.resolve().then(() => entry.sample?.()).catch(() => {})
-            }
-        }
+        this.requestControl(new ControlRequest({
+            kind: 'sample',
+            issuedBy: this.attr('name') || this.localName,
+            reason: reason === 'orientation' ? 'orientation' : 'reopening',
+        }))
     }
 
     _onPerceptsAttended = e => {

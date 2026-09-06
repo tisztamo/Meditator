@@ -9,7 +9,7 @@ import { loadMindComponents } from '../../../src/startup/loadMindComponents.js';
 import { MMind } from '../../../src/mindComponents/mind/mMind.js';
 import { Percept } from '../../../src/infrastructure/percept.js';
 import { InterruptRecord } from '../../../src/infrastructure/interruptRecord.js';
-import { GateVerdict } from '../../../src/infrastructure/perceptionContracts.js';
+import { GateVerdict, ControlRequest, RenditionRequest } from '../../../src/infrastructure/perceptionContracts.js';
 
 let mind, region, local, global, memory, source, journalDir;
 
@@ -77,11 +77,12 @@ function assertTextAbsent(records, ...snippets) {
 }
 
 test('closed content is never rendered, dispatched, or journaled; reopening samples the present', async () => {
-    let renders = 0, present = 'missed secret', samples = 0;
+    let renders = 0, present = 'missed secret', samples = 0, sampleRequest = null;
     const bids = [];
     mind.addEventListener('interrupt-request', e => bids.push(e.detail));
-    const offer = region.registerSource(source, () => {
+    const offer = region.registerSource(source, request => {
         samples++;
+        sampleRequest = request;
         return offer(header('fresh'), () => { renders++; return present; });
     });
     await offer({ ...header('old'), reason: 'secret', policy: { bypassAperture: true }, urgent: true }, () => {
@@ -101,10 +102,14 @@ test('closed content is never rendered, dispatched, or journaled; reopening samp
     await delay(5);
     expect(samples).toBe(1);
     expect(renders).toBe(1);
+    expect(sampleRequest).toBeInstanceOf(ControlRequest);
+    expect(sampleRequest.kind).toBe('sample');
+    expect(sampleRequest.reason).toBe('orientation');
     const pending = global.takePending();
     expect(pending).toHaveLength(1);
     expect(pending[0].reason).toBe(present);
     expect(pending[0].provenance).toBe('simulated');
+    expect(pending[0].requestId).toBe(sampleRequest.id);
     expect(region.contactPressure).toBeGreaterThan(0); // queued is not attended
     const payload = await frame(pending);
     expect(payload.prefill).toContain(`> ⟂ ${present}\n\n`);
@@ -116,6 +121,7 @@ test('closed content is never rendered, dispatched, or journaled; reopening samp
     expect(entry.modality).toBe('text');
     expect(entry.receivedKind).toBe('text');
     expect(entry.renditions).toEqual([{ kind: 'text', text: present }]);
+    expect(entry).not.toHaveProperty('requestId');
     const journal = fs.readFileSync(path.join(journalDir, `${new Date().toISOString().slice(0, 10)}.md`), 'utf8');
     expect(journal).not.toContain('missed secret');
     expect(journal).toContain('⌁ Attention aperture: closed → open');
@@ -262,6 +268,7 @@ test('awareness verdict is recorded at tier 0 even when it mirrors acquisition',
     expect(awareness.stage).toBe('awareness');
     expect(awareness.reason).toBe('tier-0-mirror');
     expect(awareness.permitted).toBe(acquisition.permitted);
+    expect(percept.requestId).toBeNull();
     const decisions = published.filter(p => p.topic === 'perceptDecision').map(p => p.data);
     expect(decisions).toHaveLength(2);
     expect(decisions[0]).toEqual({
@@ -361,14 +368,23 @@ test('a percept refused at awareness never reaches interrupt-request', async () 
 });
 
 test('boundary reflex requests a fresh sample without preemption; sleep suppresses sensing', async () => {
-    let samples = 0, interrupts = 0;
+    let samples = 0, interrupts = 0, sampleRequest = null;
     mind.addEventListener('interrupt', () => interrupts++);
-    const offer = region.registerSource(source, () => { samples++; return offer(header('now'), () => 'A fresh observation.'); });
+    const offer = region.registerSource(source, request => {
+        samples++;
+        sampleRequest = request;
+        return offer(header('now'), () => 'A fresh observation.');
+    });
     region.onBoundary(Date.now() + 7000);
     await delay(5);
     expect(region.aperture.state).toBe('soft');
     expect(samples).toBe(1);
-    expect(global.takePending()).toHaveLength(1);
+    expect(sampleRequest).toBeInstanceOf(ControlRequest);
+    expect(sampleRequest.kind).toBe('sample');
+    expect(sampleRequest.reason).toBe('reopening');
+    const pending = global.takePending();
+    expect(pending).toHaveLength(1);
+    expect(pending[0].requestId).toBe(sampleRequest.id);
     expect(interrupts).toBe(0);
     mind._sleeping = true;
     const before = region.contactPressure;
@@ -377,4 +393,122 @@ test('boundary reflex requests a fresh sample without preemption; sleep suppress
     let rendered = false;
     await offer(header('asleep'), () => { rendered = true; return 'Asleep.'; });
     expect(rendered).toBe(false);
+});
+
+test('requestControl drops detached or sleeping sources without throwing', async () => {
+    allowOrientation();
+    region.orient('open');
+    await delay(5);
+    let samples = 0;
+    region.registerSource(source, () => { samples++; });
+    source.remove();
+    expect(() => region.requestControl(new ControlRequest({
+        kind: 'sample', issuedBy: 'test', reason: 'probe', target: 'mock',
+    }))).not.toThrow();
+    await delay(5);
+    expect(samples).toBe(0);
+
+    const still = document.createElement('span');
+    still.setAttribute('name', 'still');
+    region.appendChild(still);
+    region.registerSource(still, () => { samples++; });
+    mind._sleeping = true;
+    expect(() => region.requestControl(new ControlRequest({
+        kind: 'sample', issuedBy: 'test', reason: 'probe', target: 'still',
+    }))).not.toThrow();
+    await delay(5);
+    expect(samples).toBe(0);
+});
+
+test('focus is delivered and recorded but changes no aperture policy', async () => {
+    let received = null;
+    region.registerSource(source, request => { received = request; });
+    allowOrientation();
+    const version = region.aperture.version;
+    const state = region.aperture.state;
+    const focus = region.aperture.focus;
+    const request = new ControlRequest({
+        kind: 'focus', issuedBy: 'test', reason: 'search', target: 'mock',
+    });
+    expect(() => region.requestControl(request)).not.toThrow();
+    await delay(5);
+    expect(received).toBe(request);
+    expect(received.kind).toBe('focus');
+    expect(region.aperture.state).toBe(state);
+    expect(region.aperture.focus).toBe(focus);
+    expect(region.aperture.version).toBe(version);
+});
+
+test('materializer receives kinds plus a RenditionRequest; a one-arg materializer still works', async () => {
+    allowOrientation();
+    region.orient('open');
+    await delay(5);
+    const offer = region.registerSource(source);
+    let kindsArg, renditionArg;
+    const twoArg = await offer(header('two-arg'), (kinds, rendition) => {
+        kindsArg = kinds;
+        renditionArg = rendition;
+        return 'Two-arg materializer.';
+    });
+    expect(kindsArg).toEqual(['text']);
+    expect(renditionArg).toBeInstanceOf(RenditionRequest);
+    expect(renditionArg.kinds).toEqual(['text']);
+    expect(renditionArg.requestId).toBeNull();
+    expect(renditionArg.detail).toBeNull();
+    expect(twoArg.requestId).toBeNull();
+    global.takePending();
+    const oneArg = await offer(header('one-arg'), kinds => {
+        expect(kinds).toEqual(['text']);
+        return 'One-arg materializer.';
+    });
+    expect(oneArg.reason).toBe('One-arg materializer.');
+    expect(oneArg.requestId).toBeNull();
+});
+
+test('a detail request carries detail to the materializer and still cannot render while closed', async () => {
+    let renders = 0, renditionArg;
+    const offer = region.registerSource(source, request => offer(header('now'), (kinds, rendition) => {
+        renders++;
+        renditionArg = rendition;
+        return 'A closer look.';
+    }));
+    const closed = new ControlRequest({
+        kind: 'detail', issuedBy: 'test', reason: 'look', target: 'mock',
+        detail: { crop: 'the-door' },
+    });
+    region.requestControl(closed);
+    await delay(5);
+    expect(renders).toBe(0);
+    expect(renditionArg).toBeUndefined();
+    expect(global.takePending()).toHaveLength(0);
+
+    allowOrientation();
+    region.orient('open');
+    await delay(5);
+    expect(renders).toBe(1);
+    expect(renditionArg.detail).toBeNull();
+    expect(renditionArg.requestId).toBeTruthy();
+    renders = 0;
+    renditionArg = undefined;
+    global.takePending();
+
+    const request = new ControlRequest({
+        kind: 'detail', issuedBy: 'test', reason: 'look', target: 'mock',
+        detail: { crop: 'the-door' },
+    });
+    region.requestControl(request);
+    await delay(5);
+    expect(renders).toBe(1);
+    expect(renditionArg).toBeInstanceOf(RenditionRequest);
+    expect(renditionArg.kinds).toEqual(['text']);
+    expect(renditionArg.detail).toEqual({ crop: 'the-door' });
+    expect(renditionArg.requestId).toBe(request.id);
+    const pending = global.takePending();
+    expect(pending).toHaveLength(1);
+    expect(pending[0].requestId).toBe(request.id);
+});
+
+test('requestControl requires a ControlRequest', () => {
+    expect(() => region.requestControl({ kind: 'sample', issuedBy: 'test', reason: 'probe' }))
+        .toThrow(/ControlRequest/);
 });
