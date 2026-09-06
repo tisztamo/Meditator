@@ -279,6 +279,35 @@ The attention **arbiter**. Mechanical, no LLM. See [Interrupts & observers](inte
 - **Dispatches (DOM, bubbling):** `interrupt` for urgent stimuli.
 - **API used by the mind:** `takePending()` — queued stimuli, oldest first, clears the queue.
 
+## `m-region`
+
+A faculty **boundary** for nested attention. Without `modality` it is structural: a
+child `m-interrupts` binds with `closest('m-region')` and promotes survivors. See
+[Nested attention](deep-structure.md#nested-attention-m-region--faculty-local-m-interrupts).
+With `modality` it is also the text-first [perceptual membrane](perceptual-membrane.md#implementation-sketch).
+
+| Attribute | Default | Meaning |
+|-----------|---------|---------|
+| `name` | — | faculty label (observability) |
+| `modality` | — | opt into the membrane (`text`); absent = structural only |
+| `aperture` | `open` | initial `open`, `soft`, or `closed`; wake uses this default |
+| `dwell` | `30s` | minimum time between aperture changes |
+| `contactHorizon` | `10m` | weak time-only pressure reaches 1 after this awake interval |
+
+Registered source elements (never payload fields) declare:
+
+| Attribute | Default | Meaning |
+|-----------|---------|---------|
+| `name` | localName | unique within the region |
+| `provenance` | `unspecified` | `physical` / `simulated` / `other-mind` / `generated` / `internal` / `unspecified` |
+| `tier` | `0` | `1` and `2` throw at registration |
+| `bypassAperture` / `bypassAdmission` / `preempt` | `false` | three independent powers |
+
+- **API:** `registerSource(element, sample)` → `offer(header, lazyText)`; `orient(state, source)`; `requestControl(ControlRequest)` is the one door for `sample` / `detail` / `focus` (`focus` is accepted and changes no policy).
+- **Publishes:** `contactPressure`, `apertureState` (retained); `perceptDecision` (non-semantic gate verdicts — no text).
+- **Events:** `aperture-change` (backstage). Credits `percepts-attended` **by percept id**.
+- Only registered lazy sources pass this aperture; eager `feel()` and legacy interrupts do not.
+
 ## `m-timeout`
 
 Time-based generator, in **wander** or **watchdog** mode.
@@ -306,11 +335,18 @@ it waits on. A sense faces the **world, never the substrate** (host metrics,
 tokens, latency, the process) — that mechanistic interoception is the §1 attractor.
 
 `m-sense` is the shared base (abstract — not used as a tag directly): subclasses override
-`onSense()` and call `this.feel(reason, {key?, salience?})`. With a `key` (a part
-of the day, a kind of sky), a **change** of key is scored at `salienceShift` and an
-unchanged reading at the ambient `salience` (jittered ±0.08, so it is peripheral —
-sometimes under the arbiter's bar). A sense that is unconfigured (no location/url)
-stays dormant; a network blip is swallowed, never crashing the mind.
+`onSense(request)` (`request` is an optional `ControlRequest` from the region's sample
+door; existing subclasses may ignore it) and call `this.feel(reason, {key?, salience?})`.
+With a `key` (a part of the day, a kind of sky), a **change** of key is scored at
+`salienceShift` and an unchanged reading at the ambient `salience` (jittered ±0.08,
+so it is peripheral — sometimes under the arbiter's bar). A sense that is unconfigured
+(no location/url) stays dormant; a network blip is swallowed, never crashing the mind.
+
+Lazy sources inside a modality region call `candidate(header, () => archivalText)`
+instead: the header is non-semantic, text is produced only after admission, and an
+in-flight control request's id rides the candidate as `requestId` (acquisition
+lineage, not causation). Eager `feel()` remains the compatibility path. A source
+declares `tier` on the element (default 0; the region refuses 1 and 2).
 
 Common attributes: `timeout`, `sigma`, `salience` (default `0.4`), `salienceShift`
 (default `0.6`), `name`.
@@ -767,7 +803,7 @@ listener by `m-ear`. See [multi-mind](multi-mind.md).
 
 ### `m-society`
 
-A structural container for member minds. It is mostly a marker, like `m-region`:
+A structural container for member minds. It is mostly a marker, like [`m-region`](#m-region):
 `closest("m-society")` is the anchor for society-relative refs such as
 `..m-society/prover/voice/@spoken` (a peer's voice is a fired event — address it as
 `@spoken`, not the plain topic). Memory homes for member minds are nested under the

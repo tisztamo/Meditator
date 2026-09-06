@@ -50,9 +50,12 @@ const log = logger('mSense.js');
  *   - sigma: normal-distributed jitter on the interval (subclass default)
  *   - salience: centre salience of an ambient reading (jittered ±0.08)
  *   - salienceShift: salience when a keyed sense changes state
+ *   - name, provenance, tier (default 0), bypassAperture / bypassAdmission / preempt:
+ *     architecture-owned source contract when inside a modality region; 1 and 2 throw
  *
  * Events dispatched (bubbling): "interrupt-request" with an InterruptRecord
- * (source "External", never urgent).
+ * (source "External", never urgent). Lazy candidate() lineage is requestId on the
+ * header, not a second event.
  */
 export class MSense extends MBaseComponent {
     _timer = null

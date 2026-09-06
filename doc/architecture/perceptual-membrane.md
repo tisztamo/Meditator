@@ -25,8 +25,9 @@ bun scripts/dev/demo-membrane.mjs
 ```
 
 The demo advances the regulator's clock, suppresses a simulated event while closed,
-then reopens to a fresh description of the present. It runs the real frame assembler
-without starting a thinking loop or touching resident memory.
+then reopens to a fresh description of the present. It prints the two named gate
+verdicts, the sample request's lineage, and one typed frame receipt. It runs the real
+frame assembler without starting a thinking loop or touching resident memory.
 
 Opt in with `modality="text"` on an `m-region`. `aperture` defaults to `open`;
 `soft` halves salience, `narrow` selects one registered source, and `closed` withholds
@@ -34,7 +35,7 @@ materialization. `dwell` defaults to 30 seconds and `contactHorizon` to ten minu
 The demo starts closed only to exercise the reflex. Production architectures should
 declare and disclose their open/soft wake default.
 
-A new `MSense` subclass calls this from `onSense()`:
+A new `MSense` subclass calls this from `onSense(request)` (`request` is optional):
 
 ```js
 return this.candidate(
@@ -48,68 +49,81 @@ early; a source whose detector needs a query-conditioned model or a describer at
 its edge would be declaring tier 1 or tier 2, which this slice does not accept.
 Custom sources can instead use `region.registerSource(element, sampleNow)`,
 which returns the same `(header, lazyText)` offer function. Source identity (`name`),
-`provenance`, and the independent `bypassAperture`, `bypassAdmission`, and `preempt`
-attributes are read from architecture configuration when registering, never from
-candidate payloads. Provenance defaults to `unspecified`; examples should explicitly
-use `simulated`, `physical`, `other-mind`, `generated`, or `internal` as appropriate.
-There is no `tier` attribute yet: the sketch treats every registered source as
-tier 0, and percept provenance does not record a tier. The tier contract requires
-the declaration to live in the source's architecture configuration next to these
-attributes and to be carried in provenance, never inferred from a payload; adding
-it is part of the seam work below.
-This is an in-process adapter boundary, not a sandbox for untrusted component code.
+`provenance`, `tier` (default 0), and the independent `bypassAperture`,
+`bypassAdmission`, and `preempt` attributes are read from architecture configuration
+when registering, never from candidate payloads. Provenance defaults to `unspecified`;
+examples should explicitly use `simulated`, `physical`, `other-mind`, `generated`,
+or `internal` as appropriate. `tier="1"` or `tier="2"` throws at registration with a
+pointer to [processing tiers](#processing-tiers). Provenance records and journal
+lines carry `tier`. This is an in-process adapter boundary, not a sandbox for
+untrusted component code.
 
 `region.orient('closed')`, `region.orient('open')`, or
 `region.orient('narrow', sourceName)` changes orientation after minimum dwell.
 It returns whether a change was accepted. Reopening asks registered senses for a
-fresh sample; it never replays missed content. Only a fresh `percepts-attended`
-receipt from frame assembly reduces contact debt. Rejected and crowded-out bids do
-not. Debt has a weak awake-time contribution with an arousal-independent floor,
-capped change contributions, and per-source habituation. The first thresholds and
-time constants are provisional experiment settings. No thought content is inspected.
+fresh sample through `requestControl` (`kind: 'sample'`); it never replays missed
+content. `requestControl` is the one public door for `sample`, `detail`, and `focus`.
+`sample` and `detail` run end to end; `focus` is accepted and recorded and **changes
+no policy** — there is no search controller. `onSense(request)` may ignore the
+request. Only a fresh typed `PerceptReceipt` from frame assembly, fired on
+`percepts-attended` and credited **by percept id**, reduces contact debt. Rejected
+and crowded-out bids do not. Debt has a weak awake-time contribution with an
+arousal-independent floor, capped change contributions, and per-source habituation.
+The first thresholds and time constants are provisional experiment settings. No
+thought content is inspected.
 
-Because every source is tier 0, the awareness gate coincides with the acquisition
-gate: one aperture decision both permits materialization and admits the rendition
-to attention competition, and the design's separate awareness stage is a no-op in
-this slice. The regulator's deficit is fed only by `changeMagnitude` from headers;
-there is no typed path for tier-1 match scores, so nothing can be mistaken for a
-change header, and equally nothing can be searched while closed. The search
-controller and its pre-detection control path are not part of this slice.
+Acquisition and awareness are two named stages, each a real `GateVerdict`. At
+tier 0, `permitAwareness` is not a comment that the stages coincide: it is a second
+call that records `reason: 'tier-0-mirror'` on the percept's `gateTrail`. The
+regulator still accepts only a `PerceptCandidate` header; `EdgeEvidence` is a typed
+refusal, and nothing produces one. Scores cannot enter the deficit. Verdicts are
+published on the non-semantic `perceptDecision` topic (stage, source, permitted,
+reason, changeMagnitude, apertureState) — no text, no materializer, no un-hashed key.
 
 The region publishes retained `apertureState` and `contactPressure`; regional
 arbiters consume local pressure and the global arbiter follows the regional mean
 over a minute. `contactSensitivity` controls the threshold reduction (default 0.25).
 State changes are backstage journal notes. Admitted text remains an
-`InterruptRecord`-compatible `Percept` throughout arbitration, and frame receipts
-append provenance and the actual text rendition to `journal/percepts.jsonl` on the
-existing journal write queue. `journal="off"` disables both indexes and journal
-notes. Existing text framing remains unchanged.
+`InterruptRecord`-compatible `Percept` throughout arbitration. Frame assembly issues
+typed `PerceptReceipt`s on `percepts-attended`; `m-memory` builds `journal/percepts.jsonl`
+from those receipts (including `tier` and `requestId`) on the existing journal write
+queue. `journal="off"` disables both indexes and journal notes. Existing text framing
+remains unchanged.
 
-The compatibility path preserves powers on existing in-process `InterruptRecord`
-instances. Raw strings and serialized objects cannot acquire bypass or preemption
-merely through coercion. Legacy provenance is marked `legacy-unspecified` where it
-cannot be established. Existing eager `feel()` sources are **not** silently made
-lazy or aperture-controlled: migrating each detector is separate work.
+The compatibility path is an enumerated legacy provenance map. Trusted in-process
+`InterruptRecord`s keep their powers; coerced payloads cannot acquire any. Legacy
+provenance is marked `legacy-unspecified` where it cannot be established. Rendering
+of every current event class is byte-for-byte unchanged. Existing eager `feel()`
+sources are **not** silently made lazy or aperture-controlled: migrating each
+detector is separate work.
 
-Still deferred: the model-driven `orient` hand and its cooldown lane, native media
-and model capability selection, rendition-aware recall, deliberate gaze/efference
-copies, media retention, Studio timelines, and any edge processing above tier 0. This slice establishes the contact
-boundary and its return path; it does not implement the spatial world or validate
-the proposed dynamics on a live mind.
+Still absent, and not implied by the types that now exist: composed gates across
+nested regions; a replaceable regulator or aggregator; prediction producers,
+comparators, or evaluations in the runtime (the `Evaluation` record is a shape
+only); search; the `orient` hand and its cooldown lane; native media and model
+capability selection; rendition-aware recall; Studio timelines; and any edge
+processing above tier 0. `focus` is a request kind, not a faculty. `EdgeEvidence`
+is a refusal type, not a path. This slice establishes the contact boundary, its two
+named stages, and its return path; it does not implement the spatial world or
+validate the proposed dynamics on a live mind.
 
 ### Known issues in the sketch
 
-The generality review identified the following open limitations. This design
-revision documents them; it does not fix the runtime or run further experiments.
+The generality review identified the following open limitations. Phase 1 of the
+[implementation plan](../plans/perceptual-membrane-phase-1.md) closed the
+declaration and typed-regulator-input half of the processing-tier row, and gave
+source control a door. Rows 1–4, the rest of source control, and the remainder of
+the processing-tier row stay open. This design revision does not run the
+experiments they describe.
 
 | Issue | Consequence and intended direction |
 |---|---|
 | Only the nearest sensory aperture participates | An open inner modality region can render and deliver through a closed outer one, reproduced in the review. Compose all applicable boundaries before materialization; [enclosure by role](../improvements/enclosure-by-role.md) gives the mechanism and its fixture W3 the acceptance test. |
-| Sensory change directly sets salience | A zero-change observation is rendered but rejected at a positive threshold, reproduced in the review. Expected confirmations need independent relevance; mismatch must not replace `changeMagnitude`. |
+| Sensory change directly sets salience | A zero-change observation is rendered but rejected at a positive threshold, reproduced in the review. Expected confirmations need independent relevance; mismatch must not replace `changeMagnitude`. [Prediction and search](../improvements/prediction-mismatch.md). |
 | Policy is constructed or discovered inside consumers | `m-region` owns a fixed `Aperture`; `m-interrupts` discovers modality regions and computes their slow mean. Make regulation, aggregation, and control bindings replaceable; the role lookups and pressure fold in enclosure by role cover the discovery half. |
-| Evidence and bid state share mutable records | Regional gain mutates salience, while receipt credit relies on the issued object. Independent evaluations and authoritative receipts need stable evidence identity across legitimate adapters and fan-out. |
-| Source control is incomplete | The materializer receives requested kinds only; detector cadence and focus have no general control input. Deliver sampling/focus requests before detection and detail requests before materialization; at tier 1 this same path carries the grounding query. |
-| Processing tier is implicit | Every source is silently tier 0; there is no `tier` declaration, provenance carries none, and the regulator has no typed input other than a change header. Add the declaration to source configuration and provenance, type tier-1 evidence so it can reach a controller but never the tier-0 deficit, and make acquisition and awareness gates distinct stages so tiers 1 and 2 can be admitted without a side path. The lean-versus-edge-grounded experiment needs this seam before it can run. |
+| Evidence and bid state share mutable records | Regional gain still mutates salience on the shared record. Frame receipts are now typed and credited by percept id; splitting the mutable bid off the evidence record, and changing the arbiter with it, remains membrane phase 2. |
+| Source control has a door, not a controller | `requestControl` delivers typed `sample` / `detail` / `focus` before detection (and `detail` to the materializer). `focus` is accepted and changes no policy. There is no search controller, no `orient` hand, no cadence control beyond the sense timer, and no grounding query on the reserved `template` field. |
+| Processing tier is declared, not implemented above 0 | Sources declare `tier` (default 0); 1 and 2 throw at registration. Provenance and journal carry the field. The regulator accepts only a `PerceptCandidate`; `EdgeEvidence` is a typed refusal and nothing produces it. Acquisition and awareness are distinct stages (`tier-0-mirror` at lean). What remains: no tier-1 or tier-2 *implementations*, no scores into the deficit, no grounding query. The lean-versus-edge-grounded experiment is still unrun. |
 
 Existing eager senses remain outside aperture control, and native media,
 prediction lifecycle, search, and tiers 1 and 2 are still deferred. The
@@ -602,15 +616,14 @@ outside source
  conscious model
 ```
 
-This is the lean-tier path. At tier 0 the awareness gates coincide with the
-acquisition gates: one aperture decision grants both, and the later stage is a
-no-op. At tiers 1 and 2 the acquisition gates admit private edge processing while
-the awareness gates still decide disclosure; only there are the two stages
-distinct. Frame assembly owns the authoritative receipt; the regulator uses it to
-update pressure and request orientation through declared bindings. Search/focus
-controllers also have a control path to sources before detection; it is separate
-from predictions and from ordinary attention, and at tier 1 it carries the
-grounding query.
+This is the lean-tier path. At tier 0 the awareness gate mirrors the acquisition
+gate: the same permitted bit, recorded as a real verdict with reason
+`tier-0-mirror`. At tiers 1 and 2 the acquisition gates would admit private edge
+processing while the awareness gates still decide disclosure; those tiers are not
+implemented. Frame assembly owns the authoritative receipt; the regulator uses it to
+update pressure and request orientation through declared bindings. A control path
+to sources exists before detection (`requestControl`); search and the `orient` hand
+are not part of this slice, and `focus` changes no policy.
 
 The present attention machinery can remain mostly unchanged. Salience,
 thresholds, urgency, crowding, nested competition, arousal sensitivity, and
@@ -750,12 +763,15 @@ cannot reveal them. Private source contents remain absent until admission.
 
 ## Proposed development order
 
-This is future work. The documentation revision does not implement or run these
-steps or the experiments they describe.
+Step 1 is implemented
+([phase 1 plan](../plans/perceptual-membrane-phase-1.md)). Steps 2–6 remain future
+work; they are not implemented here and the experiments they describe have not been
+run.
 
 1. Establish explicit contracts for processing, awareness, evidence identity,
    evaluations, control requests, and frame receipts. Preserve existing text
    rendering and trusted provenance through the compatibility path.
+   **Implemented.**
    ([implementation plan](../plans/perceptual-membrane-phase-1.md))
 2. Correct nested boundary composition and separate evidence from bid state.
    Make contact regulation, pressure aggregation, and source control replaceable

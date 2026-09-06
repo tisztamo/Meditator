@@ -35,9 +35,11 @@ import { parseTime } from '../../config/timeParser.js'
  *   - dwell: minimum time between aperture changes (default 30s)
  *   - contactHorizon: weak time-only pressure reaches 1 after this awake interval (10m)
  * Methods: registerSource(element, sample) → offer(header, lazyText); orient(state, source);
- *   requestControl(ControlRequest) is the one door for sample / focus / detail;
+ *   requestControl(ControlRequest) is the one door for sample / focus / detail —
+ *   focus is accepted and changes no policy;
  *   permitAcquisition(annotated) and permitAwareness(percept, annotated) each return a
- *   GateVerdict from decideGate — acquisition then awareness, even at tier 0.
+ *   GateVerdict from decideGate — acquisition then awareness; at tier 0 awareness is a
+ *   real verdict with reason 'tier-0-mirror'.
  * A source may declare name, provenance, tier (default 0), and the three independent
  * bypass powers on the element. It may never assert those from a payload; the frozen
  * SourceContract is the only policy the offer path reads. tier 1 and 2 are refused

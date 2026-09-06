@@ -1,6 +1,6 @@
 # Perceptual membrane — Phase 1 implementation plan: the contracts
 
-**Status: plan, 2026-09-06. Not implemented.** Realizes step 1 of the
+**Status: implemented, 2026-09-06.** Realizes step 1 of the
 [perceptual membrane](../architecture/perceptual-membrane.md#proposed-development-order):
 
 > *Establish explicit contracts for processing, awareness, evidence identity,
