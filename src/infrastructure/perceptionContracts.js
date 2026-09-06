@@ -327,3 +327,88 @@ export class PerceptReceipt {
         Object.freeze(this);
     }
 }
+
+/** Compatibility-path provenance. First matching row wins. Type-keyed physical /
+ * other-mind rows precede Internal-by-source, matching today's fromInterrupt
+ * order: a trusted UserInput is physical even if someone set source Internal.
+ *
+ * Every currently constructed interrupt class is a row so unknown is no longer
+ * an unwritten default — it is the table's last row. Listed classes that
+ * currently fall through stay `legacy-unspecified`; this is coverage, not a
+ * reclassification. Internal is by source, not type. Observer is not Internal.
+ *
+ * Association / LoopGuard / Recall are raised through MObserver (source
+ * Observer). Waking / Origin / Time-* / the test-class Loop are source Internal.
+ * Sleep, Sense-*, and act consequences are External and unspecified.
+ *
+ * Powers are not in this table: they still come from trusted urgent/clearsTail
+ * flags, never from event class. */
+export const LEGACY_EVENT_PROVENANCE = Object.freeze([
+    Object.freeze({ type: 'UserInput', provenance: 'physical' }),
+    Object.freeze({ type: 'ConsoleInput', provenance: 'physical' }),
+    Object.freeze({ type: 'Peer', provenance: 'other-mind' }),
+    Object.freeze({ type: 'Waking', source: 'Internal', provenance: 'internal' }),
+    Object.freeze({ type: 'Origin', source: 'Internal', provenance: 'internal' }),
+    Object.freeze({ type: 'Loop', source: 'Internal', provenance: 'internal' }),
+    Object.freeze({ type: 'Time-Based', source: 'Internal', provenance: 'internal' }),
+    Object.freeze({ type: 'Token-Based', source: 'Internal', provenance: 'internal' }),
+    Object.freeze({ typePrefix: 'Time-', source: 'Internal', provenance: 'internal' }),
+    Object.freeze({ source: 'Internal', provenance: 'internal' }),
+    Object.freeze({ type: 'Sleep', provenance: 'legacy-unspecified' }),
+    Object.freeze({ type: 'Sense-reach', provenance: 'legacy-unspecified' }),
+    Object.freeze({ typePrefix: 'Sense-', provenance: 'legacy-unspecified' }),
+    Object.freeze({ type: 'Recall', provenance: 'legacy-unspecified' }),
+    Object.freeze({ type: 'LoopGuard', provenance: 'legacy-unspecified' }),
+    Object.freeze({ type: 'Association', provenance: 'legacy-unspecified' }),
+    Object.freeze({ typePrefix: 'Observer-', provenance: 'legacy-unspecified' }),
+    Object.freeze({ type: 'Raw', provenance: 'legacy-unspecified' }),
+    Object.freeze({ type: 'Unknown', provenance: 'legacy-unspecified' }),
+    Object.freeze({ otherwise: true, provenance: 'legacy-unspecified' }),
+]);
+
+function rowMatches(row, record) {
+    if (row.otherwise) return true;
+    if (row.source != null && record.source !== row.source) return false;
+    if (row.type != null && record.type !== row.type) return false;
+    if (row.typePrefix != null) {
+        if (typeof record.type !== 'string' || !record.type.startsWith(row.typePrefix)) return false;
+    }
+    return row.source != null || row.type != null || row.typePrefix != null;
+}
+
+function matchLegacyProvenance(record) {
+    for (const row of LEGACY_EVENT_PROVENANCE) {
+        if (rowMatches(row, record)) return row.provenance;
+    }
+    return 'legacy-unspecified';
+}
+
+/** Provenance for the compatibility path. Coerced / untrusted shapes never
+ * consult the class table — they are `legacy-unspecified` even if the payload
+ * names UserInput. A trusted unknown type is also `legacy-unspecified`, unless
+ * its source is Internal, which still maps to `internal` as today. */
+export function legacyProvenance(record, { trusted = false } = {}) {
+    return legacyCompatibility(record, { trusted }).provenance;
+}
+
+/** Compatibility-path provenance and powers. fromInterrupt delegates here.
+ *
+ * Trusted in-process InterruptRecords keep powers from their flags:
+ *   bypassAperture / bypassAdmission ← urgent || clearsTail
+ *   preempt ← urgent
+ * A trusted record of an unknown class still takes those powers; only
+ * provenance is unspecified (or internal, if source is Internal).
+ * Coerced strings and plain objects get no powers, even if they claim
+ * urgent / policy / a known type. */
+export function legacyCompatibility(record, { trusted = false } = {}) {
+    const provenance = trusted ? matchLegacyProvenance(record) : 'legacy-unspecified';
+    requireEnum('provenance', provenance, PROVENANCE);
+    return Object.freeze({
+        provenance,
+        policy: freezePowers({
+            bypassAperture: trusted && (record.urgent === true || record.clearsTail === true),
+            bypassAdmission: trusted && (record.urgent === true || record.clearsTail === true),
+            preempt: trusted && record.urgent === true,
+        }),
+    });
+}

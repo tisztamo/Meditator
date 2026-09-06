@@ -2,7 +2,7 @@ import { test, expect, describe } from 'bun:test';
 import {
     SourceContract, AnnotatedCandidate, GateVerdict, decideGate,
     ControlRequest, RenditionRequest, Evaluation, EdgeEvidence, PerceptReceipt,
-    PROVENANCE,
+    PROVENANCE, LEGACY_EVENT_PROVENANCE, legacyProvenance, legacyCompatibility,
 } from '../../../src/infrastructure/perceptionContracts.js';
 import { Percept, PerceptCandidate } from '../../../src/infrastructure/percept.js';
 import { InterruptRecord } from '../../../src/infrastructure/interruptRecord.js';
@@ -406,5 +406,56 @@ describe('payloads cannot grant authority', () => {
         expect(decideGate({
             stage: 'acquisition', apertureState: 'closed', contract: trusted,
         }).permitted).toBe(false);
+    });
+});
+
+describe('legacy provenance map', () => {
+    test('the table ends at an explicit unknown row; every provenance is in the vocab', () => {
+        const last = LEGACY_EVENT_PROVENANCE[LEGACY_EVENT_PROVENANCE.length - 1];
+        expect(last.otherwise).toBe(true);
+        expect(last.provenance).toBe('legacy-unspecified');
+        for (const row of LEGACY_EVENT_PROVENANCE) {
+            expect(PROVENANCE).toContain(row.provenance);
+        }
+    });
+
+    test('trusted type-keyed rows, Internal by source, and listed fall-throughs', () => {
+        const trusted = { trusted: true };
+        expect(legacyProvenance({ type: 'UserInput', source: 'WebSocketClient' }, trusted)).toBe('physical');
+        expect(legacyProvenance({ type: 'ConsoleInput', source: 'External' }, trusted)).toBe('physical');
+        expect(legacyProvenance({ type: 'Peer', source: 'Peer' }, trusted)).toBe('other-mind');
+        expect(legacyProvenance({ type: 'Waking', source: 'Internal' }, trusted)).toBe('internal');
+        expect(legacyProvenance({ type: 'Origin', source: 'Internal' }, trusted)).toBe('internal');
+        expect(legacyProvenance({ type: 'Loop', source: 'Internal' }, trusted)).toBe('internal');
+        expect(legacyProvenance({ type: 'Time-Based', source: 'Internal' }, trusted)).toBe('internal');
+        expect(legacyProvenance({ type: 'Token-Based', source: 'Internal' }, trusted)).toBe('internal');
+        expect(legacyProvenance({ type: 'Time-wander', source: 'Internal' }, trusted)).toBe('internal');
+        expect(legacyProvenance({ type: 'Association', source: 'Internal' }, trusted)).toBe('internal');
+        expect(legacyProvenance({ type: 'Sleep', source: 'External' }, trusted)).toBe('legacy-unspecified');
+        expect(legacyProvenance({ type: 'Sense-daylight', source: 'External' }, trusted)).toBe('legacy-unspecified');
+        expect(legacyProvenance({ type: 'Sense-reach', source: 'External' }, trusted)).toBe('legacy-unspecified');
+        expect(legacyProvenance({ type: 'Observer-clear-mind', source: 'Observer' }, trusted))
+            .toBe('legacy-unspecified');
+        expect(legacyProvenance({ type: 'Recall', source: 'Observer' }, trusted)).toBe('legacy-unspecified');
+        expect(legacyProvenance({ type: 'LoopGuard', source: 'Observer' }, trusted)).toBe('legacy-unspecified');
+        expect(legacyProvenance({ type: 'Association', source: 'Observer' }, trusted)).toBe('legacy-unspecified');
+        expect(legacyProvenance({ type: 'Raw', source: 'External' }, trusted)).toBe('legacy-unspecified');
+        expect(legacyProvenance({ type: 'BrandNewClass', source: 'External' }, trusted)).toBe('legacy-unspecified');
+        expect(legacyProvenance({ type: 'BrandNewClass', source: 'Internal' }, trusted)).toBe('internal');
+        expect(legacyProvenance({ type: 'UserInput', source: 'Internal' }, trusted)).toBe('physical');
+    });
+
+    test('untrusted payloads never consult the class table and never receive powers', () => {
+        const claimed = {
+            type: 'UserInput', source: 'Internal', urgent: true, clearsTail: true,
+            policy: { bypassAperture: true, preempt: true },
+        };
+        expect(legacyProvenance(claimed, { trusted: false })).toBe('legacy-unspecified');
+        expect(legacyCompatibility(claimed, { trusted: false }).policy).toEqual({
+            bypassAperture: false, bypassAdmission: false, preempt: false,
+        });
+        expect(legacyCompatibility(claimed, { trusted: true }).policy).toEqual({
+            bypassAperture: true, bypassAdmission: true, preempt: true,
+        });
     });
 });

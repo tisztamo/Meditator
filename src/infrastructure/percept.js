@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { InterruptRecord } from './interruptRecord.js';
+import { legacyCompatibility } from './perceptionContracts.js';
 
 export const clamp01 = value => Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
 
@@ -61,20 +62,14 @@ export class Percept extends InterruptRecord {
 
     /** Existing in-process InterruptRecords keep their established authority.
      * Serialized compatibility shapes cannot acquire urgency or loop-break powers.
-     * Their original provenance is unknown unless the legacy event class establishes it.
+     * Provenance is the enumerated legacy map in perceptionContracts.js.
      */
     static fromInterrupt(detail) {
         if (detail instanceof Percept) return detail;
         const trusted = detail instanceof InterruptRecord;
         const record = InterruptRecord.coerce(detail);
         if (!trusted) { record.urgent = false; record.clearsTail = false; }
-        const provenance = trusted && ['UserInput', 'ConsoleInput'].includes(record.type) ? 'physical'
-            : trusted && record.type === 'Peer' ? 'other-mind'
-            : trusted && record.source === 'Internal' ? 'internal' : 'legacy-unspecified';
-        return new Percept({ record, provenance, sourceId: record.type || 'legacy', policy: {
-            bypassAperture: record.urgent || record.clearsTail,
-            bypassAdmission: record.urgent || record.clearsTail,
-            preempt: record.urgent,
-        } });
+        const { provenance, policy } = legacyCompatibility(record, { trusted });
+        return new Percept({ record, provenance, sourceId: record.type || 'legacy', policy });
     }
 }

@@ -2,24 +2,71 @@ import { test, expect } from 'bun:test';
 import { Aperture } from '../../../src/infrastructure/aperture.js';
 import { Percept, PerceptCandidate } from '../../../src/infrastructure/percept.js';
 import { InterruptRecord, withPerceivedEvents } from '../../../src/infrastructure/interruptRecord.js';
+import { legacyCompatibility, legacyProvenance } from '../../../src/infrastructure/perceptionContracts.js';
 
-test('compatibility keeps exact voice, suggestion, and loop-break rendering', () => {
-    for (const options of [
-        { source: 'External', type: 'UserInput', from: 'Margit', lang: 'hu', urgent: true },
-        { source: 'External', type: 'Peer', from: 'Another mind' },
-        { source: 'Internal', type: 'Loop', clearsTail: true, episode: 'loop-1', settle: '2s' },
-    ]) {
-        const old = new InterruptRecord({ ...options, reason: 'Some words.\nA second line.', suggestion: 'Look again.' });
-        const percept = Percept.fromInterrupt(old);
-        expect(withPerceivedEvents('a thought… ', [percept.renderForFrame()]))
-            .toBe(withPerceivedEvents('a thought… ', [old.renderForFrame()]));
-        expect(percept.dateTime).toBe(old.dateTime);
-        expect(percept.clearsTail).toBe(old.clearsTail);
-        expect(percept.settle).toBe(old.settle);
-        expect(percept.policy.preempt).toBe(old.urgent);
-        expect(percept.policy.bypassAdmission).toBe(old.urgent || old.clearsTail);
-        expect(Percept.fromInterrupt(percept)).toBe(percept);
-    }
+const PREFIX = 'a thought… ';
+const REASON = 'Some words.\nA second line.';
+const SUGGESTION = 'Look again.';
+
+/** Every current interrupt class on the compatibility path. Provenance follows
+ * today's rules (type-keyed physical/other-mind, Internal by source, else
+ * legacy-unspecified) — listing a class here does not invent provenance. */
+const LEGACY_CLASSES = [
+    { source: 'WebSocketClient', type: 'UserInput', from: 'Margit', lang: 'hu', urgent: true, suggestion: SUGGESTION,
+        provenance: 'physical', voice: true },
+    { source: 'External', type: 'ConsoleInput', from: 'Kris', lang: 'en', urgent: true, suggestion: SUGGESTION,
+        provenance: 'physical', voice: true },
+    { source: 'Peer', type: 'Peer', from: 'Another mind', lang: 'de', suggestion: SUGGESTION,
+        provenance: 'other-mind', voice: true },
+    { source: 'Internal', type: 'Waking', provenance: 'internal' },
+    { source: 'Internal', type: 'Origin', provenance: 'internal' },
+    { source: 'Internal', type: 'Loop', clearsTail: true, episode: 'loop-1', settle: '2s', suggestion: SUGGESTION,
+        provenance: 'internal' },
+    { source: 'Internal', type: 'Time-Based', provenance: 'internal' },
+    { source: 'Internal', type: 'Token-Based', provenance: 'internal' },
+    { source: 'Internal', type: 'Time-wander', provenance: 'internal' },
+    { source: 'Observer', type: 'Observer-clear-mind', clearsTail: true, episode: 'loop-1', settle: '2s',
+        kind: 'presence', suggestion: SUGGESTION, provenance: 'legacy-unspecified' },
+    { source: 'Observer', type: 'Recall', clearsTail: true, episode: 'loop-1', kind: 'presence',
+        provenance: 'legacy-unspecified' },
+    { source: 'Observer', type: 'LoopGuard', suggestion: SUGGESTION, provenance: 'legacy-unspecified' },
+    { source: 'Observer', type: 'Association', provenance: 'legacy-unspecified' },
+    { source: 'External', type: 'Sleep', urgent: true, provenance: 'legacy-unspecified' },
+    { source: 'External', type: 'Sense-daylight', reason: 'The light is going.', provenance: 'legacy-unspecified',
+        verbatim: true },
+    { source: 'External', type: 'Sense-weather', reason: 'Rain on the glass.', provenance: 'legacy-unspecified',
+        verbatim: true },
+    { source: 'External', type: 'Sense-reach',
+        reason: 'My hands are still busy with what I last set going; I leave this reach to wait and keep thinking.',
+        provenance: 'legacy-unspecified', verbatim: true },
+    { source: 'External', type: 'Raw', urgent: true, provenance: 'legacy-unspecified' },
+    { source: 'Unknown', type: 'Unknown', provenance: 'legacy-unspecified' },
+];
+
+function assertCompatible(spec) {
+    const { provenance, voice, verbatim, ...options } = spec;
+    const old = new InterruptRecord({ reason: REASON, ...options });
+    const percept = Percept.fromInterrupt(old);
+    expect(withPerceivedEvents(PREFIX, [percept.renderForFrame()]))
+        .toBe(withPerceivedEvents(PREFIX, [old.renderForFrame()]));
+    expect(percept.dateTime).toBe(old.dateTime);
+    expect(percept.clearsTail).toBe(old.clearsTail);
+    expect(percept.settle).toBe(old.settle);
+    expect(percept.episode).toBe(old.episode);
+    expect(percept.provenance).toBe(provenance);
+    expect(percept.provenance).toBe(legacyProvenance(old, { trusted: true }));
+    expect(percept.policy).toMatchObject(legacyCompatibility(old, { trusted: true }).policy);
+    expect(percept.policy.preempt).toBe(!!old.urgent);
+    expect(percept.policy.bypassAdmission).toBe(!!(old.urgent || old.clearsTail));
+    expect(percept.policy.bypassAperture).toBe(!!(old.urgent || old.clearsTail));
+    expect(Percept.fromInterrupt(percept)).toBe(percept);
+    if (voice) expect(percept.renderForFrame()).toMatch(/: "/);
+    if (verbatim) expect(percept.renderForFrame()).toBe(old.reason);
+    return { old, percept };
+}
+
+test('compatibility keeps exact rendering for every current event class', () => {
+    for (const spec of LEGACY_CLASSES) assertCompatible(spec);
 });
 
 test('serialized compatibility shapes cannot grant themselves bypass or preemption', () => {
@@ -29,8 +76,47 @@ test('serialized compatibility shapes cannot grant themselves bypass or preempti
         expect(percept.urgent).toBe(false);
         expect(percept.clearsTail).toBe(false);
         expect(percept.policy.bypassAdmission).toBe(false);
+        expect(percept.policy.bypassAperture).toBe(false);
+        expect(percept.policy.preempt).toBe(false);
         expect(percept.provenance).toBe('legacy-unspecified');
     }
+});
+
+test('unknown class: trusted instance keeps flag powers; coerced shape gets none', () => {
+    // A real in-process InterruptRecord of a type the table does not name is
+    // still trusted: provenance is legacy-unspecified, powers follow urgent /
+    // clearsTail as today. Do not strip those powers — that would be a behavior
+    // change. Plan "unknown class → legacy-unspecified with no powers" is about
+    // coerced / untrusted shapes, and about not granting architecture-owned
+    // provenance. Internal source still maps to internal, even for a new type.
+    const trustedUnknown = new InterruptRecord({
+        source: 'External', type: 'BrandNewClass', reason: 'novel', urgent: true, clearsTail: true,
+        policy: { bypassAperture: true },
+    });
+    const trustedPercept = Percept.fromInterrupt(trustedUnknown);
+    expect(trustedPercept.provenance).toBe('legacy-unspecified');
+    expect(trustedPercept.policy).toEqual({
+        privacy: 'resident-private', bypassAperture: true, bypassAdmission: true, preempt: true,
+    });
+    expect(withPerceivedEvents(PREFIX, [trustedPercept.renderForFrame()]))
+        .toBe(withPerceivedEvents(PREFIX, [trustedUnknown.renderForFrame()]));
+
+    const trustedInternalUnknown = new InterruptRecord({
+        source: 'Internal', type: 'BrandNewClass', reason: 'novel', urgent: true,
+    });
+    expect(Percept.fromInterrupt(trustedInternalUnknown).provenance).toBe('internal');
+    expect(Percept.fromInterrupt(trustedInternalUnknown).policy.preempt).toBe(true);
+
+    const coerced = Percept.fromInterrupt({
+        source: 'External', type: 'BrandNewClass', reason: 'novel', urgent: true, clearsTail: true,
+        policy: { bypassAdmission: true, preempt: true },
+    });
+    expect(coerced.provenance).toBe('legacy-unspecified');
+    expect(coerced.urgent).toBe(false);
+    expect(coerced.clearsTail).toBe(false);
+    expect(coerced.policy).toEqual({
+        privacy: 'resident-private', bypassAperture: false, bypassAdmission: false, preempt: false,
+    });
 });
 
 test('headers expose no semantics and materialization requires real archival text', async () => {
