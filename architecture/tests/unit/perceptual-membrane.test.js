@@ -201,6 +201,22 @@ test('observe accepts only a PerceptCandidate and never materializes', () => {
     expect(calls).toBe(0);
 });
 
+test('gateTrail is a list; stringify and the index entry do not grow content-bearing fields', () => {
+    const percept = new Percept({
+        sourceId: 'loop',
+        record: new InterruptRecord({ reason: 'Turn outward.' }),
+        policy: { bypassAdmission: true },
+    });
+    expect(percept.gateTrail).toEqual([]);
+    expect(Object.isFrozen(percept.gateTrail)).toBe(true);
+    const entry = percept.toIndexEntry();
+    expect(entry).not.toHaveProperty('gateTrail');
+    expect(entry).not.toHaveProperty('requestId');
+    const json = JSON.stringify(entry);
+    expect(json).not.toMatch(/gateTrail|requestId/);
+    expect(JSON.stringify(percept)).not.toMatch(/requestId/);
+});
+
 test('aperture bypass, admission bypass, and preemption remain independent', () => {
     const a = new Aperture({ state: 'closed' });
     expect(a.allows('voice', { bypassAdmission: true, preempt: true })).toBe(false);

@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { InterruptRecord } from './interruptRecord.js';
-import { legacyCompatibility } from './perceptionContracts.js';
+import { GateVerdict, legacyCompatibility } from './perceptionContracts.js';
 
 export const clamp01 = value => Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
 
@@ -30,10 +30,12 @@ export class PerceptCandidate {
 /** Text-first admitted percept. Inherits the existing framing, including voice
  * attribution and loop-break fields, so the textual tail remains byte-for-byte compatible.
  * `tier` is a sibling of the provenance string; the compatibility path leaves it null.
+ * `gateTrail` is the acquisition and awareness verdicts; it is a list even at length 2.
+ * Do not put requestId or a receipt here — those are later seams.
  */
 export class Percept extends InterruptRecord {
     constructor({ record, sourceId, modality = 'text', provenance = 'legacy-unspecified',
-        policy = {}, id = randomUUID(), occurredAt = record.dateTime, tier = null }) {
+        policy = {}, id = randomUUID(), occurredAt = record.dateTime, tier = null, gateTrail = [] }) {
         super(record);
         if (record.infoton) this.infoton = record.infoton;
         this.dateTime = occurredAt;
@@ -51,6 +53,11 @@ export class Percept extends InterruptRecord {
         this.urgent = this.policy.preempt;
         this.renditions = Object.freeze([Object.freeze({ kind: 'text', text: this.renderForFrame() })]);
         this.receivedKind = 'text';
+        if (!Array.isArray(gateTrail)) throw new Error('Percept.gateTrail is a list');
+        this.gateTrail = Object.freeze(gateTrail.map(verdict => {
+            if (!(verdict instanceof GateVerdict)) throw new Error('Percept.gateTrail is a list of GateVerdict');
+            return verdict;
+        }));
     }
 
     toIndexEntry(attendedAt = new Date().toISOString()) {

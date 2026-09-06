@@ -1,7 +1,7 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
 import { Aperture } from '../../infrastructure/aperture.js'
 import { Percept, PerceptCandidate } from '../../infrastructure/percept.js'
-import { SourceContract } from '../../infrastructure/perceptionContracts.js'
+import { SourceContract, AnnotatedCandidate, decideGate } from '../../infrastructure/perceptionContracts.js'
 import { InterruptRecord } from '../../infrastructure/interruptRecord.js'
 import { parseTime } from '../../config/timeParser.js'
 
@@ -34,12 +34,15 @@ import { parseTime } from '../../config/timeParser.js'
  *   - aperture: initial open (default), soft, or closed; wake uses this declared default
  *   - dwell: minimum time between aperture changes (default 30s)
  *   - contactHorizon: weak time-only pressure reaches 1 after this awake interval (10m)
- * Methods: registerSource(element, sample) → offer(header, lazyText); orient(state, source).
+ * Methods: registerSource(element, sample) → offer(header, lazyText); orient(state, source);
+ *   permitAcquisition(annotated) and permitAwareness(percept, annotated) each return a
+ *   GateVerdict from decideGate — acquisition then awareness, even at tier 0.
  * A source may declare name, provenance, tier (default 0), and the three independent
  * bypass powers on the element. It may never assert those from a payload; the frozen
  * SourceContract is the only policy the offer path reads. tier 1 and 2 are refused
  * at registration.
- * Topics: contactPressure, apertureState (retained); events: aperture-change (backstage).
+ * Topics: contactPressure, apertureState (retained); perceptDecision (non-semantic
+ *   gate verdicts); events: aperture-change (backstage).
  * Only registered lazy sources pass through this aperture; legacy interrupts are unchanged.
  */
 export class MRegion extends MBaseComponent {
@@ -92,20 +95,31 @@ export class MRegion extends MBaseComponent {
             const now = Date.now()
             this.aperture.observe(contract.name, candidate, now)
             this._publishAperture()
-            if (!this.aperture.allows(contract.name, contract.powers) || entry.busy) return null
+            const annotated = new AnnotatedCandidate({
+                candidate, contract,
+                versions: [{ gate: 'aperture', version: this.aperture.version }],
+            })
+            const acquisition = this.permitAcquisition(annotated)
+            this._publishDecision(acquisition, annotated)
+            if (!acquisition.permitted) return null
+            if (entry.busy) return null
             entry.busy = true
-            const version = this.aperture.version
             try {
                 const text = await candidate.materialize()
                 if (!attached() || this._mind()?._sleeping
-                    || version !== this.aperture.version) return null
+                    || !this._versionsHold(annotated)) return null
                 const record = new Percept({
                     id: candidate.id, sourceId: contract.name, modality: contract.modality,
                     provenance: contract.provenance, tier: contract.tier, policy: contract.powers,
                     occurredAt: new Date(Math.min(now, candidate.occurredAt)).toISOString(),
                     record: new InterruptRecord({ source: 'External', type: `Sense-${contract.name}`, reason: text,
                         salience: candidate.changeMagnitude * (contract.powers.bypassAperture ? 1 : this.aperture.gain) }),
+                    gateTrail: [acquisition],
                 })
+                const awareness = this.permitAwareness(record, annotated)
+                record.gateTrail = Object.freeze([acquisition, awareness])
+                this._publishDecision(awareness, annotated)
+                if (!awareness.permitted) return null
                 this._issued.add(record)
                 element.dispatchEvent(new CustomEvent('interrupt-request', { bubbles: true, detail: record }))
                 return record
@@ -117,6 +131,31 @@ export class MRegion extends MBaseComponent {
         }
         this._sources.set(element, entry)
         return entry.offer
+    }
+
+    permitAcquisition(annotated) {
+        return decideGate({
+            stage: 'acquisition',
+            apertureState: this.aperture.state,
+            focus: this.aperture.focus,
+            contract: annotated.contract,
+        })
+    }
+
+    permitAwareness(percept, annotated) {
+        return decideGate({
+            stage: 'awareness',
+            apertureState: this.aperture.state,
+            focus: this.aperture.focus,
+            contract: annotated.contract,
+        })
+    }
+
+    /** Every recorded gate version is compared to the live aperture, not a scalar
+     * closed over at offer start. Today the list has this region's aperture; phase 2
+     * appends more entries without changing the loop. */
+    _versionsHold(annotated) {
+        return annotated.versions.every(recorded => recorded.version === this.aperture.version)
     }
 
     orient(state, source = null, now = Date.now()) {
@@ -160,5 +199,16 @@ export class MRegion extends MBaseComponent {
         this.pub('contactPressure', this.aperture.deficit)
         this.pub('apertureState', { state: this.aperture.state, focus: this.aperture.focus,
             contactPressure: this.aperture.deficit, gain: this.aperture.gain })
+    }
+
+    _publishDecision(verdict, annotated) {
+        this.pub('perceptDecision', {
+            stage: verdict.stage,
+            source: annotated.contract.name,
+            permitted: verdict.permitted,
+            reason: verdict.reason,
+            changeMagnitude: annotated.candidate.changeMagnitude,
+            apertureState: verdict.apertureState,
+        })
     }
 }

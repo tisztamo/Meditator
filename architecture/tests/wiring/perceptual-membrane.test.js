@@ -9,6 +9,7 @@ import { loadMindComponents } from '../../../src/startup/loadMindComponents.js';
 import { MMind } from '../../../src/mindComponents/mind/mMind.js';
 import { Percept } from '../../../src/infrastructure/percept.js';
 import { InterruptRecord } from '../../../src/infrastructure/interruptRecord.js';
+import { GateVerdict } from '../../../src/infrastructure/perceptionContracts.js';
 
 let mind, region, local, global, memory, source, journalDir;
 
@@ -47,6 +48,33 @@ afterEach(async () => {
 function allowOrientation() { region.aperture.changedAt = Date.now() - 2000; }
 const frame = stimuli => MMind.prototype.assembleFrame.call(mind, stimuli);
 const header = key => ({ changeMagnitude: 0.9, changeKey: key, occurredAt: Date.now() });
+
+function interceptPub(el) {
+    const published = [];
+    const orig = el.pub.bind(el);
+    el.pub = (topic, data) => {
+        published.push({ topic, data });
+        return orig(topic, data);
+    };
+    return published;
+}
+
+function interceptFire(el) {
+    const fired = [];
+    const orig = el.fire.bind(el);
+    el.fire = (name, detail) => {
+        fired.push({ name, detail });
+        return orig(name, detail);
+    };
+    return fired;
+}
+
+function assertTextAbsent(records, ...snippets) {
+    for (const record of records) {
+        const blob = JSON.stringify(record);
+        for (const snippet of snippets) expect(blob).not.toContain(snippet);
+    }
+}
 
 test('closed content is never rendered, dispatched, or journaled; reopening samples the present', async () => {
     let renders = 0, present = 'missed secret', samples = 0;
@@ -213,6 +241,123 @@ test('local pressure lowers admission threshold and global pressure follows more
     global._updateContactPressure(Date.now());
     expect(global.contactPressure).toBeGreaterThan(0);
     expect(global.contactPressure).toBeLessThan(region.contactPressure);
+});
+
+test('awareness verdict is recorded at tier 0 even when it mirrors acquisition', async () => {
+    allowOrientation();
+    region.orient('open');
+    const text = 'A simulated light in the garden.';
+    const preimage = 'secret-filename.png';
+    const published = interceptPub(region);
+    const offer = region.registerSource(source);
+    const percept = await offer(header(preimage), () => text);
+    expect(percept).toBeInstanceOf(Percept);
+    expect(percept.id).toBeDefined();
+    expect(percept.gateTrail).toHaveLength(2);
+    const [acquisition, awareness] = percept.gateTrail;
+    expect(acquisition).toBeInstanceOf(GateVerdict);
+    expect(acquisition.stage).toBe('acquisition');
+    expect(acquisition.permitted).toBe(true);
+    expect(awareness).toBeInstanceOf(GateVerdict);
+    expect(awareness.stage).toBe('awareness');
+    expect(awareness.reason).toBe('tier-0-mirror');
+    expect(awareness.permitted).toBe(acquisition.permitted);
+    const decisions = published.filter(p => p.topic === 'perceptDecision').map(p => p.data);
+    expect(decisions).toHaveLength(2);
+    expect(decisions[0]).toEqual({
+        stage: 'acquisition', source: 'mock', permitted: true, reason: 'open',
+        changeMagnitude: 0.9, apertureState: 'open',
+    });
+    expect(decisions[1]).toEqual({
+        stage: 'awareness', source: 'mock', permitted: true, reason: 'tier-0-mirror',
+        changeMagnitude: 0.9, apertureState: 'open',
+    });
+    assertTextAbsent(published, text, preimage);
+    expect(JSON.stringify(percept.toIndexEntry())).not.toMatch(/gateTrail|requestId/);
+    expect(global.takePending()).toEqual([percept]);
+});
+
+test('closed aperture publishes a non-semantic acquisition denial and never the withheld text', async () => {
+    const withheld = 'missed secret';
+    const preimage = 'private-caption.png';
+    const published = interceptPub(region);
+    const fired = interceptFire(region);
+    let renders = 0;
+    const bids = [];
+    mind.addEventListener('interrupt-request', e => bids.push(e.detail));
+    const offer = region.registerSource(source);
+    await offer({ ...header(preimage), reason: withheld, caption: withheld }, () => {
+        renders++;
+        return withheld;
+    });
+    expect(renders).toBe(0);
+    expect(bids).toHaveLength(0);
+    expect(global.takePending()).toHaveLength(0);
+    expect(fs.existsSync(path.join(journalDir, 'percepts.jsonl'))).toBe(false);
+    const decisions = published.filter(p => p.topic === 'perceptDecision');
+    expect(decisions).toHaveLength(1);
+    expect(decisions[0].data).toEqual({
+        stage: 'acquisition', source: 'mock', permitted: false, reason: 'closed',
+        changeMagnitude: 0.9, apertureState: 'closed',
+    });
+    expect(published.some(p => p.topic === 'materializationFailure')).toBe(false);
+    assertTextAbsent(published, withheld, preimage, 'secret');
+    assertTextAbsent(fired, withheld, preimage, 'secret');
+});
+
+test('an in-flight materializer is dropped by re-checking the recorded version list', async () => {
+    allowOrientation();
+    region.orient('open');
+    const lists = [];
+    const hold = region._versionsHold.bind(region);
+    region._versionsHold = annotated => {
+        expect(Array.isArray(annotated.versions)).toBe(true);
+        lists.push(annotated.versions.map(recorded => ({ gate: recorded.gate, version: recorded.version })));
+        return hold(annotated);
+    };
+    const offer = region.registerSource(source);
+    let finish;
+    const rendering = offer(header('slow'), () => new Promise(resolve => { finish = resolve; }));
+    const recordedAt = region.aperture.version;
+    allowOrientation();
+    region.orient('closed');
+    finish('This render arrived too late.');
+    expect(await rendering).toBeNull();
+    expect(global.takePending()).toHaveLength(0);
+    expect(lists).toHaveLength(1);
+    expect(lists[0]).toEqual([{ gate: 'aperture', version: recordedAt }]);
+    expect(lists[0][0].version).not.toBe(region.aperture.version);
+});
+
+test('a percept refused at awareness never reaches interrupt-request', async () => {
+    allowOrientation();
+    region.orient('open');
+    const bids = [];
+    mind.addEventListener('interrupt-request', e => bids.push(e.detail));
+    const published = interceptPub(region);
+    const decide = region.permitAwareness.bind(region);
+    region.permitAwareness = (percept, annotated) => {
+        const mirrored = decide(percept, annotated);
+        expect(mirrored).toBeInstanceOf(GateVerdict);
+        expect(mirrored.reason).toBe('tier-0-mirror');
+        expect(mirrored.permitted).toBe(true);
+        return new GateVerdict({
+            stage: mirrored.stage, permitted: false, reason: mirrored.reason,
+            bypass: mirrored.bypass, apertureState: mirrored.apertureState, gate: mirrored.gate,
+        });
+    };
+    const offer = region.registerSource(source);
+    let rendered = 0;
+    const result = await offer(header('here'), () => { rendered++; return 'Should not reach attention.'; });
+    expect(rendered).toBe(1);
+    expect(result).toBeNull();
+    expect(bids).toHaveLength(0);
+    expect(global.takePending()).toHaveLength(0);
+    const awareness = published.filter(p => p.topic === 'perceptDecision' && p.data.stage === 'awareness');
+    expect(awareness).toHaveLength(1);
+    expect(awareness[0].data.permitted).toBe(false);
+    expect(awareness[0].data.reason).toBe('tier-0-mirror');
+    assertTextAbsent(published, 'Should not reach attention.');
 });
 
 test('boundary reflex requests a fresh sample without preemption; sleep suppresses sensing', async () => {
