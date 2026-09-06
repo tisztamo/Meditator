@@ -15,7 +15,10 @@ records the shared constraints, known issues, and proposed high-level comparison
 ## Implementation sketch
 
 The first slice uses the existing regional attention path. It adds no dependencies
-or model calls. Run the offline demonstration from the repository root:
+or model calls, and it implements only the **lean** [processing tier](#processing-tiers):
+every source's edge is a non-semantic detector, and the only thing that exists
+before acquisition permission is the private header. Run the offline demonstration
+from the repository root:
 
 ```sh
 bun scripts/dev/demo-membrane.mjs
@@ -41,12 +44,19 @@ return this.candidate(
 ```
 
 The callback must return archival text. The detector must not generate that text
-early. Custom sources can instead use `region.registerSource(element, sampleNow)`,
+early; a source whose detector needs a query-conditioned model or a describer at
+its edge would be declaring tier 1 or tier 2, which this slice does not accept.
+Custom sources can instead use `region.registerSource(element, sampleNow)`,
 which returns the same `(header, lazyText)` offer function. Source identity (`name`),
 `provenance`, and the independent `bypassAperture`, `bypassAdmission`, and `preempt`
 attributes are read from architecture configuration when registering, never from
 candidate payloads. Provenance defaults to `unspecified`; examples should explicitly
 use `simulated`, `physical`, `other-mind`, `generated`, or `internal` as appropriate.
+There is no `tier` attribute yet: the sketch treats every registered source as
+tier 0, and percept provenance does not record a tier. The tier contract requires
+the declaration to live in the source's architecture configuration next to these
+attributes and to be carried in provenance, never inferred from a payload; adding
+it is part of the seam work below.
 This is an in-process adapter boundary, not a sandbox for untrusted component code.
 
 `region.orient('closed')`, `region.orient('open')`, or
@@ -57,6 +67,14 @@ receipt from frame assembly reduces contact debt. Rejected and crowded-out bids 
 not. Debt has a weak awake-time contribution with an arousal-independent floor,
 capped change contributions, and per-source habituation. The first thresholds and
 time constants are provisional experiment settings. No thought content is inspected.
+
+Because every source is tier 0, the awareness gate coincides with the acquisition
+gate: one aperture decision both permits materialization and admits the rendition
+to attention competition, and the design's separate awareness stage is a no-op in
+this slice. The regulator's deficit is fed only by `changeMagnitude` from headers;
+there is no typed path for tier-1 match scores, so nothing can be mistaken for a
+change header, and equally nothing can be searched while closed. The search
+controller and its pre-detection control path are not part of this slice.
 
 The region publishes retained `apertureState` and `contactPressure`; regional
 arbiters consume local pressure and the global arbiter follows the regional mean
@@ -75,7 +93,7 @@ lazy or aperture-controlled: migrating each detector is separate work.
 
 Still deferred: the model-driven `orient` hand and its cooldown lane, native media
 and model capability selection, rendition-aware recall, deliberate gaze/efference
-copies, media retention, and Studio timelines. This slice establishes the contact
+copies, media retention, Studio timelines, and any edge processing above tier 0. This slice establishes the contact
 boundary and its return path; it does not implement the spatial world or validate
 the proposed dynamics on a live mind.
 
@@ -90,11 +108,13 @@ revision documents them; it does not fix the runtime or run further experiments.
 | Sensory change directly sets salience | A zero-change observation is rendered but rejected at a positive threshold, reproduced in the review. Expected confirmations need independent relevance; mismatch must not replace `changeMagnitude`. |
 | Policy is constructed or discovered inside consumers | `m-region` owns a fixed `Aperture`; `m-interrupts` discovers modality regions and computes their slow mean. Make regulation, aggregation, and control bindings replaceable; the role lookups and pressure fold in enclosure by role cover the discovery half. |
 | Evidence and bid state share mutable records | Regional gain mutates salience, while receipt credit relies on the issued object. Independent evaluations and authoritative receipts need stable evidence identity across legitimate adapters and fan-out. |
-| Source control is incomplete | The materializer receives requested kinds only; detector cadence and focus have no general control input. Deliver sampling/focus requests before detection and detail requests before materialization. |
+| Source control is incomplete | The materializer receives requested kinds only; detector cadence and focus have no general control input. Deliver sampling/focus requests before detection and detail requests before materialization; at tier 1 this same path carries the grounding query. |
+| Processing tier is implicit | Every source is silently tier 0; there is no `tier` declaration, provenance carries none, and the regulator has no typed input other than a change header. Add the declaration to source configuration and provenance, type tier-1 evidence so it can reach a controller but never the tier-0 deficit, and make acquisition and awareness gates distinct stages so tiers 1 and 2 can be admitted without a side path. The lean-versus-edge-grounded experiment needs this seam before it can run. |
 
 Existing eager senses remain outside aperture control, and native media,
-prediction lifecycle, and search are still deferred. The constraints below are
-the target contract, not a claim that these limits have already been removed.
+prediction lifecycle, search, and tiers 1 and 2 are still deferred. The
+constraints below are the target contract, not a claim that these limits have
+already been removed.
 
 ## The proposal
 
