@@ -1,7 +1,7 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
 import { Aperture } from '../../infrastructure/aperture.js'
 import { Percept, PerceptCandidate } from '../../infrastructure/percept.js'
-import { SourceContract, AnnotatedCandidate, decideGate, ControlRequest, RenditionRequest, PerceptReceipt } from '../../infrastructure/perceptionContracts.js'
+import { SourceContract, AnnotatedCandidate, decideGate, GateVerdict, ControlRequest, RenditionRequest, PerceptReceipt } from '../../infrastructure/perceptionContracts.js'
 import { InterruptRecord } from '../../infrastructure/interruptRecord.js'
 import { parseTime } from '../../config/timeParser.js'
 
@@ -37,7 +37,7 @@ import { parseTime } from '../../config/timeParser.js'
  * Methods: registerSource(element, sample) → offer(header, lazyText); orient(state, source);
  *   requestControl(ControlRequest) is the one door for sample / focus / detail —
  *   focus is accepted and changes no policy;
- *   permitAcquisition(annotated) and permitAwareness(percept, annotated) each return a
+ *   permitAcquisition(annotated) and permitAwareness(annotated) each return a
  *   GateVerdict from decideGate — acquisition then awareness; at tier 0 awareness is a
  *   real verdict with reason 'tier-0-mirror'.
  * A source may declare name, provenance, tier (default 0), and the three independent
@@ -110,9 +110,20 @@ export class MRegion extends MBaseComponent {
                 versions: [{ gate: 'aperture', version: this.aperture.version }],
             })
             const acquisition = this.permitAcquisition(annotated)
+            // A source already materializing is dropped exactly as before, but the
+            // published record must say so: a `permitted: true` acquisition with no
+            // awareness verdict and no percept following it left an unterminated
+            // acquisition in the decision log. Publish the honest refusal instead of
+            // the verdict decideGate actually reached.
+            if (acquisition.permitted && entry.busy) {
+                this._publishDecision(new GateVerdict({
+                    stage: 'acquisition', permitted: false, reason: 'busy',
+                    bypass: acquisition.bypass, apertureState: acquisition.apertureState, gate: acquisition.gate,
+                }), annotated)
+                return null
+            }
             this._publishDecision(acquisition, annotated)
             if (!acquisition.permitted) return null
-            if (entry.busy) return null
             entry.busy = true
             try {
                 const text = await candidate.materialize(new RenditionRequest({
@@ -122,6 +133,11 @@ export class MRegion extends MBaseComponent {
                 }))
                 if (!attached() || this._mind()?._sleeping
                     || !this._versionsHold(annotated)) return null
+                // The awareness verdict is decided before the Percept exists — permitAwareness
+                // never needed the percept itself, only the annotated candidate — so the
+                // full gateTrail is known at construction time and a Percept is never
+                // mutated after issue (plan §6).
+                const awareness = this.permitAwareness(annotated)
                 const record = new Percept({
                     id: candidate.id, sourceId: contract.name, modality: contract.modality,
                     provenance: contract.provenance, tier: contract.tier, policy: contract.powers,
@@ -129,10 +145,8 @@ export class MRegion extends MBaseComponent {
                     occurredAt: new Date(Math.min(now, candidate.occurredAt)).toISOString(),
                     record: new InterruptRecord({ source: 'External', type: `Sense-${contract.name}`, reason: text,
                         salience: candidate.changeMagnitude * (contract.powers.bypassAperture ? 1 : this.aperture.gain) }),
-                    gateTrail: [acquisition],
+                    gateTrail: [acquisition, awareness],
                 })
-                const awareness = this.permitAwareness(record, annotated)
-                record.gateTrail = Object.freeze([acquisition, awareness])
                 this._publishDecision(awareness, annotated)
                 if (!awareness.permitted) return null
                 const issuedAt = Date.parse(record.dateTime)
@@ -158,7 +172,7 @@ export class MRegion extends MBaseComponent {
         })
     }
 
-    permitAwareness(percept, annotated) {
+    permitAwareness(annotated) {
         return decideGate({
             stage: 'awareness',
             apertureState: this.aperture.state,
@@ -196,7 +210,14 @@ export class MRegion extends MBaseComponent {
      * too. `focus` is validated, delivered, and recorded, but must change no
      * policy: the search controller that owns focus is membrane phase 3, and a
      * region must not grow a search conclusion. Requests to a detached or
-     * sleeping source are dropped; dropping is not an error. */
+     * sleeping source are dropped; dropping is not an error.
+     *
+     * A named `target` reaches its source even while the aperture refuses it:
+     * asking a specific source is the CONTROLLER's decision, and the acquisition
+     * gate still decides whether anything it returns is disclosed. An untargeted
+     * broadcast carries no such decision, so it skips sources the aperture
+     * already refuses rather than spending a materializer call on content that
+     * would only be discarded. */
     requestControl(request) {
         if (!(request instanceof ControlRequest)) throw new Error('requestControl requires a ControlRequest')
         if (!this.aperture) return

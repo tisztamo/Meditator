@@ -234,6 +234,20 @@ test('gateTrail is a list; stringify and the index entry do not grow content-bea
     expect(json).not.toMatch(/gateTrail|requestId/);
 });
 
+// Finding 3: mRegion used to build a Percept with only the acquisition verdict,
+// then reassign `record.gateTrail = Object.freeze([acquisition, awareness])` once
+// awareness was known — a mutation after issue that bypassed this very check. The
+// gateTrail is now only ever set through the constructor (mRegion computes the
+// awareness verdict first and passes the whole trail in), so there is no back
+// door left for an invalid entry to slip past validation.
+test('Percept validates every gateTrail entry at construction; there is no back door', () => {
+    expect(() => new Percept({
+        sourceId: 'loop',
+        record: new InterruptRecord({ reason: 'Turn outward.' }),
+        gateTrail: [{ stage: 'acquisition', permitted: true }],
+    })).toThrow(/Percept.gateTrail is a list of GateVerdict/);
+});
+
 test('aperture bypass, admission bypass, and preemption remain independent', () => {
     const a = new Aperture({ state: 'closed' });
     expect(a.allows('voice', { bypassAdmission: true, preempt: true })).toBe(false);

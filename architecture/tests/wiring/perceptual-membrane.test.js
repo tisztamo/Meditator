@@ -241,6 +241,33 @@ test('an in-flight materializer cannot deliver after voluntary closure', async (
     expect(global.takePending()).toHaveLength(0);
 });
 
+test('a second offer while the first still materializes is refused as busy, and says so honestly', async () => {
+    // Finding 8: the candidate dropped for busy used to publish `permitted: true` —
+    // an acquisition with no awareness verdict and no percept ever following it,
+    // an unterminated entry in the decision log. It must now publish its own
+    // honest refusal instead.
+    allowOrientation();
+    region.orient('open');
+    const published = interceptPub(region);
+    const offer = region.registerSource(source);
+    let finish;
+    const first = offer(header('slow'), () => new Promise(resolve => { finish = resolve; }));
+    const second = await offer(header('again'), () => 'Should not render while busy.');
+    expect(second).toBeNull();
+    const acquisitions = published.filter(p => p.topic === 'perceptDecision' && p.data.stage === 'acquisition').map(p => p.data);
+    expect(acquisitions).toHaveLength(2);
+    expect(acquisitions[0]).toEqual({
+        stage: 'acquisition', source: 'mock', permitted: true, reason: 'open',
+        changeMagnitude: 0.9, apertureState: 'open',
+    });
+    expect(acquisitions[1]).toEqual({
+        stage: 'acquisition', source: 'mock', permitted: false, reason: 'busy',
+        changeMagnitude: 0.9, apertureState: 'open',
+    });
+    finish('Late render.');
+    expect(await first).toBeInstanceOf(Percept);
+});
+
 test('narrow attention only materializes its selected source and honors minimum dwell', async () => {
     const other = document.createElement('span');
     other.setAttribute('name', 'other');
@@ -418,8 +445,8 @@ test('a percept refused at awareness never reaches interrupt-request', async () 
     mind.addEventListener('interrupt-request', e => bids.push(e.detail));
     const published = interceptPub(region);
     const decide = region.permitAwareness.bind(region);
-    region.permitAwareness = (percept, annotated) => {
-        const mirrored = decide(percept, annotated);
+    region.permitAwareness = annotated => {
+        const mirrored = decide(annotated);
         expect(mirrored).toBeInstanceOf(GateVerdict);
         expect(mirrored.reason).toBe('tier-0-mirror');
         expect(mirrored.permitted).toBe(true);

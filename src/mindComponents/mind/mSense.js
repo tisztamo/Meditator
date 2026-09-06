@@ -60,7 +60,6 @@ const log = logger('mSense.js');
 export class MSense extends MBaseComponent {
     _timer = null
     _lastKey = null
-    _controlRequest = null
 
     get defaultTimeout() { return "8m" }
     get defaultSigma() { return "2m" }
@@ -85,14 +84,13 @@ export class MSense extends MBaseComponent {
     candidate(header, materialize) {
         const region = this._modalityRegion()
         if (!region?.registerSource) throw new Error('A lazy sense needs an m-region with modality')
-        const offer = region.registerSource(this, request => {
-            this._controlRequest = request ?? null
-            return Promise.resolve(this.onSense(request)).finally(() => {
-                if (this._controlRequest === (request ?? null)) this._controlRequest = null
-            })
-        })
-        const requestId = header?.requestId ?? this._controlRequest?.id ?? null
-        return offer(requestId == null ? header : { ...header, requestId }, materialize)
+        // The region already resolves lineage itself, from the same in-flight
+        // `entry.control` it sets before calling this callback and clears once the
+        // callback's returned promise settles — the same window `candidate()` runs
+        // in. A parallel copy here could never supply a value the region lacks,
+        // so this callback only forwards the request.
+        const offer = region.registerSource(this, request => this.onSense(request))
+        return offer(header, materialize)
     }
 
     _nextDelay() {
@@ -106,7 +104,6 @@ export class MSense extends MBaseComponent {
     }
 
     _onTimer = async () => {
-        this._controlRequest = null
         try { await this.onSense() }
         catch (e) { log.debug(`[${this.attr("name") || this.localName}] sense quiet (${e?.message || e})`) }
         this._schedule(this._nextDelay())

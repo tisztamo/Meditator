@@ -64,8 +64,12 @@ It returns whether a change was accepted. Reopening asks registered senses for a
 fresh sample through `requestControl` (`kind: 'sample'`); it never replays missed
 content. `requestControl` is the one public door for `sample`, `detail`, and `focus`.
 `sample` and `detail` run end to end; `focus` is accepted and recorded and **changes
-no policy** — there is no search controller. `onSense(request)` may ignore the
-request. Only a fresh typed `PerceptReceipt` from frame assembly, fired on
+no policy** — there is no search controller. A named target reaches its source even
+while the aperture refuses it — asking a specific source is the controller's
+decision, and the acquisition gate still decides whether anything it returns is
+disclosed; an untargeted broadcast skips sources the aperture already refuses.
+`onSense(request)` may ignore the request. Only a fresh typed `PerceptReceipt`
+from frame assembly, fired on
 `percepts-attended` and credited **by percept id**, reduces contact debt. Rejected
 and crowded-out bids do not. Debt has a weak awake-time contribution with an
 arousal-independent floor, capped change contributions, and per-source habituation.

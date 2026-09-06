@@ -303,7 +303,7 @@ Registered source elements (never payload fields) declare:
 | `tier` | `0` | `1` and `2` throw at registration |
 | `bypassAperture` / `bypassAdmission` / `preempt` | `false` | three independent powers |
 
-- **API:** `registerSource(element, sample)` → `offer(header, lazyText)`; `orient(state, source)`; `requestControl(ControlRequest)` is the one door for `sample` / `detail` / `focus` (`focus` is accepted and changes no policy).
+- **API:** `registerSource(element, sample)` → `offer(header, lazyText)`; `orient(state, source)`; `requestControl(ControlRequest)` is the one door for `sample` / `detail` / `focus` (`focus` is accepted and changes no policy). A named `target` reaches its source even while the aperture refuses it — that is the controller's decision, and the acquisition gate still decides disclosure; an untargeted broadcast skips sources the aperture already refuses.
 - **Publishes:** `contactPressure`, `apertureState` (retained); `perceptDecision` (non-semantic gate verdicts — no text).
 - **Events:** `aperture-change` (backstage). Credits `percepts-attended` **by percept id**.
 - Only registered lazy sources pass this aperture; eager `feel()` and legacy interrupts do not.
