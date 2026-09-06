@@ -1,10 +1,15 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
-import { enclosingOf } from "../shared/enclosure.js"
+import { enclosingOf, enclosingAllOf, isMembrane } from "../shared/enclosure.js"
 import { Aperture } from '../../infrastructure/aperture.js'
 import { Percept, PerceptCandidate } from '../../infrastructure/percept.js'
-import { SourceContract, AnnotatedCandidate, decideGate, GateVerdict, ControlRequest, RenditionRequest, PerceptReceipt } from '../../infrastructure/perceptionContracts.js'
+import { SourceContract, AnnotatedCandidate, decideGate, GateVerdict, ControlRequest, RenditionRequest, PerceptReceipt, pushGainTrail } from '../../infrastructure/perceptionContracts.js'
 import { InterruptRecord } from '../../infrastructure/interruptRecord.js'
 import { parseTime } from '../../config/timeParser.js'
+
+/** Stable id for a gate: `name` attribute, else the tag. Unique among apertures in a membrane. */
+export function gateIdOf(el) {
+    return el?.getAttribute?.('name') || el?.localName
+}
 
 /**
  * A FACULTY boundary inside a mind: a structural grouping of observers (and an
@@ -47,15 +52,18 @@ import { parseTime } from '../../config/timeParser.js'
  * SourceContract is the only policy the offer path reads. tier 1 and 2 are refused
  * at registration.
  * Topics: contactPressure, apertureState (retained); perceptDecision (non-semantic
- *   gate verdicts); events: aperture-change (backstage). Credits `percepts-attended`
- *   by percept id against a bounded issued-id map — never by object identity.
+ *   gate verdicts); events: aperture-change (backstage); percept-candidate (cancelable,
+ *   bubbling, acquisition stage — conjunction of every aperture on the path, stopped
+ *   at the membrane). Credits `percepts-attended` by percept id against a bounded
+ *   issued-id map — never by object identity. Awareness is still the local
+ *   permitAwareness call; bids are not split yet.
  * Only registered lazy sources pass through this aperture; legacy interrupts are unchanged.
  */
 export class MRegion extends MBaseComponent {
     // Always an attention scope; with `modality` it is also a sensory gate.
     // Predicates see the raw element and may read only attributes (they exist
-    // before upgrade). Nearest aperture is still the whole permission — gates
-    // do not compose yet (W3 still fails).
+    // before upgrade). Nearest aperture still owns registration and observe();
+    // every aperture on the path gates acquisition via percept-candidate.
     static provides = { faculty: true, aperture: el => el.hasAttribute('modality') }
 
     onConnect() {
@@ -83,10 +91,13 @@ export class MRegion extends MBaseComponent {
             this.sub('..m-mind/economy/arousal', value => { this._arousal = value }).catch(() => {})
         }
         this._publishAperture()
+        this._assertUniqueApertureId()
+        this.addEventListener('percept-candidate', this._onPerceptCandidate)
     }
 
     onDisconnect() {
         this._unlistenPercepts?.()
+        this.removeEventListener('percept-candidate', this._onPerceptCandidate)
         if (this.aperture) this.aperture.version++
         this._sources?.clear()
         this._issued?.clear()
@@ -111,13 +122,31 @@ export class MRegion extends MBaseComponent {
             const requestId = control?.id ?? header.requestId ?? null
             const candidate = new PerceptCandidate({ ...header, requestId }, materialize)
             const now = Date.now()
+            // Closed still observes the header (debt); composition decides materialization.
             this.aperture.observe(contract.name, candidate, now)
             this._publishAperture()
+
+            const detail = {
+                stage: 'acquisition',
+                header: candidate,
+                origin: element,
+                contract,
+                verdicts: [],
+                versions: [],
+                gainTrail: [],
+            }
+            // Snapshot the path before dispatch: a gate removed mid-flight must not
+            // look like permission. Walk from the source so the issuer is included.
+            const expectedGates = enclosingAllOf(element, 'aperture')
+            if (!expectedGates.includes(this)) expectedGates.unshift(this)
+            const event = new CustomEvent('percept-candidate', { bubbles: true, cancelable: true, detail })
+            element.dispatchEvent(event)
+
             const annotated = new AnnotatedCandidate({
                 candidate, contract,
-                versions: [{ gate: 'aperture', version: this.aperture.version }],
+                versions: detail.versions,
             })
-            const acquisition = this.permitAcquisition(annotated)
+            const acquisition = this._composedAcquisition(event, expectedGates)
             // A source already materializing is dropped exactly as before, but the
             // published record must say so: a `permitted: true` acquisition with no
             // awareness verdict and no percept following it left an unterminated
@@ -141,10 +170,7 @@ export class MRegion extends MBaseComponent {
                 }))
                 if (!attached() || this._mind()?._sleeping
                     || !this._versionsHold(annotated)) return null
-                // The awareness verdict is decided before the Percept exists — permitAwareness
-                // never needed the percept itself, only the annotated candidate — so the
-                // full gateTrail is known at construction time and a Percept is never
-                // mutated after issue (plan §6).
+                // Awareness is still this region's local call (M3 composes it).
                 const awareness = this.permitAwareness(annotated)
                 const record = new Percept({
                     id: candidate.id, sourceId: contract.name, modality: contract.modality,
@@ -177,6 +203,7 @@ export class MRegion extends MBaseComponent {
             apertureState: this.aperture.state,
             focus: this.aperture.focus,
             contract: annotated.contract,
+            gate: this._gateId(),
         })
     }
 
@@ -186,14 +213,83 @@ export class MRegion extends MBaseComponent {
             apertureState: this.aperture.state,
             focus: this.aperture.focus,
             contract: annotated.contract,
+            gate: this._gateId(),
         })
     }
 
-    /** Every recorded gate version is compared to the live aperture, not a scalar
-     * closed over at offer start. Today the list has this region's aperture; phase 2
-     * appends more entries without changing the loop. */
+    _gateId() { return gateIdOf(this) }
+
+    /** Every aperture on the path answers. Nobody but the membrane stops this event. */
+    _onPerceptCandidate = event => {
+        const detail = event.detail
+        if (!detail || detail.stage !== 'acquisition') return
+        if (!this.aperture) return
+        if (!(detail.contract instanceof SourceContract)) {
+            event.preventDefault()
+            return
+        }
+        const path = enclosingAllOf(detail.origin, 'aperture')
+        if (!path.includes(this)) return
+
+        const verdict = this.permitAcquisition(detail)
+        detail.verdicts.push(verdict)
+        detail.versions.push({ gate: verdict.gate, version: this.aperture.version })
+        const factor = detail.contract.powers.bypassAperture ? 1 : this.aperture.gain
+        pushGainTrail(detail.gainTrail, verdict.gate, factor)
+        if (!verdict.permitted) event.preventDefault()
+    }
+
+    _everyGateAnswered(detail, expectedGates) {
+        const answered = new Set((detail.verdicts || []).map(v => v.gate))
+        return expectedGates.every(el => answered.has(gateIdOf(el)))
+    }
+
+    _composedAcquisition(event, expectedGates) {
+        const detail = event.detail
+        const refused = (detail.verdicts || []).find(v => v.permitted === false)
+        const permitted = !event.defaultPrevented
+            && this._everyGateAnswered(detail, expectedGates)
+            && !refused
+        if (permitted) {
+            return detail.verdicts.find(v => v.gate === this._gateId())
+                || this._gateMissingVerdict(detail)
+        }
+        if (refused) return refused
+        return this._gateMissingVerdict(detail)
+    }
+
+    _gateMissingVerdict(detail) {
+        return new GateVerdict({
+            stage: 'acquisition',
+            permitted: false,
+            reason: 'gate-missing',
+            bypass: detail.contract?.powers?.bypassAperture === true,
+            apertureState: this.aperture.state,
+            gate: this._gateId(),
+        })
+    }
+
+    _assertUniqueApertureId() {
+        const id = this._gateId()
+        const root = this.membrane()
+        if (!root) return
+        const walk = node => {
+            for (const child of node.children || []) {
+                if (isMembrane(child)) continue
+                if (child !== this && child.aperture && gateIdOf(child) === id) {
+                    throw new Error(`Aperture names must be unique within a membrane (${id})`)
+                }
+                walk(child)
+            }
+        }
+        walk(root)
+    }
+
+    /** Re-check this issuer's recorded version only. Outer live versions are M3. */
     _versionsHold(annotated) {
-        return annotated.versions.every(recorded => recorded.version === this.aperture.version)
+        const mine = annotated.versions.filter(recorded => recorded.gate === this._gateId())
+        if (!mine.length) return false
+        return mine.every(recorded => recorded.version === this.aperture.version)
     }
 
     orient(state, source = null, now = Date.now()) {

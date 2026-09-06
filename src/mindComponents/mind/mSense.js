@@ -77,7 +77,7 @@ export class MSense extends MBaseComponent {
         if (this._timer) clearTimeout(this._timer)
     }
 
-    // Nearest aperture only — every gate on the path is M2.
+    // Nearest aperture owns registration; every gate on the path answers the event.
     _modalityRegion() { return this.enclosing('aperture') }
 
     /** Subclass hooks. `request` is optional; timer-driven rounds pass none. */

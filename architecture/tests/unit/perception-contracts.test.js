@@ -1,6 +1,6 @@
 import { test, expect, describe } from 'bun:test';
 import {
-    SourceContract, AnnotatedCandidate, GateVerdict, decideGate,
+    SourceContract, AnnotatedCandidate, GateVerdict, decideGate, pushGainTrail,
     ControlRequest, RenditionRequest, Evaluation, EdgeEvidence, PerceptReceipt,
     PROVENANCE, LEGACY_EVENT_PROVENANCE, legacyProvenance, legacyCompatibility,
 } from '../../../src/infrastructure/perceptionContracts.js';
@@ -156,6 +156,10 @@ describe('GateVerdict and decideGate', () => {
         });
         expect(Object.isFrozen(v)).toBe(true);
         expect(v.gate).toBe('aperture');
+        const named = new GateVerdict({
+            stage: 'acquisition', permitted: true, reason: 'open', apertureState: 'open', gate: 'outside',
+        });
+        expect(named.gate).toBe('outside');
         expect(() => new GateVerdict({
             stage: 'materialize', permitted: true, reason: 'x', apertureState: 'open',
         })).toThrow(/Unknown stage/);
@@ -239,6 +243,24 @@ describe('GateVerdict and decideGate', () => {
             stage: 'acquisition', apertureState: 'closed',
             contract: { name: 'garden', powers: { bypassAperture: true } },
         })).toThrow(/SourceContract/);
+    });
+
+    test('decideGate defaults gate to aperture and accepts a provider id', () => {
+        const c = new SourceContract({ name: 'garden', modality: 'text' });
+        expect(decideGate({ stage: 'acquisition', apertureState: 'open', contract: c }).gate).toBe('aperture');
+        expect(decideGate({
+            stage: 'acquisition', apertureState: 'open', contract: c, gate: 'outside',
+        }).gate).toBe('outside');
+    });
+
+    test('pushGainTrail accepts factor <= 1 and rejects amplification', () => {
+        const trail = [];
+        pushGainTrail(trail, 'outside', 1);
+        pushGainTrail(trail, 'shell', 0.5);
+        expect(trail).toEqual([{ gate: 'outside', factor: 1 }, { gate: 'shell', factor: 0.5 }]);
+        expect(() => pushGainTrail(trail, 'shell', 1.5)).toThrow(/amplify/);
+        expect(() => pushGainTrail(trail, 'shell', Infinity)).toThrow(/amplify/);
+        expect(trail).toHaveLength(2);
     });
 });
 

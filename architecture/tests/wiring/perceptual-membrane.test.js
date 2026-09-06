@@ -433,7 +433,7 @@ test('an in-flight materializer is dropped by re-checking the recorded version l
     expect(await rendering).toBeNull();
     expect(global.takePending()).toHaveLength(0);
     expect(lists).toHaveLength(1);
-    expect(lists[0]).toEqual([{ gate: 'aperture', version: recordedAt }]);
+    expect(lists[0]).toEqual([{ gate: 'outside', version: recordedAt }]);
     expect(lists[0][0].version).not.toBe(region.aperture.version);
 });
 

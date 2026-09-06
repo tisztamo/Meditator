@@ -6,9 +6,8 @@
  * is safe at connect — the upgrade race that used to force tag `closest()`.
  * The attribute is derived, never authored; authoring cannot grant a role.
  *
- * Composition of gates is not done here. `enclosing('aperture')` is still the
- * nearest provider; an outer closed gate over an inner open one still admits
- * (W3). That is the percept-candidate work, not this slice.
+ * Lookups stop at the membrane. Composed acquisition is the region's
+ * `percept-candidate` event, not these helpers.
  */
 
 const IDENTITY_ROLES = ['mind', 'agent', 'society']

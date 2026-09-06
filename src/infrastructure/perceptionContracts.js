@@ -138,7 +138,7 @@ export class GateVerdict {
  *
  * Awareness at tier 0 is a documented mirror (same `permitted`, reason
  * `tier-0-mirror`) so M4 can call this twice and record a real verdict. */
-export function decideGate({ stage, apertureState, focus = null, contract } = {}) {
+export function decideGate({ stage, apertureState, focus = null, contract, gate = 'aperture' } = {}) {
     requireEnum('stage', stage, GATE_STAGES);
     requireEnum('apertureState', apertureState, APERTURE_STATES);
     if (!(contract instanceof SourceContract)) {
@@ -149,7 +149,7 @@ export function decideGate({ stage, apertureState, focus = null, contract } = {}
         && (apertureState !== 'narrow' || contract.name === focus));
     if (stage === 'awareness') {
         return new GateVerdict({
-            stage, permitted, reason: 'tier-0-mirror', bypass, apertureState,
+            stage, permitted, reason: 'tier-0-mirror', bypass, apertureState, gate,
         });
     }
     let reason;
@@ -163,7 +163,18 @@ export function decideGate({ stage, apertureState, focus = null, contract } = {}
     // refused this" without cross-checking `permitted`.
     else if (apertureState === 'narrow') reason = 'narrow-focus';
     else reason = apertureState;
-    return new GateVerdict({ stage: 'acquisition', permitted, reason, bypass, apertureState });
+    return new GateVerdict({ stage: 'acquisition', permitted, reason, bypass, apertureState, gate });
+}
+
+/** Append `{ gate, factor }` to a composed gain trail. Enclosure may attenuate
+ * (`factor <= 1`); it may never amplify. Rejected at the push, not silently clamped. */
+export function pushGainTrail(trail, gate, factor) {
+    if (!Array.isArray(trail)) throw new Error('gain trail is a list');
+    if (typeof gate !== 'string' || !gate) throw new Error('gain trail needs a gate name');
+    if (typeof factor !== 'number' || !Number.isFinite(factor) || factor > 1) {
+        throw new Error('enclosing authority may not amplify: gain factor must be <= 1');
+    }
+    trail.push(Object.freeze({ gate, factor }));
 }
 
 /** Trusted annotation of a private candidate. Never leaves the provider chain.

@@ -1,6 +1,6 @@
 import A from "amanita"
 import { seedPos, anchorOnRing, applyStep, extractInfoton, envelope, ENERGY, SPACE_DEFAULTS } from "./infoton.js"
-import { reflectProvides, enclosingOf, enclosingAllOf, membraneOf, part as partsOf, providesOf } from "./enclosure.js"
+import { reflectProvides, enclosingOf, enclosingAllOf, membraneOf, part as partsOf, providesOf, isMembrane } from "./enclosure.js"
 
 export { enclosingOf, enclosingAllOf, membraneOf, part, providesOf } from "./enclosure.js"
 
@@ -35,6 +35,14 @@ export class MBaseComponent extends A(HTMLElement) {
         // Reflect before onConnect so a child that binds in onConnect already
         // sees `provides` on this node (and closest('[provides~="…"]') works).
         reflectProvides(this, this.constructor)
+        // Structural events never cross a membrane. Install the stop here so every
+        // identity root that extends this class gets it — including a test host —
+        // rather than listing MMind / MAgent / MSociety (and missing a stub that
+        // is A(HTMLElement), which wiring tests often use for <m-mind>).
+        if (isMembrane(this) && !this._stopsPerceptCandidate) {
+            this._stopsPerceptCandidate = true
+            this.addEventListener("percept-candidate", event => event.stopPropagation())
+        }
         this._spaceInit()
         super.connectedCallback()
     }
