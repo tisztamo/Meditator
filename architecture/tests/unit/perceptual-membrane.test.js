@@ -2,7 +2,7 @@ import { test, expect } from 'bun:test';
 import { Aperture } from '../../../src/infrastructure/aperture.js';
 import { Percept, PerceptCandidate } from '../../../src/infrastructure/percept.js';
 import { InterruptRecord, withPerceivedEvents } from '../../../src/infrastructure/interruptRecord.js';
-import { EdgeEvidence, legacyCompatibility, legacyProvenance, RenditionRequest } from '../../../src/infrastructure/perceptionContracts.js';
+import { EdgeEvidence, legacyCompatibility, legacyProvenance, RenditionRequest, PerceptReceipt } from '../../../src/infrastructure/perceptionContracts.js';
 
 const unusedMaterializer = () => 'x';
 const candidate = (changeKey, changeMagnitude = 1) =>
@@ -218,7 +218,7 @@ test('observe accepts only a PerceptCandidate and never materializes', () => {
     expect(calls).toBe(0);
 });
 
-test('gateTrail is a list; stringify and the index entry do not grow content-bearing fields', () => {
+test('gateTrail is a list; a receipt built from the percept does not carry it', () => {
     const percept = new Percept({
         sourceId: 'loop',
         record: new InterruptRecord({ reason: 'Turn outward.' }),
@@ -227,11 +227,20 @@ test('gateTrail is a list; stringify and the index entry do not grow content-bea
     expect(percept.gateTrail).toEqual([]);
     expect(Object.isFrozen(percept.gateTrail)).toBe(true);
     expect(percept.requestId).toBeNull();
-    const entry = percept.toIndexEntry();
+    // Percept.toIndexEntry() is gone — a PerceptReceipt, built the way
+    // frame assembly builds one, is the only typed index shape now. It is built from
+    // named percept fields, never from the percept itself, so gateTrail never rides along.
+    const entry = new PerceptReceipt({
+        perceptId: percept.id, frameId: 'frame-1', sourceId: percept.sourceId, modality: percept.modality,
+        provenance: percept.provenance, tier: percept.tier, occurredAt: percept.dateTime,
+        attendedAt: new Date().toISOString(), receivedKind: percept.receivedKind,
+        renditionText: percept.renderForFrame(), requestId: percept.requestId, policy: percept.policy,
+    });
     expect(entry).not.toHaveProperty('gateTrail');
-    expect(entry).not.toHaveProperty('requestId');
     const json = JSON.stringify(entry);
-    expect(json).not.toMatch(/gateTrail|requestId/);
+    expect(json).not.toMatch(/gateTrail/);
+    expect(entry.requestId).toBeNull();
+    expect(entry.policy).toEqual(percept.policy);
 });
 
 // Finding 3: mRegion used to build a Percept with only the acquisition verdict,

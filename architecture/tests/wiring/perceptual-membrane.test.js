@@ -349,7 +349,6 @@ test('awareness verdict is recorded at tier 0 even when it mirrors acquisition',
         changeMagnitude: 0.9, apertureState: 'open',
     });
     assertTextAbsent(published, text, preimage);
-    expect(JSON.stringify(percept.toIndexEntry())).not.toMatch(/gateTrail/);
     expect(global.takePending()).toEqual([percept]);
     const fired = interceptFire(mind);
     await frame([percept]);

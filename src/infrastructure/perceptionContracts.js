@@ -8,7 +8,6 @@ export const PROVENANCE = Object.freeze([
     'unspecified', 'legacy-unspecified',
 ]);
 
-export const PROCESSING_TIERS = Object.freeze([0, 1, 2]);
 export const GATE_STAGES = Object.freeze(['acquisition', 'awareness']);
 export const APERTURE_STATES = Object.freeze(['open', 'soft', 'narrow', 'closed']);
 export const CONTROL_KINDS = Object.freeze(['sample', 'focus', 'detail']);
@@ -69,7 +68,7 @@ function freezePowers(powers = {}) {
  * Downstream code must not re-read the element. Payloads cannot construct this
  * and cannot grant its powers. */
 export class SourceContract {
-    constructor({ name, modality, provenance, tier, privacy, powers, element } = {}) {
+    constructor({ name, modality, provenance, tier, privacy, powers } = {}) {
         if (typeof name !== 'string' || !name) throw new Error('SourceContract needs a name');
         if (typeof modality !== 'string' || !modality) {
             throw new Error('SourceContract modality comes from the provider, not the source');
@@ -80,7 +79,6 @@ export class SourceContract {
         this.tier = parseTier(tier);
         this.privacy = requireEnum('privacy', privacy ?? 'resident-private', PRIVACY);
         this.powers = freezePowers(powers);
-        hide(this, 'element', element ?? null);
         Object.freeze(this);
     }
 
@@ -100,7 +98,6 @@ export class SourceContract {
                 bypassAdmission: element.getAttribute('bypassAdmission') === 'true',
                 preempt: element.getAttribute('preempt') === 'true',
             },
-            element,
         });
     }
 
@@ -160,6 +157,11 @@ export function decideGate({ stage, apertureState, focus = null, contract } = {}
     else if (!permitted && apertureState === 'narrow') reason = 'narrow';
     else if (bypass && (apertureState === 'closed'
         || (apertureState === 'narrow' && contract.name !== focus))) reason = 'bypassAperture';
+    // The narrow, permitted case is the focus itself — a different verdict from the
+    // narrow refusal above, so it needs its own reason: a reader scanning `perceptDecision`
+    // must be able to tell "this is the one thing narrow lets through" from "narrow
+    // refused this" without cross-checking `permitted`.
+    else if (apertureState === 'narrow') reason = 'narrow-focus';
     else reason = apertureState;
     return new GateVerdict({ stage: 'acquisition', permitted, reason, bypass, apertureState });
 }

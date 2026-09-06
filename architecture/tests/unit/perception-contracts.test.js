@@ -32,9 +32,6 @@ describe('SourceContract', () => {
         expect(c.powers).toEqual({ bypassAperture: false, bypassAdmission: false, preempt: false });
         expect(Object.isFrozen(c)).toBe(true);
         expect(Object.isFrozen(c.powers)).toBe(true);
-        expect(c.element).toBe(element);
-        expect(Object.keys(c)).not.toContain('element');
-        expect(JSON.stringify(c)).not.toMatch(/element/);
     });
 
     test('name falls back to localName; modality is passed in, not read from the source', () => {
@@ -174,12 +171,20 @@ describe('GateVerdict and decideGate', () => {
         });
         expect(decideGate({ stage: 'acquisition', apertureState: 'open', contract: ordinary }).permitted).toBe(true);
         expect(decideGate({ stage: 'acquisition', apertureState: 'soft', contract: ordinary }).permitted).toBe(true);
-        expect(decideGate({
+        const focused = decideGate({
             stage: 'acquisition', apertureState: 'narrow', focus: 'garden', contract: ordinary,
-        }).permitted).toBe(true);
-        expect(decideGate({
+        });
+        expect(focused.permitted).toBe(true);
+        // The permitted focus and the refused non-focus share `apertureState: 'narrow'`
+        // but must not share `reason` — a reader scanning perceptDecision needs to tell
+        // "narrow let this through" from "narrow refused this" without cross-checking
+        // `permitted`.
+        expect(focused.reason).toBe('narrow-focus');
+        const refused = decideGate({
             stage: 'acquisition', apertureState: 'narrow', focus: 'voice', contract: ordinary,
-        }).permitted).toBe(false);
+        });
+        expect(refused.permitted).toBe(false);
+        expect(refused.reason).toBe('narrow');
         const closed = decideGate({ stage: 'acquisition', apertureState: 'closed', contract: ordinary });
         expect(closed.permitted).toBe(false);
         expect(closed.reason).toBe('closed');

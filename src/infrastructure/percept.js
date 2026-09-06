@@ -78,15 +78,6 @@ export class Percept extends InterruptRecord {
         }));
     }
 
-    toIndexEntry(attendedAt = new Date().toISOString()) {
-        return {
-            id: this.id, source: this.sourceId, modality: this.modality,
-            provenance: this.provenance, occurredAt: this.dateTime, attendedAt,
-            receivedKind: this.receivedKind, renditions: this.renditions,
-            policy: this.policy,
-        };
-    }
-
     /** Existing in-process InterruptRecords keep their established authority.
      * Serialized compatibility shapes cannot acquire urgency or loop-break powers.
      * Provenance is the enumerated legacy map in perceptionContracts.js.
