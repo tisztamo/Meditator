@@ -1,4 +1,5 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
+import { part } from "../shared/enclosure.js"
 import { extractInfoton } from "../shared/infoton.js"
 import { logger } from '../../infrastructure/logger.js';
 import { Percept } from '../../infrastructure/percept.js';
@@ -27,8 +28,10 @@ const log = logger('mInterrupts.js');
  *     single global broadcast. (doc/architecture/deep-structure.md.)
  *
  * Binding is structural, not via the "../@…" auto-sub: a nested arbiter must
- * listen on its region (not skip past a not-yet-upgraded region up to the mind),
- * so we addEventListener on closest('m-region') || closest('m-mind') directly.
+ * listen on its faculty (not skip past a not-yet-upgraded region up to the mind),
+ * so we addEventListener on enclosing('faculty') || membrane() directly. Role
+ * lookup reads the derived `provides` attribute, which is reflected before
+ * upgrade, so the race that used to force tag closest() is still safe.
  *
  * @interface
  * Attributes:
@@ -52,6 +55,7 @@ const log = logger('mInterrupts.js');
  *     only, throttled to rateLimit; a record-only signal the mind never perceives
  */
 export class MInterrupts extends MBaseComponent {
+    static provides = { arbiter: true }
     pending = []
     lastAcceptedAt = 0
     _region = null
@@ -65,10 +69,11 @@ export class MInterrupts extends MBaseComponent {
         super.onConnect()
         // The faculty this arbiter governs, if any. A nested arbiter listens on
         // its region; a global one on the mind (or the document as a last
-        // resort). closest() is DOM-structural, so it is correct regardless of
-        // component upgrade order — the race that makes "../@…" unreliable here.
-        this._region = this.closest('m-region')
-        this._container = this._region || this.closest('m-mind') || document
+        // resort). Role lookup is DOM-structural (the reflected `provides`
+        // attribute), so it is correct regardless of component upgrade order —
+        // the race that makes "../@…" unreliable here.
+        this._region = this.enclosing('faculty')
+        this._container = this._region || this.membrane() || document
         this._container.addEventListener('interrupt-request', this._onRequest)
 
         // Optional interoception (global only): subscribe to the mind's arousal
@@ -212,7 +217,7 @@ export class MInterrupts extends MBaseComponent {
         if (this._region) {
             this.pub('contactPressure', this._region.contactPressure || 0)
         } else {
-            const regions = [...(this.closest('m-mind')?.querySelectorAll('m-region[modality]') || [])]
+            const regions = part(this.membrane(), 'aperture')
             const mean = regions.reduce((sum, region) => sum + (region.contactPressure || 0), 0) / (regions.length || 1)
             const weight = 1 - Math.exp(-Math.max(0, now - this._pressureAt) / 60000)
             this.pub('contactPressure', this.contactPressure + (mean - this.contactPressure) * weight)

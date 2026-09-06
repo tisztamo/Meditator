@@ -58,6 +58,8 @@ const log = logger('mSense.js');
  * header, not a second event.
  */
 export class MSense extends MBaseComponent {
+    static provides = { source: true }
+
     _timer = null
     _lastKey = null
 
@@ -75,7 +77,8 @@ export class MSense extends MBaseComponent {
         if (this._timer) clearTimeout(this._timer)
     }
 
-    _modalityRegion() { return this.closest('m-region[modality]') }
+    // Nearest aperture only — every gate on the path is M2.
+    _modalityRegion() { return this.enclosing('aperture') }
 
     /** Subclass hooks. `request` is optional; timer-driven rounds pass none. */
     ready() { return true }

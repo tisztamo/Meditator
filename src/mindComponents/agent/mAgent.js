@@ -69,6 +69,8 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
  *   - "done": {answer, steps, reason, error?} — a task ended (fires once per task).
  */
 export class MAgent extends MBaseComponent {
+    static provides = { agent: true }
+
     _tools = []              // registered capabilities (from bubbling `capability` events)
     _messages = []           // the transcript: user / assistant(+tool_calls) / tool messages
     _step = 0

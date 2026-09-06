@@ -1,4 +1,5 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
+import { enclosingOf, part } from "../shared/enclosure.js"
 import { complete } from "../../modelAccess/llm.js"
 import { resolveModelRef } from "../../modelAccess/modelConfig.js"
 import { makePhrasebook } from "../shared/i18n.js"
@@ -171,6 +172,8 @@ function frameReceipts(stimuli, rendered) {
 }
 
 export class MMind extends MBaseComponent {
+    static provides = { mind: true }
+
     // The self sits at a pinned home position — the paper's coordinator trick,
     // chora D9: identity as the geometric anchor of the space (plenum.md §3.1).
     static spacePinnedDefault = true
@@ -450,14 +453,13 @@ export class MMind extends MBaseComponent {
         return parseFloat(match[1]) * factor
     }
 
-    /** The mind's GLOBAL attention arbiter: the m-interrupts not enclosed in an
-     *  m-region. Faculty-local arbiters live inside regions and promote their
-     *  survivors up to this one, which is the only queue m-mind drains. */
+    /** The mind's GLOBAL attention arbiter: the top-level arbiter in this
+     *  membrane that is not itself inside a faculty. Faculty-local arbiters
+     *  live inside regions and promote their survivors up to this one, which
+     *  is the only queue m-mind drains. */
     _arbiter() {
-        for (const candidate of this.querySelectorAll('m-interrupts')) {
-            if (!candidate.closest('m-region')) return candidate
-        }
-        return this.querySelector('m-interrupts')
+        const arbiters = part(this, 'arbiter')
+        return arbiters.find(el => !enclosingOf(el, 'faculty')) ?? arbiters[0] ?? null
     }
 
     async continueThinking() {

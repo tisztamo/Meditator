@@ -1,5 +1,8 @@
 import A from "amanita"
 import { seedPos, anchorOnRing, applyStep, extractInfoton, envelope, ENERGY, SPACE_DEFAULTS } from "./infoton.js"
+import { reflectProvides, enclosingOf, enclosingAllOf, membraneOf, part as partsOf, providesOf } from "./enclosure.js"
+
+export { enclosingOf, enclosingAllOf, membraneOf, part, providesOf } from "./enclosure.js"
 
 /**
  * Base component class for all mind components.
@@ -28,8 +31,37 @@ export class MBaseComponent extends A(HTMLElement) {
     _space = null     // cached {root, I, td} — space attrs are static after load
 
     connectedCallback() {
+        // Runtime-created elements never pass through the loader's inert window.
+        // Reflect before onConnect so a child that binds in onConnect already
+        // sees `provides` on this node (and closest('[provides~="…"]') works).
+        reflectProvides(this, this.constructor)
         this._spaceInit()
         super.connectedCallback()
+    }
+
+    /** Nearest proper ancestor providing `role`, or null. Stops at the membrane. */
+    enclosing(role) {
+        return this.parentElement ? enclosingOf(this.parentElement, role) : null
+    }
+
+    /** Ancestors providing `role`, nearest first, stopping at the membrane. */
+    enclosingAll(role) {
+        return enclosingAllOf(this, role)
+    }
+
+    /** Nearest identity root (`mind` / `agent` / `society`), including this element if it is one. */
+    membrane() {
+        return membraneOf(this)
+    }
+
+    /** Top-level providers of `role` inside this element. */
+    part(role) {
+        return partsOf(this, role)
+    }
+
+    /** Whether this element provides `role` (reflected attribute, else the class). */
+    provides(role) {
+        return providesOf(this, role)
     }
 
     /**

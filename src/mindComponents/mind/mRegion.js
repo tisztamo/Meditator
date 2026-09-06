@@ -1,4 +1,5 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
+import { enclosingOf } from "../shared/enclosure.js"
 import { Aperture } from '../../infrastructure/aperture.js'
 import { Percept, PerceptCandidate } from '../../infrastructure/percept.js'
 import { SourceContract, AnnotatedCandidate, decideGate, GateVerdict, ControlRequest, RenditionRequest, PerceptReceipt } from '../../infrastructure/perceptionContracts.js'
@@ -17,8 +18,9 @@ import { parseTime } from '../../config/timeParser.js'
  *
  * Without `modality`, the region is a structural boundary. It is an Amanita component so
  * that it can serve as a clean DOM bubbling boundary: a child arbiter binds to
- * its enclosing region (via closest('m-region')) and promotes survivors to the
- * region's parent, so the very same arbiter code works at any depth.
+ * its enclosing faculty (via enclosing('faculty'), which reads the derived
+ * `provides` attribute and so works before this region has upgraded) and promotes
+ * survivors to the region's parent, so the very same arbiter code works at any depth.
  *
  * Observers inside a region still see the MIND's stream — their default source
  * is the mind-relative "..m-mind/stream/chunk", which skips the region. Only
@@ -50,6 +52,12 @@ import { parseTime } from '../../config/timeParser.js'
  * Only registered lazy sources pass through this aperture; legacy interrupts are unchanged.
  */
 export class MRegion extends MBaseComponent {
+    // Always an attention scope; with `modality` it is also a sensory gate.
+    // Predicates see the raw element and may read only attributes (they exist
+    // before upgrade). Nearest aperture is still the whole permission — gates
+    // do not compose yet (W3 still fails).
+    static provides = { faculty: true, aperture: el => el.hasAttribute('modality') }
+
     onConnect() {
         super.onConnect()
         if (!this.attr('modality')) return
@@ -84,8 +92,8 @@ export class MRegion extends MBaseComponent {
         this._issued?.clear()
     }
 
-    _mind() { return this.closest('m-mind') }
-    _modalityRegion(el) { return el.closest('m-region[modality]') }
+    _mind() { return this.membrane() }
+    _modalityRegion(el) { return enclosingOf(el, 'aperture') }
 
     /** Architecture-owned adapter: payloads cannot choose identity or policy. */
     registerSource(element, sample) {

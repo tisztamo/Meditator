@@ -3,6 +3,7 @@ import { getUnregisteredCustomElements } from "./getUnregisteredCustomElements.j
 import { buildComponentResolver, kebabToCamel } from '../config/componentResolver.js';
 import { getLoadedArchitecture } from './architecture.js';
 import { logger } from '../infrastructure/logger';
+import { reflectTree } from '../mindComponents/shared/enclosure.js';
 
 const log = logger('loadMindComponents.js');
 
@@ -43,6 +44,31 @@ export async function loadMindComponents(dom) {
   // this has no registration side effects: it really is just imports.
   const descriptors = await Promise.all(
     customTags.map((tag) => importModuleForTag(tag, dom, resolver))
+  );
+
+  // Inert window: every module is imported and every class is known, but
+  // nothing is upgraded yet. Reflect `provides` here so a nested arbiter that
+  // upgrades before its m-region (document-order define, first occurrence of
+  // m-interrupts preceding the first m-region) can still closest() by role.
+  // Tests often call this when some tags are already defined — those are
+  // skipped by getUnregisteredCustomElements, so the table also consults
+  // customElements.get, and we walk authored [provides] on unknown tags so a
+  // plain element cannot grant itself a role.
+  const importedClasses = new Map();
+  for (let i = 0; i < customTags.length; i++) {
+    const descriptor = descriptors[i];
+    if (!descriptor) continue;
+    const ComponentClass = descriptor.module[descriptor.pascalCaseName];
+    if (ComponentClass) importedClasses.set(customTags[i], ComponentClass);
+  }
+  reflectTree(
+    dom,
+    tag => importedClasses.get(tag) || customElements.get(tag) || null,
+    (el, prev) => {
+      log.warn(
+        `authored provides="${prev}" on <${el.localName}> was overwritten; roles come from the class, not the markup`
+      );
+    }
   );
 
   // Phase 2 — register the custom elements synchronously, in document order.
