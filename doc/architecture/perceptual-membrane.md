@@ -768,9 +768,10 @@ cannot reveal them. Private source contents remain absent until admission.
 ## Proposed development order
 
 Step 1 is implemented
-([phase 1 plan](../plans/perceptual-membrane-phase-1.md)). Steps 2–6 remain future
-work; they are not implemented here and the experiments they describe have not been
-run.
+([phase 1 plan](../plans/perceptual-membrane-phase-1.md)). Step 2 is planned but
+not built ([phase 2 plan](../plans/perceptual-membrane-phase-2.md)). Steps 2–6
+remain future work; they are not implemented here and the experiments they
+describe have not been run.
 
 1. Establish explicit contracts for processing, awareness, evidence identity,
    evaluations, control requests, and frame receipts. Preserve existing text
@@ -780,6 +781,8 @@ run.
 2. Correct nested boundary composition and separate evidence from bid state.
    Make contact regulation, pressure aggregation, and source control replaceable
    through wiring. Expected observations retain a route to attention.
+   **Planned, not built.**
+   ([implementation plan](../plans/perceptual-membrane-phase-2.md))
 3. Assemble the existing deficit/reflex and inexpensive act-bound prediction as
    the first reference architecture. Add `orient` and bounded search through
    declared control interfaces; retain uncertainty in search outcomes.
