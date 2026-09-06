@@ -303,11 +303,17 @@ export class EdgeEvidence {
  * `percept` is non-enumerable so it cannot reach a journal line by accident.
  *
  * `requestId` is acquisition lineage only, not causal attribution. Legacy
- * coerced stimuli may use provenance `legacy-unspecified` and `tier: null`. */
+ * coerced stimuli may use provenance `legacy-unspecified` and `tier: null`.
+ *
+ * `policy` mirrors the percept's own — privacy plus the three bypass powers —
+ * so the typed index keeps recording whether an admitted percept crossed a
+ * closed aperture or preempted a burst; it is not a second policy channel, only
+ * this record's copy of a decision already made upstream. Defaults match a
+ * percept built with no policy at all. */
 export class PerceptReceipt {
     constructor({
         perceptId, frameId, sourceId, modality, provenance, tier,
-        occurredAt, attendedAt, receivedKind, renditionText, requestId = null, percept,
+        occurredAt, attendedAt, receivedKind, renditionText, requestId = null, policy, percept,
     } = {}) {
         this.perceptId = requireId('perceptId', perceptId);
         this.frameId = requireId('frameId', frameId);
@@ -320,6 +326,10 @@ export class PerceptReceipt {
         this.attendedAt = attendedAt;
         if (typeof receivedKind !== 'string' || !receivedKind) throw new Error('PerceptReceipt needs receivedKind');
         this.receivedKind = receivedKind;
+        this.policy = Object.freeze({
+            privacy: requireEnum('privacy', policy?.privacy ?? 'resident-private', PRIVACY),
+            ...freezePowers(policy),
+        });
         if (typeof renditionText !== 'string') throw new Error('PerceptReceipt needs renditionText');
         this.renditionText = renditionText;
         this.requestId = requestId === null || requestId === undefined ? null : requireId('requestId', requestId);

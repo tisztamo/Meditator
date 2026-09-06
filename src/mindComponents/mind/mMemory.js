@@ -431,9 +431,10 @@ export class MMemory extends MBaseComponent {
     }
 
     // Typed source of truth beside the textual journal. Built from frame receipts,
-    // never from the live Percept or toIndexEntry(). A materialized but rejected bid
-    // is not autobiography. Share the journal write queue so finalize waits for the
-    // index too. journal="off" disables both forms of recording.
+    // never from the live Percept — the receipt is the only authority on what
+    // actually reached a frame. A materialized but rejected bid is not autobiography.
+    // Share the journal write queue so finalize waits for the index too. journal="off"
+    // disables both forms of recording.
     _onPerceptsAttended = e => {
         const dir = this._journalDir()
         if (this._finalized || !dir || !Array.isArray(e.detail)) return
@@ -446,6 +447,7 @@ export class MMemory extends MBaseComponent {
             attendedAt: r.attendedAt,
             receivedKind: r.receivedKind,
             renditions: [{ kind: 'text', text: r.renditionText }],
+            policy: r.policy,
             tier: r.tier,
             requestId: r.requestId,
             frameId: r.frameId,

@@ -136,23 +136,38 @@ function onceBoundary(stream, afterIndex, timeoutMs) {
  *  `requestId` is copied from the percept as acquisition lineage, not causation.
  *  A free function so assembleFrame.call(mind) on a non-MMind host still works.
  *  Legacy coerced stimuli keep `legacy-unspecified` / `tier: null` from
- *  fromInterrupt; they credit no aperture. */
+ *  fromInterrupt; they credit no aperture.
+ *
+ *  A receipt is a RETURN path — it records that a frame happened, not a
+ *  precondition for perceiving it — so a single malformed stimulus (e.g. a
+ *  fired plain object whose `type` never went through InterruptRecord's
+ *  coercion and so failed PerceptReceipt's `sourceId` validation) must not
+ *  abort the whole burst. Skip and log just that one receipt. */
 function frameReceipts(stimuli, rendered) {
     const frameId = randomUUID()
     const attendedAt = new Date().toISOString()
-    return Object.freeze(stimuli.map((percept, i) => new PerceptReceipt({
-        perceptId: percept.id,
-        frameId,
-        sourceId: percept.sourceId,
-        modality: percept.modality,
-        provenance: percept.provenance,
-        tier: percept.tier,
-        occurredAt: percept.dateTime,
-        attendedAt,
-        receivedKind: percept.receivedKind,
-        renditionText: rendered[i],
-        requestId: percept.requestId,
-    })))
+    const receipts = []
+    stimuli.forEach((percept, i) => {
+        try {
+            receipts.push(new PerceptReceipt({
+                perceptId: percept.id,
+                frameId,
+                sourceId: percept.sourceId,
+                modality: percept.modality,
+                provenance: percept.provenance,
+                tier: percept.tier,
+                occurredAt: percept.dateTime,
+                attendedAt,
+                receivedKind: percept.receivedKind,
+                renditionText: rendered[i],
+                requestId: percept.requestId,
+                policy: percept.policy,
+            }))
+        } catch (error) {
+            log.warn(`Could not build a frame receipt for a perceived stimulus (${percept?.sourceId}): ${error.message}`)
+        }
+    })
+    return Object.freeze(receipts)
 }
 
 export class MMind extends MBaseComponent {

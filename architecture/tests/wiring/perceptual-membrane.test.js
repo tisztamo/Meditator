@@ -336,7 +336,27 @@ test('awareness verdict is recorded at tier 0 even when it mirrors acquisition',
     expect(entry.tier).toBe(0);
     expect(entry.requestId).toBeNull();
     expect(entry.frameId).toBe(receipt.frameId);
+    expect(entry.policy).toEqual(percept.policy);
     expect(JSON.stringify(entry)).not.toMatch(/gateTrail|secret-filename/);
+});
+
+test('percepts.jsonl entries carry the complete pre-receipt field set plus tier/requestId/frameId', async () => {
+    // Finding 1: before crediting from typed frame receipts, this entry was built
+    // from Percept.toIndexEntry() and carried `policy`; the receipt-built entry
+    // silently dropped it. Pin the whole field set so a future refactor cannot
+    // quietly narrow it again.
+    allowOrientation();
+    region.orient('open');
+    const offer = region.registerSource(source);
+    const percept = await offer(header('policy-check'), () => 'A fully attributed light.');
+    await frame(global.takePending());
+    await memory._journalQueue;
+    const entry = indexEntries().at(-1);
+    expect(Object.keys(entry).sort()).toEqual([
+        'attendedAt', 'frameId', 'id', 'modality', 'occurredAt', 'policy',
+        'provenance', 'receivedKind', 'renditions', 'requestId', 'source', 'tier',
+    ]);
+    expect(entry.policy).toEqual(percept.policy);
 });
 
 test('closed aperture publishes a non-semantic acquisition denial and never the withheld text', async () => {
@@ -659,4 +679,20 @@ test('a coerced legacy stimulus gets a legacy-unspecified receipt and credits no
     expect(entry.tier).toBeNull();
     expect(entry.id).toBe(receipt.perceptId);
     expect(entry.renditions).toEqual([{ kind: 'text', text: 'Not a registered source.' }]);
+});
+
+test('a stimulus with a non-string type still assembles a frame; only its receipt is dropped', async () => {
+    // Finding 2: InterruptRecord assigns `type` with no coercion, and some call sites
+    // (e.g. mTerminal.js's deferred consequences) fire plain objects rather than
+    // InterruptRecord instances. A non-string type rides through Percept.fromInterrupt
+    // as sourceId, which PerceptReceipt's identity check refuses — a receipt is a
+    // return path recording that a frame happened, not a precondition for perceiving
+    // it, so building one must not be able to abort the burst that admitted it.
+    const fired = interceptFire(mind);
+    const stimulus = { source: 'External', type: 42, reason: 'A bare object stimulus.', salience: 0.5 };
+    const payload = await frame([stimulus]);
+    expect(payload.prefill).toContain('A bare object stimulus.');
+    const event = fired.find(f => f.name === 'percepts-attended');
+    expect(event).toBeTruthy();
+    expect(event.detail).toHaveLength(0);
 });

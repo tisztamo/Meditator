@@ -381,6 +381,36 @@ describe('PerceptReceipt', () => {
         expect(receipt.tier).toBe(0);
         expect(PROVENANCE).toContain('legacy-unspecified');
     });
+
+    // Finding 1: before crediting from typed frame receipts, journal entries came
+    // from Percept.toIndexEntry(), which carried `policy`; the receipt-built entry
+    // silently dropped it because PerceptReceipt carried no policy at all. A
+    // receipt is now the only authority the journal reads, so it must be able to
+    // recover the full field set toIndexEntry() once offered.
+    test('policy is frozen, defaults like an unpoliced Percept, and mirrors what was authorized', () => {
+        const bare = new PerceptReceipt({
+            perceptId: 'p', frameId: 'f', sourceId: 's', modality: 'text',
+            provenance: 'simulated', occurredAt: 0, attendedAt: 0,
+            receivedKind: 'text', renditionText: 'A cat.',
+        });
+        expect(bare.policy).toEqual({
+            privacy: 'resident-private', bypassAperture: false, bypassAdmission: false, preempt: false,
+        });
+        expect(Object.isFrozen(bare.policy)).toBe(true);
+
+        const percept = new Percept({
+            sourceId: 'garden',
+            record: new InterruptRecord({ source: 'External', type: 'Sense-garden', reason: 'A cat.' }),
+            policy: { bypassAperture: true, preempt: true },
+        });
+        const receipt = new PerceptReceipt({
+            perceptId: percept.id, frameId: 'f', sourceId: percept.sourceId, modality: percept.modality,
+            provenance: percept.provenance, tier: percept.tier, occurredAt: percept.dateTime,
+            attendedAt: new Date().toISOString(), receivedKind: percept.receivedKind,
+            renditionText: percept.renderForFrame(), requestId: percept.requestId, policy: percept.policy,
+        });
+        expect(receipt.policy).toEqual(percept.policy);
+    });
 });
 
 describe('payloads cannot grant authority', () => {
