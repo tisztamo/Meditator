@@ -15,7 +15,9 @@ not necessarily acted on yet. Each note states its status at the top.
   prediction producers, comparators, attention policies, and search controllers;
   distinguishes sensory change, expectation, causality, and contact, records known
   membrane issues and design constraints, and describes future architecture
-  comparisons. Act-bound expectation is the first inexpensive configuration.
+  comparisons. Act-bound expectation is the first inexpensive configuration; the
+  sense's processing tier (lean / edge-grounded / edge-described) is an explicit
+  experiment axis, and the research grounding is kept as a non-normative section.
 - [schema-guided-connections.md](schema-guided-connections.md) — proposed path
   from machine-readable port contracts and enforcement to compatible endpoint
   discovery, spatial selection in the Plenum, and bounded organic growth from

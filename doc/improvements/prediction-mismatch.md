@@ -5,7 +5,11 @@ to the [perceptual membrane](../architecture/perceptual-membrane.md) and
 [A world to meet](../architecture/a-world-to-meet.md). The text-only membrane
 exists as a sketch; the prediction and search components described here do not.
 This is a high-level design and experiment plan, not a report of completed
-experiments or an implementation specification.
+experiments or an implementation specification. A second pass the same day made
+the sense's **processing tier** an explicit experiment axis (a sense may or may not
+need query-conditioned processing at its edge; both must stay open), restored the
+research grounding as a non-normative section, and specified the expectation
+channel.
 
 ## The architectural aim
 
@@ -18,6 +22,9 @@ The first reference architecture remains inexpensive: an expectation obtained
 during action realization, a deterministic garden comparator, a simple bidding
 policy, and bounded search. These are replaceable choices. They do not define
 where every future prediction must originate or how every sense must compete.
+The sense's processing tier is a further axis: whether a sense runs a
+query-conditioned model at its edge before the aperture is something an experiment
+decides, and nothing here forecloses either answer.
 
 Use the existing component model and explicit architecture wiring. The
 [port-contract proposal](schema-guided-connections.md) provides the vocabulary
@@ -43,9 +50,12 @@ will require no runtime work.
    available to the mind. An exact simulator model is an explicitly identified
    control or actuator model, never an undisclosed substitute for that knowledge.
 5. **Separate processing from awareness.** Acquisition and private processing
-   permissions are distinct from permission to bid for conscious attention.
-   Semantic comparison is not a non-semantic detector merely because its output
-   is numeric. The default processing boundary is described below.
+   permissions are distinct from permission to bid for conscious attention. A
+   source declares its
+   [processing tier](../architecture/perceptual-membrane.md#processing-tiers); a
+   query-conditioned model at the edge is a legitimate, declared tier, not a
+   violation. Its numeric output is still not a non-semantic header, and its
+   awareness gate stays separate.
 6. **Preserve authority and provenance.** Trusted architecture policy governs
    privacy, processing, and the independent bypass powers. Predictions and payloads
    cannot grant authority. Enclosing sensory boundaries compose before prohibited
@@ -117,9 +127,12 @@ may answer several predictions.
 
 Publish an action expectation before execution can produce its consequences.
 Common execution metadata belongs to the execution envelope, outside individual
-hands' argument schemas. Immediate and deferred consequences should preserve the
-same request lineage. This lets an existing hand participate without learning the
-schema of every prediction component.
+hands' argument schemas. Concretely: the actor injects one uniform, optional
+envelope (`expect`, and for orientation `template`) into every tool schema it
+builds, strips those fields before the hand executes, and publishes them as a
+prediction record carrying the act id. No hand learns the envelope, no extra call
+is made, and the record exists before any consequence can arrive. Immediate and
+deferred consequences should preserve the same request lineage.
 
 Standing expectations and focus settings can use retained state; acquisition
 requests, action transitions, and receipts are events with explicit identities.
@@ -182,12 +195,19 @@ materialization requests additionally specify the permitted detail or rendition.
 Passing a template only to a materializer cannot guide a detector that has already
 produced its candidate.
 
-An alternative architecture may permit private semantic processing while conscious
-access is closed. It must declare that processing permission, its budget and
-retention, and the separate awareness gate. Its results remain outside ordinary
-attention, memory, and public telemetry until permitted. A numeric mismatch
-derived from private semantics must retain that declared processing origin; the
-default non-semantic contact regulator cannot silently consume it as a raw header.
+Which tier a sense runs is an open experimental question, not a settled default.
+The **lean** tier keeps the edge blind and cheap; it may be too blind to notice
+meaningful change in rich media or to guide search at all. An **edge-grounded**
+tier runs a query-conditioned perception model before the aperture: open-vocabulary
+grounding and embedding similarity cost one to two orders of magnitude less than an
+LLM call and run locally, so a closed or soft channel can be scored and searched
+without spending a model call and without any language crossing the boundary. An
+**edge-described** tier produces language before the aperture and carries the
+highest leakage risk. The membrane's tier contract fixes what each may emit,
+retain, and disclose; the [experiment matrix](#proposed-experiments) compares them
+on the same sources. A match or mismatch score derived at tier 1 or 2 retains that
+declared origin; the default non-semantic contact regulator cannot silently consume
+it as a raw change header.
 
 ## Search and focus
 
@@ -197,6 +217,14 @@ of `changeKey` and sensory change. A stationary, expected target can still be a
 valuable hit. A focus request can address a source, location, object, or a group
 of senses; the first controller may use one target, but the transport does not
 require search to equal one region's `narrow` state.
+
+Where matching happens follows the tier. At tier 0 the matcher runs after
+materialization: lexical for text, a mechanical viewpoint-bounded lookup for the
+garden. At tier 1 the matcher is the edge model itself: the controller's target
+becomes the grounding query, and match scores reach the controller as private
+evidence before anything is materialized. This is the arrangement the biology
+describes, a positive template biasing the front of the pipeline, and it is why
+tier 1 must remain available even though the first slice does not need it.
 
 The controller owns coverage, acquisition failures, sampling cost, target lifetime,
 and the decision to continue or stop. Useful outcomes include **found**, **not
@@ -220,12 +248,83 @@ mechanisms, not an exhaustive neural API or a requirement that only residuals
 reach awareness. Reward, novelty, and relevance remain distinct even when an
 experiment combines them in one bidding policy.
 
+### What the evidence says
+
+Restored from the first draft of this note (the 2026-09-06 research briefs).
+Non-normative; kept because it is the reason behind several constraints above.
+
+1. **Search is a positive template, not a falsified absence.** Neurons tuned to a
+   target's features fire more before the array appears (Chelazzi et al. 1993),
+   matching distractors also rise in the frontal eye field priority map (Bichot &
+   Schall), and Guided Search combines bottom-up salience with top-down feature
+   match into one priority map (Wolfe 2021). Finding is a match signal crossing a
+   threshold. The absence intuition is right for one thing only, giving up: "not
+   there" is a quitting threshold after enough samples (Chun & Wolfe 1996), a
+   separate decision. This is why the search controller owns stopping, and why a
+   tier that biases the front of the pipeline must stay available.
+2. **Prediction of action effects is the best-evidenced piece.** A copy of the
+   motor command predicts the sensory consequence; a match is attenuated as
+   self-caused, a mismatch is salient as world-caused (Sommer & Wurtz 2006). This is
+   the actuator prediction; acquisition lineage is deliberately kept apart from it.
+3. **Residual-only ascent is elegant but contested.** Rao & Ballard's "only the
+   prediction error goes up" is a good compression heuristic; Walsh et al. (2020)
+   show the neurophysiological evidence is equally explained by adaptation. Build it
+   as a heuristic, never claim fidelity, and never make it structural (constraint 3).
+
+Target match, novelty, and reward are three distinct signals in the brain (P3b,
+P3a, dopamine reward prediction error). The design keeps them apart and introduces
+no single "surprise" scalar (constraint 2).
+
+### Does text steer a vision model?
+
+Mostly no, and the exceptions are exactly the tier-1 tools.
+
+- In the dominant vision-language architecture (frozen encoder, projector, language
+  decoder) the encoder never sees the prompt. Text conditions only the decoder's
+  attention over already-fixed visual tokens: biased **readout**, not biased
+  **sensing**. Cross-attention designs are a stronger readout, but the encoder is
+  still prompt-blind. Only InstructBLIP-style connectors condition feature
+  selection on the instruction.
+- Prompt order matters and is fragile. Placing the question before the image shifts
+  patch representations, but the answer then under-attends it; repeating the
+  instruction before and after the image recovers a sizeable share of grounding
+  accuracy in reported benchmarks.
+- Stating an expectation in the prompt is the condition known to inflate false
+  positives (POPE yes-bias, HallusionBench, sycophancy studies). "Look for the red
+  car" makes the model more likely to report a red car that is not there. This is
+  the empirical basis of constraint 1 for vision: the expectation must never reach
+  the describing model's prompt.
+
+What genuinely conditions on the query today, and therefore belongs at tier 1:
+
+1. **Open-vocabulary grounding models** (Grounding DINO, OWLv2, Florence-2,
+   YOLO-World, or the box output of a small VLM). The text query reshapes what is
+   computed from pixels. The small ones run on a modest box with millisecond
+   latency and no API cost.
+2. **Crop-and-zoom loops** (V*, ZoomEye). The query decides which pixels are
+   re-encoded at higher resolution: foveation as tool use, the direct
+   implementation of "a deliberate foveated image when I look" in A world to meet.
+3. **Visual prompting** (a drawn circle, Set-of-Mark). Marking the image changes
+   the encoding itself.
+
+Recommended first vision pipeline, when one is needed:
+
+1. Neutral pass first: description or generic detection with no expectation in the
+   prompt. This is the observation the mind perceives.
+2. Template and `expect` go to a **grounding model**, not to the describing model's
+   prompt. A null grounding result is a "not detected here" for the search
+   controller and outranks a chatty description.
+3. On a grounding hit, crop and re-encode for confirmation, and require a bounding
+   box in the structured output. Presence with evidence is much harder to
+   hallucinate than presence.
+4. If a single VLM call is all the budget allows, echo the instruction before and
+   after the image.
+
 Vision adapters should declare where a query acts: acquisition/cropping, feature
-selection, or readout. These are different experimental choices. An independent
-description, grounding, and crop/confirmation can be assembled as a first vision
-pipeline, but no model sequence or prompt order becomes a membrane invariant.
-Model errors remain possible; a neutral description and a bounding box are
-evidence-bearing outputs, not certificates of truth.
+selection, or readout. These are different experimental choices. The pipeline above
+is a recommendation, not a membrane invariant. Model errors remain possible; a
+neutral description and a bounding box are evidence-bearing outputs, not
+certificates of truth.
 
 Grounding DINO selects boxes using similarity thresholds. The design consequence
 is that a null result means no qualifying detection under those conditions, not
@@ -247,16 +346,20 @@ architecture rather than promised by the protocol:
 
 | Choice | Cost characteristic |
 |---|---|
-| Optional expectation during REALIZE | Additional output on an existing call |
+| Tier 0 detector (scene delta, motion energy, voice activity) | Local, effectively free, runs continuously |
+| Tier 1 edge grounding or embedding similarity | Local model, millisecond to sub-second latency, one to two orders of magnitude below an LLM call; affordable on every candidate of a closed channel |
+| Optional expectation during REALIZE | Additional output tokens on an existing call |
 | Mechanical garden comparison | Local computation, no model call |
-| Optional text judge | Budgeted per relevant evidence set; off in the smallest slice |
-| Passive prediction producer | Independently chosen trigger, cadence, and budget |
+| Optional text judge (a tier-2 comparator) | One small utility call per relevant evidence set; off in the smallest slice |
+| Tier 2 edge description or VLM pass | On the order of a thousand input tokens per image plus output, per look |
+| Passive prediction producer reading the tail | One LLM call per trigger; at every boundary this is the most expensive shape here and grows with tail length; an experiment condition |
 | Search and vision | Explicit acquisition, processing, and confirmation budgets |
 
-The original three-minute act cooldown is one configuration, not a universal
-bound: read lanes and other architectures already use different cadences.
-Avoid universal hourly estimates or hardware latency promises until an experiment
-has selected its models, observation sizes, and sampling policy.
+Relative orders of magnitude are what the tier decision needs; absolute hourly
+figures are not. The original three-minute act cooldown is one configuration, not
+a universal bound: read lanes and other architectures already use different
+cadences. Avoid universal hourly estimates or hardware latency promises until an
+experiment has selected its models, observation sizes, and sampling policy.
 
 First expose the replaceable roles and correct the known boundary issues. Then
 assemble the act-bound garden condition from those roles, retaining the current
@@ -272,11 +375,11 @@ prediction proposal. They remain open; this revision changes documentation only.
 | Issue | Status and required direction |
 |---|---|
 | Expected observations disappear | Review reproduced zero-salience rejection in the sketch; using mismatch as `changeMagnitude` would make it systematic. Preserve independent relevance and deliberate confirmation. |
-| Nested closure is bypassed | Review reproduced an open inner sensory region rendering and delivering through a closed outer region. Compose applicable gates before materialization. |
+| Nested closure is bypassed | Review reproduced an open inner sensory region rendering and delivering through a closed outer region. Compose applicable gates before materialization; [enclosure by role](enclosure-by-role.md) gives the mechanism and its fixture W3 the acceptance test. |
 | Regulation is fixed inside containers | `m-region` constructs `Aperture`; `m-interrupts` discovers regions and averages pressure. Expose replaceable regulation, aggregation, and control bindings. |
 | Prediction has no independent lifecycle | Act ids, prediction records, expiry, and observation association are not implemented. Define them independently of hand schemas and actor cadence. |
 | World truth can replace a remembered expectation | Original garden comparator did not distinguish actuator and belief state. Record prediction basis and restrict observational access. |
-| Semantic comparison precedes the promised boundary | Original pre-aperture text judge conflicts with non-semantic acquisition. Declare processing permissions and comparison stage. |
+| Semantic comparison precedes the promised boundary | The original pre-aperture text judge conflicted with an *undeclared* non-semantic default. Resolved in design by declared processing tiers: a tier-1 or tier-2 comparator is legitimate when the source declares it; the sketch implements tier 0 only. |
 | Search overloads region state and opaque keys | Original template/quitting design lacks a source control input and coverage-aware outcomes. Make search a separate controller. |
 | Fan-out and receipts depend on mutable objects | Current bids carry mutable salience and regional receipt tracking uses object identity. Preserve evidence identity with separate evaluations and authoritative receipts. |
 | Alternative dynamics are unvalidated | Weighting, aggregation, confidence handling, and controller interaction need explicit experimental comparison; modularity alone does not establish stability. |
@@ -285,9 +388,9 @@ The membrane also retains eager legacy senses and text-only model input. These
 are declared migration limits, not claims that the proposed native-media path
 already works.
 
-## Proposed experiments — high level only
+## Proposed experiments
 
-The following are future comparisons. This design update does not run them.
+High level only. The following are future comparisons. This design update does not run them.
 Begin with offline fixtures and treat live functioning claims as a separate,
 later study under the existing lifecycle commitments.
 
@@ -302,6 +405,8 @@ later study under the existing lifecycle commitments.
 | Alternative contact dynamics | Replace the regulator or pressure aggregator | Contact policy can change through wiring while transport and receipts remain stable |
 | Nested sensory regions | Change region nesting and local aperture settings | All applicable closure and authority rules compose before acquisition and disclosure |
 | Missing, delayed, or cancelled evidence | Vary delivery and coverage | No replayed contact, stale search hit, or unjustified absence conclusion |
+| Lean versus edge-grounded sense | The same source at tier 0 and at tier 1, same targets and budgets | Whether search over a closed or soft channel needs query-conditioned edge processing, and what tier 1 costs and leaks |
+| Expected confirmation bids | A deliberate sample of an unchanged scene under the bidding policy | A zero-change observation can still be attended and credit contact (the acceptance test for the zero-salience rejection) |
 
 For the extensibility comparison, hold source implementations, percept transport,
 and frame/memory code fixed. A new idea should require only wiring and its small

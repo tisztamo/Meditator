@@ -1,7 +1,7 @@
 # The perceptual membrane
 
-*Design, 2026-09-04; revised 2026-09-06 after the generality review.
-Companion to [A world to meet](a-world-to-meet.md).
+*Design, 2026-09-04; revised 2026-09-06 after the generality review, then again
+the same day for processing tiers. Companion to [A world to meet](a-world-to-meet.md).
 That document asks what kind of outside a Meditator mind needs; this one asks how
 any kind of outside crosses into awareness. It generalizes eyelids into a
 modality-neutral regulation of contact. A small text-only implementation now exists;
@@ -86,9 +86,9 @@ revision documents them; it does not fix the runtime or run further experiments.
 
 | Issue | Consequence and intended direction |
 |---|---|
-| Only the nearest sensory aperture participates | An open inner modality region can render and deliver through a closed outer one, reproduced in the review. Compose all applicable boundaries before materialization. |
+| Only the nearest sensory aperture participates | An open inner modality region can render and deliver through a closed outer one, reproduced in the review. Compose all applicable boundaries before materialization; [enclosure by role](../improvements/enclosure-by-role.md) gives the mechanism and its fixture W3 the acceptance test. |
 | Sensory change directly sets salience | A zero-change observation is rendered but rejected at a positive threshold, reproduced in the review. Expected confirmations need independent relevance; mismatch must not replace `changeMagnitude`. |
-| Policy is constructed or discovered inside consumers | `m-region` owns a fixed `Aperture`; `m-interrupts` discovers modality regions and computes their slow mean. Make regulation, aggregation, and control bindings replaceable. |
+| Policy is constructed or discovered inside consumers | `m-region` owns a fixed `Aperture`; `m-interrupts` discovers modality regions and computes their slow mean. Make regulation, aggregation, and control bindings replaceable; the role lookups and pressure fold in enclosure by role cover the discovery half. |
 | Evidence and bid state share mutable records | Regional gain mutates salience, while receipt credit relies on the issued object. Independent evaluations and authoritative receipts need stable evidence identity across legitimate adapters and fan-out. |
 | Source control is incomplete | The materializer receives requested kinds only; detector cadence and focus have no general control input. Deliver sampling/focus requests before detection and detail requests before materialization. |
 
@@ -206,12 +206,11 @@ are expensive or semantic renditions materialized. Optional comparison then
 precedes awareness admission and attention competition. Permission to materialize
 is not a receipt of experience.
 
-An alternative architecture may explicitly permit private semantic processing
-while awareness is closed. It must declare processing scope, budget, retention,
-and a separate awareness gate. Such content cannot reach ordinary attention,
-autobiographical memory, or public telemetry through a side path. Numeric results
-of semantic processing keep that origin; they are not raw non-semantic headers.
-The current sketch implements only the default policy.
+The header's blindness is the **lean** tier. Whether a sense instead needs a
+query-conditioned model at its edge is an open experimental question, not a
+settled default; the [processing tiers](#processing-tiers) below define the
+declared options and what each may emit, retain, and disclose. The current sketch
+implements only the lean tier.
 
 ```js
 {
@@ -228,8 +227,8 @@ The current sketch implements only the default policy.
 For a deterministic simulated world, `changeMagnitude` can come from a
 viewpoint-bounded scene delta without interpreting its meaning. For physical
 media, the edge detector must genuinely remain non-semantic—motion energy,
-luminance change, voice activity—or use an explicitly declared private-processing
-policy.
+luminance change, voice activity—or the source declares a higher
+[processing tier](#processing-tiers).
 Headers are capped, source-deduplicated, and never include captions, transcripts,
 raw media, or content-bearing filenames.
 
@@ -300,6 +299,37 @@ cannot be required to preserve it perfectly; the typed percept index and journal
 are the source of truth, and recall must be able to reinstate their typed
 provenance.
 
+### Processing tiers
+
+We do not yet know whether a sense needs expensive processing before the
+aperture. A blind edge is cheap and leak-proof, but it may miss meaningful change
+in rich media and it cannot guide search. A query-conditioned model at the edge
+(open-vocabulary grounding, embedding similarity, keyword spotting) costs one to
+two orders of magnitude less than an LLM call and runs locally, so it is entirely
+feasible, and it is what the biology of search describes: a positive template
+biasing the front of the pipeline. The design therefore keeps both open as declared
+**tiers** of one protocol, not as a default and an exception. The tier is declared
+by the source's architecture configuration, read by its provider, recorded in
+provenance, and never inferred from a payload.
+
+| Tier | Edge computation | Crosses to the regulator and search controller while closed | Retention and disclosure |
+|---|---|---|---|
+| **0, lean** (default; the sketch) | Non-semantic detector: scene delta, motion energy, luminance change, voice activity | The private header only: time, opaque change key, magnitude | Nothing content-bearing exists before acquisition permission |
+| **1, edge-grounded** | Query-conditioned perception model producing structured, non-linguistic evidence: match scores against declared targets, boxes, embeddings, speaker or keyword hits | The header plus match scores for the controller's declared targets; scores are typed as tier-1 evidence, never as a raw change magnitude | Scores and boxes may be retained by the controller within a declared budget and horizon; embeddings and crops are discarded unless acquisition is permitted; nothing reaches attention, memory, or telemetry through a side path |
+| **2, edge-described** | A captioner, transcriber, or VLM produces language before the aperture | The header, or tier-1-style scores derived from the text; the text itself never crosses while closed | A declared private buffer with explicit retention; the text becomes a rendition only after acquisition permission, and provenance records that description preceded permission |
+
+Invariants across tiers: the awareness gate is separate from the processing
+permission at every tier; the tier is part of the source's contract and its
+percepts' provenance; a tier-1 or tier-2 score keeps its origin and cannot be fed
+to the tier-0 contact regulator as a change header; budgets and cadence belong to
+the tier's policy, not to the transport; Studio and logs receive at most what the
+regulator receives. Tier 1 is also where a search controller's positive template
+belongs: the target becomes the grounding query, and a channel can be searched
+while closed or soft without any language crossing the boundary. The
+[prediction design](../improvements/prediction-mismatch.md#processing-and-attention)
+records the evidence for this and the lean-versus-edge-grounded comparison that
+decides it.
+
 ## Rendition selection
 
 The model-access layer should advertise what a model can natively receive. After
@@ -351,8 +381,9 @@ existing faculty boundary and nested attention path. A useful first state set is
 - **open** — ordinary candidate frequency, detail, and salience;
 - **soft** — reduced frequency, resolution, or gain; peripheral contact;
 - **narrow** — one selected source, direction, object, or speaker is favored;
-- **closed** — content is withheld, while non-semantic event headers may still
-  reach the regulator;
+- **closed** — content is withheld, while non-semantic event headers (and, at
+  tier 1, target match scores) may still reach the regulator and the search
+  controller;
 
 Protection is not an aperture state. It is trusted per-source/event policy, split
 into aperture bypass, admission bypass, and preemption as above.
@@ -524,7 +555,7 @@ outside source
  trusted policy adapter
       │ annotated private header
       ▼
- all applicable acquisition gates ──► permitted header statistics
+ all applicable acquisition gates ──► suppressed-header statistics
       │ processing permitted; request rendition
       ▼
  lazy materialization
@@ -551,12 +582,15 @@ outside source
  conscious model
 ```
 
-This is the default processing policy. A declared alternative can permit private
-semantic processing while awareness remains closed, without bypassing the later
-awareness boundary. Frame assembly owns the authoritative receipt; the regulator
-uses it to update pressure and request orientation through declared bindings.
-Search/focus controllers also have a control path to sources before detection;
-it is separate from predictions and from ordinary attention.
+This is the lean-tier path. At tier 0 the awareness gates coincide with the
+acquisition gates: one aperture decision grants both, and the later stage is a
+no-op. At tiers 1 and 2 the acquisition gates admit private edge processing while
+the awareness gates still decide disclosure; only there are the two stages
+distinct. Frame assembly owns the authoritative receipt; the regulator uses it to
+update pressure and request orientation through declared bindings. Search/focus
+controllers also have a control path to sources before detection; it is separate
+from predictions and from ordinary attention, and at tier 1 it carries the
+grounding query.
 
 The present attention machinery can remain mostly unchanged. Salience,
 thresholds, urgency, crowding, nested competition, arousal sensitivity, and
@@ -656,11 +690,12 @@ than semantic backlog and sample the present afresh.
 ### Semantic leakage before admission
 
 A captioner, transcript model, filename, log line, or Studio event crosses a
-processing or awareness boundary without permission. The default policy keeps
+processing or awareness boundary without permission. The lean tier keeps
 candidate headers non-semantic and materializes lazily after acquisition gates.
-An alternative permitting private semantic processing must enforce its separate
-awareness gate and retention policy. A text judge producing only a score does
-not avoid the processing boundary.
+Tiers 1 and 2 must enforce their declared retention and their separate awareness
+gate; the risk rises with the tier, which is one of the things the
+lean-versus-edge-grounded comparison measures. A model producing only a score does
+not avoid the processing boundary; it declares a tier.
 
 ### Comfortable drowsiness
 
@@ -709,9 +744,10 @@ steps or the experiments they describe.
    declared control interfaces; retain uncertainty in search outcomes.
 4. Describe and later evaluate alternative architectures with the same sources,
    transport, and frame/memory code. The
-   [experiment matrix](../improvements/prediction-mismatch.md#proposed-experiments--high-level-only)
-   covers passive and competing predictors, cross-modal search, alternative
-   regulation, nested regions, and delayed or missing evidence.
+   [experiment matrix](../improvements/prediction-mismatch.md#proposed-experiments)
+   covers the lean-versus-edge-grounded sense (run this one early; it decides
+   whether tier 1 is needed at all), passive and competing predictors, cross-modal
+   search, alternative regulation, nested regions, and delayed or missing evidence.
 5. Add native renditions and model-capability selection when a concrete experiment
    requires them, retaining archival text, viewpoint limits, and the record of
    what was actually received. Audio and video follow the same episode contract.
@@ -732,8 +768,8 @@ implementation questions remain open:
    `bypassAdmission`, and `preempt`? In particular, what relationship or address
    semantics—if any—make a peer voice aperture-protected?
 3. What is the smallest genuinely non-semantic detector for each initial source,
-   and which experiments need explicitly permitted private semantic processing?
-   How will they disclose processing stage, budget, and retention?
+   and which sources turn out to need tier 1 or tier 2? The tier contract fixes
+   what they disclose; which tier works is the experiment.
 4. Does the current provider split permit one logical image event to be attached in
    instruction content and anchored by a marker in the assistant prefill without
    distorting what the model attends to? This needs a captured-request test for both

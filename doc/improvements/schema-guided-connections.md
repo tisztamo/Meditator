@@ -81,10 +81,11 @@ graph every frame. This extends Amanita's wiring; it does not require replacing 
 
 The default sensory sequence remains explicit: private header → applicable
 acquisition gates → materialized evidence → optional evaluation → bidding policy
-→ awareness gates and regional/global arbitration → frame receipt. A declared
-alternative may permit private semantic processing while awareness is closed;
-its contract must expose processing permission, budget, retention, and the later
-awareness boundary. A compatible representation cannot create a shortcut into
+→ awareness gates and regional/global arbitration → frame receipt. A source
+declares its processing tier (lean, edge-grounded, or edge-described; see the
+membrane's [processing tiers](../architecture/perceptual-membrane.md#processing-tiers));
+a tier above lean exposes processing permission, budget, retention, and the later
+awareness boundary as contract dimensions. A compatible representation cannot create a shortcut into
 experience or memory. Enclosing boundaries compose before prohibited work occurs.
 
 The [perceptual membrane](../architecture/perceptual-membrane.md) and
