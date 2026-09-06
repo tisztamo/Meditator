@@ -756,6 +756,7 @@ steps or the experiments they describe.
 1. Establish explicit contracts for processing, awareness, evidence identity,
    evaluations, control requests, and frame receipts. Preserve existing text
    rendering and trusted provenance through the compatibility path.
+   ([implementation plan](../plans/perceptual-membrane-phase-1.md))
 2. Correct nested boundary composition and separate evidence from bid state.
    Make contact regulation, pressure aggregation, and source control replaceable
    through wiring. Expected observations retain a route to attention.
