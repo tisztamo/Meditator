@@ -9,7 +9,7 @@ import { loadMindComponents } from '../../../src/startup/loadMindComponents.js';
 import { MMind } from '../../../src/mindComponents/mind/mMind.js';
 import { Percept } from '../../../src/infrastructure/percept.js';
 import { InterruptRecord } from '../../../src/infrastructure/interruptRecord.js';
-import { GateVerdict, ControlRequest, RenditionRequest } from '../../../src/infrastructure/perceptionContracts.js';
+import { GateVerdict, ControlRequest, RenditionRequest, PerceptReceipt } from '../../../src/infrastructure/perceptionContracts.js';
 
 let mind, region, local, global, memory, source, journalDir;
 
@@ -76,6 +76,36 @@ function assertTextAbsent(records, ...snippets) {
     }
 }
 
+function indexEntries() {
+    const file = path.join(journalDir, 'percepts.jsonl');
+    if (!fs.existsSync(file)) return [];
+    return fs.readFileSync(file, 'utf8').trim().split('\n').filter(Boolean).map(JSON.parse);
+}
+
+function receiptOf(fired) {
+    const event = fired.find(f => f.name === 'percepts-attended');
+    expect(event).toBeTruthy();
+    expect(Array.isArray(event.detail)).toBe(true);
+    return event.detail[0];
+}
+
+function cloneReceipt(receipt, overrides = {}) {
+    return new PerceptReceipt({
+        perceptId: receipt.perceptId,
+        frameId: receipt.frameId,
+        sourceId: receipt.sourceId,
+        modality: receipt.modality,
+        provenance: receipt.provenance,
+        tier: receipt.tier,
+        occurredAt: receipt.occurredAt,
+        attendedAt: receipt.attendedAt,
+        receivedKind: receipt.receivedKind,
+        renditionText: receipt.renditionText,
+        requestId: receipt.requestId,
+        ...overrides,
+    });
+}
+
 test('closed content is never rendered, dispatched, or journaled; reopening samples the present', async () => {
     let renders = 0, present = 'missed secret', samples = 0, sampleRequest = null;
     const bids = [];
@@ -111,9 +141,19 @@ test('closed content is never rendered, dispatched, or journaled; reopening samp
     expect(pending[0].provenance).toBe('simulated');
     expect(pending[0].requestId).toBe(sampleRequest.id);
     expect(region.contactPressure).toBeGreaterThan(0); // queued is not attended
+    const fired = interceptFire(mind);
     const payload = await frame(pending);
     expect(payload.prefill).toContain(`> ⟂ ${present}\n\n`);
     expect(region.contactPressure).toBeLessThan(debt);
+    const attended = fired.find(f => f.name === 'attended');
+    expect(attended.detail).toEqual([present]);
+    const receipt = receiptOf(fired);
+    expect(receipt).toBeInstanceOf(PerceptReceipt);
+    expect(receipt.perceptId).toBe(pending[0].id);
+    expect(receipt.renditionText).toBe(present);
+    expect(receipt.requestId).toBe(sampleRequest.id);
+    expect(receipt.tier).toBe(0);
+    expect(receipt.frameId).toBeTruthy();
     await memory._journalQueue;
     const entry = JSON.parse(fs.readFileSync(path.join(journalDir, 'percepts.jsonl'), 'utf8').trim());
     expect(entry.id).toBe(pending[0].id);
@@ -121,7 +161,9 @@ test('closed content is never rendered, dispatched, or journaled; reopening samp
     expect(entry.modality).toBe('text');
     expect(entry.receivedKind).toBe('text');
     expect(entry.renditions).toEqual([{ kind: 'text', text: present }]);
-    expect(entry).not.toHaveProperty('requestId');
+    expect(entry.tier).toBe(0);
+    expect(entry.requestId).toBe(sampleRequest.id);
+    expect(entry.frameId).toBe(receipt.frameId);
     const journal = fs.readFileSync(path.join(journalDir, `${new Date().toISOString().slice(0, 10)}.md`), 'utf8');
     expect(journal).not.toContain('missed secret');
     expect(journal).toContain('⌁ Attention aperture: closed → open');
@@ -280,8 +322,21 @@ test('awareness verdict is recorded at tier 0 even when it mirrors acquisition',
         changeMagnitude: 0.9, apertureState: 'open',
     });
     assertTextAbsent(published, text, preimage);
-    expect(JSON.stringify(percept.toIndexEntry())).not.toMatch(/gateTrail|requestId/);
+    expect(JSON.stringify(percept.toIndexEntry())).not.toMatch(/gateTrail/);
     expect(global.takePending()).toEqual([percept]);
+    const fired = interceptFire(mind);
+    await frame([percept]);
+    const receipt = receiptOf(fired);
+    expect(receipt).toBeInstanceOf(PerceptReceipt);
+    expect(JSON.stringify(receipt)).not.toMatch(/gateTrail|secret-filename/);
+    expect(receipt.percept).toBeUndefined();
+    await memory._journalQueue;
+    const entry = indexEntries()[0];
+    expect(entry.id).toBe(percept.id);
+    expect(entry.tier).toBe(0);
+    expect(entry.requestId).toBeNull();
+    expect(entry.frameId).toBe(receipt.frameId);
+    expect(JSON.stringify(entry)).not.toMatch(/gateTrail|secret-filename/);
 });
 
 test('closed aperture publishes a non-semantic acquisition denial and never the withheld text', async () => {
@@ -511,4 +566,97 @@ test('a detail request carries detail to the materializer and still cannot rende
 test('requestControl requires a ControlRequest', () => {
     expect(() => region.requestControl({ kind: 'sample', issuedBy: 'test', reason: 'probe' }))
         .toThrow(/ControlRequest/);
+});
+
+test('percept id is stable from issue to journal and unique per observation', async () => {
+    allowOrientation();
+    region.orient('open');
+    const offer = region.registerSource(source);
+    const first = await offer(header('first-id'), () => 'First light.');
+    expect(first.id).toBeDefined();
+    await frame(global.takePending());
+    const second = await offer(header('second-id'), () => 'Second light.');
+    expect(second.id).not.toBe(first.id);
+    await frame(global.takePending());
+    await memory._journalQueue;
+    const entries = indexEntries();
+    expect(entries).toHaveLength(2);
+    expect(entries[0].id).toBe(first.id);
+    expect(entries[1].id).toBe(second.id);
+    expect(entries[0].id).not.toBe(entries[1].id);
+    expect(entries[0].requestId).toBeNull();
+    expect(entries[1].requestId).toBeNull();
+});
+
+test('receipts credit by percept id once; a rebuilt equal credits; a replay does not', async () => {
+    allowOrientation();
+    region.orient('open');
+    const offer = region.registerSource(source);
+    const percept = await offer(header('same'), () => 'The same light.');
+    expect(global.takePending()).toEqual([percept]);
+    const debt = region.contactPressure;
+    expect(debt).toBeGreaterThan(0);
+    const rebuilt = new PerceptReceipt({
+        perceptId: percept.id,
+        frameId: 'rebuilt-frame',
+        sourceId: percept.sourceId,
+        modality: percept.modality,
+        provenance: percept.provenance,
+        tier: percept.tier,
+        occurredAt: percept.dateTime,
+        attendedAt: new Date().toISOString(),
+        receivedKind: percept.receivedKind,
+        renditionText: percept.renderForFrame(),
+        requestId: percept.requestId,
+    });
+    expect(rebuilt).not.toBe(percept);
+    mind.dispatchEvent(new CustomEvent('percepts-attended', { detail: [rebuilt] }));
+    expect(region.contactPressure).toBeLessThan(debt);
+
+    const afterCredit = region.contactPressure;
+    mind.dispatchEvent(new CustomEvent('percepts-attended', { detail: [rebuilt] }));
+    expect(region.contactPressure).toBe(afterCredit);
+    const clone = cloneReceipt(rebuilt);
+    mind.dispatchEvent(new CustomEvent('percepts-attended', { detail: [clone] }));
+    expect(region.contactPressure).toBe(afterCredit);
+
+    await frame([percept]);
+    expect(region.contactPressure).toBe(afterCredit);
+});
+
+test('a stale receipt is refused by the aperture freshness window', async () => {
+    allowOrientation();
+    region.orient('open');
+    const offer = region.registerSource(source);
+    const percept = await offer({ ...header('stale'), occurredAt: Date.now() - 31000 }, () => 'Too old to credit.');
+    expect(global.takePending()).toEqual([percept]);
+    const debt = region.contactPressure;
+    expect(debt).toBeGreaterThan(0);
+    await frame([percept]);
+    expect(region.contactPressure).toBe(debt);
+});
+
+test('a coerced legacy stimulus gets a legacy-unspecified receipt and credits nothing', async () => {
+    allowOrientation();
+    region.orient('open');
+    const offer = region.registerSource(source);
+    const queued = await offer(header('queued'), () => 'Still waiting.');
+    expect(global.takePending()).toEqual([queued]);
+    const debt = region.contactPressure;
+    expect(debt).toBeGreaterThan(0);
+    const fired = interceptFire(mind);
+    const payload = await frame(['Not a registered source.']);
+    expect(payload.prefill).toContain('> ⟂ Not a registered source.\n\n');
+    expect(region.contactPressure).toBe(debt);
+    const receipt = receiptOf(fired);
+    expect(receipt).toBeInstanceOf(PerceptReceipt);
+    expect(receipt.provenance).toBe('legacy-unspecified');
+    expect(receipt.tier).toBeNull();
+    expect(receipt.perceptId).not.toBe(queued.id);
+    await memory._journalQueue;
+    const entry = indexEntries().at(-1);
+    expect(entry.provenance).toBe('legacy-unspecified');
+    expect(entry.tier).toBeNull();
+    expect(entry.id).toBe(receipt.perceptId);
+    expect(entry.renditions).toEqual([{ kind: 'text', text: 'Not a registered source.' }]);
 });

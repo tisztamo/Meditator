@@ -1,7 +1,7 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
 import { Aperture } from '../../infrastructure/aperture.js'
 import { Percept, PerceptCandidate } from '../../infrastructure/percept.js'
-import { SourceContract, AnnotatedCandidate, decideGate, ControlRequest, RenditionRequest } from '../../infrastructure/perceptionContracts.js'
+import { SourceContract, AnnotatedCandidate, decideGate, ControlRequest, RenditionRequest, PerceptReceipt } from '../../infrastructure/perceptionContracts.js'
 import { InterruptRecord } from '../../infrastructure/interruptRecord.js'
 import { parseTime } from '../../config/timeParser.js'
 
@@ -43,7 +43,8 @@ import { parseTime } from '../../config/timeParser.js'
  * SourceContract is the only policy the offer path reads. tier 1 and 2 are refused
  * at registration.
  * Topics: contactPressure, apertureState (retained); perceptDecision (non-semantic
- *   gate verdicts); events: aperture-change (backstage).
+ *   gate verdicts); events: aperture-change (backstage). Credits `percepts-attended`
+ *   by percept id against a bounded issued-id map — never by object identity.
  * Only registered lazy sources pass through this aperture; legacy interrupts are unchanged.
  */
 export class MRegion extends MBaseComponent {
@@ -56,7 +57,10 @@ export class MRegion extends MBaseComponent {
             horizonMs: parseTime(this.attr('contactHorizon') || '10m'),
         })
         this._sources = new Map()
-        this._issued = new WeakSet()
+        // At most 32 issued percept ids awaiting credit — same order as the
+        // per-region source cap. WeakSet was wrong: a rebuilt record with the
+        // same id must still credit. Evict the oldest issuedAt if the map is full.
+        this._issued = new Map()
         this._arousal = 1
         const mind = this._mind()
         mind?.addEventListener('percepts-attended', this._onPerceptsAttended)
@@ -75,6 +79,7 @@ export class MRegion extends MBaseComponent {
         this._unlistenPercepts?.()
         if (this.aperture) this.aperture.version++
         this._sources?.clear()
+        this._issued?.clear()
     }
 
     _mind() { return this.closest('m-mind') }
@@ -128,7 +133,8 @@ export class MRegion extends MBaseComponent {
                 record.gateTrail = Object.freeze([acquisition, awareness])
                 this._publishDecision(awareness, annotated)
                 if (!awareness.permitted) return null
-                this._issued.add(record)
+                const issuedAt = Date.parse(record.dateTime)
+                this._recordIssued(record.id, Number.isFinite(issuedAt) ? issuedAt : Date.now())
                 element.dispatchEvent(new CustomEvent('interrupt-request', { bubbles: true, detail: record }))
                 return record
             } catch {
@@ -218,11 +224,30 @@ export class MRegion extends MBaseComponent {
         }))
     }
 
+    _recordIssued(id, issuedAt) {
+        if (this._issued.size >= 32 && !this._issued.has(id)) {
+            let oldestId = null
+            let oldestAt = Infinity
+            for (const [issuedId, at] of this._issued) {
+                if (at < oldestAt) {
+                    oldestAt = at
+                    oldestId = issuedId
+                }
+            }
+            if (oldestId != null) this._issued.delete(oldestId)
+        }
+        this._issued.set(id, issuedAt)
+    }
+
     _onPerceptsAttended = e => {
-        if (!Array.isArray(e.detail)) return
-        for (const percept of e.detail) {
-            if (!this._issued.delete(percept)) continue
-            this.aperture.attended(Date.parse(percept.dateTime))
+        if (!Array.isArray(e.detail) || !this._issued) return
+        for (const item of e.detail) {
+            if (!(item instanceof PerceptReceipt)) continue
+            const id = item.perceptId
+            if (!this._issued.has(id)) continue
+            const occurredAt = typeof item.occurredAt === 'number' ? item.occurredAt : Date.parse(item.occurredAt)
+            this.aperture.attended(occurredAt)
+            this._issued.delete(id)
         }
         this._publishAperture()
     }

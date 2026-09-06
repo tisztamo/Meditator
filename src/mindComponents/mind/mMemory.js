@@ -7,7 +7,7 @@ import { complete, isDryRun } from "../../modelAccess/llm.js"
 import { resolveModelRef } from "../../modelAccess/modelConfig.js"
 import { logger } from '../../infrastructure/logger.js';
 import { InterruptRecord, withPerceivedEvents } from '../../infrastructure/interruptRecord.js';
-import { Percept } from '../../infrastructure/percept.js';
+import { PerceptReceipt } from '../../infrastructure/perceptionContracts.js';
 import { mindHome, inVault, ensureVault, commitVault, assertNotRetired, assertIdentityMatchesHome } from '../../infrastructure/memoryVault.js';
 import { FORMAT_VERSION, recordWake, tierOf } from '../../infrastructure/manifest.js';
 import { getLoadedArchitecture } from '../../startup/architecture.js';
@@ -430,13 +430,26 @@ export class MMemory extends MBaseComponent {
         this._trimTail()
     }
 
-    // Typed source of truth beside the textual journal. Only frame receipts are indexed;
-    // a materialized but rejected bid is not autobiography. Share the journal write queue
-    // so finalize waits for the index too. journal="off" disables both forms of recording.
+    // Typed source of truth beside the textual journal. Built from frame receipts,
+    // never from the live Percept or toIndexEntry(). A materialized but rejected bid
+    // is not autobiography. Share the journal write queue so finalize waits for the
+    // index too. journal="off" disables both forms of recording.
     _onPerceptsAttended = e => {
         const dir = this._journalDir()
         if (this._finalized || !dir || !Array.isArray(e.detail)) return
-        const entries = e.detail.filter(p => p instanceof Percept).map(p => p.toIndexEntry())
+        const entries = e.detail.filter(r => r instanceof PerceptReceipt).map(r => ({
+            id: r.perceptId,
+            source: r.sourceId,
+            modality: r.modality,
+            provenance: r.provenance,
+            occurredAt: r.occurredAt,
+            attendedAt: r.attendedAt,
+            receivedKind: r.receivedKind,
+            renditions: [{ kind: 'text', text: r.renditionText }],
+            tier: r.tier,
+            requestId: r.requestId,
+            frameId: r.frameId,
+        }))
         if (!entries.length) return
         const text = entries.map(entry => JSON.stringify(entry)).join('\n') + '\n'
         this._journalQueue = this._journalQueue.then(async () => {

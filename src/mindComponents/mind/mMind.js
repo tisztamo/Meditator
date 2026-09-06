@@ -6,6 +6,8 @@ import { parseTime } from '../../config/timeParser.js';
 import { logger } from '../../infrastructure/logger.js';
 import { InterruptRecord, withPerceivedEvents } from '../../infrastructure/interruptRecord.js';
 import { Percept } from '../../infrastructure/percept.js';
+import { PerceptReceipt } from '../../infrastructure/perceptionContracts.js';
+import { randomUUID } from 'node:crypto';
 
 const log = logger('mMind.js');
 
@@ -127,6 +129,30 @@ function onceBoundary(stream, afterIndex, timeoutMs) {
             if (!settled) { settled = true; stream.removeEventListener("boundary", onBoundary); resolve(null) }
         }, timeoutMs)
     })
+}
+
+/** One frozen receipt per stimulus in an assembleFrame call. `renditionText` is
+ *  the string that actually entered the prefill, not a source-offered unused form.
+ *  `requestId` is copied from the percept as acquisition lineage, not causation.
+ *  A free function so assembleFrame.call(mind) on a non-MMind host still works.
+ *  Legacy coerced stimuli keep `legacy-unspecified` / `tier: null` from
+ *  fromInterrupt; they credit no aperture. */
+function frameReceipts(stimuli, rendered) {
+    const frameId = randomUUID()
+    const attendedAt = new Date().toISOString()
+    return Object.freeze(stimuli.map((percept, i) => new PerceptReceipt({
+        perceptId: percept.id,
+        frameId,
+        sourceId: percept.sourceId,
+        modality: percept.modality,
+        provenance: percept.provenance,
+        tier: percept.tier,
+        occurredAt: percept.dateTime,
+        attendedAt,
+        receivedKind: percept.receivedKind,
+        renditionText: rendered[i],
+        requestId: percept.requestId,
+    })))
 }
 
 export class MMind extends MBaseComponent {
@@ -663,7 +689,7 @@ export class MMind extends MBaseComponent {
             const factor = Number(this.attr("speakingTokensFactor") || 0.35)
             payload.burstTokens = Math.max(60, Math.round(base * factor))
         }
-        if (stimuli.length) this.fire('percepts-attended', stimuli)
+        if (stimuli.length) this.fire('percepts-attended', frameReceipts(stimuli, rendered))
         return payload
     }
 
