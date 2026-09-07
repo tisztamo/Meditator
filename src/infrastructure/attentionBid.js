@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { clamp01, Percept } from './percept.js';
+import { Percept } from './percept.js';
+import { decideBid } from './perceptionContracts.js';
 
 /** Read surface existing listeners already use. Not a second Percept: no
  * provenance, policy, gateTrail, or renditions. `salience` is the bid's own
@@ -7,22 +8,27 @@ import { clamp01, Percept } from './percept.js';
  * at construction so fire() can stamp the message without touching evidence. */
 const DELEGATED = ['source', 'type', 'reason', 'dateTime', 'clearsTail', 'from', 'episode'];
 
-function trailProduct(gainTrail) {
-    return gainTrail.reduce((product, entry) => product * entry.factor, 1);
-}
-
 function copyTrail(gainTrail) {
     if (gainTrail == null) return [];
     if (!Array.isArray(gainTrail)) throw new Error('gain trail is a list');
     return gainTrail.map(entry => Object.freeze({ gate: entry.gate, factor: entry.factor }));
 }
 
+function freezeSignals(signals) {
+    return Object.freeze({
+        changeMagnitude: signals.changeMagnitude,
+        requested: signals.requested,
+        novelty: signals.novelty === undefined ? null : signals.novelty,
+    });
+}
+
 /** The mutable competition record. The percept is the evidence; this is the bid
- * on it. Nested arbiters append a gain-trail entry and recompute `salience`;
- * they never write the evidence. A bid has its own `id`; receipts credit
- * `evidenceId` (the percept id). */
+ * on it. Nested arbiters append a gain-trail entry and recompute `salience`
+ * through decideBid with the signal set and floor stored at issue; they never
+ * write the evidence. A bid has its own `id`; receipts credit `evidenceId`
+ * (the percept id). */
 export class AttentionBid {
-    constructor({ evidence, gainTrail = [] } = {}) {
+    constructor({ evidence, gainTrail = [], signals, requestedFloor = 0 } = {}) {
         if (!(evidence instanceof Percept)) throw new Error('An attention bid needs Percept evidence');
         this.id = randomUUID();
         this.evidenceId = evidence.id;
@@ -32,12 +38,34 @@ export class AttentionBid {
         this.urgent = evidence.policy.preempt === true;
         this.bypassAdmission = evidence.policy.bypassAdmission === true;
         this.infoton = evidence.infoton;
-        this.salience = clamp01(evidence.salience * trailProduct(this.gainTrail));
+        const signalSet = freezeSignals(signals ?? {
+            changeMagnitude: evidence.salience,
+            requested: evidence.requestId != null,
+            novelty: null,
+        });
         Object.defineProperty(this, 'evidence', {
             value: evidence,
             enumerable: false,
             writable: false,
             configurable: false,
+        });
+        Object.defineProperty(this, 'signals', {
+            value: signalSet,
+            enumerable: false,
+            writable: false,
+            configurable: false,
+        });
+        Object.defineProperty(this, 'requestedFloor', {
+            value: requestedFloor,
+            enumerable: false,
+            writable: false,
+            configurable: false,
+        });
+        this.salience = decideBid({
+            evidence,
+            signals: signalSet,
+            gainTrail: this.gainTrail,
+            requestedFloor,
         });
         for (const key of DELEGATED) {
             Object.defineProperty(this, key, {
@@ -48,11 +76,18 @@ export class AttentionBid {
         }
     }
 
-    /** Recompute gained salience from frozen evidence × the trail. Arbiter
-     * factors may be > 1; they are competition, not enclosure, so they must
-     * not go through pushGainTrail. */
+    /** Recompute gained salience through decideBid with the stored signals
+     * and the floor used at issue, times the updated trail. Multiplying
+     * evidence.salience alone would wipe a requested floor on a zero-change
+     * sample. Arbiter factors may be > 1; they are competition, not enclosure,
+     * so they must not go through pushGainTrail. */
     recomputeSalience() {
-        this.salience = clamp01(this.evidence.salience * trailProduct(this.gainTrail));
+        this.salience = decideBid({
+            evidence: this.evidence,
+            signals: this.signals,
+            gainTrail: this.gainTrail,
+            requestedFloor: this.requestedFloor,
+        });
         return this.salience;
     }
 

@@ -42,6 +42,11 @@ export function gateIdOf(el) {
  *   - aperture: initial open (default), soft, or closed; wake uses this declared default
  *   - dwell: minimum time between aperture changes (default 30s)
  *   - contactHorizon: weak time-only pressure reaches 1 after this awake interval (10m)
+ *   - requestedFloor: salience floor for observations that answer a control request
+ *     the mind issued (acquisition lineage, not a prediction). Default 0 — the
+ *     route exists; the default preserves today's numbers. This is not a chosen
+ *     confirmation policy. The issuing (nearest) provider owns the floor; nested
+ *     apertures do not fold or max it.
  * Methods: registerSource(element, sample) → offer(header, lazyText); orient(state, source);
  *   requestControl(ControlRequest) is the one door for sample / focus / detail —
  *   focus is accepted and changes no policy;
@@ -59,7 +64,9 @@ export function gateIdOf(el) {
  *   against a bounded issued-id map — never by object identity. Awareness is the
  *   second pass of the same event after materialization, not a capture-phase veto
  *   on interrupt-request. The offer path issues an AttentionBid wrapping a frozen
- *   Percept; aperture gain lives on the bid's trail, not on the evidence.
+ *   Percept; aperture gain lives on the bid's trail, not on the evidence. decideBid
+ *   reads { changeMagnitude, requested, novelty } separately — the floor is applied
+ *   there, not merged upstream.
  * Only registered lazy sources pass through this aperture; legacy interrupts are unchanged.
  */
 export class MRegion extends MBaseComponent {
@@ -95,6 +102,7 @@ export class MRegion extends MBaseComponent {
         }
         this._publishAperture()
         this._assertUniqueApertureId()
+        this._requestedFloor()
         this.addEventListener('percept-candidate', this._onPerceptCandidate)
     }
 
@@ -166,11 +174,18 @@ export class MRegion extends MBaseComponent {
             if (!acquisition.permitted) return null
             entry.busy = true
             try {
-                const text = await candidate.materialize(new RenditionRequest({
-                    kinds: ['text'],
-                    requestId: candidate.requestId,
-                    detail: control?.kind === 'detail' ? control.detail : null,
-                }))
+                let text
+                try {
+                    text = await candidate.materialize(new RenditionRequest({
+                        kinds: ['text'],
+                        requestId: candidate.requestId,
+                        detail: control?.kind === 'detail' ? control.detail : null,
+                    }))
+                } catch {
+                    // A failed renderer is not a sensation; errors can themselves contain private payloads.
+                    this.pub('materializationFailure', { source: contract.name, candidateId: candidate.id })
+                    return null
+                }
                 if (!attached() || this._mind()?._sleeping
                     || !this._versionsHold(annotated)) return null
                 // Awareness is the second pass of the same event, after materialization
@@ -196,8 +211,8 @@ export class MRegion extends MBaseComponent {
                     requestId: candidate.requestId,
                     occurredAt: new Date(Math.min(now, candidate.occurredAt)).toISOString(),
                     record: new InterruptRecord({ source: 'External', type: `Sense-${contract.name}`, reason: text,
-                        // Raw bidding-policy salience. Aperture gain is already on
-                        // the composed acquisition trail; the bid multiplies it.
+                        // Raw change magnitude. The requested floor is applied inside
+                        // decideBid, not merged into evidence salience here.
                         salience: candidate.changeMagnitude }),
                     gateTrail: [acquisition, awareness],
                 })
@@ -205,13 +220,18 @@ export class MRegion extends MBaseComponent {
                 if (!awareness.permitted) return null
                 const issuedAt = Date.parse(percept.dateTime)
                 this._recordIssued(percept.id, Number.isFinite(issuedAt) ? issuedAt : Date.now())
-                const bid = new AttentionBid({ evidence: percept, gainTrail: detail.gainTrail })
+                const bid = new AttentionBid({
+                    evidence: percept,
+                    gainTrail: detail.gainTrail,
+                    signals: {
+                        changeMagnitude: candidate.changeMagnitude,
+                        requested: candidate.requestId != null,
+                        novelty: null,
+                    },
+                    requestedFloor: this._requestedFloor(),
+                })
                 element.dispatchEvent(new CustomEvent('interrupt-request', { bubbles: true, detail: bid }))
                 return bid
-            } catch {
-                // A failed renderer is not a sensation; errors can themselves contain private payloads.
-                this.pub('materializationFailure', { source: contract.name, candidateId: candidate.id })
-                return null
             } finally { entry.busy = false }
         }
         this._sources.set(element, entry)
@@ -239,6 +259,18 @@ export class MRegion extends MBaseComponent {
     }
 
     _gateId() { return gateIdOf(this) }
+
+    /** Default 0 so the seam does not retune. The issuing provider's value;
+     * not folded across nested apertures. */
+    _requestedFloor() {
+        const raw = this.attr('requestedFloor')
+        if (raw == null || raw === '') return 0
+        const n = Number(raw)
+        if (!Number.isFinite(n) || n < 0 || n > 1) {
+            throw new Error(`requestedFloor must be a number in [0, 1], got ${JSON.stringify(raw)}`)
+        }
+        return n
+    }
 
     /** Every aperture on the path answers. Nobody but the membrane stops this event. */
     _onPerceptCandidate = event => {

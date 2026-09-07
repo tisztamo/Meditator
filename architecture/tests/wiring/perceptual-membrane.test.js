@@ -752,3 +752,89 @@ test('a stimulus with a non-string type still assembles a frame; only its receip
     expect(event).toBeTruthy();
     expect(event.detail).toHaveLength(0);
 });
+
+const still = () => ({ changeMagnitude: 0, changeKey: 'still-world', occurredAt: Date.now() });
+
+test('12. requested route: default floor leaves a zero-change sample inaudible', async () => {
+    allowOrientation();
+    region.orient('open');
+    await delay(5);
+    region.aperture.deficit = 0.8;
+    region._publishAperture();
+    const debt = region.contactPressure;
+    const published = interceptPub(local);
+    const bids = [];
+    source.addEventListener('interrupt-request', e => bids.push(e.detail));
+    const offer = region.registerSource(source, request => offer(still(), () => 'The garden is unchanged.'));
+    region.requestControl(new ControlRequest({
+        kind: 'sample', issuedBy: 'test', reason: 'probe', target: 'mock',
+    }));
+    await delay(5);
+    expect(bids).toHaveLength(1);
+    expect(bids[0].signals).toEqual({ changeMagnitude: 0, requested: true, novelty: null });
+    expect(bids[0].requestedFloor).toBe(0);
+    expect(bids[0].salience).toBeCloseTo(0);
+    expect(AttentionBid.evidenceOf(bids[0]).salience).toBe(0);
+    expect(global.takePending()).toHaveLength(0);
+    const dropped = published.filter(p => p.topic === 'decision').map(p => p.data);
+    expect(dropped).toHaveLength(1);
+    expect(dropped[0].accepted).toBe(false);
+    expect(dropped[0].salience).toBeCloseTo(0);
+    expect(region.contactPressure).toBe(debt);
+    expect(region._issued.has(bids[0].evidenceId)).toBe(true);
+});
+
+test('12. requested route: requestedFloor 0.5 carries a zero-change sample and credits; spontaneous still bids ~0', async () => {
+    region.setAttribute('requestedFloor', '0.5');
+    allowOrientation();
+    region.orient('open');
+    await delay(5);
+    region.aperture.deficit = 0.8;
+    region._publishAperture();
+    const debt = region.contactPressure;
+    const localPublished = interceptPub(local);
+    const globalPublished = interceptPub(global);
+    const bids = [];
+    source.addEventListener('interrupt-request', e => bids.push(e.detail));
+    const offer = region.registerSource(source, request => offer(still(), () => 'The garden is unchanged.'));
+    region.requestControl(new ControlRequest({
+        kind: 'sample', issuedBy: 'test', reason: 'probe', target: 'mock',
+    }));
+    await delay(5);
+    expect(bids).toHaveLength(1);
+    expect(bids[0].signals.changeMagnitude).toBe(0);
+    expect(bids[0].signals.requested).toBe(true);
+    expect(bids[0].signals.novelty).toBeNull();
+    expect(bids[0].requestedFloor).toBe(0.5);
+    expect(bids[0].salience).toBeCloseTo(0.5);
+    expect(AttentionBid.evidenceOf(bids[0]).salience).toBe(0);
+    const pending = global.takePending();
+    expect(pending).toEqual([bids[0]]);
+    const localDecision = localPublished.filter(p => p.topic === 'decision').map(p => p.data);
+    const globalDecision = globalPublished.filter(p => p.topic === 'decision').map(p => p.data);
+    expect(localDecision.some(d => d.accepted && Math.abs(d.salience - 0.5) < 1e-9)).toBe(true);
+    expect(globalDecision).toHaveLength(1);
+    expect(globalDecision[0].accepted).toBe(true);
+    expect(globalDecision[0].salience).toBeCloseTo(0.5);
+    const fired = interceptFire(mind);
+    await frame(pending);
+    expect(region.contactPressure).toBeLessThan(debt);
+    expect(region._issued.has(bids[0].evidenceId)).toBe(false);
+    expect(receiptOf(fired).perceptId).toBe(bids[0].evidenceId);
+
+    const spontaneous = await offer({ changeMagnitude: 0, changeKey: 'unasked', occurredAt: Date.now() },
+        () => 'Still unchanged, and unasked.');
+    expect(spontaneous.signals).toEqual({ changeMagnitude: 0, requested: false, novelty: null });
+    expect(spontaneous.salience).toBeCloseTo(0);
+    expect(global.takePending()).toHaveLength(0);
+});
+
+test('nonsense requestedFloor fails at the first bid, not as unspecified', async () => {
+    region.setAttribute('requestedFloor', 'nope');
+    allowOrientation();
+    region.orient('open');
+    await delay(5);
+    const offer = region.registerSource(source);
+    await expect(offer(header('bad-floor'), () => 'Should not bid with a nonsense floor.'))
+        .rejects.toThrow(/requestedFloor/);
+});

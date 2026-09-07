@@ -177,6 +177,38 @@ export function pushGainTrail(trail, gate, factor) {
     trail.push(Object.freeze({ gate, factor }));
 }
 
+/** Pure bidding policy. Independent signals, never merged upstream:
+ *
+ *     clamp01(max(changeMagnitude, requested ? requestedFloor : 0)) * product(gainTrail)
+ *
+ * `requested` is acquisition lineage — the observation answers a sample/detail
+ * the mind issued — not a prediction and not causal attribution. `requestedFloor`
+ * defaults to 0 so this refactor does not retune: max(x, 0) * product = x * product.
+ * The attribute on the issuing aperture is the route; choosing the number is later.
+ * `novelty` is part of the signal set and ignored; no producer in this phase.
+ * No DOM, no component state. `requestedFloor` is an argument, not read from
+ * an element. Nonsense floors (not a number, or outside [0, 1]) throw. */
+export function decideBid({ evidence, signals, gainTrail = [], requestedFloor = 0 } = {}) {
+    if (typeof requestedFloor !== 'number' || !Number.isFinite(requestedFloor)
+        || requestedFloor < 0 || requestedFloor > 1) {
+        throw new Error(`requestedFloor must be a number in [0, 1], got ${requestedFloor}`);
+    }
+    if (signals == null || typeof signals !== 'object') {
+        throw new Error('decideBid needs independent signals { changeMagnitude, requested, novelty }');
+    }
+    const { changeMagnitude, requested } = signals;
+    if (typeof changeMagnitude !== 'number' || !Number.isFinite(changeMagnitude)) {
+        throw new Error('decideBid needs a numeric changeMagnitude');
+    }
+    if (typeof requested !== 'boolean') {
+        throw new Error('decideBid.requested is a boolean (acquisition lineage)');
+    }
+    if (!Array.isArray(gainTrail)) throw new Error('gain trail is a list');
+    const floor = requested ? requestedFloor : 0;
+    const weight = Math.max(0, Math.min(1, Math.max(changeMagnitude, floor)));
+    return weight * gainTrail.reduce((product, entry) => product * entry.factor, 1);
+}
+
 /** Trusted annotation of a private candidate. Never leaves the provider chain.
  * `versions` is a list even though there is one gate today — phase 2 fills it. */
 export class AnnotatedCandidate {

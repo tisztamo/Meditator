@@ -1,6 +1,6 @@
 import { test, expect, describe } from 'bun:test';
 import {
-    SourceContract, AnnotatedCandidate, GateVerdict, decideGate, pushGainTrail,
+    SourceContract, AnnotatedCandidate, GateVerdict, decideGate, decideBid, pushGainTrail,
     ControlRequest, RenditionRequest, Evaluation, EdgeEvidence, PerceptReceipt,
     PROVENANCE, LEGACY_EVENT_PROVENANCE, legacyProvenance, legacyCompatibility,
 } from '../../../src/infrastructure/perceptionContracts.js';
@@ -261,6 +261,90 @@ describe('GateVerdict and decideGate', () => {
         expect(() => pushGainTrail(trail, 'shell', 1.5)).toThrow(/amplify/);
         expect(() => pushGainTrail(trail, 'shell', Infinity)).toThrow(/amplify/);
         expect(trail).toHaveLength(2);
+    });
+});
+
+describe('decideBid', () => {
+    const trail = [{ gate: 'outside', factor: 0.5 }];
+    const signals = (overrides = {}) => ({
+        changeMagnitude: 0.8, requested: false, novelty: null, ...overrides,
+    });
+
+    test('default floor is arithmetically identical to changeMagnitude times trail product', () => {
+        expect(decideBid({
+            signals: signals(),
+            gainTrail: trail,
+        })).toBeCloseTo(0.4);
+        expect(decideBid({
+            signals: signals({ changeMagnitude: 0, requested: true }),
+            gainTrail: trail,
+        })).toBeCloseTo(0);
+        expect(decideBid({
+            signals: signals({ changeMagnitude: 0.9 }),
+            gainTrail: [],
+        })).toBeCloseTo(0.9);
+    });
+
+    test('requestedFloor applies only when requested is true; novelty is ignored', () => {
+        expect(decideBid({
+            signals: signals({ changeMagnitude: 0, requested: true }),
+            gainTrail: [],
+            requestedFloor: 0.5,
+        })).toBeCloseTo(0.5);
+        expect(decideBid({
+            signals: signals({ changeMagnitude: 0, requested: false }),
+            gainTrail: [],
+            requestedFloor: 0.5,
+        })).toBeCloseTo(0);
+        expect(decideBid({
+            signals: signals({ changeMagnitude: 0, requested: true, novelty: 1 }),
+            gainTrail: trail,
+            requestedFloor: 0.5,
+        })).toBeCloseTo(0.25);
+        expect(decideBid({
+            signals: signals({ changeMagnitude: 0, requested: true, novelty: null }),
+            gainTrail: trail,
+            requestedFloor: 0.5,
+        })).toBeCloseTo(0.25);
+    });
+
+    test('signals are not pre-combined: max is inside decideBid, not add', () => {
+        expect(decideBid({
+            signals: signals({ changeMagnitude: 0.2, requested: true }),
+            gainTrail: [],
+            requestedFloor: 0.5,
+        })).toBeCloseTo(0.5);
+        expect(decideBid({
+            signals: signals({ changeMagnitude: 0.8, requested: true }),
+            gainTrail: [],
+            requestedFloor: 0.5,
+        })).toBeCloseTo(0.8);
+        expect(decideBid({
+            signals: signals({ changeMagnitude: 0.8, requested: true }),
+            gainTrail: trail,
+            requestedFloor: 0.5,
+        })).toBeCloseTo(0.4);
+    });
+
+    test('invalid requestedFloor throws; omitted defaults to 0', () => {
+        const args = { signals: signals({ changeMagnitude: 0, requested: true }), gainTrail: [] };
+        expect(decideBid(args)).toBeCloseTo(0);
+        expect(() => decideBid({ ...args, requestedFloor: '0.5' })).toThrow(/requestedFloor/);
+        expect(() => decideBid({ ...args, requestedFloor: 1.5 })).toThrow(/requestedFloor/);
+        expect(() => decideBid({ ...args, requestedFloor: -0.1 })).toThrow(/requestedFloor/);
+        expect(() => decideBid({ ...args, requestedFloor: NaN })).toThrow(/requestedFloor/);
+        expect(() => decideBid({ ...args, requestedFloor: null })).toThrow(/requestedFloor/);
+        expect(() => decideBid({ ...args, requestedFloor: Infinity })).toThrow(/requestedFloor/);
+    });
+
+    test('decideBid does not read the DOM', () => {
+        const element = { getAttribute() { throw new Error('decideBid must not read the DOM'); } };
+        expect(decideBid({
+            evidence: element,
+            signals: signals({ changeMagnitude: 0.4 }),
+            gainTrail: [],
+            requestedFloor: 0,
+        })).toBeCloseTo(0.4);
     });
 });
 
