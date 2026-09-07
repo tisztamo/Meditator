@@ -47,8 +47,13 @@ const log = logger('mInterrupts.js');
  *     causes (a stimulus that clears the base bar but not the raised one) is announced as a
  *     backstage `muffled` event so a memory can journal the withdrawal (finding 7).
  *   - contactSensitivity: threshold reduction at full contact pressure (default 0.25).
- *     Inactive without modality regions. Global pressure follows their mean over 60s;
- *     the regional gate uses its own retained pressure directly. Topic: contactPressure.
+ *     Inactive without modality regions. Global pressure follows a 60s exponential
+ *     mean of `part(mind, 'aperture')` — top-level providers only, each already
+ *     folded. A child `aggregator` (`aggregate(pressures: number[]) → number`)
+ *     replaces that spatial mix; it is the mind-level combination, not a second
+ *     contact regulator. Absent one, the built-in mean is today's numbers for
+ *     flat minds. Nested arbiters read the region's retained (folded) pressure.
+ *     Topic: contactPressure.
  *
  * DOM events:
  *   - listens (on its region or the mind): "interrupt-request"
@@ -66,6 +71,7 @@ export class MInterrupts extends MBaseComponent {
     _lastMuffledAt = 0
     _pressureAt = Date.now()
     contactPressure = 0
+    _aggregator = null
 
     onConnect() {
         super.onConnect()
@@ -78,6 +84,8 @@ export class MInterrupts extends MBaseComponent {
         this._container = this._region || this.membrane() || document
         this._container.addEventListener('interrupt-request', this._onRequest)
 
+        if (!this._region) this._aggregator = this._boundAggregator()
+
         // Optional interoception (global only): subscribe to the mind's arousal
         // so a tired mind raises its own bar. Gated, so minds without an economy
         // — or that don't want this — behave exactly as before. The .catch mirrors
@@ -86,6 +94,25 @@ export class MInterrupts extends MBaseComponent {
         if (!this._region && Number(this.attr("arousalSensitivity") || 0) > 0) {
             this.sub("..m-mind/economy/arousal", value => { this._arousal = value }).catch(() => {})
         }
+    }
+
+    /** Unique `aggregator` inside the membrane. Zero → built-in mean.
+     * More than one fails loudly. The substitute is upgraded before the
+     * port check so a missing method still throws during this onConnect. */
+    _boundAggregator() {
+        const mind = this.membrane()
+        if (!mind) return null
+        const found = part(mind, 'aggregator')
+        if (found.length > 1) throw new Error('a mind may have only one aggregator')
+        const aggregator = found[0]
+        if (!aggregator) return null
+        customElements.upgrade(aggregator)
+        this._assertAggregatorPort(aggregator)
+        return aggregator
+    }
+
+    _assertAggregatorPort(aggregator) {
+        if (typeof aggregator.aggregate !== 'function') throw new Error('aggregator is missing aggregate')
     }
 
     onDisconnect() {
@@ -234,9 +261,12 @@ export class MInterrupts extends MBaseComponent {
             this.pub('contactPressure', this._region.contactPressure || 0)
         } else {
             const regions = part(this.membrane(), 'aperture')
-            const mean = regions.reduce((sum, region) => sum + (region.contactPressure || 0), 0) / (regions.length || 1)
+            const pressures = regions.map(region => region.contactPressure || 0)
+            const mixed = this._aggregator
+                ? this._aggregator.aggregate(pressures)
+                : pressures.reduce((sum, p) => sum + p, 0) / (pressures.length || 1)
             const weight = 1 - Math.exp(-Math.max(0, now - this._pressureAt) / 60000)
-            this.pub('contactPressure', this.contactPressure + (mean - this.contactPressure) * weight)
+            this.pub('contactPressure', this.contactPressure + (mixed - this.contactPressure) * weight)
         }
         this._pressureAt = now
     }

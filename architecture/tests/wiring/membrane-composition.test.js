@@ -1,6 +1,7 @@
-// Membrane composition (phase 2 M2–M3, M6 regulator, M7 nested source control):
-// percept-candidate at acquisition and awareness. Fixtures W1/W2/W3, conjunction,
-// the version chain, a test-only regulator port, and requestControl through nesting.
+// Membrane composition (phase 2 M2–M3, M6 regulator, M7 nested source control,
+// M8 pressure fold and aggregator): percept-candidate at acquisition and awareness.
+// Fixtures W1/W2/W3, conjunction, the version chain, a test-only regulator port,
+// requestControl through nesting, the P1 fold, and aggregator substitution.
 import './setup.js';
 import { test, expect, afterEach } from 'bun:test';
 import A from 'amanita';
@@ -93,11 +94,37 @@ class XIncompleteRegulator extends MBaseComponent {
     orient() { return false }
 }
 
+/** Test-only mind-level mix: max of top-level folded pressures, not the mean. */
+class XMaxAggregator extends MBaseComponent {
+    static provides = { aggregator: true }
+    aggregate(pressures) {
+        return (pressures || []).reduce((m, p) => Math.max(m, Number(p) || 0), 0)
+    }
+}
+
+class XConstAggregator extends MBaseComponent {
+    static provides = { aggregator: true }
+    aggregate() { return 0.73 }
+}
+
+class XIncompleteAggregator extends MBaseComponent {
+    static provides = { aggregator: true }
+}
+
 if (!customElements.get('x-fast-regulator')) {
     customElements.define('x-fast-regulator', XFastRegulator);
 }
 if (!customElements.get('x-incomplete-regulator')) {
     customElements.define('x-incomplete-regulator', XIncompleteRegulator);
+}
+if (!customElements.get('x-max-aggregator')) {
+    customElements.define('x-max-aggregator', XMaxAggregator);
+}
+if (!customElements.get('x-const-aggregator')) {
+    customElements.define('x-const-aggregator', XConstAggregator);
+}
+if (!customElements.get('x-incomplete-aggregator')) {
+    customElements.define('x-incomplete-aggregator', XIncompleteAggregator);
 }
 
 async function captureConnectError(inner) {
@@ -826,4 +853,163 @@ test('M7. Child aperture appended after the parent has connected still forwards'
     outer.requestControl(sampleRequest());
     await delay(5);
     expect(hits).toBe(1);
+});
+
+const P1_REGION = `
+          <m-region name="shell" modality="text" aperture="open" dwell="1s" contactHorizon="10s">
+            <m-region name="outside" modality="text" aperture="closed" dwell="1s" contactHorizon="10s">
+              <m-interrupts name="local" threshold="0.3" rateLimit="0s"></m-interrupts>
+              <span name="mock" provenance="simulated"></span>
+            </m-region>
+          </m-region>`;
+
+test('P1: nested suppressed header — outer pressure is max fold; nearest issuer credits once', async () => {
+    const mind = await mount(P1_REGION);
+    const outer = mind.querySelector('m-region[name="shell"]');
+    const inner = mind.querySelector('m-region[name="outside"]');
+    const source = mind.querySelector('[name="mock"]');
+    const global = mind.querySelector('[name="attention"]');
+    expect(outer._childProviders()).toContain(inner);
+
+    outer.aperture.deficit = 0.1;
+    outer._publishAperture();
+    expect(outer.contactPressure).toBeCloseTo(0.1);
+
+    let renders = 0;
+    const offer = inner.registerSource(source, request => offer(header('fresh'), () => {
+        renders++;
+        return TEXT;
+    }));
+    const withheld = await offer(header(PREIMAGE), () => {
+        renders++;
+        return WITHHELD;
+    });
+    expect(withheld).toBeNull();
+    expect(renders).toBe(0);
+    expect(inner._issued.size).toBe(0);
+    expect(outer._issued.size).toBe(0);
+
+    const innerFolded = inner.contactPressure;
+    expect(innerFolded).toBeCloseTo(inner.aperture.deficit);
+    expect(innerFolded).toBeGreaterThan(outer.aperture.deficit);
+    expect(outer.contactPressure).toBeCloseTo(Math.max(outer.aperture.deficit, innerFolded));
+    expect(outer.contactPressure).toBeCloseTo(outer.fold(outer.aperture.deficit, [innerFolded]));
+
+    // 9.3: max is the published signal. Close the outer, put 0.9 on the inner,
+    // and advance must still read own deficit — a starved inner does not trip
+    // the outer reflex. (If this ever fires, record it; do not switch to mean.)
+    allowOrientation(outer);
+    expect(outer.orient('closed')).toBe(true);
+    const savedOwn = outer.aperture.deficit;
+    outer.aperture.deficit = 0;
+    inner.aperture.deficit = 0.9;
+    inner._publishAperture();
+    expect(outer.contactPressure).toBeCloseTo(0.9);
+    expect(outer.aperture.deficit).toBe(0);
+    outer.aperture.changedAt = Date.now() - 2000;
+    const t = Date.now();
+    outer.aperture.updatedAt = t;
+    outer.onBoundary(t + 1);
+    expect(outer.aperture.state).toBe('closed');
+    expect(outer.aperture.deficit).toBeLessThan(0.1);
+
+    outer.aperture.deficit = savedOwn;
+    allowOrientation(outer);
+    expect(outer.orient('open')).toBe(true);
+    outer._publishAperture();
+
+    allowOrientation(inner);
+    expect(inner.orient('open')).toBe(true);
+    await delay(5);
+    expect(renders).toBe(1);
+    const pending = global.takePending();
+    expect(pending).toHaveLength(1);
+    const evidenceId = pending[0].evidenceId;
+    expect(inner._issued.has(evidenceId)).toBe(true);
+    expect(outer._issued.has(evidenceId)).toBe(false);
+
+    const innerDebt = inner.aperture.deficit;
+    const outerDebt = outer.aperture.deficit;
+    const outerCredits = [];
+    const origOuterAttended = outer.aperture.attended.bind(outer.aperture);
+    outer.aperture.attended = (...args) => {
+        outerCredits.push(args);
+        return origOuterAttended(...args);
+    };
+
+    await MMind.prototype.assembleFrame.call(mind, pending);
+    expect(inner.aperture.deficit).toBeLessThan(innerDebt);
+    expect(outer.aperture.deficit).toBe(outerDebt);
+    expect(outerCredits).toHaveLength(0);
+    expect(inner._issued.has(evidenceId)).toBe(false);
+    expect(outer._issued.size).toBe(0);
+});
+
+test('17. Aggregator substitution: global mix follows aggregate(); without one, built-in mean', async () => {
+    const meanMind = await mount(`
+          <m-region name="left" modality="text" aperture="open" dwell="1s" contactHorizon="10s"></m-region>
+          <m-region name="right" modality="text" aperture="open" dwell="1s" contactHorizon="10s"></m-region>`);
+    const meanGlobal = meanMind.querySelector('[name="attention"]');
+    const left = meanMind.querySelector('m-region[name="left"]');
+    const right = meanMind.querySelector('m-region[name="right"]');
+    left.aperture.deficit = 0.2;
+    right.aperture.deficit = 0.8;
+    left._publishAperture();
+    right._publishAperture();
+    meanGlobal._pressureAt = Date.now() - 600000;
+    meanGlobal._updateContactPressure(Date.now());
+    // 60s smoothing stays in the arbiter; after ~10 time-constants the mix is the mean.
+    expect(meanGlobal.contactPressure).toBeCloseTo(0.5, 3);
+    expect(meanGlobal._aggregator).toBeNull();
+
+    await meanMind.querySelector('m-memory')?._journalQueue;
+    document.body.replaceChildren();
+    fs.rmSync(journalDir, { recursive: true, force: true });
+
+    const maxMind = await mount(`
+          <x-max-aggregator></x-max-aggregator>
+          <m-region name="left" modality="text" aperture="open" dwell="1s" contactHorizon="10s"></m-region>
+          <m-region name="right" modality="text" aperture="open" dwell="1s" contactHorizon="10s"></m-region>`);
+    const maxGlobal = maxMind.querySelector('[name="attention"]');
+    const maxLeft = maxMind.querySelector('m-region[name="left"]');
+    const maxRight = maxMind.querySelector('m-region[name="right"]');
+    expect(maxGlobal._aggregator).toBe(maxMind.querySelector('x-max-aggregator'));
+    maxLeft.aperture.deficit = 0.2;
+    maxRight.aperture.deficit = 0.8;
+    maxLeft._publishAperture();
+    maxRight._publishAperture();
+    maxGlobal._pressureAt = Date.now() - 600000;
+    maxGlobal._updateContactPressure(Date.now());
+    expect(maxGlobal.contactPressure).toBeCloseTo(0.8, 3);
+    expect(maxGlobal.contactPressure).not.toBeCloseTo(0.5, 2);
+
+    await maxMind.querySelector('m-memory')?._journalQueue;
+    document.body.replaceChildren();
+    fs.rmSync(journalDir, { recursive: true, force: true });
+
+    const constMind = await mount(`
+          <x-const-aggregator></x-const-aggregator>
+          <m-region name="outside" modality="text" aperture="open" dwell="1s" contactHorizon="10s"></m-region>`);
+    const constGlobal = constMind.querySelector('[name="attention"]');
+    const region = constMind.querySelector('m-region');
+    region.aperture.deficit = 0.2;
+    region._publishAperture();
+    constGlobal._pressureAt = Date.now() - 600000;
+    constGlobal._updateContactPressure(Date.now());
+    expect(constGlobal.contactPressure).toBeCloseTo(0.73, 3);
+});
+
+test('17. Port-incomplete aggregator throws at connect naming the missing method', async () => {
+    const captured = await captureConnectError(`
+          <x-incomplete-aggregator></x-incomplete-aggregator>
+          <m-region name="outside" modality="text" aperture="open"></m-region>`);
+    expect(captured?.message || String(captured)).toMatch(/aggregator is missing aggregate/);
+});
+
+test('17. Two aggregators in one mind fail at connect', async () => {
+    const captured = await captureConnectError(`
+          <x-max-aggregator></x-max-aggregator>
+          <x-const-aggregator></x-const-aggregator>
+          <m-region name="outside" modality="text" aperture="open"></m-region>`);
+    expect(captured?.message || String(captured)).toMatch(/only one aggregator/);
 });

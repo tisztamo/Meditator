@@ -82,8 +82,13 @@ export function gateIdOf(el) {
  * Aperture providers form a tree (`_children`), not a graph: each source and each
  * child provider registers with the nearest enclosing aperture only, in both
  * directions (announce on connect, plus an interior scan so connect order does
- * not matter). Fold termination (M8) depends on that. contactPressure is still
- * this provider's own deficit — not yet folded over children.
+ * not matter). Fold termination depends on that. Published `contactPressure` is
+ * `fold(ownDeficit, ...childPressures)` — default `max`, so an outer boundary
+ * feels its most-starved interior channel. A mean would hide the channel the
+ * reflex exists to rescue. The fold is not fed into `Aperture.advance`: the
+ * regulator's deficit stays own dynamics. Nested and global arbiters consume
+ * the published signal. Mind-level combination of top-level folded pressures
+ * is the `aggregator` role, not a second contact regulator on this provider.
  * Only registered lazy sources pass through this aperture; legacy interrupts are unchanged.
  */
 export class MRegion extends MBaseComponent {
@@ -103,7 +108,7 @@ export class MRegion extends MBaseComponent {
         })
         this._sources = new Map()
         // Child aperture providers. A tree, not a graph: nearest-only in both
-        // directions. M8's fold terminates because of that; pressure is not folded yet.
+        // directions. The pressure fold notifies only this parent pointer.
         this._children = []
         // At most 32 issued percept ids awaiting credit — same order as the
         // per-region source cap. WeakSet was wrong: a rebuilt record with the
@@ -362,6 +367,9 @@ export class MRegion extends MBaseComponent {
         if (!el || el === this) return
         if (this._children.includes(el)) return
         this._children.push(el)
+        // The child may already have published; include it now. Do not notify
+        // the child (the fold walks toward the membrane, never back down).
+        this._publishAperture()
     }
 
     /** Linked children in tree order. Stale entries (disconnected) drop out
@@ -584,12 +592,35 @@ export class MRegion extends MBaseComponent {
         this._publishAperture()
     }
 
+    /**
+     * Default fold is max: an outer boundary should feel its most-starved
+     * interior channel. A mean hides exactly the channel the reflex exists
+     * to rescue. Replaceable on the provider; the mind-level mix is aggregator.
+     * `advance` still reads own deficit — do not feed this result into the
+     * regulator, or an outer reflex would fire for an inner channel the mind
+     * may be deliberately narrow on.
+     */
+    fold(own, childPressures = []) {
+        let pressure = Number(own)
+        if (!Number.isFinite(pressure)) pressure = 0
+        for (const child of childPressures) {
+            const n = Number(child)
+            if (Number.isFinite(n) && n > pressure) pressure = n
+        }
+        return pressure
+    }
+
     _publishAperture() {
-        // Own deficit only. M8 folds children; the tree is already in place so
-        // that fold will terminate. Until then, nested interiors are invisible here.
-        this.pub('contactPressure', this.aperture.deficit)
+        if (!this.aperture) return
+        const own = this.aperture.deficit
+        const childPressures = this._childProviders().map(el => el.contactPressure)
+        const pressure = this.fold(own, childPressures)
+        this.pub('contactPressure', pressure)
         this.pub('apertureState', { state: this.aperture.state, focus: this.aperture.focus,
-            contactPressure: this.aperture.deficit, gain: this.aperture.gain })
+            contactPressure: pressure, gain: this.aperture.gain })
+        // Tree, not graph: notify the nearest enclosing aperture only.
+        const parent = this.enclosing('aperture')
+        if (parent && typeof parent._publishAperture === 'function') parent._publishAperture()
     }
 
     _publishDecision(verdict, annotated) {
