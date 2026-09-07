@@ -1,9 +1,12 @@
 import { clamp01, PerceptCandidate } from './percept.js';
 import { EdgeEvidence } from './perceptionContracts.js';
 
-/** Deterministic, afferent-only regulator. No timers, thought inspection, or model calls.
+/** Reference contact-dynamics policy, not the aperture provider.
+ * Deterministic, afferent-only regulator. No timers, thought inspection, or model calls.
  * Call advance at awake burst boundaries and observe with private detector headers.
  * Constants are deliberately provisional experiment settings, not a tuning framework.
+ * A modality region may wire a child `regulator` in its place at connect; this class
+ * remains the default. Substituting the gate itself (the aperture provider) is M9.
  */
 export class Aperture {
     constructor({ state = 'open', now = Date.now(), dwellMs = 30000, horizonMs = 600000 } = {}) {
@@ -23,8 +26,8 @@ export class Aperture {
 
     get gain() { return this.state === 'soft' ? 0.5 : 1; }
 
-    allows(source, policy = {}) {
-        return policy.bypassAperture || (this.state !== 'closed'
+    allows(source, powers = {}) {
+        return powers.bypassAperture || (this.state !== 'closed'
             && (this.state !== 'narrow' || source === this.focus));
     }
 

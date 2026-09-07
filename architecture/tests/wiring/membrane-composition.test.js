@@ -1,5 +1,6 @@
-// Membrane composition (phase 2 M2–M3): percept-candidate at acquisition and
-// awareness. Fixtures W1/W2/W3, conjunction, and the version chain.
+// Membrane composition (phase 2 M2–M3) plus M6 regulator substitution (test 15):
+// percept-candidate at acquisition and awareness. Fixtures W1/W2/W3, conjunction,
+// the version chain, and a test-only regulator port.
 import './setup.js';
 import { test, expect, afterEach } from 'bun:test';
 import A from 'amanita';
@@ -12,6 +13,7 @@ import { MMind } from '../../../src/mindComponents/mind/mMind.js';
 import { MBaseComponent } from '../../../src/mindComponents/shared/mBaseComponent.js';
 import { Percept } from '../../../src/infrastructure/percept.js';
 import { AttentionBid } from '../../../src/infrastructure/attentionBid.js';
+import { Aperture } from '../../../src/infrastructure/aperture.js';
 import { GateVerdict, pushGainTrail } from '../../../src/infrastructure/perceptionContracts.js';
 
 let journalDir;
@@ -34,6 +36,88 @@ if (!customElements.get('x-mind')) {
     customElements.define('x-mind', class extends MBaseComponent {
         static provides = { mind: true }
     });
+}
+
+/** Test-only contact regulator: same horizon as the fixture, lower reflex threshold.
+ * Defined before mount so part('regulator') sees it when the region connects. */
+class XFastRegulator extends MBaseComponent {
+    static provides = { regulator: true }
+    state = 'closed'
+    focus = null
+    deficit = 0
+    version = 0
+    updatedAt = Date.now()
+    lastContactAt = -Infinity
+    get gain() { return this.state === 'soft' ? 0.5 : 1 }
+    allows(sourceName, powers = {}) {
+        return powers.bypassAperture || (this.state !== 'closed'
+            && (this.state !== 'narrow' || sourceName === this.focus));
+    }
+    observe() {}
+    advance(now, { awake = true, arousal = 1 } = {}) {
+        const elapsed = Math.max(0, now - this.updatedAt);
+        this.updatedAt = now;
+        if (!awake) return false;
+        this.deficit = Math.min(1, Math.max(0,
+            this.deficit + elapsed / 10000 * (0.25 + 0.75 * Math.min(1, Math.max(0, arousal)))));
+        if (this.deficit >= 0.1 && this.state === 'closed') return this.orient('soft', { now });
+        if (this.deficit >= 0.2 && this.state === 'soft') return this.orient('open', { now });
+        return false;
+    }
+    orient(state, { source = null } = {}) {
+        if (state === this.state && source === this.focus) return false;
+        this.state = state;
+        this.focus = state === 'narrow' ? source : null;
+        this.version++;
+        return true;
+    }
+    attended(occurredAt, now = Date.now()) {
+        if (!Number.isFinite(occurredAt) || occurredAt <= this.lastContactAt
+            || occurredAt > now || now - occurredAt > 30000) return false;
+        this.lastContactAt = occurredAt;
+        this.deficit *= 0.1;
+        return true;
+    }
+}
+
+class XIncompleteRegulator extends MBaseComponent {
+    static provides = { regulator: true }
+    state = 'open'
+    focus = null
+    deficit = 0
+    version = 0
+    get gain() { return 1 }
+    allows() { return true }
+    observe() {}
+    advance() { return false }
+    orient() { return false }
+}
+
+if (!customElements.get('x-fast-regulator')) {
+    customElements.define('x-fast-regulator', XFastRegulator);
+}
+if (!customElements.get('x-incomplete-regulator')) {
+    customElements.define('x-incomplete-regulator', XIncompleteRegulator);
+}
+
+async function captureConnectError(inner) {
+    let captured = null;
+    const onError = event => {
+        captured = event.error || new Error(event.message);
+        event.preventDefault?.();
+    };
+    window.addEventListener('error', onError);
+    try {
+        try {
+            await mount(inner);
+        } catch (error) {
+            captured = error;
+        }
+        await delay(10);
+    } finally {
+        window.removeEventListener('error', onError);
+    }
+    return captured;
 }
 
 async function mount(inner) {
@@ -530,4 +614,117 @@ test('test 18: percept-candidate carries no content, materializer, or un-hashed 
     expect(seen[0].header.changeKey).not.toBe(PREIMAGE);
     expect(seen[0].header.changeKey).toHaveLength(64);
     expect(seen[1].header.changeKey).toBe(seen[0].header.changeKey);
+});
+
+const FAST_REGION = `
+          <m-region name="outside" modality="text" aperture="closed" dwell="1s" contactHorizon="10s">
+            <x-fast-regulator></x-fast-regulator>
+            <m-interrupts name="local" threshold="0.3" rateLimit="0s"></m-interrupts>
+            <span name="mock" provenance="simulated"></span>
+          </m-region>`;
+
+test('15. Regulator substitution: faster reflex, gate and receipts unchanged', async () => {
+    const mind = await mount(FAST_REGION);
+    const region = mind.querySelector('m-region[name="outside"]');
+    const source = mind.querySelector('[name="mock"]');
+    const global = mind.querySelector('[name="attention"]');
+    const regulator = mind.querySelector('x-fast-regulator');
+    expect(region.aperture).toBe(regulator);
+    expect(region.aperture).not.toBeInstanceOf(Aperture);
+
+    const events = [];
+    mind.addEventListener('percept-candidate', e => events.push(e.detail));
+    const bids = [];
+    mind.addEventListener('interrupt-request', e => bids.push(e.detail));
+    const published = interceptPub(region);
+    let renders = 0;
+    const offer = region.registerSource(source, request => offer(header('fresh'), () => {
+        renders++;
+        return TEXT;
+    }));
+    const withheld = await offer(header(PREIMAGE), () => {
+        renders++;
+        return WITHHELD;
+    });
+    expect(withheld).toBeNull();
+    expect(renders).toBe(0);
+    expect(bids).toHaveLength(0);
+    expect(events).toHaveLength(1);
+    expect(events[0].stage).toBe('acquisition');
+    expect(events[0].verdicts.some(v => v.reason === 'closed' && v.permitted === false)).toBe(true);
+    const decisions = published.filter(p => p.topic === 'perceptDecision');
+    expect(decisions).toHaveLength(1);
+    expect(decisions[0].data.reason).toBe('closed');
+    expect(decisions[0].data.permitted).toBe(false);
+
+    const t = Date.now();
+    const control = new Aperture({ state: 'closed', now: t, dwellMs: 1000, horizonMs: 10000 });
+    expect(control.advance(t + 2000)).toBe(false);
+    expect(control.state).toBe('closed');
+
+    const credited = [];
+    const origAttended = regulator.attended.bind(regulator);
+    regulator.attended = (occurredAt, now) => {
+        credited.push(occurredAt);
+        return origAttended(occurredAt, now);
+    };
+    region.onBoundary(t + 2000);
+    expect(regulator.state).toBe('soft');
+    await delay(5);
+    expect(renders).toBe(1);
+    expect(bids).toHaveLength(1);
+    const pending = global.takePending();
+    expect(pending).toEqual(bids);
+    const fired = interceptFire(mind);
+    await MMind.prototype.assembleFrame.call(mind, pending);
+    expect(credited).toHaveLength(1);
+    const attended = fired.find(f => f.name === 'percepts-attended');
+    expect(attended).toBeTruthy();
+    expect(attended.detail[0].perceptId).toBe(bids[0].evidenceId);
+});
+
+test('15. Nested apertures keep their own regulator; outer still uses Aperture', async () => {
+    const mind = await mount(`
+          <m-region name="shell" modality="text" aperture="closed" dwell="1s" contactHorizon="10s">
+            <m-region name="outside" modality="text" aperture="closed" dwell="1s" contactHorizon="10s">
+              <x-fast-regulator></x-fast-regulator>
+              <m-interrupts name="local" threshold="0.3" rateLimit="0s"></m-interrupts>
+              <span name="mock" provenance="simulated"></span>
+            </m-region>
+          </m-region>`);
+    const outer = mind.querySelector('m-region[name="shell"]');
+    const inner = mind.querySelector('m-region[name="outside"]');
+    const regulator = mind.querySelector('x-fast-regulator');
+    expect(outer.aperture).toBeInstanceOf(Aperture);
+    expect(inner.aperture).toBe(regulator);
+    expect(outer.part('regulator')).toEqual([regulator]);
+
+    const t = Date.now();
+    inner.onBoundary(t + 2000);
+    expect(inner.aperture.state).toBe('soft');
+    expect(outer.aperture.state).toBe('closed');
+
+    const source = mind.querySelector('[name="mock"]');
+    let renders = 0;
+    const offer = inner.registerSource(source);
+    const result = await offer(header('nested-closed'), () => { renders++; return WITHHELD; });
+    expect(result).toBeNull();
+    expect(renders).toBe(0);
+});
+
+test('15. Port-incomplete regulator throws at connect naming the missing method', async () => {
+    const captured = await captureConnectError(`
+          <m-region name="outside" modality="text" aperture="open">
+            <x-incomplete-regulator></x-incomplete-regulator>
+          </m-region>`);
+    expect(captured?.message || String(captured)).toMatch(/regulator is missing attended/);
+});
+
+test('15. Two regulators for one aperture fail at connect', async () => {
+    const captured = await captureConnectError(`
+          <m-region name="outside" modality="text" aperture="open">
+            <x-fast-regulator></x-fast-regulator>
+            <x-fast-regulator></x-fast-regulator>
+          </m-region>`);
+    expect(captured?.message || String(captured)).toMatch(/only one regulator/);
 });

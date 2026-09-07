@@ -47,6 +47,15 @@ export function gateIdOf(el) {
  *     route exists; the default preserves today's numbers. This is not a chosen
  *     confirmation policy. The issuing (nearest) provider owns the floor; nested
  *     apertures do not fold or max it.
+ * Interior role: `regulator` — contact dynamics (debt, habituation, reflex).
+ *   Resolved at connect via part('regulator'), then kept only if
+ *   enclosingOf(el, 'aperture') === this, so a nested aperture's regulator is
+ *   not stolen. Zero → constructed Aperture (the reference policy, not a tag).
+ *   More than one for this aperture throws. A substitute is validated as a port
+ *   before any other onConnect work that uses this.aperture; a missing method
+ *   throws naming the method and the role (`regulator is missing attended`).
+ *   Gate policy (decideGate, percept-candidate) is not this port; substituting
+ *   the aperture provider is still M9.
  * Methods: registerSource(element, sample) → offer(header, lazyText); orient(state, source);
  *   requestControl(ControlRequest) is the one door for sample / focus / detail —
  *   focus is accepted and changes no policy;
@@ -79,7 +88,7 @@ export class MRegion extends MBaseComponent {
     onConnect() {
         super.onConnect()
         if (!this.attr('modality')) return
-        this.aperture = new Aperture({
+        this.aperture = this._boundRegulator() ?? new Aperture({
             state: this.attr('aperture') || 'open',
             dwellMs: parseTime(this.attr('dwell') || '30s'),
             horizonMs: parseTime(this.attr('contactHorizon') || '10m'),
@@ -260,6 +269,35 @@ export class MRegion extends MBaseComponent {
 
     _gateId() { return gateIdOf(this) }
 
+    /** The unique `regulator` interior to this aperture. `part('regulator')`
+     * also walks into nested apertures (it only stops at the same role or a
+     * membrane), so filter to those whose nearest enclosing aperture is this
+     * region. Nested apertures keep their own default or substitute. */
+    _boundRegulator() {
+        const found = this.part('regulator').filter(el => enclosingOf(el, 'aperture') === this)
+        if (found.length > 1) {
+            throw new Error(`an aperture may have only one regulator (${this._gateId()})`)
+        }
+        const regulator = found[0]
+        if (!regulator) return null
+        // Parents connect before children: the substitute is already in the tree
+        // but may still be an unupgraded HTMLElement. Upgrade so validation and
+        // the first publish see the instance port, and a missing method still
+        // throws during this onConnect.
+        customElements.upgrade(regulator)
+        this._assertRegulatorPort(regulator)
+        return regulator
+    }
+
+    _assertRegulatorPort(regulator) {
+        for (const name of ['state', 'focus', 'deficit', 'gain', 'version']) {
+            if (!(name in regulator)) throw new Error(`regulator is missing ${name}`)
+        }
+        for (const name of ['allows', 'observe', 'advance', 'orient', 'attended']) {
+            if (typeof regulator[name] !== 'function') throw new Error(`regulator is missing ${name}`)
+        }
+    }
+
     /** Default 0 so the seam does not retune. The issuing provider's value;
      * not folded across nested apertures. */
     _requestedFloor() {
@@ -404,7 +442,7 @@ export class MRegion extends MBaseComponent {
                 && this._modalityRegion(element) === this
                 && this._sources.get(element) === entry
             if (!attached || sleeping) continue
-            if (request.target == null && !this.aperture.allows(entry.source)) continue
+            if (request.target == null && !this.aperture.allows(entry.source, entry.contract.powers)) continue
             entry.control = request
             Promise.resolve().then(() => entry.sample?.(request)).catch(() => {}).finally(() => {
                 if (entry.control === request) entry.control = null
