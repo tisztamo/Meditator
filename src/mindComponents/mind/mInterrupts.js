@@ -1,5 +1,5 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
-import { part } from "../shared/enclosure.js"
+import { part, isCustomElementDefined } from "../shared/enclosure.js"
 import { extractInfoton } from "../shared/infoton.js"
 import { logger } from '../../infrastructure/logger.js';
 import { AttentionBid } from '../../infrastructure/attentionBid.js';
@@ -100,18 +100,31 @@ export class MInterrupts extends MBaseComponent {
     }
 
     /** Unique `aggregator` inside the membrane. Zero → built-in mean.
-     * More than one fails loudly. The substitute is upgraded before the
-     * port check so a missing method still throws during this onConnect. */
+     * More than one fails loudly. If the tag is already defined, the port
+     * check runs during this onConnect. A same-batch child that is not yet
+     * defined is bound from `whenDefined` — upgrade() cannot define a tag. */
     _boundAggregator() {
+        if (this._aggregator) return this._aggregator
         const mind = this.membrane()
         if (!mind) return null
         const found = part(mind, 'aggregator')
         if (found.length > 1) throw new Error('a mind may have only one aggregator')
         const aggregator = found[0]
         if (!aggregator) return null
-        customElements.upgrade(aggregator)
-        this._assertAggregatorPort(aggregator)
-        return aggregator
+        const take = () => {
+            customElements.upgrade(aggregator)
+            this._assertAggregatorPort(aggregator)
+            return aggregator
+        }
+        if (isCustomElementDefined(aggregator)) return take()
+        if (!this._aggregatorWait) {
+            this._aggregatorWait = customElements.whenDefined(aggregator.localName).then(() => {
+                this._aggregatorWait = null
+                if (!this.isConnected) return
+                this._aggregator = take()
+            })
+        }
+        return null
     }
 
     _assertAggregatorPort(aggregator) {
@@ -120,6 +133,8 @@ export class MInterrupts extends MBaseComponent {
 
     onDisconnect() {
         this._container?.removeEventListener('interrupt-request', this._onRequest)
+        this._aggregator = null
+        this._aggregatorWait = null
     }
 
     _onRequest = e => {
@@ -261,16 +276,29 @@ export class MInterrupts extends MBaseComponent {
 
     _updateContactPressure(now) {
         if (this._region) {
-            this.pub('contactPressure', this._region.contactPressure || 0)
+            const pressure = this._clampPressure(this._region.contactPressure)
+            this.contactPressure = pressure
+            this.pub('contactPressure', pressure)
         } else {
+            if (!this._aggregator) this._aggregator = this._boundAggregator()
             const regions = part(this.membrane(), 'aperture')
-            const pressures = regions.map(region => region.contactPressure || 0)
-            const mixed = this._aggregator
+            const pressures = regions.map(region => this._clampPressure(region.contactPressure))
+            const mixed = this._clampPressure(this._aggregator
                 ? this._aggregator.aggregate(pressures)
-                : pressures.reduce((sum, p) => sum + p, 0) / (pressures.length || 1)
+                : pressures.reduce((sum, p) => sum + p, 0) / (pressures.length || 1))
             const weight = 1 - Math.exp(-Math.max(0, now - this._pressureAt) / 60000)
-            this.pub('contactPressure', this.contactPressure + (mixed - this.contactPressure) * weight)
+            const next = this._clampPressure(
+                this.contactPressure + (mixed - this.contactPressure) * weight)
+            this.contactPressure = next
+            this.pub('contactPressure', next)
         }
         this._pressureAt = now
+    }
+
+    /** Invalid aggregator output must not NaN the threshold (salience < NaN is
+     * false, so every bid would pass). Non-finite values fail closed at 0. */
+    _clampPressure(value) {
+        const n = Number(value)
+        return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0
     }
 }

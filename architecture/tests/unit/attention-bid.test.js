@@ -131,6 +131,9 @@ test('recomputeSalience reapplies decideBid so a requested floor survives nested
     bid.gainTrail.push(Object.freeze({ gate: 'm-interrupts', factor: 0.5 }));
     bid.recomputeSalience();
     expect(bid.salience).toBeCloseTo(0.25);
+    bid.gainTrail.push(Object.freeze({ gate: 'loud', factor: 2 }));
+    bid.recomputeSalience();
+    expect(bid.salience).toBeCloseTo(0.5);
     expect(evidence.salience).toBe(0);
     expect(bid.signals).toEqual({ changeMagnitude: 0, requested: true, novelty: null });
     expect(bid.requestedFloor).toBe(0.5);

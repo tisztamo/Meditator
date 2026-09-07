@@ -1,5 +1,5 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
-import { enclosingOf, enclosingAllOf, isMembrane, providesOf } from "../shared/enclosure.js"
+import { enclosingOf, enclosingAllOf, isMembrane, providesOf, isCustomElementDefined } from "../shared/enclosure.js"
 import { Aperture } from '../../infrastructure/aperture.js'
 import { Percept, PerceptCandidate } from '../../infrastructure/percept.js'
 import { AttentionBid } from '../../infrastructure/attentionBid.js'
@@ -54,6 +54,8 @@ export function gateIdOf(el) {
  *   More than one for this aperture throws. A substitute is validated as a port
  *   before any other onConnect work that uses this.aperture; a missing method
  *   throws naming the method and the role (`regulator is missing attended`).
+ *   A child whose tag is not yet defined waits for `whenDefined` — `upgrade()`
+ *   cannot define a tag, so the port check must not run on a plain HTMLElement.
  *   Gate policy (decideGate, percept-candidate) is not this port. Substituting
  *   the aperture provider is a class that `provides` `aperture`; C1 is the
  *   contract (architecture/tests/wiring/aperture-conformance.test.js).
@@ -103,11 +105,6 @@ export class MRegion extends MBaseComponent {
         super.onConnect()
         // Role, not the `modality` attribute: a substitute provider binds without it.
         if (!this._bindsAsAperture()) return
-        this.aperture = this._boundRegulator() ?? new Aperture({
-            state: this.attr('aperture') || 'open',
-            dwellMs: parseTime(this.attr('dwell') || '30s'),
-            horizonMs: parseTime(this.attr('contactHorizon') || '10m'),
-        })
         this._sources = new Map()
         // Child aperture providers. A tree, not a graph: nearest-only in both
         // directions. The pressure fold notifies only this parent pointer.
@@ -127,18 +124,14 @@ export class MRegion extends MBaseComponent {
         if (mind?.querySelector('m-economy')) {
             this.sub('..m-mind/economy/arousal', value => { this._arousal = value }).catch(() => {})
         }
-        this._publishAperture()
-        this._assertUniqueApertureId()
         this._requestedFloor()
         this.addEventListener('percept-candidate', this._onPerceptCandidate)
         this.addEventListener('aperture-register', this._onApertureRegister)
-        this._scanInterior()
-        // Own announcement: this listener ignores target === this so the event
-        // can bubble to the enclosing aperture. The membrane stops it if none.
-        this.dispatchEvent(new CustomEvent('aperture-register', { bubbles: true }))
+        this._bindAperture()
     }
 
     onDisconnect() {
+        this._bindGen = (this._bindGen || 0) + 1
         this._unlistenPercepts?.()
         this.removeEventListener('percept-candidate', this._onPerceptCandidate)
         this.removeEventListener('aperture-register', this._onApertureRegister)
@@ -146,6 +139,11 @@ export class MRegion extends MBaseComponent {
         this._sources?.clear()
         this._children = []
         this._issued?.clear()
+        this.aperture = null
+        // parentElement is already null here; the host pointer was set at link.
+        const host = this._hostAperture
+        this._hostAperture = null
+        host?._unlinkChild?.(this)
     }
 
     _mind() { return this.membrane() }
@@ -167,12 +165,12 @@ export class MRegion extends MBaseComponent {
         if (this._sources.size >= 32) throw new Error('Too many sources in one modality region')
         const contract = SourceContract.fromElement(element, { modality: this._sourceModality() })
         if ([...this._sources.values()].some(s => s.source === contract.name)) throw new Error('Sensory source names must be unique within a region')
-        const entry = { source: contract.name, sample, busy: false, contract, control: null }
+        const entry = { source: contract.name, sample, busy: false, contract, control: null, controlStack: [] }
         entry.offer = async (header, materialize) => {
             const attached = () => this.isConnected && element.isConnected
                 && this._modalityRegion(element) === this && this._sources.get(element) === entry
             if (!attached() || this._mind()?._sleeping) return null
-            const control = entry.control ?? null
+            const control = entry.controlStack[entry.controlStack.length - 1] ?? entry.control ?? null
             const requestId = control?.id ?? header.requestId ?? null
             const candidate = new PerceptCandidate({ ...header, requestId }, materialize)
             const now = Date.now()
@@ -248,6 +246,11 @@ export class MRegion extends MBaseComponent {
                 })
                 element.dispatchEvent(awarenessEvent)
                 const awareness = this._composedGate(awarenessEvent, expectedGates)
+                if (awareness.permitted && (!attached() || this._mind()?._sleeping
+                    || !this._versionsHold(annotated))) {
+                    this._publishDecision(this._gateMissingVerdict(awarenessDetail), annotated)
+                    return null
+                }
                 const percept = new Percept({
                     id: candidate.id, sourceId: contract.name, modality: contract.modality,
                     provenance: contract.provenance, tier: contract.tier, policy: contract.powers,
@@ -303,24 +306,47 @@ export class MRegion extends MBaseComponent {
 
     _gateId() { return gateIdOf(this) }
 
-    /** The unique `regulator` interior to this aperture. `part('regulator')`
-     * also walks into nested apertures (it only stops at the same role or a
-     * membrane), so filter to those whose nearest enclosing aperture is this
-     * region. Nested apertures keep their own default or substitute. */
-    _boundRegulator() {
+    /** Bind the unique interior `regulator`, or the reference Aperture policy.
+     * `customElements.upgrade()` cannot define a tag: a same-batch child whose
+     * constructor is not registered yet stays an HTMLElement, so the port check
+     * waits for `whenDefined` rather than treating that as a missing method.
+     * A present regulator element is never replaced by the default while waiting. */
+    _bindAperture() {
         const found = this.part('regulator').filter(el => enclosingOf(el, 'aperture') === this)
         if (found.length > 1) {
             throw new Error(`an aperture may have only one regulator (${this._gateId()})`)
         }
         const regulator = found[0]
-        if (!regulator) return null
-        // Parents connect before children: the substitute is already in the tree
-        // but may still be an unupgraded HTMLElement. Upgrade so validation and
-        // the first publish see the instance port, and a missing method still
-        // throws during this onConnect.
-        customElements.upgrade(regulator)
-        this._assertRegulatorPort(regulator)
-        return regulator
+        this._bindGen = (this._bindGen || 0) + 1
+        const gen = this._bindGen
+        if (!regulator) {
+            this._adoptAperture(new Aperture({
+                state: this.attr('aperture') || 'open',
+                dwellMs: parseTime(this.attr('dwell') || '30s'),
+                horizonMs: parseTime(this.attr('contactHorizon') || '10m'),
+            }))
+            return
+        }
+        const adopt = () => {
+            if (!this.isConnected || gen !== this._bindGen) return
+            if (enclosingOf(regulator, 'aperture') !== this) return
+            customElements.upgrade(regulator)
+            this._assertRegulatorPort(regulator)
+            this._adoptAperture(regulator)
+        }
+        if (isCustomElementDefined(regulator)) adopt()
+        else customElements.whenDefined(regulator.localName).then(adopt)
+    }
+
+    _adoptAperture(aperture) {
+        if (this.aperture) return
+        this.aperture = aperture
+        this._publishAperture()
+        this._assertUniqueApertureId()
+        this._scanInterior()
+        // Own announcement: this listener ignores target === this so the event
+        // can bubble to the enclosing aperture. The membrane stops it if none.
+        this.dispatchEvent(new CustomEvent('aperture-register', { bubbles: true }))
     }
 
     _assertRegulatorPort(regulator) {
@@ -378,8 +404,16 @@ export class MRegion extends MBaseComponent {
         if (!el || el === this) return
         if (this._children.includes(el)) return
         this._children.push(el)
+        el._hostAperture = this
         // The child may already have published; include it now. Do not notify
         // the child (the fold walks toward the membrane, never back down).
+        this._publishAperture()
+    }
+
+    _unlinkChild(el) {
+        const i = this._children.indexOf(el)
+        if (i >= 0) this._children.splice(i, 1)
+        if (el?._hostAperture === this) el._hostAperture = null
         this._publishAperture()
     }
 
@@ -528,7 +562,9 @@ export class MRegion extends MBaseComponent {
      * After this provider's own `_sources`, untargeted requests fan out to every
      * registered child provider (each applies its own `allows()` skip). A named
      * target is delivered once by the nearest owner and not forwarded further.
-     * If two sibling providers both own the name, first in tree order wins. */
+     * If two sibling providers both own the name, first in tree order wins.
+     * Owning a detached or sleeping source still claims the name — dropping is
+     * not an error and must not fall through to a later sibling. */
     requestControl(request) {
         if (!(request instanceof ControlRequest)) throw new Error('requestControl requires a ControlRequest')
         if (!this.aperture) return false
@@ -545,13 +581,10 @@ export class MRegion extends MBaseComponent {
             if (!attached || sleeping) continue
             if (!targeted && !this.aperture.allows(entry.source, entry.contract.powers)) continue
             delivered = true
-            entry.control = request
-            Promise.resolve().then(() => entry.sample?.(request)).catch(() => {}).finally(() => {
-                if (entry.control === request) entry.control = null
-            })
+            this._armControl(entry, request)
             if (targeted) break
         }
-        if (targeted && (delivered || owned)) return delivered
+        if (targeted && owned) return true
         for (const child of this._childProviders()) {
             if (!child.isConnected) continue
             customElements.upgrade(child)
@@ -562,6 +595,23 @@ export class MRegion extends MBaseComponent {
             }
         }
         return delivered
+    }
+
+    /** Snapshot this request around the sample callback so a second control in
+     * the same turn cannot overwrite A's lineage with B's. `offer` reads the
+     * stack top, not a single shared slot. */
+    _armControl(entry, request) {
+        Promise.resolve().then(async () => {
+            entry.controlStack.push(request)
+            entry.control = request
+            try {
+                await entry.sample?.(request)
+            } finally {
+                const i = entry.controlStack.lastIndexOf(request)
+                if (i >= 0) entry.controlStack.splice(i, 1)
+                entry.control = entry.controlStack[entry.controlStack.length - 1] ?? null
+            }
+        }).catch(() => {})
     }
 
     _transition(from, reason) {
@@ -626,6 +676,7 @@ export class MRegion extends MBaseComponent {
         const own = this.aperture.deficit
         const childPressures = this._childProviders().map(el => el.contactPressure)
         const pressure = this.fold(own, childPressures)
+        this.contactPressure = pressure
         this.pub('contactPressure', pressure)
         this.pub('apertureState', { state: this.aperture.state, focus: this.aperture.focus,
             contactPressure: pressure, gain: this.aperture.gain })

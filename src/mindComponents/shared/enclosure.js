@@ -165,3 +165,14 @@ export function part(root, role) {
     walk(root)
     return found
 }
+
+/** Whether `el`'s tag has been `customElements.define`d.
+ * `customElements.upgrade()` is a no-op until then — it cannot define a tag. */
+export function isCustomElementDefined(el) {
+    if (!el?.localName) return false
+    try {
+        return customElements.get(el.localName) != null
+    } catch {
+        return false
+    }
+}

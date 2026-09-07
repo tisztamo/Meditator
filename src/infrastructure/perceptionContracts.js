@@ -177,17 +177,22 @@ export function pushGainTrail(trail, gate, factor) {
     trail.push(Object.freeze({ gate, factor }));
 }
 
-/** Pure bidding policy. Independent signals, never merged upstream:
+/** Pure bidding policy. Independent signals, never merged upstream.
  *
- *     clamp01(max(changeMagnitude, requested ? requestedFloor : 0)) * product(gainTrail)
+ * Weight is `clamp01(max(changeMagnitude, requested ? requestedFloor : 0))`.
+ * Each gain-trail factor then multiplies and is clamped to [0, 1], matching
+ * nested promotion (`salience = clamp(salience * gain)` per hop). Enclosure
+ * factors are ≤ 1; arbiter factors may be > 1. A single unclamped product
+ * would let 0.8 × 2 exceed 1 and would make mixed amplification/attenuation
+ * disagree with hop order.
  *
  * `requested` is acquisition lineage — the observation answers a sample/detail
  * the mind issued — not a prediction and not causal attribution. `requestedFloor`
- * defaults to 0 so this refactor does not retune: max(x, 0) * product = x * product.
- * The attribute on the issuing aperture is the route; choosing the number is later.
- * `novelty` is part of the signal set and ignored; no producer in this phase.
- * No DOM, no component state. `requestedFloor` is an argument, not read from
- * an element. Nonsense floors (not a number, or outside [0, 1]) throw. */
+ * defaults to 0 so this refactor does not retune: max(x, 0) times identity trail
+ * is x. The attribute on the issuing aperture is the route; choosing the number
+ * is later. `novelty` is part of the signal set and ignored; no producer in
+ * this phase. No DOM, no component state. `requestedFloor` is an argument, not
+ * read from an element. Nonsense floors (not a number, or outside [0, 1]) throw. */
 export function decideBid({ evidence, signals, gainTrail = [], requestedFloor = 0 } = {}) {
     if (typeof requestedFloor !== 'number' || !Number.isFinite(requestedFloor)
         || requestedFloor < 0 || requestedFloor > 1) {
@@ -205,8 +210,15 @@ export function decideBid({ evidence, signals, gainTrail = [], requestedFloor = 
     }
     if (!Array.isArray(gainTrail)) throw new Error('gain trail is a list');
     const floor = requested ? requestedFloor : 0;
-    const weight = Math.max(0, Math.min(1, Math.max(changeMagnitude, floor)));
-    return weight * gainTrail.reduce((product, entry) => product * entry.factor, 1);
+    let salience = Math.max(0, Math.min(1, Math.max(changeMagnitude, floor)));
+    for (const entry of gainTrail) {
+        const factor = entry?.factor;
+        if (typeof factor !== 'number' || !Number.isFinite(factor)) {
+            throw new Error('gain trail factor must be a finite number');
+        }
+        salience = Math.max(0, Math.min(1, salience * factor));
+    }
+    return salience;
 }
 
 /** Trusted annotation of a private candidate. Never leaves the provider chain.

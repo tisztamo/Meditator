@@ -80,7 +80,8 @@ export class AttentionBid {
      * and the floor used at issue, times the updated trail. Multiplying
      * evidence.salience alone would wipe a requested floor on a zero-change
      * sample. Arbiter factors may be > 1; they are competition, not enclosure,
-     * so they must not go through pushGainTrail. */
+     * so they must not go through pushGainTrail. decideBid clamps after each
+     * factor, so an amplifying hop cannot push salience past 1. */
     recomputeSalience() {
         this.salience = decideBid({
             evidence: this.evidence,

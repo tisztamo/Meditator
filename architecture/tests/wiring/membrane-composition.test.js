@@ -16,6 +16,7 @@ import { Percept } from '../../../src/infrastructure/percept.js';
 import { AttentionBid } from '../../../src/infrastructure/attentionBid.js';
 import { Aperture } from '../../../src/infrastructure/aperture.js';
 import { GateVerdict, pushGainTrail, ControlRequest } from '../../../src/infrastructure/perceptionContracts.js';
+import { InterruptRecord } from '../../../src/infrastructure/interruptRecord.js';
 
 let journalDir;
 
@@ -111,6 +112,11 @@ class XIncompleteAggregator extends MBaseComponent {
     static provides = { aggregator: true }
 }
 
+class XNaNAggregator extends MBaseComponent {
+    static provides = { aggregator: true }
+    aggregate() { return NaN }
+}
+
 if (!customElements.get('x-fast-regulator')) {
     customElements.define('x-fast-regulator', XFastRegulator);
 }
@@ -125,6 +131,9 @@ if (!customElements.get('x-const-aggregator')) {
 }
 if (!customElements.get('x-incomplete-aggregator')) {
     customElements.define('x-incomplete-aggregator', XIncompleteAggregator);
+}
+if (!customElements.get('x-nan-aggregator')) {
+    customElements.define('x-nan-aggregator', XNaNAggregator);
 }
 
 async function captureConnectError(inner) {
@@ -1012,4 +1021,178 @@ test('17. Two aggregators in one mind fail at connect', async () => {
           <x-const-aggregator></x-const-aggregator>
           <m-region name="outside" modality="text" aperture="open"></m-region>`);
     expect(captured?.message || String(captured)).toMatch(/only one aggregator/);
+});
+
+test('nested arbiter gain 2 clamps salience to 1', async () => {
+    const mind = await mount(`
+          <m-region name="loud" modality="text" aperture="open" dwell="1s" contactHorizon="10s">
+            <m-interrupts name="local" gain="2" threshold="0.1" rateLimit="0s"></m-interrupts>
+            <span name="mock" provenance="simulated"></span>
+          </m-region>`);
+    const inner = mind.querySelector('m-region[name="loud"]');
+    const source = mind.querySelector('[name="mock"]');
+    const global = mind.querySelector('[name="attention"]');
+    const offer = inner.registerSource(source);
+    const bid = await offer(header('loud-gain'), () => TEXT);
+    expect(bid.salience).toBeCloseTo(1);
+    expect(global.takePending()[0].salience).toBeCloseTo(1);
+});
+
+test('awareness re-checks versions: closing a gate after its verdict does not issue', async () => {
+    const mind = await mount(W2_REGION);
+    const inner = mind.querySelector('m-region[name="outside"]');
+    const source = mind.querySelector('[name="mock"]');
+    const global = mind.querySelector('[name="attention"]');
+    allowOrientation(inner);
+    mind.addEventListener('percept-candidate', event => {
+        if (event.detail?.stage !== 'awareness') return;
+        inner.orient('closed');
+    });
+    const bids = [];
+    mind.addEventListener('interrupt-request', e => bids.push(e.detail));
+    let renders = 0;
+    const offer = inner.registerSource(source);
+    const result = await offer(header('late-close'), () => { renders++; return TEXT; });
+    expect(renders).toBe(1);
+    expect(result).toBeNull();
+    expect(bids).toHaveLength(0);
+    expect(global.takePending()).toHaveLength(0);
+});
+
+test('removing a nested aperture republishes the outer fold', async () => {
+    const mind = await mount(P1_REGION);
+    const outer = mind.querySelector('m-region[name="shell"]');
+    const inner = mind.querySelector('m-region[name="outside"]');
+    outer.aperture.deficit = 0;
+    inner.aperture.deficit = 0.9;
+    inner._publishAperture();
+    expect(outer.contactPressure).toBeCloseTo(0.9);
+    inner.remove();
+    expect(outer._childProviders()).toHaveLength(0);
+    expect(outer.contactPressure).toBeCloseTo(0);
+});
+
+test('targeted control at a detached nearest owner does not fall through to a sibling', async () => {
+    const mind = await mount(`
+          <m-region name="shell" modality="text" aperture="open" dwell="1s" contactHorizon="10s">
+            <m-region name="left" modality="text" aperture="open" dwell="1s" contactHorizon="10s">
+              <span name="garden" provenance="simulated"></span>
+            </m-region>
+            <m-region name="right" modality="text" aperture="open" dwell="1s" contactHorizon="10s">
+              <span name="garden" provenance="simulated"></span>
+            </m-region>
+          </m-region>`);
+    const outer = mind.querySelector('m-region[name="shell"]');
+    const left = mind.querySelector('m-region[name="left"]');
+    const right = mind.querySelector('m-region[name="right"]');
+    const garden = left.querySelector('[name="garden"]');
+    const siblingGarden = right.querySelector('[name="garden"]');
+    const called = [];
+    left.registerSource(garden, () => { called.push('left-garden'); });
+    right.registerSource(siblingGarden, () => { called.push('right-garden'); });
+    garden.remove();
+    outer.requestControl(sampleRequest('garden'));
+    await delay(5);
+    expect(called).toEqual([]);
+});
+
+test('invalid aggregator output fails closed: threshold stays finite', async () => {
+    const mind = await mount(`
+          <x-nan-aggregator></x-nan-aggregator>
+          <m-region name="outside" modality="text" aperture="open" dwell="1s" contactHorizon="10s"></m-region>`);
+    const global = mind.querySelector('[name="attention"]');
+    const region = mind.querySelector('m-region');
+    region.aperture.deficit = 0.8;
+    region._publishAperture();
+    global._pressureAt = Date.now() - 600000;
+    global._updateContactPressure(Date.now());
+    expect(global.contactPressure).toBe(0);
+    expect(Number.isFinite(global.contactPressure)).toBe(true);
+    const source = document.createElement('span');
+    mind.appendChild(source);
+    source.dispatchEvent(new CustomEvent('interrupt-request', {
+        bubbles: true,
+        detail: new InterruptRecord({ source: 'Observer', type: 'Test', reason: 'quiet', salience: 0.2 }),
+    }));
+    expect(global.takePending()).toHaveLength(0);
+});
+
+test('same-batch regulator binds after its tag is defined, without failing the port check', async () => {
+    const mind = await mount(`
+          <m-region name="host" modality="text" aperture="open" dwell="1s" contactHorizon="10s"></m-region>`);
+    const tag = `x-deferred-regulator-${Date.now()}`;
+    class XDeferredRegulator extends MBaseComponent {
+        static provides = { regulator: true }
+        state = 'open'
+        focus = null
+        deficit = 0.42
+        version = 0
+        get gain() { return 1 }
+        allows() { return true }
+        observe() {}
+        advance() { return false }
+        orient() { return false }
+        attended() { return false }
+    }
+    const region = document.createElement('m-region');
+    region.setAttribute('name', `deferred-${Date.now()}`);
+    region.setAttribute('modality', 'text');
+    region.setAttribute('aperture', 'open');
+    region.setAttribute('dwell', '1s');
+    region.setAttribute('contactHorizon', '10s');
+    const child = document.createElement(tag);
+    child.setAttribute('provides', 'regulator');
+    region.appendChild(child);
+    let captured = null;
+    const onError = event => {
+        captured = event.error || new Error(event.message);
+        event.preventDefault?.();
+    };
+    window.addEventListener('error', onError);
+    try {
+        mind.appendChild(region);
+        await delay(10);
+    } finally {
+        window.removeEventListener('error', onError);
+    }
+    expect(captured).toBeNull();
+    expect(region.aperture).toBeFalsy();
+    customElements.define(tag, XDeferredRegulator);
+    await delay(20);
+    expect(region.aperture).toBe(child);
+    expect(region.aperture.deficit).toBe(0.42);
+});
+
+test('same-batch aggregator binds after its tag is defined', async () => {
+    const mind = await mount(`
+          <m-region name="outside" modality="text" aperture="open" dwell="1s" contactHorizon="10s"></m-region>`);
+    const tag = `x-deferred-aggregator-${Date.now()}`;
+    class XDeferredAggregator extends MBaseComponent {
+        static provides = { aggregator: true }
+        aggregate() { return 0.61 }
+    }
+    const agg = document.createElement(tag);
+    agg.setAttribute('provides', 'aggregator');
+    const arb = document.createElement('m-interrupts');
+    arb.setAttribute('name', `deferred-attention-${Date.now()}`);
+    arb.setAttribute('threshold', '0.35');
+    arb.setAttribute('rateLimit', '0s');
+    mind.appendChild(agg);
+    let captured = null;
+    const onError = event => {
+        captured = event.error || new Error(event.message);
+        event.preventDefault?.();
+    };
+    window.addEventListener('error', onError);
+    try {
+        mind.appendChild(arb);
+        await delay(10);
+    } finally {
+        window.removeEventListener('error', onError);
+    }
+    expect(captured).toBeNull();
+    expect(arb._aggregator).toBeNull();
+    customElements.define(tag, XDeferredAggregator);
+    await delay(20);
+    expect(arb._aggregator).toBe(agg);
 });

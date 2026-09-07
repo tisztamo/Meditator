@@ -527,6 +527,27 @@ test('requestControl drops detached or sleeping sources without throwing', async
     expect(samples).toBe(0);
 });
 
+test('concurrent requestControl does not attach B\'s requestId to A\'s sample', async () => {
+    allowOrientation();
+    region.orient('open');
+    const seen = [];
+    const offer = region.registerSource(source, request => offer({
+        changeMagnitude: 0.9, changeKey: request.reason, occurredAt: Date.now(),
+    }, () => request.reason).then(bid => {
+        if (bid) seen.push({ reason: request.reason, requestId: AttentionBid.evidenceOf(bid).requestId });
+        return bid;
+    }));
+    const a = new ControlRequest({ kind: 'sample', issuedBy: 'test', reason: 'alpha-sample', target: 'mock' });
+    const b = new ControlRequest({ kind: 'sample', issuedBy: 'test', reason: 'beta-sample', target: 'mock' });
+    region.requestControl(a);
+    region.requestControl(b);
+    await delay(20);
+    const alphas = seen.filter(row => row.reason === 'alpha-sample');
+    expect(alphas.length).toBeGreaterThan(0);
+    for (const row of alphas) expect(row.requestId).toBe(a.id);
+    for (const row of seen.filter(s => s.reason === 'beta-sample')) expect(row.requestId).toBe(b.id);
+});
+
 test('focus is delivered and recorded but changes no aperture policy', async () => {
     let received = null;
     region.registerSource(source, request => { received = request; });

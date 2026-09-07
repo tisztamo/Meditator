@@ -326,6 +326,25 @@ describe('decideBid', () => {
         })).toBeCloseTo(0.4);
     });
 
+    test('amplifying hops clamp after each factor, matching nested promotion', () => {
+        expect(decideBid({
+            signals: signals(),
+            gainTrail: [{ gate: 'local', factor: 2 }],
+        })).toBeCloseTo(1);
+        expect(decideBid({
+            signals: signals(),
+            gainTrail: [{ gate: 'soft', factor: 0.5 }, { gate: 'local', factor: 2 }],
+        })).toBeCloseTo(0.8);
+        expect(decideBid({
+            signals: signals(),
+            gainTrail: [{ gate: 'local', factor: 2 }, { gate: 'soft', factor: 0.5 }],
+        })).toBeCloseTo(0.5);
+        expect(() => decideBid({
+            signals: signals(),
+            gainTrail: [{ gate: 'local', factor: NaN }],
+        })).toThrow(/finite number/);
+    });
+
     test('invalid requestedFloor throws; omitted defaults to 0', () => {
         const args = { signals: signals({ changeMagnitude: 0, requested: true }), gainTrail: [] };
         expect(decideBid(args)).toBeCloseTo(0);
