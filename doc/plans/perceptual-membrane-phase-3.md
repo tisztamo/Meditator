@@ -1,7 +1,7 @@
 # Perceptual membrane — Phase 3 implementation plan: prediction, orientation, and search
 
-**Status: proposed, 2026-09-07; reviewed, findings unapplied
-([review](perceptual-membrane-phase-3-review.md)).** Realizes step 3 of the
+**Status: proposed, 2026-09-07; revised the same day after
+[review](perceptual-membrane-phase-3-review.md).** Realizes step 3 of the
 [perceptual membrane](../architecture/perceptual-membrane.md#proposed-development-order):
 
 > *Assemble the existing deficit/reflex and inexpensive act-bound prediction as
@@ -11,8 +11,9 @@
 Sibling of the [phase 1 plan](perceptual-membrane-phase-1.md), which established
 the contracts, and the [phase 2 plan](perceptual-membrane-phase-2.md), which made
 the membrane compose. Phase 3 gives the open seams their first producers and
-controllers. It closes the controller half of known-issues row 5 and adds a real
-producer to row 2; it deliberately leaves processing tiers 1–2 (row 6) open.
+controllers. It adds the search controller and the `orient` hand to known-issues
+row 5 — leaving that row's cadence-control gap open — and a real producer to row
+2; it deliberately leaves processing tiers 1–2 (row 6) open.
 
 The constraining companions are
 [prediction, mismatch, and top-down search](../improvements/prediction-mismatch.md)
@@ -30,7 +31,7 @@ and failing to find is not proof of absence.*
 
 ## 1. What this phase is
 
-Phases 1 and 2 left five deliberate holes:
+Phases 1 and 2 left six deliberate holes:
 
 1. `Evaluation` exists, but nothing produces one.
 2. `AttentionBid` has independent signal storage, but only sensory change and
@@ -41,16 +42,25 @@ Phases 1 and 2 left five deliberate holes:
 5. `MRegion.orient()` exists for the deterministic reflex and direct callers, but
    the mind has no `orient` hand, no controller-facing orientation message, and no
    separate control cooldown lane.
+6. **Evidence reaches attention by two paths, and only one of them has a seam.**
+   A membrane percept travels `m-region`'s offer path; a hand's consequence is
+   fired straight at the arbiter (`mAct.js`, `mTerminal.js`) and coerced by
+   `AttentionBid.from` with default signals. Phase 2 built the bidding seam on
+   the first path only, because it was the only producer that existed then.
 
 The first reference architecture fills those holes with one inexpensive,
 replaceable path:
 
 ```text
-REALIZE supplies optional expect/template
+REALIZE supplies optional expect (and template, where a hand accepts one)
   → m-act publishes a typed prediction before execution
-  → a tier-0 comparator evaluates later identified text evidence
+
+evidence, by either path, before its bid is built
+  → a tier-0 comparator evaluates identified text evidence against live
+    predictions and search targets
   → a replaceable bidder derives independent match/mismatch/target signals
-  → composed awareness and the existing arbiters decide what reaches the frame
+  → composed awareness (membrane path) and the existing arbiters decide what
+    reaches the frame
 
 orient hand
   → typed orientation request to an aperture provider
@@ -58,6 +68,15 @@ orient hand
   → focus/sample requests through the existing nested control path
   → found / not-detected-in-inspected-area / exhausted / abandoned
 ```
+
+**The producer of the evidence consults the comparator and builds the bid.**
+That is already true of `m-region`; this phase makes it true of `m-act`, which is
+the one component holding the prediction, the `actId`, and an already-`await`ed
+`execute`. The alternative — comparing inside `m-interrupts` — would make the
+arbiter's listener asynchronous, and `_onRequest` is synchronous on purpose
+([decoupling](../architecture/decoupling.md)); it also stops propagation for a
+nested region, which an `await` would reorder.
+The comparator itself is one mind-level role with two callers, not two seams.
 
 The existing `Aperture` deficit/reflex and pressure aggregation are not rewritten.
 The reference ArchML assembles them with the new predictor, comparator, bidder,
@@ -70,15 +89,19 @@ phase-2 behavior exactly intact.
    `ActEnvelope`, `ComparableEvidence`, `SearchTarget`, `SearchAttempt`,
    `SearchOutcome`, and `OrientationRequest` records with identity, scope,
    lifetime, and honest terminal states.
-2. **A uniform REALIZE envelope** — optional `expect` and `template` fields added
-   to the tool schemas assembled by `m-act`, stripped before a hand executes.
+2. **An opt-in REALIZE envelope** — optional `expect` (and `template`, on hands
+   that declare they accept one) added to the tool schemas assembled by `m-act`,
+   stripped before a hand executes. Off unless the architecture asks for it, so
+   no existing mind's realize request changes shape.
 3. **Act lineage** — one `actId` created before execution and preserved through
-   predictions, deeds, immediate/deferred consequences, percepts, and receipts.
+   predictions, deeds, immediate/deferred consequences, orientation-triggered
+   samples, percepts, and receipts.
 4. **A prediction producer** — `m-act` publishes an expectation before the hand can
    cause a consequence. No extra model call.
-5. **A comparator port and reference comparator** — permitted, materialized tier-0
-   evidence may be evaluated against active predictions and search targets before
-   awareness. Evaluations refer by id and never rewrite evidence.
+5. **A comparator port and reference comparator** — identified tier-0 evidence may
+   be evaluated against active predictions and search targets before its bid is
+   built, and on the membrane path before awareness. Evaluations refer by id and
+   never rewrite evidence.
 6. **A replaceable bidder port** — prediction mismatch, prediction match, target
    match, requested lineage, novelty, and sensory change remain separate inputs.
 7. **The `orient` hand** — an ordinary current-generation capability with a higher
@@ -116,8 +139,15 @@ series.
 - With no predictor, comparator, bidder, search controller, or orient hand wired,
   every existing architecture produces the same bids, frames, deeds, consequences,
   and journal text as phase 2.
-- `expect` and `template` are absent by default, are never passed to
-  `cap.execute(args)`, and do not mutate a hand's declared schema.
+- The envelope is **off unless declared**, so the tool schemas `m-act` sends to a
+  realizer are byte-for-byte what they are today for every existing architecture.
+  This is the promise the uniform-injection design could not make: adding two
+  properties to every tool changes the request a live resident's realizer sees,
+  and therefore can change which hand it picks and how it fills the arguments.
+  Stripping the fields afterwards does not undo that.
+- Where the envelope is declared, `expect` and `template` are never passed to
+  `cap.execute(args)`, never reach `acted.args`, and do not mutate a hand's
+  declared schema.
 - Existing hand arguments, `renderForFrame()` output, the conscious prefill, and
   the `decision` / Studio payloads stay byte-for-byte compatible except for
   explicitly additive non-content ids.
@@ -194,6 +224,19 @@ rendering do not include it in prose. Typed percept index entries may record it 
 additive lineage. The terminal's deferred path must pass the same id it received
 in `execute(args, ctx)` rather than minting one when the result arrives.
 
+`actId` is trusted lineage, so it travels the same way powers do: only from an
+in-process record, never from a coerced payload. `mTerminal._dispatch` currently
+fires a **plain object**, which `Percept.fromInterrupt` treats as untrusted —
+it already strips that consequence's `urgent` and `clearsTail` today, silently,
+and it would strip an `actId` for the same reason. Fixing it (construct an
+`InterruptRecord`) is M1 work, not a later cleanup; see §7.
+
+Predictions, settlements, attempts, and outcomes are **events**, not retained
+topics: `fire()` / `@event`, the convention `m-act` already follows for `acted`.
+A retained topic would replay the last prediction to a comparator that connects
+afterwards, which contradicts this phase's own rule that late or cancelled work
+cannot become fresh evidence.
+
 `Prediction` stays immutable and active; completion is a separate
 `PredictionSettlement`, just as an evaluation is separate from evidence. The
 reference comparator settles its one-evidence prediction on match/mismatch, expires
@@ -250,6 +293,24 @@ evidence and none matched. A deadline, refused acquisition, detached source,
 missing materialization, or exhausted budget yields `budget-exhausted` or
 `abandoned`, not absence.
 
+**What counts as this attempt's evidence.** A candidate's `requestId` is stamped
+from the source's armed control (`mRegion._armControl`), so *any* candidate a
+source emits inside the arming window inherits the attempt's id — including a
+spontaneous one that never answered the request. The first controller therefore
+counts **only the first candidate carrying an attempt's id** toward that route's
+coverage, and records `attemptedSamples` separately from `coverage`. This is a
+real limitation and it belongs next to the outcome, not in a footnote: a route
+may be marked inspected on the strength of an observation that arrived for its
+own reasons. The honest repair is an explicit "answering request X"
+acknowledgment in the source contract, which is a change to `MSense.onSense` and
+belongs to the tier-1 work, not here.
+
+`perceptDecision` gains `candidateId` and `requestId` — both non-semantic, both
+already known at the point of publication. Without them a controller cannot tell
+a refused route from a slow one and must spend a full deadline on every closed
+route before its coverage can advance. This is the one field phase 1 would have
+been cheaper to add.
+
 ### 2.3 Orientation request
 
 Orientation is provider control, not source acquisition, so do not overload
@@ -259,6 +320,7 @@ Orientation is provider control, not source acquisition, so do not overload
 OrientationRequest {
   id,
   issuedBy,
+  actId?,             // when a hand issued it; forwarded to the transition's sample
   aperture,           // stable provider name
   state,              // open | soft | narrow | closed
   source?,
@@ -267,6 +329,14 @@ OrientationRequest {
   deadline?
 }
 ```
+
+An accepted transition asks its sources for the present (`MRegion._transition`).
+That `ControlRequest` carries the originating `actId`, so the observation which
+answers a deliberate look is linked to the act that caused the look — and an
+`expect` on an orient call can actually settle. Without this forwarding the
+orient hand's prediction could only ever expire, since the transition's sample is
+minted inside the provider with no lineage at all. It remains acquisition
+lineage: looking caused the sample, not what the sample happens to contain.
 
 Every aperture provider exposes `requestOrientation(request) → boolean` and
 forwards an unmatched request to registered child providers. Provider names are
@@ -283,15 +353,23 @@ telemetry.
 ## 3. The REALIZE envelope and act-bound producer
 
 `MAct._realize()` currently builds each tool directly from the hand's schema.
-Build an augmented copy instead:
+Build an augmented copy instead, **when the architecture declares the envelope**
+(an attribute on `m-act`, default off):
 
 ```js
 properties: {
   ...cap.parameters.properties,
   expect:   { type: 'string', description: 'the consequence expected from this act' },
+  // only for a capability that registers acceptsTemplate: true
   template: { type: 'string', description: 'what this orientation should look for' }
 }
 ```
+
+`template` is per-capability, not uniform. On `m-note` or `m-terminal` it names
+nothing the hand can do: it would spend prompt tokens on every realize call and
+invite the realizer to invent a value for a field no one reads. The prediction
+design's *uniform envelope* means uniform across the hands that have it, not
+present on every hand by default.
 
 Neither property is added to `cap.parameters`. `_execute` validates the augmented
 shape, removes the two fields, validates the remaining object against the original
@@ -313,36 +391,90 @@ matching their current `Sense-${name}` consequence. A hand may declare a narrowe
 target as registration metadata; it may not supply prediction authority in its
 output.
 
-Add `actId` and `predictionId` to the backstage `acted` payload. Immediate
-consequences get `actId` when `m-act` constructs their `InterruptRecord`. Deferred
-hands receive the id in context and must return it on their later
+Note which namespace that default lives in. A hand's consequence is
+`Sense-${capabilityName}`; a membrane percept is `Sense-${sourceName}`. They
+coincide only by accidental collision, so a default target is matched on the act
+path against the consequence `m-act` itself produces — not against sensory
+evidence that happens to be named similarly. A prediction meant for a *sense*
+declares that source explicitly.
+
+Add `actId` and `predictionId` to the backstage `acted` payload. Its `args` are
+the **stripped** `handArgs` — `acted` reaches Studio, and `expect` sitting in it
+would be exactly the expectation text §1 promises never appears there. The two
+ids are the record; the text is not.
+
+Immediate consequences get `actId` when `m-act` constructs their `InterruptRecord`.
+Deferred hands receive the id in context and must return it on their later
 `interrupt-request`. Execution failure publishes a non-semantic settlement for
 the prediction. A hand that returns no evidence leaves the prediction active only
 until its horizon; expiry alone creates no mismatch.
 
-The producer topic carries the frozen record to explicitly bound comparators.
-It is not retained into memory or mirrored into the conscious identity.
+The producer fires the frozen record to explicitly bound comparators. It is not
+retained into memory or mirrored into the conscious identity.
+
+**`m-act` builds the bid for its own consequence.** Having created the prediction
+and awaited `cap.execute`, it constructs the `ComparableEvidence`, consults the
+comparator role, and fires an `AttentionBid` carrying the resulting evaluations
+and signals — instead of the bare `InterruptRecord` it fires today. This is the
+seam hole 6 names, and `m-act` is where it costs least: the arbiter's listener
+stays synchronous, the percept id stays stable through to the receipt, and the
+component that holds the `actId` is the one that does the matching.
+
+The trusted-adapter rule still holds: `m-act` does not read a payload for
+identity or policy. The consequence's provenance and powers come from the same
+`legacyCompatibility` mapping that governs it today (`External`, unspecified,
+powers from the hand's own trusted `urgent`), so nothing about how a consequence
+is classified changes — only where its bid is assembled.
 
 ## 4. Comparison and bidding
 
 ### 4.1 Comparison point
 
-The tier-0 order becomes:
+The tier-0 order on the membrane path becomes:
 
 ```text
 acquisition gates
   → text materialization
   → construct frozen ComparableEvidence privately
-  → invoke applicable comparator ports
-  → re-check every aperture version
+  → invoke applicable comparator ports (bounded by a deadline)
+  → re-check attachment, sleep, and every aperture version
   → awareness gates
   → construct the frozen Percept with both gate verdicts and the same evidence id
   → build AttentionBid through the selected bidder
   → interrupt-request
 ```
 
-`m-region` discovers top-level providers of `comparator` in its membrane. Each
-must implement:
+and on the act path:
+
+```text
+cap.execute returns an experience
+  → construct frozen ComparableEvidence privately (actId lineage, no aperture)
+  → invoke applicable comparator ports (bounded by a deadline)
+  → build AttentionBid through the selected bidder
+  → interrupt-request
+```
+
+A consequence has no aperture and therefore no gates: it is the mind's own reach
+answering, not a channel it can close. That asymmetry is the point of naming both
+paths rather than pretending there is one.
+
+**Comparison runs inside the source's busy window.** `m-region` holds
+`entry.busy = true` for the whole offer path, so an `await` on a comparator
+delays that source's next candidate and refuses intervening ones with
+`reason: 'busy'` — and a comparator that never settles wedges the source
+permanently. Comparison therefore takes a bounded deadline (a component
+attribute, conservative default), and expiry yields `insufficient` plus a
+non-content diagnostic, exactly like a malformed result. Capping the number of
+evaluations does not bound the wall clock; only a deadline does.
+
+`m-region` and `m-act` both discover top-level providers of `comparator` in their
+membrane — evidence judgment is mind-level, not per-aperture, and two producers
+consulting one role is not two seams. (The `bidder`, by contrast, is interior to
+the issuing aperture, consistent with `requestedFloor` being nearest-owned;
+`m-act` uses the default policy, having no aperture to read one from.) A
+duplicate at either scope fails at connect, as a duplicate regulator does.
+
+Each comparator must implement:
 
 ```js
 accepts(comparableEvidence) → boolean
@@ -362,10 +494,12 @@ journaled, or framed. The final `Percept` reuses its id. This avoids mutating a
 `Percept.gateTrail` after awareness while preserving one evidence identity.
 
 The reference `m-compare` explicitly subscribes to prediction and search-attempt
-sources named in ArchML. It retains only live records in its membrane and prunes on
-expiry/settlement. It compares normalized exact text in the offline reference
-condition. This is intentionally narrow: no fuzzy lexical score, no LLM judge, no
-simulator truth, and no use of opaque `changeKey`.
+sources named in ArchML. It retains only live records in its membrane, prunes on
+expiry/settlement, and **caps how many it holds** — every other bounded structure
+in this series has one (32 sources, 32 issued ids), and an uncapped map of live
+predictions is the same failure waiting elsewhere. It compares normalized exact
+text in the offline reference condition. This is intentionally narrow: no fuzzy
+lexical score, no LLM judge, no simulator truth, and no use of opaque `changeKey`.
 
 For a prediction it evaluates only evidence whose `actId` and trusted target match.
 For a search target it evaluates only evidence whose `requestId` maps to a live
@@ -402,12 +536,20 @@ The independent signal set becomes:
   predictionMatch,
   predictionMismatch,
   targetMatch,
+  causalAttribution,
   confidence
 }
 ```
 
 Null means no signal. `0` means an evaluated zero. Absence of an evaluation never
 becomes `predictionMatch: 1`.
+
+`causalAttribution` has no producer and stays `null`, for the reason phase 2 gave
+when it added `novelty` to a set of two: the design names six independent signals,
+and a slot costs nothing now while reshaping a frozen signal set in phase 4 costs
+every consumer. It is emphatically not `requested`, and not `actId`: an act
+reference says a command and an observation are associated, never that the act
+caused what the observation contains.
 
 The reference policy is:
 
@@ -447,7 +589,8 @@ The capability registration contract gains optional generic policy metadata:
   lane: 'control',
   cooldown: '...',
   intentThreshold: 0.75,
-  consequenceType: 'Sense-orient'
+  acceptsTemplate: true,
+  consequenceType: null    // orienting is not a sensation; see below
 }
 ```
 
@@ -469,10 +612,45 @@ orientation stops there. If the REALIZE envelope contains `template`, the hand
 also asks the wired search controller to start a `SearchTarget`; search, not the
 region or the hand, owns attempts and stopping.
 
-An aperture transition is not a percept and never clears contact deficit. The
-provider's existing transition path requests a fresh sample. Only a later typed
-frame receipt credits contact. Rejected orientation creates no synthetic
-observation.
+An aperture transition is not a percept and never clears contact deficit, so
+`m-orient` returns **no `experience`**: its deed is journaled backstage (⌁) and
+the provider's existing `aperture-change` note records the transition, but
+nothing enters the frame. `consequenceType` is therefore `null`, not
+`Sense-orient` — declaring a consequence type for a hand that produces no
+consequence would give its prediction a target that can never be observed. What
+the act *can* be expected against is the sample the transition asks for, which is
+why the `actId` is forwarded (§2.3). The provider's existing transition path
+requests that fresh sample. Only a later typed frame receipt credits contact.
+Rejected orientation creates no synthetic observation.
+
+**The hand does not get a grace period in this phase, and the reflex will
+reverse it.** With the reference `Aperture`, a voluntary `closed` is softened
+once the deficit passes 0.65 — about six and a half minutes at arousal 1 with the
+ten-minute horizon — and may be re-closed after the 30-second dwell. That rhythm
+is the design working as specified (voluntary closure influences the regulator,
+it does not disable it), but it is also the *open–close oscillation* the design
+names as a failure mode, and phase 3 is the first phase able to produce one,
+because it ships the first voluntary closer. Two consequences:
+
+- the `felt` line must not promise *let me remain inward a little longer*. It can
+  offer letting a channel recede; it cannot offer a duration the runtime will not
+  honour;
+- the temporary grace period the design floats belongs to phase 4, with the
+  oscillation observability to judge it by. Choosing a grace interval now would
+  be tuning a dynamic nobody has watched run.
+
+Two constraints get tests rather than prose (§8·22, 23): voluntary closure
+cannot outlast the reflex, and it cannot suppress a `bypassAperture` source.
+Phase 2's test 5 covers bypass across closed gates generically; the point here is
+that a gate closed *by the mind itself* is not a special case.
+
+The intent ledger interacts with the raised threshold. `_realize` claims an
+intent's slot at accept time (`mAct.js`), so a reach that clears the global DECIDE
+threshold but not `m-orient`'s `intentThreshold` burns that slot for
+`intentCooldown` — 15 minutes by default — and then evaporates when the realizer
+is offered no fitting hand. With a higher bar on orientation that becomes the
+common case rather than the edge one. Key the ledger by intent *and* capability,
+or claim it at execute; state which in the commit.
 
 ## 6. Bounded tier-0 search
 
@@ -496,11 +674,17 @@ Starting a target:
    first route, with the same id and optional originating `actId`;
 4. sends it to the named top-level aperture, whose existing forwarding reaches the
    nearest owner exactly once;
-5. waits for comparable evidence, refusal/timeout, or cancellation before moving
-   to the next route.
+5. waits for comparable evidence, refusal, timeout, or cancellation before moving
+   to the next route. A refusal is read from `perceptDecision`'s `requestId`
+   (§2.2), so a closed route ends its attempt when it is refused rather than when
+   its deadline expires.
 
 At tier 0 the template does not enter the detector or materializer. It stays in the
-comparator. Searching a closed route therefore cannot see through it: unless the
+comparator, and `ControlRequest.template` — the field phase 1 reserved for tier-1
+grounding queries — **stays null**. Populating it would put a semantic template in
+front of a detector, which is the one thing tier 0 forbids; the reserved field
+must not be quietly filled just because a template now exists somewhere in the
+runtime. Searching a closed route therefore cannot see through it: unless the
 orientation request opened/narrowed that provider, acquisition refusal consumes an
 attempt and contributes no evidence. This limitation is the baseline the phase-4
 lean-vs-edge-grounded experiment compares.
@@ -516,10 +700,23 @@ Stopping:
   `abandoned`.
 
 Late evaluations are ignored by target id and deadline. Replayed receipts cannot
-restart or settle a search. Search publishes a non-content outcome topic for
+restart or settle a search. Search fires a non-content outcome event for
 observability; it does not fabricate a sensory event or a prose conclusion.
 Another future component may render an internal conclusion from the typed outcome,
 but that is not part of this phase.
+
+**How a search reaches awareness at all**, then, is worth stating plainly, because
+the paragraph above reads like *the mind learns nothing*. The route is indirect:
+a target match produces an evaluation, the evaluation raises `targetMatch`, and
+`targetMatch` raises the bid of **the very percept that matched**. The mind does
+not receive a report that its search succeeded; it perceives the thing it was
+looking for, more strongly than it otherwise would have. That is the honest
+mechanism, and it has a corollary worth reading twice: down a closed route
+nothing is materialized, so nothing is compared, so nothing is found — and down
+an open route the awareness gate can still refuse the percept whose match the
+controller already recorded. A search can conclude `found` about an observation
+the mind never perceived. That is correct (private processing and disclosure are
+different permissions) and it is exactly why the outcome is not a sensation.
 
 ## 7. Milestones
 
@@ -529,10 +726,10 @@ orientation/search and the reference assembly.
 
 | # | Milestone | Done when |
 |---|---|---|
-| M1 | `predictionContracts.js`; optional `actId` lineage through control/candidate/interrupt/percept/receipt/index | Constructors freeze and validate ids, scope, time, route, and outcome enums; rendering is unchanged |
-| M2 | Uniform REALIZE envelope and prediction publication before execution | Existing hand schemas are untouched; envelope fields are stripped; prediction timestamp precedes execution; no extra model call |
-| M3 | Comparator role/port and `m-compare`; private evaluation point in `m-region` | Match, mismatch, and insufficient evaluations refer to evidence ids; late/version-invalid evidence never bids |
-| M4 | Bidder role/port, extended independent signals, reference policy with zero defaults | With no bidder every existing bid is numerically identical; configured mismatch and expected-confirmation conditions behave independently |
+| M1 | `predictionContracts.js`; optional `actId` lineage through control/candidate/interrupt/percept/receipt/index; `mTerminal._dispatch` fires an `InterruptRecord`; `candidateId`/`requestId` on `perceptDecision` | Constructors freeze and validate ids, scope, time, route, and outcome enums; rendering is unchanged; the deferred terminal consequence keeps its urgency **at the arbiter**, not only in the raw event |
+| M2 | Opt-in REALIZE envelope and prediction publication before execution | Existing hand schemas and realize requests are untouched with the envelope off; envelope fields are stripped from args and from `acted`; prediction timestamp precedes execution; no extra model call |
+| M3 | Comparator role/port and `m-compare`; the private evaluation point in `m-region` **and** in `m-act` | Match, mismatch, and insufficient evaluations refer to evidence ids; late/version-invalid evidence never bids; an act consequence and a membrane percept reach the same comparator; a comparator that never settles expires instead of wedging its source |
+| M4 | Bidder role/port, extended independent signals, reference policy with zero defaults | With no bidder every existing bid is numerically identical **on both paths**; configured mismatch and expected-confirmation conditions behave independently |
 | M5 | `OrientationRequest`, provider forwarding, generic capability lanes, and `m-orient` | A nested named provider is oriented once; dwell arbitrates races; opening clears no debt and a receipt does |
 | M6 | `m-search`, target/attempt lifecycle, coverage and terminal outcomes | Found, not-detected-in-inspected-area, exhausted, abandoned, stale, and cancelled paths are deterministic and bounded |
 | M7 | Reference ArchML/fixture, offline demo, docs, and honesty pass | One assembly demonstrates prediction match and mismatch, voluntary orientation, bounded search, and receipt-only contact credit without a model call |
@@ -550,69 +747,89 @@ the evidence judgment; search is one consumer with its own lifecycle.
    can produce an immediate consequence; REALIZE records a belief prediction, not
    simulator truth.
 3. Immediate and deferred consequences preserve the same `actId` through percept
-   and receipt; replay mints nothing and credits nothing.
-4. No `expect` yields no prediction. A slipped/cancelled act settles its prediction;
+   and receipt; replay mints nothing and credits nothing. The deferred path's
+   record is trusted (an `InterruptRecord`), so it keeps its urgency and its
+   lineage **as the arbiter sees it** — a test that reads the raw fired payload
+   proves nothing here.
+4. An orientation-triggered sample carries the orient act's `actId` to the
+   percept it produces, so an `expect` on `orient` can settle rather than expire.
+5. With the envelope undeclared, the tool schemas sent to the realizer are
+   identical to phase 2 for every existing architecture.
+6. No `expect` yields no prediction. A slipped/cancelled act settles its prediction;
    expiry without evidence yields no mismatch.
-5. Sleep, detachment, and membrane scope changes invalidate pending predictions.
+7. Sleep, detachment, and membrane scope changes invalidate pending predictions.
 
 **Evaluation and bidding**
 
-6. Match, mismatch, and insufficient evaluations leave the frozen `Percept`,
+8. Match, mismatch, and insufficient evaluations leave the frozen `Percept`,
    other evaluations, and their bids untouched.
-7. Two comparators may disagree about one evidence id without overwriting each
+9. Two comparators may disagree about one evidence id without overwriting each
    other.
-8. An exact-world oracle is unavailable to the reference comparator; only the
-   materialized viewpoint-bounded text is accepted.
-9. Missing evaluation is null, not match. Unknown representation is insufficient.
-10. Defaults reproduce the phase-2 salience bit-for-bit, including nested
+10. A comparator that never settles expires at its deadline as `insufficient`;
+    the source's busy flag clears and its next candidate is offered normally.
+11. An act consequence carrying a mismatch bids higher without any aperture,
+    gate verdict, or percept-candidate event existing for it.
+12. An exact-world oracle is unavailable to the reference comparator; only the
+    materialized viewpoint-bounded text is accepted.
+13. Missing evaluation is null, not match. Unknown representation is insufficient.
+14. Defaults reproduce the phase-2 salience bit-for-bit, including nested
     amplification/attenuation hop order.
-11. Configured mismatch can raise a bid without changing `changeMagnitude`;
+15. Configured mismatch can raise a bid without changing `changeMagnitude`;
     configured prediction match/requested confirmation can still bid when mismatch
     and change are zero.
-12. Awareness refusal after comparison produces no bid, receipt, memory line, or
+16. Awareness refusal after comparison produces no bid, receipt, memory line, or
     content-bearing telemetry.
 
 **Orientation**
 
-13. A named request reaches a nested substitute aperture once through provider
+17. A named request reaches a nested substitute aperture once through provider
     forwarding; another membrane cannot hear or satisfy it.
-14. Orientation cannot carry bypass powers, exceed configured states, or address an
+18. Orientation cannot carry bypass powers, exceed configured states, or address an
     undeclared provider/source.
-15. The control lane does not consume read/world cooldowns and vice versa; existing
+19. The control lane does not consume read/world cooldowns and vice versa; existing
     lane behavior is unchanged for every old hand.
-16. Two simultaneous orientation requests are first-accepted under dwell/version;
+20. Two simultaneous orientation requests are first-accepted under dwell/version;
     the loser cannot reverse the winner.
-17. Opening or narrowing changes state and requests the present but does not clear
+21. Opening or narrowing changes state and requests the present but does not clear
     debt; only an attended receipt does.
-18. The orient `felt` line reaches embodiment without modality ids, state names,
+22. Voluntary closure cannot outlast the reflex: with the deficit past its
+    threshold and dwell elapsed, the regulator softens a hand-closed aperture.
+23. A `bypassAperture` source still crosses an aperture the mind closed itself —
+    a gate closed by the hand is not a special case.
+24. The orient `felt` line reaches embodiment without modality ids, state names,
     thresholds, or mechanism language.
 
 **Search**
 
-19. Target publication precedes the first attempt, which precedes source sampling.
-20. A target match stops immediately as `found`; later evidence cannot reopen it.
-21. Complete comparable coverage with no match is
+25. Target publication precedes the first attempt, which precedes source sampling.
+26. A target match stops immediately as `found`; later evidence cannot reopen it.
+27. Complete comparable coverage with no match is
     `not-detected-in-inspected-area`.
-22. Missing, suppressed, failed, delayed, or partial evidence is exhausted/abandoned,
+28. Missing, suppressed, failed, delayed, or partial evidence is exhausted/abandoned,
     never absence.
-23. Repeating one route spends budget without increasing distinct-route coverage.
-24. One controller searches two modality routes without adding search logic to
+29. Repeating one route spends budget without increasing distinct-route coverage.
+30. A second candidate arriving inside one attempt's arming window does not
+    increase coverage; a refused route ends its attempt on the refusal, not on
+    its deadline.
+31. One controller searches two modality routes without adding search logic to
     either region or source.
-25. A closed tier-0 route leaks no template or text and cannot be searched through;
+32. A closed tier-0 route leaks no template or text and cannot be searched through;
     an explicitly opened route can.
-26. With no search controller wired, a standalone `focus` control remains
+33. With no search controller wired, a standalone `focus` control remains
     accepted/recorded but changes no aperture state or policy.
 
 **Privacy and compatibility**
 
-27. Candidate events and decision topics contain no expectation text, template,
-    materialized text, comparator basis, or hidden world state.
-28. Prediction/search records stop at their membrane; a society sibling sees none.
-29. Existing phase-1/phase-2 conformance suites pass unchanged, including substitute
+34. Candidate events and decision topics contain no expectation text, template,
+    materialized text, comparator basis, or hidden world state. `acted` carries
+    the stripped `handArgs`, ids and no envelope text. `ControlRequest.template`
+    is null on every request this phase issues.
+35. Prediction/search records stop at their membrane; a society sibling sees none.
+36. Existing phase-1/phase-2 conformance suites pass unchanged, including substitute
     aperture, nested fold, request lineage, and composition-hole regressions.
-30. Every existing architecture with the new components absent has identical
+37. Every existing architecture with the new components absent has identical
     rendering, bid salience, frame selection, and hand arguments.
-31. Same-batch custom comparator/bidder definitions bind after upgrade; disconnect
+38. Same-batch custom comparator/bidder definitions bind after upgrade; disconnect
     invalidates in-flight work; duplicate bidders and invalid bidder output fail
     closed with finite attention state.
 
@@ -634,6 +851,12 @@ to its declared viewpoint. It must show:
 6. no model call, no semantic content in pre-awareness telemetry, and no simulator
    truth passed to the comparator.
 
+Items 1–3 must be demonstrated **on both evidence paths**: once where the answering
+evidence is a membrane percept, and once where it is the hand's own consequence
+going straight to the arbiter. A demo is free to wire a simulated source that
+answers a simulated act, and doing only that would hide precisely the hole this
+phase exists to close (§1, hole 6).
+
 This is an executable reference condition, not the phase-4 experiment matrix. The
 later comparison must hold sources, percept transport, and frame/memory code fixed
 while swapping producer, comparator, bidder, controller, and tier.
@@ -644,7 +867,12 @@ When the code lands:
 
 - `doc/architecture/perceptual-membrane.md`: mark step 3 implemented; update the
   implementation sketch and known-issues rows 2 and 5; keep tiers 1–2, native
-  media, passive prediction, and Studio timelines explicitly absent.
+  media, passive prediction, and Studio timelines explicitly absent. Row 5 names
+  four gaps — the search controller, the `orient` hand, **cadence control beyond
+  the sense timer**, and the grounding query on `template`. This phase closes the
+  first two only. Cadence stays open and belongs to nobody yet: `soft` still only
+  halves gain, while the design promises "reduced frequency, resolution, or gain".
+  Do not close the row.
 - `doc/improvements/prediction-mismatch.md`: mark only the act-bound tier-0
   reference condition implemented. Keep the experiment matrix unrun.
 - `doc/architecture/components.md`: document `m-compare`, `m-bidder`, `m-search`,
@@ -668,8 +896,10 @@ Do not update the implementation sketch as though the components already exist.
   new components are absent.
 - A substitute comparator and bidder can be mounted from a test `components/`
   bundle without editing source, region, arbiter, frame, or memory code.
-- Search is bounded in attempts, time, retained targets, and evaluations; sleep and
-  detach leave no live work.
+- Both evidence paths — a membrane percept and a hand's consequence — reach the
+  same comparator role and the same signal set, and neither can wedge the other.
+- Search is bounded in attempts, time, retained targets, evaluations, and
+  comparison wall-clock; sleep and detach leave no live work.
 - No withheld source text, expectation, or template appears in logs, Studio,
   candidate events, memory, or a conscious frame before awareness permits it.
 - Commits follow milestone boundaries, ending with the documentation honesty pass.
@@ -684,10 +914,11 @@ settle.
    registration event is acceptable if it preserves membrane scope, plurality,
    teardown, and the same no-content telemetry rule. Do not build general automatic
    port matching here.
-2. **Placement of `ComparableEvidence`.** Keep it with prediction contracts if it
-   remains comparator-only; move it beside `Percept` if a second consumer needs the
-   same private stage. Do not construct a final `Percept` before the awareness
-   verdict and then mutate its gate trail.
+2. **Placement of `ComparableEvidence`.** It now has two constructors (`m-region`
+   and `m-act`), so it belongs somewhere both can import without either owning it
+   — prediction contracts or beside `Percept`, whichever leaves the import graph
+   acyclic. Do not construct a final `Percept` before the awareness verdict and
+   then mutate its gate trail.
 3. **Reference text normalization.** Unicode normalization, line-ending
    normalization, and outer whitespace trimming are enough. Do not add stemming,
    embeddings, or a judge under the name "deterministic".
@@ -699,6 +930,12 @@ settle.
    from a missing value.
 6. **Reference weights.** Defaults are fixed at zero. Non-zero values belong only
    to the named fixture/demo until an experiment justifies production tuning.
-7. **No opportunistic efference redesign.** The generic lane map and execution
-   envelope are the limit of `m-act` work in this phase. Silent-return discipline,
-   govern gates, act-writing, and manual mode remain in their own decision process.
+7. **Intent-ledger keying under a raised threshold.** Key it by intent and
+   capability, or claim the slot at execute rather than at accept. Either fixes a
+   filtered-out orientation burning a 15-minute slot; pick one and say which.
+8. **No opportunistic efference redesign.** The generic lane map, the execution
+   envelope, and building its own consequence's bid are the limit of `m-act` work
+   in this phase. Building the bid is not act-writing and not a govern gate: it
+   moves where a bid is assembled, not what a hand may do. Silent-return
+   discipline, govern gates, act-writing, and manual mode remain in their own
+   decision process.

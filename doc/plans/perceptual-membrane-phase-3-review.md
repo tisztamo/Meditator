@@ -53,7 +53,7 @@ Three seams, with their costs:
 | Option | Shape | Cost |
 |---|---|---|
 | **(a)** `m-act` builds the bid | It owns the prediction, the `actId`, and an already-`await`ed `execute`; it constructs the evaluations and fires an `AttentionBid` | `m-act` must mint a `Percept`, choosing `sourceId`/provenance outside `SourceContract` — needs an explicit trusted-adapter rule |
-| **(b)** a shared pre-bid helper | Called by `m-region` before awareness and by the arbiter for region-less records | Makes `mInterrupts._onRequest` async, which phase 2 deliberately avoided (decoupling.md; phase 2 §6) |
+| **(b)** a shared pre-bid helper | Called by `m-region` before awareness and by the arbiter for region-less records | Makes `mInterrupts._onRequest` async; it is synchronous on purpose (decoupling.md) and stops propagation for a nested region, which an `await` would reorder |
 | **(c)** narrow the phase | `expect` predicts *the next observation from a declared source*, not "the consequence of this act" | Drops the `consequenceType` default and most of §3's motivation |
 
 (a) reads best: it keeps the arbiter's listener synchronous, keeps percept and
@@ -246,9 +246,21 @@ implementations do. Nothing there looks worth going back for.
   3's class comments, since `ComparableEvidence` is precisely a new reader of
   that surface.
 
-## 8. Suggested edits to the plan
+## 8. Edits to the plan
 
-Unapplied; listed so the plan and this review can be reconciled in one pass.
+**Applied, 2026-09-07.** All fourteen are in the plan; this table stays as the
+record of what changed and why, so a reader of the revised plan can find the
+argument behind any one of them here.
+
+Three were decisions, not edits. They were taken as recommended above, and each
+is marked in the plan where a reader will meet it, so any one can be reversed by
+reading a single paragraph:
+
+| Decision | Taken | Where it is argued |
+|---|---|---|
+| Comparison seam | **(a)** — the producer of the evidence consults the comparator and builds the bid; `m-act` does this for its own consequence | plan §1 (after the flow diagram), §3, §4.1 |
+| Orientation lineage | **forward `actId`** through the transition's sample, so `expect` on `orient` can settle; `consequenceType: null` because orienting is not a sensation | plan §2.3, §5 |
+| Envelope | **opt-in** on `m-act`, default off; `template` per-capability | plan §1, §3 |
 
 | # | Section | Change |
 |---|---|---|
