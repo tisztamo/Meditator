@@ -1,6 +1,7 @@
 # Perceptual membrane — Phase 3 implementation plan: prediction, orientation, and search
 
-**Status: proposed, 2026-09-07.** Realizes step 3 of the
+**Status: proposed, 2026-09-07; reviewed, findings unapplied
+([review](perceptual-membrane-phase-3-review.md)).** Realizes step 3 of the
 [perceptual membrane](../architecture/perceptual-membrane.md#proposed-development-order):
 
 > *Assemble the existing deficit/reflex and inexpensive act-bound prediction as
