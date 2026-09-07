@@ -34,8 +34,9 @@ const log = logger('mSense.js');
  *   - return from `onSense()` without calling `feel` to stay quiet this round;
  *   - override `ready()` to stay dormant when unconfigured (e.g. no location/url);
  *   - override the `defaultTimeout` / `defaultSigma` getters for the natural cadence.
- *   - new lazy sources call candidate(header, () => archivalText) inside a modality
- *     region. The header is non-semantic; text is produced only after aperture admission.
+ *   - new lazy sources call candidate(header, () => archivalText) inside an
+ *     enclosing aperture (found by role, not tag). The header is non-semantic;
+ *     text is produced only after aperture admission.
  *     If a control request is in flight, its id rides the candidate as requestId —
  *     acquisition lineage, not causal attribution. Existing feel() sources remain
  *     the eager compatibility path. Sources declare `tier` on the element (default 0;
@@ -51,7 +52,7 @@ const log = logger('mSense.js');
  *   - salience: centre salience of an ambient reading (jittered ±0.08)
  *   - salienceShift: salience when a keyed sense changes state
  *   - name, provenance, tier (default 0), bypassAperture / bypassAdmission / preempt:
- *     architecture-owned source contract when inside a modality region; 1 and 2 throw
+ *     architecture-owned source contract when inside an aperture; 1 and 2 throw
  *
  * Events dispatched (bubbling): "interrupt-request" with an InterruptRecord
  * (source "External", never urgent). Lazy candidate() lineage is requestId on the
@@ -95,7 +96,7 @@ export class MSense extends MBaseComponent {
 
     candidate(header, materialize) {
         const region = this._modalityRegion()
-        if (!region?.registerSource) throw new Error('A lazy sense needs an m-region with modality')
+        if (!region?.registerSource) throw new Error('A lazy sense needs an enclosing aperture')
         // The region already resolves lineage itself, from the same in-flight
         // `entry.control` it sets before calling this callback and clears once the
         // callback's returned promise settles — the same window `candidate()` runs

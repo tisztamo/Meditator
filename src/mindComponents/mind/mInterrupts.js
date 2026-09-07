@@ -11,6 +11,9 @@ const log = logger('mInterrupts.js');
  * The attention arbiter. Generators anywhere in the mind (timeouts, observers,
  * websocket, console) dispatch bubbling "interrupt-request" DOM events carrying
  * an InterruptRecord or AttentionBid; this component decides what gets through to the mind.
+ * takePending() returns bids. assembleFrame must read evidence through
+ * AttentionBid.evidenceOf — coercing a bid through Percept.fromInterrupt would
+ * mint a new id and break receipt crediting.
  *
  * The decision is mechanical, not an LLM pipeline: the generator that raised
  * the interrupt knows why it fired and supplies the salience itself. The only

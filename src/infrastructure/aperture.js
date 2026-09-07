@@ -6,7 +6,8 @@ import { EdgeEvidence } from './perceptionContracts.js';
  * Call advance at awake burst boundaries and observe with private detector headers.
  * Constants are deliberately provisional experiment settings, not a tuning framework.
  * A modality region may wire a child `regulator` in its place at connect; this class
- * remains the default. Substituting the gate itself (the aperture provider) is M9.
+ * remains the default. The gate itself is the aperture provider (`m-region[modality]`,
+ * or any class that `provides` `aperture`); C1 is that contract.
  */
 export class Aperture {
     constructor({ state = 'open', now = Date.now(), dwellMs = 30000, horizonMs = 600000 } = {}) {

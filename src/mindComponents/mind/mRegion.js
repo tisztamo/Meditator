@@ -54,8 +54,9 @@ export function gateIdOf(el) {
  *   More than one for this aperture throws. A substitute is validated as a port
  *   before any other onConnect work that uses this.aperture; a missing method
  *   throws naming the method and the role (`regulator is missing attended`).
- *   Gate policy (decideGate, percept-candidate) is not this port; substituting
- *   the aperture provider is still M9.
+ *   Gate policy (decideGate, percept-candidate) is not this port. Substituting
+ *   the aperture provider is a class that `provides` `aperture`; C1 is the
+ *   contract (architecture/tests/wiring/aperture-conformance.test.js).
  * Methods: registerSource(element, sample) → offer(header, lazyText); orient(state, source);
  *   requestControl(ControlRequest) is the one door for sample / focus / detail —
  *   focus is accepted and changes no policy. Untargeted requests fan out to child
@@ -100,7 +101,8 @@ export class MRegion extends MBaseComponent {
 
     onConnect() {
         super.onConnect()
-        if (!this.attr('modality')) return
+        // Role, not the `modality` attribute: a substitute provider binds without it.
+        if (!this._bindsAsAperture()) return
         this.aperture = this._boundRegulator() ?? new Aperture({
             state: this.attr('aperture') || 'open',
             dwellMs: parseTime(this.attr('dwell') || '30s'),
@@ -149,12 +151,21 @@ export class MRegion extends MBaseComponent {
     _mind() { return this.membrane() }
     _modalityRegion(el) { return enclosingOf(el, 'aperture') }
 
+    /** Built-in `m-region` is an aperture only with `modality`. A substitute
+     * overrides this (or declares `static provides.aperture = true`) so the
+     * offer path is reused rather than copied. */
+    _bindsAsAperture() { return this.provides('aperture') }
+
+    /** SourceContract needs a modality string from the provider, not the source.
+     * Absent `modality`, the only implemented kind is text. */
+    _sourceModality() { return this.attr('modality') || 'text' }
+
     /** Architecture-owned adapter: payloads cannot choose identity or policy. */
     registerSource(element, sample) {
         if (!this.aperture || this._modalityRegion(element) !== this) throw new Error('Source needs its modality region')
         if (this._sources.has(element)) return this._sources.get(element).offer
         if (this._sources.size >= 32) throw new Error('Too many sources in one modality region')
-        const contract = SourceContract.fromElement(element, { modality: this.attr('modality') })
+        const contract = SourceContract.fromElement(element, { modality: this._sourceModality() })
         if ([...this._sources.values()].some(s => s.source === contract.name)) throw new Error('Sensory source names must be unique within a region')
         const entry = { source: contract.name, sample, busy: false, contract, control: null }
         entry.offer = async (header, materialize) => {
