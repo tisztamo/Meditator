@@ -274,25 +274,30 @@ The attention **arbiter**. Mechanical, no LLM. See [Interrupts & observers](inte
 | `threshold` | `0.35` | minimum salience for a non-urgent stimulus |
 | `rateLimit` | `15s` | minimum gap between accepted non-urgent stimuli |
 | `keep` | `2` | max queued stimuli; highest salience wins |
+| `gain` | `1` | nested only: trail factor on a promoted bid (evidence is not rewritten) |
 
-- **Listens (DOM, on parent):** `interrupt-request` (carries an `InterruptRecord`).
+- **Listens (DOM, on parent):** `interrupt-request` (an `InterruptRecord` or an `AttentionBid`). Nested arbiters append a gain-trail entry and recompute bid salience; they never write the evidence.
 - **Dispatches (DOM, bubbling):** `interrupt` for urgent stimuli.
-- **API used by the mind:** `takePending()` — queued stimuli, oldest first, clears the queue.
+- **API used by the mind:** `takePending()` — queued **bids**, oldest first, clears the queue. Frame assembly must read evidence through `AttentionBid.evidenceOf`.
+- **Pressure:** a nested arbiter publishes the faculty's folded `contactPressure`. The global arbiter mixes `part(mind, 'aperture')` — top-level providers only, each already folded — with a 60s mean, unless a child `aggregator` (`aggregate(pressures) → number`) supplies the mix. Absent one, the built-in mean is today's numbers for flat minds.
 
 ## `m-region`
 
-A faculty **boundary** for nested attention. Without `modality` it is structural: a
-child `m-interrupts` binds with `closest('m-region')` and promotes survivors. See
+A faculty **boundary** for nested attention. A child `m-interrupts` binds with
+`enclosing('faculty')` and promotes survivors. See
 [Nested attention](deep-structure.md#nested-attention-m-region--faculty-local-m-interrupts).
-With `modality` it is also the text-first [perceptual membrane](perceptual-membrane.md#implementation-sketch).
+With `modality` it also `provides` `aperture` and is the text-first
+[perceptual membrane](perceptual-membrane.md#implementation-sketch). A substitute
+aperture (C1/S1) may provide the role without `modality`.
 
 | Attribute | Default | Meaning |
 |-----------|---------|---------|
-| `name` | — | faculty label (observability) |
-| `modality` | — | opt into the membrane (`text`); absent = structural only |
+| `name` | — | faculty label; aperture names must be unique within a membrane |
+| `modality` | — | opt into the membrane (`text`); absent = structural faculty only |
 | `aperture` | `open` | initial `open`, `soft`, or `closed`; wake uses this default |
 | `dwell` | `30s` | minimum time between aperture changes |
 | `contactHorizon` | `10m` | weak time-only pressure reaches 1 after this awake interval |
+| `requestedFloor` | `0` | salience floor when the observation answers a control request the mind issued. The route exists; this default is not a chosen confirmation policy. |
 
 Registered source elements (never payload fields) declare:
 
@@ -303,9 +308,10 @@ Registered source elements (never payload fields) declare:
 | `tier` | `0` | `1` and `2` throw at registration |
 | `bypassAperture` / `bypassAdmission` / `preempt` | `false` | three independent powers |
 
-- **API:** `registerSource(element, sample)` → `offer(header, lazyText)`; `orient(state, source)`; `requestControl(ControlRequest)` is the one door for `sample` / `detail` / `focus` (`focus` is accepted and changes no policy). A named `target` reaches its source even while the aperture refuses it — that is the controller's decision, and the acquisition gate still decides disclosure; an untargeted broadcast skips sources the aperture already refuses.
-- **Publishes:** `contactPressure`, `apertureState` (retained); `perceptDecision` (non-semantic gate verdicts — no text).
-- **Events:** `aperture-change` (backstage). Credits `percepts-attended` **by percept id**.
+- **Interior roles:** `regulator` — contact dynamics (debt, habituation, reflex), resolved with `part('regulator')`; zero → constructed `Aperture` (the reference policy, not the provider). `aggregator` lives on the mind, not here; this provider publishes `fold(own, children)` (default `max`).
+- **API:** `registerSource(element, sample)` → `offer(header, lazyText)`; `orient(state, source)`; `requestControl(ControlRequest)` is the one door for `sample` / `detail` / `focus` (`focus` is accepted and changes no policy). Untargeted requests fan out to child providers; a named `target` is delivered once by the nearest owner. A named target reaches its source even while the aperture refuses it — that is the controller's decision, and the acquisition gate still decides disclosure; an untargeted broadcast skips sources the aperture already refuses.
+- **Publishes:** `contactPressure` (the fold), `apertureState` (retained); `perceptDecision` (non-semantic gate verdicts — no text).
+- **Events:** `aperture-change` (backstage); `percept-candidate` (cancelable, bubbling, twice — acquisition then awareness — conjunction of every aperture on the path, stopped at the membrane); `aperture-register` (bubbling, nearest aperture stops it). Providers form a tree, not a graph. Credits `percepts-attended` **by percept id**. The offer path issues an `AttentionBid` wrapping a frozen `Percept`.
 - Only registered lazy sources pass this aperture; eager `feel()` and legacy interrupts do not.
 
 ## `m-timeout`

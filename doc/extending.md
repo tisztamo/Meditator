@@ -139,6 +139,24 @@ Drop it in an agent with one line of archml. The same component works in any
 agent, and — because a capability is one shared shape — a well-factored ability
 can serve as an agent tool and a mind's hand with only its harness differing.
 
+## Replacing a contact regulator or an aperture
+
+Two different substitutions, both through wiring. Neither needs a kernel change.
+
+- **Contact dynamics.** Place a child that `provides` `regulator` inside the
+  aperture (`allows`, `observe`, `advance`, `orient`, `attended`, plus the readable
+  `state` / `focus` / `deficit` / `gain` / `version`). Zero children → the built-in
+  `Aperture` policy. A missing method throws at connect by name.
+- **The gate itself.** A class that `provides` `aperture` (and usually `faculty`)
+  replaces `m-region[modality]`. Inner senses find it by role, not tag. The
+  executable contract is C1 in
+  `architecture/tests/wiring/aperture-conformance.test.js` — veto, nearest-credits,
+  id-based receipt, fold, forwarding, control delivery — run against both the
+  built-in region and a test provider. S1 is that suite on `m-test-aperture`.
+
+What this does **not** replace: prediction, search, the `orient` hand, tiers 1–2,
+native media, or a chosen `requestedFloor` (it defaults to 0).
+
 ## Testing your component
 
 - **Dry-run first**: `MEDITATOR_DRY_RUN=1 bun meditator.js -a your.archml --debug`

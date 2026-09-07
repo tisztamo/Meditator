@@ -8,9 +8,11 @@ modality-neutral regulation of contact. A small text-only implementation now exi
 see [Implementation sketch](#implementation-sketch) for its boundaries.*
 
 The revised design makes prediction, attention bidding, contact regulation, and
-search replaceable through architecture wiring. The current sketch does not yet
-provide those seams. [Prediction and search](../improvements/prediction-mismatch.md)
-records the shared constraints, known issues, and proposed high-level comparisons.
+search replaceable through architecture wiring. Attention bidding, contact
+regulation, pressure aggregation, and nested source control now have those
+seams. Prediction, search, and the `orient` hand do not.
+[Prediction and search](../improvements/prediction-mismatch.md) records the
+shared constraints, known issues, and proposed high-level comparisons.
 
 ## Implementation sketch
 
@@ -24,10 +26,11 @@ from the repository root:
 bun scripts/dev/demo-membrane.mjs
 ```
 
-The demo advances the regulator's clock, suppresses a simulated event while closed,
-then reopens to a fresh description of the present. It prints the two named gate
-verdicts, the sample request's lineage, and one typed frame receipt. It runs the real
-frame assembler without starting a thinking loop or touching resident memory.
+The demo mounts two nested modality regions (outer `closed`, inner `open`),
+suppresses a candidate with zero materializer calls, then opens the outer
+boundary and admits the same scene. It prints the bid's gain trail and one typed
+frame receipt that credits exactly one provider. It runs the real frame assembler
+without starting a thinking loop or touching resident memory.
 
 Opt in with `modality="text"` on an `m-region`. `aperture` defaults to `open`;
 `soft` halves salience, `narrow` selects one registered source, and `closed` withholds
@@ -76,23 +79,32 @@ arousal-independent floor, capped change contributions, and per-source habituati
 The first thresholds and time constants are provisional experiment settings. No
 thought content is inspected.
 
-Acquisition and awareness are two named stages, each a real `GateVerdict`. At
-tier 0, `permitAwareness` is not a comment that the stages coincide: it is a second
-call that records `reason: 'tier-0-mirror'` on the percept's `gateTrail`. The
-regulator still accepts only a `PerceptCandidate` header; `EdgeEvidence` is a typed
+Acquisition and awareness are two named stages, each a real `GateVerdict`. Every
+aperture provider on the path answers a cancelable `percept-candidate` event;
+permission is the conjunction, fail-closed if a gate is missing. Awareness is a
+second composed pass of the same event after materialization, not a capture-phase
+veto on `interrupt-request`. At tier 0 every gate records `reason: 'tier-0-mirror'`.
+The regulator still accepts only a `PerceptCandidate` header; `EdgeEvidence` is a typed
 refusal, and nothing produces one. Scores cannot enter the deficit. Verdicts are
 published on the non-semantic `perceptDecision` topic (stage, source, permitted,
 reason, changeMagnitude, apertureState) — no text, no materializer, no un-hashed key.
 
-The region publishes retained `apertureState` and `contactPressure`; regional
-arbiters consume local pressure and the global arbiter follows the regional mean
-over a minute. `contactSensitivity` controls the threshold reduction (default 0.25).
-State changes are backstage journal notes. Admitted text remains an
-`InterruptRecord`-compatible `Percept` throughout arbitration. Frame assembly issues
-typed `PerceptReceipt`s on `percepts-attended`; `m-memory` builds `journal/percepts.jsonl`
+The region publishes retained `apertureState` and `contactPressure` as
+`fold(own deficit, children)` (default `max`). Regional arbiters consume local
+folded pressure; the global arbiter follows `part(mind, 'aperture')` — top-level
+providers only — mixed by a 60-second mean, or by a child `aggregator` if one is
+wired. A child `regulator` replaces contact dynamics without touching the gate;
+`Aperture` is the reference policy, not the provider. `contactSensitivity` controls
+the threshold reduction (default 0.25). State changes are backstage journal notes.
+Admitted evidence is a frozen `Percept`; the arbiter competes on an `AttentionBid`
+whose gain trail is separate. `requestControl` forwards through nested providers;
+a named target is delivered once by the nearest owner. Frame assembly issues
+typed `PerceptReceipt`s on `percepts-attended` and reads evidence through
+`AttentionBid.evidenceOf`; `m-memory` builds `journal/percepts.jsonl`
 from those receipts (including `tier` and `requestId`) on the existing journal write
 queue. `journal="off"` disables both indexes and journal notes. Existing text framing
-remains unchanged.
+remains unchanged. `requestedFloor` is declared (default 0): the route for a
+requested observation exists; no confirmation weight has been chosen.
 
 The compatibility path is an enumerated legacy provenance map. Trusted in-process
 `InterruptRecord`s keep their powers; coerced payloads cannot acquire any. Legacy
@@ -101,32 +113,34 @@ of every current event class is byte-for-byte unchanged. Existing eager `feel()`
 sources are **not** silently made lazy or aperture-controlled: migrating each
 detector is separate work.
 
-Still absent, and not implied by the types that now exist: composed gates across
-nested regions; a replaceable regulator or aggregator; prediction producers,
+Still absent, and not implied by the types that now exist: prediction producers,
 comparators, or evaluations in the runtime (the `Evaluation` record is a shape
-only); search; the `orient` hand and its cooldown lane; native media and model
-capability selection; rendition-aware recall; Studio timelines; and any edge
-processing above tier 0. `focus` is a request kind, not a faculty. `EdgeEvidence`
-is a refusal type, not a path. This slice establishes the contact boundary, its two
-named stages, and its return path; it does not implement the spatial world or
-validate the proposed dynamics on a live mind.
+only); search; the `orient` hand and its cooldown lane; an independent relevance
+producer (the bid has a slot; default `requestedFloor` is 0, not a chosen policy);
+native media and model capability selection; rendition-aware recall; Studio
+timelines; and any edge processing above tier 0. `focus` is a request kind, not a
+faculty. `EdgeEvidence` is a refusal type, not a path. This slice establishes the
+contact boundary, composed gates, the bid/evidence split, and replaceable
+regulation and aggregation; it does not implement the spatial world or validate
+the proposed dynamics on a live mind.
 
 ### Known issues in the sketch
 
-The generality review identified the following open limitations. Phase 1 of the
+The generality review identified the following limitations. Phase 1 of the
 [implementation plan](../plans/perceptual-membrane-phase-1.md) closed the
 declaration and typed-regulator-input half of the processing-tier row, and gave
-source control a door. Rows 1–4, the rest of source control, and the remainder of
-the processing-tier row stay open. This design revision does not run the
-experiments they describe.
+source control a door. Phase 2 ([plan](../plans/perceptual-membrane-phase-2.md))
+closed rows 1, 3, and 4, moved row 2 as far as the membrane can move it, and
+closed the nesting half of row 5. Rows 5 (controller) and 6 stay open. This
+design revision does not run the experiments they describe.
 
 | Issue | Consequence and intended direction |
 |---|---|
-| Only the nearest sensory aperture participates | An open inner modality region can render and deliver through a closed outer one, reproduced in the review. Compose all applicable boundaries before materialization; [enclosure by role](../improvements/enclosure-by-role.md) gives the mechanism and its fixture W3 the acceptance test. |
-| Sensory change directly sets salience | A zero-change observation is rendered but rejected at a positive threshold, reproduced in the review. Expected confirmations need independent relevance; mismatch must not replace `changeMagnitude`. [Prediction and search](../improvements/prediction-mismatch.md). |
-| Policy is constructed or discovered inside consumers | `m-region` owns a fixed `Aperture`; `m-interrupts` discovers modality regions and computes their slow mean. Make regulation, aggregation, and control bindings replaceable; the role lookups and pressure fold in enclosure by role cover the discovery half. |
-| Evidence and bid state share mutable records | Regional gain still mutates salience on the shared record. Frame receipts are now typed and credited by percept id; splitting the mutable bid off the evidence record, and changing the arbiter with it, remains membrane phase 2. |
-| Source control has a door, not a controller | `requestControl` delivers typed `sample` / `detail` / `focus` before detection (and `detail` to the materializer). `focus` is accepted and changes no policy. There is no search controller, no `orient` hand, no cadence control beyond the sense timer, and no grounding query on the reserved `template` field. |
+| Only the nearest sensory aperture participates | **Closed (phase 2).** Every aperture on the path answers `percept-candidate`; permission is the conjunction, fail-closed if a gate is missing. An inner `open` no longer delivers through an outer `closed` (W3). |
+| Sensory change directly sets salience | The bid is separate and derives salience from independent signals through a replaceable policy; **no independent relevance producer exists and the default weights are unchanged.** `requestedFloor` is the route (default 0). Mismatch must not replace `changeMagnitude`. [Prediction and search](../improvements/prediction-mismatch.md). |
+| Policy is constructed or discovered inside consumers | **Closed (phase 2).** `regulator` and `aggregator` are replaceable interior roles; the aperture provider is replaceable (C1/S1). `Aperture` is the reference contact policy, not the provider. |
+| Evidence and bid state share mutable records | **Closed (phase 2).** `AttentionBid` is the mutable competition record; `Percept` is frozen at issue. Nested gain is a trail entry. `assembleFrame` uses `evidenceOf`. |
+| Source control has a door, not a controller | `requestControl` now forwards through nested providers; a named target is delivered once by the nearest owner. **There is still no search controller, no `orient` hand, no cadence control beyond the sense timer, and no grounding query on the reserved `template` field.** `focus` is accepted and changes no policy. |
 | Processing tier is declared, not implemented above 0 | Sources declare `tier` (default 0); 1 and 2 throw at registration. Provenance and journal carry the field. The regulator accepts only a `PerceptCandidate`; `EdgeEvidence` is a typed refusal and nothing produces it. Acquisition and awareness are distinct stages (`tier-0-mirror` at lean). What remains: no tier-1 or tier-2 *implementations*, no scores into the deficit, no grounding query. The lean-versus-edge-grounded experiment is still unrun. |
 
 Existing eager senses remain outside aperture control, and native media,
@@ -432,10 +446,12 @@ specific bypass. An inner `open` cannot cancel an outer `closed`. Gates compose
 before materialization or private processing would violate an ancestor's policy;
 dropping an already-rendered bid at the outer arbiter is too late. Scope or policy
 changes also invalidate pending work that no longer has permission to complete.
-This composition is a required correction to the current nearest-region sketch;
-[enclosure by role](../improvements/enclosure-by-role.md) proposes the general
-mechanism (role-resolved enclosure, a cancelable `percept-candidate` event whose
-gates compose by conjunction, nearest-provider debt credit, and a pressure fold).
+This composition is implemented (membrane phase 2).
+[Enclosure by role](../improvements/enclosure-by-role.md) is the mechanism
+(role-resolved enclosure, a cancelable `percept-candidate` event whose gates
+compose by conjunction, nearest-provider debt credit, and a pressure fold). The
+full `membrane()` / `part()` / `..[provides~="mind"]` sweep is still that note's
+own phase 1, not this work.
 
 There is also a global inner–outer balance. It does not replace local apertures:
 a mind may close its eyes and listen, soften ambient sound while examining an
@@ -768,10 +784,10 @@ cannot reveal them. Private source contents remain absent until admission.
 ## Proposed development order
 
 Step 1 is implemented
-([phase 1 plan](../plans/perceptual-membrane-phase-1.md)). Step 2 is planned but
-not built ([phase 2 plan](../plans/perceptual-membrane-phase-2.md)). Steps 2–6
-remain future work; they are not implemented here and the experiments they
-describe have not been run.
+([phase 1 plan](../plans/perceptual-membrane-phase-1.md)). Step 2 is implemented
+([phase 2 plan](../plans/perceptual-membrane-phase-2.md)). Steps 3–6 remain
+future work; they are not implemented here and the experiments they describe
+have not been run.
 
 1. Establish explicit contracts for processing, awareness, evidence identity,
    evaluations, control requests, and frame receipts. Preserve existing text
@@ -781,7 +797,7 @@ describe have not been run.
 2. Correct nested boundary composition and separate evidence from bid state.
    Make contact regulation, pressure aggregation, and source control replaceable
    through wiring. Expected observations retain a route to attention.
-   **Planned, not built.**
+   **Implemented.**
    ([implementation plan](../plans/perceptual-membrane-phase-2.md))
 3. Assemble the existing deficit/reflex and inexpensive act-bound prediction as
    the first reference architecture. Add `orient` and bounded search through
@@ -821,9 +837,9 @@ implementation questions remain open:
 5. What sustained energy/arousal condition should cause automatic announced sleep,
    and can that close complete reliably when the very resource needed to think the
    closing thought is nearly exhausted?
-6. How should simultaneous orientation requests be arbitrated, and how should
-   aggregation avoid counting one observation repeatedly through nested regions?
-   Stable identities and explicit ownership are required; the policy is open.
+6. How should simultaneous orientation requests be arbitrated? Nested aggregation
+   does not double-count: one issuer, one credit, one fold. Simultaneous-orientation
+   policy is still open.
 
 ## The criterion
 

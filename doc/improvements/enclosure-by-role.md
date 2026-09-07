@@ -1,12 +1,16 @@
 # Enclosure by role: native recursion in the component tree
 
-**Status: proposed, 2026-09-06; mechanism decisions settled with Kris the same day
-(see [Decisions](#decisions)).** Written after the generality review of the
+**Status: 2026-09-06; mechanism decisions settled with Kris the same day
+(see [Decisions](#decisions)).** Phase 0 (roles, reflection, lookup API) landed
+with perceptual-membrane phase 2 M1. The aperture protocol (phase 2 of this note)
+and fixtures S1/C1 landed with membrane phase 2 M9 (2026-09-07). Phase 1 — the
+full `membrane()` / `part()` / `..[provides~="mind"]` sweep — is **not** done.
+Written after the generality review of the
 [perceptual membrane](../architecture/perceptual-membrane.md), whose first known
 issue (an open inner sensory region delivers through a closed outer one) is one
 instance of a general gap. This note names the gap, states the requirement, and
-proposes a small mechanism. Nothing here is implemented. It is written so that an
-implementation plan can be derived from it directly; the
+proposes a small mechanism. It is written so that an implementation plan can be
+derived from it directly; the
 [migration table](#migration-surface) and [fixtures](#acceptance-fixtures) are the
 plan's raw material.
 
@@ -60,13 +64,12 @@ for a specific reason: `A.settle()` defines tags in the document order of their
 `HTMLElement`. Only a DOM-structural lookup that works on un-upgraded elements is
 safe at connect time. Any replacement must keep that property.
 
-The membrane sketch shows the failure. `MSense.candidate()` resolves
-`closest('m-region[modality]')`, `m-region` requires that the nearest modality
-region is itself, and permission is that one region's `allows()`. An enclosing
-closed region is never consulted, the regulator is a private `Aperture` object,
-the mind-level consumer scans `querySelectorAll('m-region[modality]')`, and the
-receipt path credits by object identity. None of these can be substituted or
-nested without editing the component.
+The membrane sketch showed the failure. `MSense.candidate()` resolved
+`closest('m-region[modality]')`, `m-region` required that the nearest modality
+region is itself, and permission was that one region's `allows()`. An enclosing
+closed region was never consulted. Membrane phase 2 moved the aperture, faculty,
+and arbiter lookups onto roles and gave the aperture a protocol; the other rows
+of the [migration table](#migration-surface) still address by tag.
 
 ## Roles: declared by implementations, resolved by structure
 
@@ -156,8 +159,10 @@ resolving to its own enclosures.
 ## The three laws of enclosure
 
 Role lookup alone does not give recursion; it gives substitution. Recursion needs
-each role's protocol to obey three laws. `m-interrupts` obeys all three already,
-which is why nesting it works; the aperture obeys none yet.
+each role's protocol to obey three laws. `m-interrupts` already obeyed all three,
+which is why nesting it works. The aperture protocol now obeys them too (membrane
+phase 2). The remaining tag lookups in the [migration table](#migration-surface)
+do not.
 
 **Law 1, transparency.** A container that does not provide role R is invisible to
 R's protocol: requests bubble through it, registrations pass through it, control
@@ -213,7 +218,7 @@ changes is how a provider is found, how gates compose, and what state is shared.
 |---|---|---|---|
 | `percept-candidate` | up, cancelable bubbling event from the source element; `detail = { header, origin }` where `header` is the frozen `PerceptCandidate` and `origin` the source element | every `aperture` on the path | Each gate reads trusted policy from `origin`'s attributes and calls `preventDefault()` if its state forbids and no bypass applies. Nobody stops propagation, so permission is the **conjunction** of all gates in whatever listener order. Only the gate for which `enclosingOf(origin, 'aperture') === this` credits contact debt (the **nearest credits** rule). Each gate appends its policy version to `detail.versions`. The membrane root stops the event. |
 | materialization | local to the source | the source | Only if `!defaultPrevented`. The resulting `Percept` is dropped if any recorded version changed while rendering, generalizing today's single-region check. |
-| `interrupt-request` | up | every `arbiter` on the path | Unchanged: gate, gain, promote. An alternative policy that permits private processing while awareness is closed vetoes bids at its boundary in the capture phase; the default provider does nothing at this stage. |
+| `interrupt-request` | up | every `arbiter` on the path | Unchanged: gate, gain, promote. Awareness is a second `percept-candidate` pass (decided; see *Still open* 1), not a capture-phase veto here. Arbiters stay out of the membrane's business. |
 | `aperture-register` | up, at source connect | nearest `aperture` (stops it) | The provider records the registrant; a provider registers itself once with its own enclosing provider. Providers also scan their interior on connect with `part`-style scoped lookup, so connect order does not matter. |
 | `sample`, `orient`, `focus` | down | the provider to its registrants | Child providers forward to theirs (Law 1 and 2). A named target (`orient('narrow', name)`) is lateral addressing and stays by `name`. |
 | `contactPressure` | retained topic | each provider | Published value is `fold(own deficit, child providers' pressures)`; the fold is a replaceable policy. The mind-level consumer reads `part(mind, 'aperture')`, which by definition returns only top-level providers, each already folded. No scan by tag, no double counting. |
@@ -238,12 +243,12 @@ headers and boundaries, and compares the ordered receipts (attention decisions,
 |---|---|---|
 | W1 | leaf sense wrapped in `<m-region>` (no role) | receipts identical to `B` |
 | W2 | wrapped in `<m-region modality="text" aperture="open">` | receipts identical to `B`; only telemetry differs |
-| W3 | outer `closed`, inner `open` | zero materializations, zero journal lines; **fails today** |
-| S1 | `m-region[modality]` replaced by a test-only `m-test-aperture` in a `components/` dir; inner sense untouched | same veto, credit, and receipt behavior as `B` |
+| W3 | outer `closed`, inner `open` | zero materializations, zero journal lines. **Landed** (membrane phase 2; used to fail). |
+| S1 | `m-region[modality]` replaced by a test-only `m-test-aperture` in a `components/` dir; inner sense untouched | same veto, credit, and receipt behavior as `B`. Landed in membrane phase 2; the inner source is still a span and finds the aperture by role. |
 | P1 | one suppressed header inside nested providers | outer `contactPressure` equals the fold; debt credited exactly once |
 | R1 | a top-level `m-interrupts` precedes the first `m-region` in the file | nested arbiter and nested sense both resolve their enclosures at connect |
 | A1 | ArchML authors `provides="aperture"` on a plain element | attribute overwritten from the role table, one warning, no role granted |
-| C1 | **conformance suite**: any provider of `aperture` run against the message table | passes veto, nearest-credits, id-based receipt, fold, and forwarding checks |
+| C1 | **conformance suite**: any provider of `aperture` run against the message table | passes veto, nearest-credits, id-based receipt, fold, and forwarding checks. Landed in membrane phase 2 (`architecture/tests/wiring/aperture-conformance.test.js`), run against `m-region[modality]` and `m-test-aperture`. |
 
 C1 is the executable form of the role contract. An author of `m-another-aperture`
 runs it instead of reading the runtime. It is also the natural seed for the port
@@ -275,19 +280,19 @@ agent, a mind, or a society without a case list.
 1. **Phase 0, no behavior change.** `static provides` on the classes in the role
    table; role table and reflection in the loader between phases; `enclosing`,
    `enclosingAll`, `membrane`, `part`, `provides` on `MBaseComponent`; fixtures R1
-   and A1. Existing tests stay green untouched.
+   and A1. Existing tests stay green untouched. **Landed** (membrane phase 2 M1).
 2. **Phase 1, structural lookups.** Migrate the first four rows of the table and
    the ref row, identity roots included. `_arbiter()` becomes "top-level `arbiter`
    in the membrane". Fixture W1 passes trivially; it is recorded as the baseline
-   for the rest.
+   for the rest. **Not this work** — the full ~60-site sweep is still open.
 3. **Phase 2, the aperture protocol.** `percept-candidate` with conjunction, nearest
    credits, version chain, and membrane stop; `aperture-register` and interior
    scan; id-based receipts; pressure fold; the mind-level consumer reads
-   `part(mind, 'aperture')`. Fixtures W2, W3, P1, C1.
+   `part(mind, 'aperture')`. Fixtures W2, W3, P1, C1. **Landed** (membrane phase 2).
 4. **Phase 3, substitution shown.** `m-test-aperture` under a `components/` dir
    used by S1; then the perceptual-membrane known-issues rows 1, 3, and 4 point
    here and the `Aperture` class is documented as the reference policy, not the
-   provider.
+   provider. **Landed** (membrane phase 2 M9).
 5. **Later.** Role-based Plenum seed path; a `..~role/…` ref shorthand if the
    attribute selector proves noisy in practice; generated port declarations from
    conformance suites.
@@ -315,11 +320,12 @@ Settled with Kris on 2026-09-06.
 
 ## Still open
 
-1. **Awareness-gate mechanism for the higher
-   [processing tiers](../architecture/perceptual-membrane.md#processing-tiers).**
-   Recommended: a capture-phase cancelable veto on `interrupt-request` at the
-   provider. Order-independent and needs no new event; arbiters stay bubble-phase.
-   Decide when the first tier-1 or tier-2 source exists.
+1. **Awareness-gate mechanism — decided.** A second `percept-candidate` pass
+   (stage `awareness`) after materialization, not a capture-phase veto on
+   `interrupt-request`. Same record as acquisition; arbiters stay out of the
+   membrane. Recorded here because this note recommended the capture veto; membrane
+   phase 2 superseded it. Tiers 1–2 are still unimplemented; they will answer the
+   two stages differently when they exist.
 2. **Split `m-region` into `m-region` plus an explicit `m-aperture` child?** Not now.
    The conditional `provides` keeps every existing ArchML file valid and unchanged.
    Revisit when a second aperture policy exists and wants to live beside the first.

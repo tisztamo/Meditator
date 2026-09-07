@@ -1,6 +1,6 @@
 # Perceptual membrane — Phase 2 implementation plan: composition and the split
 
-**Status: proposed, 2026-09-06.** Realizes step 2 of the
+**Status: implemented, 2026-09-07.** Realizes step 2 of the
 [perceptual membrane](../architecture/perceptual-membrane.md#proposed-development-order):
 
 > *Correct nested boundary composition and separate evidence from bid state. Make
