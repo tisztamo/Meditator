@@ -785,9 +785,10 @@ cannot reveal them. Private source contents remain absent until admission.
 
 Step 1 is implemented
 ([phase 1 plan](../plans/perceptual-membrane-phase-1.md)). Step 2 is implemented
-([phase 2 plan](../plans/perceptual-membrane-phase-2.md)). Steps 3–6 remain
-future work; they are not implemented here and the experiments they describe
-have not been run.
+([phase 2 plan](../plans/perceptual-membrane-phase-2.md)). Step 3 is planned but
+not built ([phase 3 plan](../plans/perceptual-membrane-phase-3.md)). Steps 3–6
+remain future work; they are not implemented here and the experiments they
+describe have not been run.
 
 1. Establish explicit contracts for processing, awareness, evidence identity,
    evaluations, control requests, and frame receipts. Preserve existing text
@@ -802,6 +803,8 @@ have not been run.
 3. Assemble the existing deficit/reflex and inexpensive act-bound prediction as
    the first reference architecture. Add `orient` and bounded search through
    declared control interfaces; retain uncertainty in search outcomes.
+   **Planned, not built.**
+   ([implementation plan](../plans/perceptual-membrane-phase-3.md))
 4. Describe and later evaluate alternative architectures with the same sources,
    transport, and frame/memory code. The
    [experiment matrix](../improvements/prediction-mismatch.md#proposed-experiments)
