@@ -1,5 +1,5 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
-import { enclosingOf, enclosingAllOf, isMembrane } from "../shared/enclosure.js"
+import { enclosingOf, enclosingAllOf, isMembrane, providesOf } from "../shared/enclosure.js"
 import { Aperture } from '../../infrastructure/aperture.js'
 import { Percept, PerceptCandidate } from '../../infrastructure/percept.js'
 import { AttentionBid } from '../../infrastructure/attentionBid.js'
@@ -58,7 +58,9 @@ export function gateIdOf(el) {
  *   the aperture provider is still M9.
  * Methods: registerSource(element, sample) → offer(header, lazyText); orient(state, source);
  *   requestControl(ControlRequest) is the one door for sample / focus / detail —
- *   focus is accepted and changes no policy;
+ *   focus is accepted and changes no policy. Untargeted requests fan out to child
+ *   providers; a named target is delivered once by the nearest owner (first in
+ *   tree order if two siblings own the same name).
  *   permitAcquisition(annotated) and permitAwareness(annotated) each return a
  *   GateVerdict from decideGate — acquisition then awareness; at tier 0 awareness is a
  *   real verdict with reason 'tier-0-mirror'.
@@ -69,13 +71,19 @@ export function gateIdOf(el) {
  * Topics: contactPressure, apertureState (retained); perceptDecision (non-semantic
  *   gate verdicts); events: aperture-change (backstage); percept-candidate (cancelable,
  *   bubbling, twice — acquisition then awareness — conjunction of every aperture on
- *   the path, stopped at the membrane). Credits `percepts-attended` by percept id
+ *   the path, stopped at the membrane); aperture-register (bubbling, nearest aperture
+ *   stops it — not conjunction). Credits `percepts-attended` by percept id
  *   against a bounded issued-id map — never by object identity. Awareness is the
  *   second pass of the same event after materialization, not a capture-phase veto
  *   on interrupt-request. The offer path issues an AttentionBid wrapping a frozen
  *   Percept; aperture gain lives on the bid's trail, not on the evidence. decideBid
  *   reads { changeMagnitude, requested, novelty } separately — the floor is applied
  *   there, not merged upstream.
+ * Aperture providers form a tree (`_children`), not a graph: each source and each
+ * child provider registers with the nearest enclosing aperture only, in both
+ * directions (announce on connect, plus an interior scan so connect order does
+ * not matter). Fold termination (M8) depends on that. contactPressure is still
+ * this provider's own deficit — not yet folded over children.
  * Only registered lazy sources pass through this aperture; legacy interrupts are unchanged.
  */
 export class MRegion extends MBaseComponent {
@@ -94,6 +102,9 @@ export class MRegion extends MBaseComponent {
             horizonMs: parseTime(this.attr('contactHorizon') || '10m'),
         })
         this._sources = new Map()
+        // Child aperture providers. A tree, not a graph: nearest-only in both
+        // directions. M8's fold terminates because of that; pressure is not folded yet.
+        this._children = []
         // At most 32 issued percept ids awaiting credit — same order as the
         // per-region source cap. WeakSet was wrong: a rebuilt record with the
         // same id must still credit. Evict the oldest issuedAt if the map is full.
@@ -113,13 +124,20 @@ export class MRegion extends MBaseComponent {
         this._assertUniqueApertureId()
         this._requestedFloor()
         this.addEventListener('percept-candidate', this._onPerceptCandidate)
+        this.addEventListener('aperture-register', this._onApertureRegister)
+        this._scanInterior()
+        // Own announcement: this listener ignores target === this so the event
+        // can bubble to the enclosing aperture. The membrane stops it if none.
+        this.dispatchEvent(new CustomEvent('aperture-register', { bubbles: true }))
     }
 
     onDisconnect() {
         this._unlistenPercepts?.()
         this.removeEventListener('percept-candidate', this._onPerceptCandidate)
+        this.removeEventListener('aperture-register', this._onApertureRegister)
         if (this.aperture) this.aperture.version++
         this._sources?.clear()
+        this._children = []
         this._issued?.clear()
     }
 
@@ -298,6 +316,61 @@ export class MRegion extends MBaseComponent {
         }
     }
 
+    /**
+     * Providers form a tree: nearest-only in both directions. The event is the
+     * protocol; registerSource remains the implementation and the test/demo door.
+     * Own announcements (target === this) are ignored here so they can bubble
+     * to the enclosing aperture. Duplicate child links are ignored, not an error.
+     */
+    _onApertureRegister = event => {
+        if (event.target === this) return
+        event.stopPropagation()
+        if (!this.aperture) return
+        const el = event.target
+        if (!el || el.nodeType !== 1) return
+        if (providesOf(el, 'aperture')) {
+            this._linkChild(el)
+            return
+        }
+        if (providesOf(el, 'source') && enclosingOf(el, 'aperture') === this) {
+            const sample = typeof event.detail?.sample === 'function'
+                ? event.detail.sample
+                : (typeof el.onSense === 'function' ? request => el.onSense(request) : undefined)
+            if (typeof sample === 'function') this.registerSource(el, sample)
+        }
+    }
+
+    /** Interior scan so connect order does not matter (Law 1, both directions).
+     * Document-order upgrades typically connect parent before child, so this
+     * scan is often empty and the child's self-register builds the tree. */
+    _scanInterior() {
+        for (const child of this.part('aperture')) {
+            customElements.upgrade(child)
+            this._linkChild(child)
+        }
+        for (const el of this.part('source')) {
+            if (enclosingOf(el, 'aperture') !== this) continue
+            customElements.upgrade(el)
+            // Spans used in tests have no source role and stay on explicit
+            // registerSource. Do not invent sample callbacks for them.
+            if (typeof el.onSense !== 'function') continue
+            this.registerSource(el, request => el.onSense(request))
+        }
+    }
+
+    _linkChild(el) {
+        if (!el || el === this) return
+        if (this._children.includes(el)) return
+        this._children.push(el)
+    }
+
+    /** Linked children in tree order. Stale entries (disconnected) drop out
+     * because part() only walks the live interior. */
+    _childProviders() {
+        const linked = new Set(this._children)
+        return this.part('aperture').filter(el => linked.has(el))
+    }
+
     /** Default 0 so the seam does not retune. The issuing provider's value;
      * not folded across nested apertures. */
     _requestedFloor() {
@@ -431,23 +504,45 @@ export class MRegion extends MBaseComponent {
      * gate still decides whether anything it returns is disclosed. An untargeted
      * broadcast carries no such decision, so it skips sources the aperture
      * already refuses rather than spending a materializer call on content that
-     * would only be discarded. */
+     * would only be discarded.
+     *
+     * After this provider's own `_sources`, untargeted requests fan out to every
+     * registered child provider (each applies its own `allows()` skip). A named
+     * target is delivered once by the nearest owner and not forwarded further.
+     * If two sibling providers both own the name, first in tree order wins. */
     requestControl(request) {
         if (!(request instanceof ControlRequest)) throw new Error('requestControl requires a ControlRequest')
-        if (!this.aperture) return
+        if (!this.aperture) return false
         const sleeping = this._mind()?._sleeping
+        const targeted = request.target != null
+        let delivered = false
+        let owned = false
         for (const [element, entry] of this._sources) {
-            if (request.target != null && entry.source !== request.target) continue
+            if (targeted && entry.source !== request.target) continue
+            if (targeted) owned = true
             const attached = element.isConnected
                 && this._modalityRegion(element) === this
                 && this._sources.get(element) === entry
             if (!attached || sleeping) continue
-            if (request.target == null && !this.aperture.allows(entry.source, entry.contract.powers)) continue
+            if (!targeted && !this.aperture.allows(entry.source, entry.contract.powers)) continue
+            delivered = true
             entry.control = request
             Promise.resolve().then(() => entry.sample?.(request)).catch(() => {}).finally(() => {
                 if (entry.control === request) entry.control = null
             })
+            if (targeted) break
         }
+        if (targeted && (delivered || owned)) return delivered
+        for (const child of this._childProviders()) {
+            if (!child.isConnected) continue
+            customElements.upgrade(child)
+            if (typeof child.requestControl !== 'function') continue
+            if (child.requestControl(request)) {
+                delivered = true
+                if (targeted) return true
+            }
+        }
+        return delivered
     }
 
     _transition(from, reason) {
@@ -490,6 +585,8 @@ export class MRegion extends MBaseComponent {
     }
 
     _publishAperture() {
+        // Own deficit only. M8 folds children; the tree is already in place so
+        // that fold will terminate. Until then, nested interiors are invisible here.
         this.pub('contactPressure', this.aperture.deficit)
         this.pub('apertureState', { state: this.aperture.state, focus: this.aperture.focus,
             contactPressure: this.aperture.deficit, gain: this.aperture.gain })

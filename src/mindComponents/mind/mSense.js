@@ -69,6 +69,15 @@ export class MSense extends MBaseComponent {
     onConnect() {
         this.timeoutMs = parseTime(this.attr("timeout") || this.defaultTimeout)
         this.sigmaMs = parseTime(this.attr("sigma") || this.defaultSigma)
+        // Protocol: nearest aperture records the source. candidate() still calls
+        // registerSource (idempotent) so the test/demo door and the lazy offer path
+        // stay the same. No enclosing aperture → the membrane stops the event.
+        if (this.enclosing('aperture')) {
+            this.dispatchEvent(new CustomEvent('aperture-register', {
+                bubbles: true,
+                detail: { sample: request => this.onSense(request) },
+            }))
+        }
         if (this.ready() === false) return       // unconfigured — stay dormant (subclass warns)
         this._schedule(this._nextDelay())
     }

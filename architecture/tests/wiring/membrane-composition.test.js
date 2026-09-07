@@ -1,6 +1,6 @@
-// Membrane composition (phase 2 M2–M3) plus M6 regulator substitution (test 15):
+// Membrane composition (phase 2 M2–M3, M6 regulator, M7 nested source control):
 // percept-candidate at acquisition and awareness. Fixtures W1/W2/W3, conjunction,
-// the version chain, and a test-only regulator port.
+// the version chain, a test-only regulator port, and requestControl through nesting.
 import './setup.js';
 import { test, expect, afterEach } from 'bun:test';
 import A from 'amanita';
@@ -14,7 +14,7 @@ import { MBaseComponent } from '../../../src/mindComponents/shared/mBaseComponen
 import { Percept } from '../../../src/infrastructure/percept.js';
 import { AttentionBid } from '../../../src/infrastructure/attentionBid.js';
 import { Aperture } from '../../../src/infrastructure/aperture.js';
-import { GateVerdict, pushGainTrail } from '../../../src/infrastructure/perceptionContracts.js';
+import { GateVerdict, pushGainTrail, ControlRequest } from '../../../src/infrastructure/perceptionContracts.js';
 
 let journalDir;
 
@@ -727,4 +727,103 @@ test('15. Two regulators for one aperture fail at connect', async () => {
             <x-fast-regulator></x-fast-regulator>
           </m-region>`);
     expect(captured?.message || String(captured)).toMatch(/only one regulator/);
+});
+
+function sampleRequest(target) {
+    return new ControlRequest({
+        kind: 'sample', issuedBy: 'test', reason: 'probe',
+        ...(target != null ? { target } : {}),
+    });
+}
+
+test('M7. Outer untargeted requestControl reaches a source registered on the inner aperture', async () => {
+    const mind = await mount(W2_REGION);
+    const outer = mind.querySelector('m-region[name="shell"]');
+    const inner = mind.querySelector('m-region[name="outside"]');
+    const source = mind.querySelector('[name="mock"]');
+    let hits = 0;
+    let received = null;
+    inner.registerSource(source, request => {
+        hits++;
+        received = request;
+    });
+    const request = sampleRequest();
+    outer.requestControl(request);
+    await delay(5);
+    expect(hits).toBe(1);
+    expect(received).toBe(request);
+});
+
+test('M7. Targeted request is delivered once by the nearest owner; first sibling in tree order wins', async () => {
+    const mind = await mount(`
+          <m-region name="shell" modality="text" aperture="open" dwell="1s" contactHorizon="10s">
+            <m-region name="left" modality="text" aperture="open" dwell="1s" contactHorizon="10s">
+              <span name="garden" provenance="simulated"></span>
+              <span name="pond" provenance="simulated"></span>
+            </m-region>
+            <m-region name="right" modality="text" aperture="open" dwell="1s" contactHorizon="10s">
+              <span name="garden" provenance="simulated"></span>
+            </m-region>
+          </m-region>`);
+    const outer = mind.querySelector('m-region[name="shell"]');
+    const left = mind.querySelector('m-region[name="left"]');
+    const right = mind.querySelector('m-region[name="right"]');
+    const garden = left.querySelector('[name="garden"]');
+    const pond = left.querySelector('[name="pond"]');
+    const siblingGarden = right.querySelector('[name="garden"]');
+    const called = [];
+    left.registerSource(garden, () => { called.push('left-garden'); });
+    left.registerSource(pond, () => { called.push('pond'); });
+    right.registerSource(siblingGarden, () => { called.push('right-garden'); });
+    outer.requestControl(sampleRequest('garden'));
+    await delay(5);
+    expect(called).toEqual(['left-garden']);
+});
+
+test('M7. Untargeted respects each provider\'s allows(); targeted from outer still reaches a closed inner', async () => {
+    const mind = await mount(`
+          <m-region name="shell" modality="text" aperture="open" dwell="1s" contactHorizon="10s">
+            <m-region name="outside" modality="text" aperture="closed" dwell="1s" contactHorizon="10s">
+              <span name="mock" provenance="simulated"></span>
+            </m-region>
+          </m-region>`);
+    const outer = mind.querySelector('m-region[name="shell"]');
+    const inner = mind.querySelector('m-region[name="outside"]');
+    const source = mind.querySelector('[name="mock"]');
+    let hits = 0;
+    inner.registerSource(source, () => { hits++; });
+    expect(inner.aperture.state).toBe('closed');
+    expect(outer.aperture.state).toBe('open');
+
+    outer.requestControl(sampleRequest());
+    await delay(5);
+    expect(hits).toBe(0);
+
+    outer.requestControl(sampleRequest('mock'));
+    await delay(5);
+    expect(hits).toBe(1);
+});
+
+test('M7. Child aperture appended after the parent has connected still forwards', async () => {
+    const mind = await mount(BASE_REGION);
+    const outer = mind.querySelector('m-region[name="outside"]');
+    const inner = document.createElement('m-region');
+    inner.setAttribute('name', 'inside');
+    inner.setAttribute('modality', 'text');
+    inner.setAttribute('aperture', 'open');
+    inner.setAttribute('dwell', '1s');
+    inner.setAttribute('contactHorizon', '10s');
+    outer.appendChild(inner);
+    await delay(10);
+    expect(inner.aperture).toBeTruthy();
+
+    const source = document.createElement('span');
+    source.setAttribute('name', 'late');
+    source.setAttribute('provenance', 'simulated');
+    inner.appendChild(source);
+    let hits = 0;
+    inner.registerSource(source, () => { hits++; });
+    outer.requestControl(sampleRequest());
+    await delay(5);
+    expect(hits).toBe(1);
 });

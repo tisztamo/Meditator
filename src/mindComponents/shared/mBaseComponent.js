@@ -39,9 +39,12 @@ export class MBaseComponent extends A(HTMLElement) {
         // identity root that extends this class gets it — including a test host —
         // rather than listing MMind / MAgent / MSociety (and missing a stub that
         // is A(HTMLElement), which wiring tests often use for <m-mind>).
+        // aperture-register is nearest-only: a region must not register with a
+        // society, and the membrane is the backstop if no aperture stopped it.
         if (isMembrane(this) && !this._stopsPerceptCandidate) {
             this._stopsPerceptCandidate = true
             this.addEventListener("percept-candidate", event => event.stopPropagation())
+            this.addEventListener("aperture-register", event => event.stopPropagation())
         }
         this._spaceInit()
         super.connectedCallback()
