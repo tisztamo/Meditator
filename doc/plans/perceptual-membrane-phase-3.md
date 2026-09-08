@@ -1,7 +1,8 @@
 # Perceptual membrane — Phase 3 implementation plan: prediction, orientation, and search
 
-**Status: proposed, 2026-09-07; revised the same day after
-[review](perceptual-membrane-phase-3-review.md).** Realizes step 3 of the
+**Status: proposed, 2026-09-07; revised after
+[review](perceptual-membrane-phase-3-review.md), then revised 2026-09-08 to make
+the temporal model explicit.** Realizes step 3 of the
 [perceptual membrane](../architecture/perceptual-membrane.md#proposed-development-order):
 
 > *Assemble the existing deficit/reflex and inexpensive act-bound prediction as
@@ -14,6 +15,12 @@ the membrane compose. Phase 3 gives the open seams their first producers and
 controllers. It adds the search controller and the `orient` hand to known-issues
 row 5 — leaving that row's cadence-control gap open — and a real producer to row
 2; it deliberately leaves processing tiers 1–2 (row 6) open.
+
+**Implementation is split.** The focused
+[phase 3A plan](perceptual-membrane-phase-3a.md) lands prediction, comparison,
+and bidding first, then stops for review. Orientation and search remain the
+phase 3B direction in this roadmap; they do not belong on the 3A implementation
+branch.
 
 The constraining companions are
 [prediction, mismatch, and top-down search](../improvements/prediction-mismatch.md)
@@ -77,6 +84,46 @@ arbiter's listener asynchronous, and `_onRequest` is synchronous on purpose
 ([decoupling](../architecture/decoupling.md)); it also stops propagation for a
 nested region, which an `await` would reorder.
 The comparator itself is one mind-level role with two callers, not two seams.
+
+### Synchronous claim, asynchronous work, synchronous commit
+
+The synchronous part of this design is deliberately small. DOM
+`dispatchEvent()` invokes listeners in the current call stack, so a nested owner
+must call `stopPropagation()` before returning if it is to claim an event
+reliably. An `await` inside `m-interrupts._onRequest` would return control to DOM
+dispatch first; a later stop would be too late. This is an atomic routing rule,
+not a requirement that perception, action, or minds run in lockstep.
+
+Every evidence path therefore has three stages:
+
+1. **Claim and snapshot synchronously.** The nearest owner claims the event,
+   records ids, scope, gate versions, lineage, and a cancellation generation.
+2. **Work asynchronously.** Materialization and comparison may finish on their
+   own clocks, under per-owner concurrency caps, deadlines, and an `AbortSignal`.
+   No global barrier waits for them and no source remains `busy` merely because a
+   comparator is thinking.
+3. **Commit synchronously.** The owner re-checks attachment, sleep, scope,
+   deadline, and gate versions, builds one bid, and dispatches it to the existing
+   synchronous arbiter. A stale continuation has no effect.
+
+Lifecycle cancellation is an explicit protocol, not only a final boolean check.
+Evidence owners increment a generation and abort their live cases on disconnect,
+scope/binding change, or a new `mind-sleeping` event fired when the mind begins
+sleep. Comparator rebinding aborts cases created under the old binding. Abort is
+best-effort for external work; the generation tombstone is authoritative and
+makes every late completion inert.
+
+Ordering is causal, not globally total. `actId`, `requestId`, prediction id, and
+evidence id establish which work answers which prior event; timestamps say when
+each stage occurred. Two evidence cases may complete comparison in the opposite
+order from their occurrence. A small owner-local sequencer commits them in order
+for the same source, the consequences of the same act, or the attempts of the
+same search target; unrelated sources and owners remain independent. Phase 3
+does not make every source or mind share a clock.
+
+Likewise, “simultaneous orientation requests” below means requests whose validity
+windows overlap. JavaScript will still observe one first. First-accepted is an
+arrival-order policy under dwell/version, not a claim of physical simultaneity.
 
 The existing `Aperture` deficit/reflex and pressure aggregation are not rewritten.
 The reference ArchML assembles them with the new predictor, comparator, bidder,
@@ -239,8 +286,9 @@ cannot become fresh evidence.
 
 `Prediction` stays immutable and active; completion is a separate
 `PredictionSettlement`, just as an evaluation is separate from evidence. The
-reference comparator settles its one-evidence prediction on match/mismatch, expires
-it at its horizon, and leaves `insufficient` active until then.
+producer publishes settlement only after a matching/mismatching evaluation batch
+survives ordered commit. The prediction owner expires it at its horizon and leaves
+`insufficient` active until then.
 
 ### 2.2 Search records
 
@@ -297,19 +345,22 @@ missing materialization, or exhausted budget yields `budget-exhausted` or
 from the source's armed control (`mRegion._armControl`), so *any* candidate a
 source emits inside the arming window inherits the attempt's id — including a
 spontaneous one that never answered the request. The first controller therefore
-counts **only the first candidate carrying an attempt's id** toward that route's
-coverage, and records `attemptedSamples` separately from `coverage`. This is a
-real limitation and it belongs next to the outcome, not in a footnote: a route
-may be marked inspected on the strength of an observation that arrived for its
+lets **only the first candidate carrying an attempt's id** determine that
+attempt's evidence state and records `attemptedSamples` separately from
+`coverage`. Only a comparable match/nonmatch advances coverage. This is a real
+limitation and it belongs next to the outcome, not in a footnote: a route may
+still be marked inspected on the strength of an observation that arrived for its
 own reasons. The honest repair is an explicit "answering request X"
 acknowledgment in the source contract, which is a change to `MSense.onSense` and
 belongs to the tier-1 work, not here.
 
-`perceptDecision` gains `candidateId` and `requestId` — both non-semantic, both
-already known at the point of publication. Without them a controller cannot tell
-a refused route from a slow one and must spend a full deadline on every closed
-route before its coverage can advance. This is the one field phase 1 would have
-been cheaper to add.
+`perceptDecision` gains `candidateId` and `requestId` for Studio-compatible
+telemetry, but search does not use that retained topic as a command channel.
+`m-region` also fires a transient, id-only `control-result` event for a requested
+candidate's acquisition refusal or acceptance. Without that event a controller
+cannot tell a refused route from a slow one and must spend a full deadline on
+every closed route before its coverage can advance. This is the one result
+protocol phase 1 would have been cheaper to add.
 
 ### 2.3 Orientation request
 
@@ -338,15 +389,21 @@ orient hand's prediction could only ever expire, since the transition's sample i
 minted inside the provider with no lineage at all. It remains acquisition
 lineage: looking caused the sample, not what the sample happens to contain.
 
+An orientation carrying `expect` must resolve to one declared source. Its trusted
+prediction target is derived from the validated closed-enum `source` argument and
+the provider's architecture-owned route metadata, not from expectation text. An
+untargeted orientation may still change a provider, but it cannot publish a
+one-evidence prediction that whichever source answers first is allowed to settle.
+
 Every aperture provider exposes `requestOrientation(request) → boolean` and
 forwards an unmatched request to registered child providers. Provider names are
 already unique within a membrane. The selected provider calls its existing
 `orient`; it cannot grant bypass powers, clear deficit, or mark contact.
 
-The reference arbitration for simultaneous requests is deterministic
-first-accepted: provider dwell/version policy accepts one transition and refuses
-later arrivals until dwell permits another. Reflex and voluntary requests use the
-same policy. Every accepted transition keeps the existing backstage
+The reference arbitration for overlapping requests is deterministic
+first-observed/first-accepted: provider dwell/version policy accepts one
+transition and refuses later arrivals until dwell permits another. Reflex and
+voluntary requests use the same policy. Every accepted transition keeps the existing backstage
 `aperture-change` record with its issuer/reason; refusals are non-semantic
 telemetry.
 
@@ -409,16 +466,42 @@ Deferred hands receive the id in context and must return it on their later
 the prediction. A hand that returns no evidence leaves the prediction active only
 until its horizon; expiry alone creates no mismatch.
 
-The producer fires the frozen record to explicitly bound comparators. It is not
+The producer fires the frozen record to the explicitly bound comparator. It is not
 retained into memory or mirrored into the conscious identity.
 
-**`m-act` builds the bid for its own consequence.** Having created the prediction
-and awaited `cap.execute`, it constructs the `ComparableEvidence`, consults the
-comparator role, and fires an `AttentionBid` carrying the resulting evaluations
-and signals — instead of the bare `InterruptRecord` it fires today. This is the
-seam hole 6 names, and `m-act` is where it costs least: the arbiter's listener
-stays synchronous, the percept id stays stable through to the receipt, and the
-component that holds the `actId` is the one that does the matching.
+**`m-act` owns the bid for every consequence of one of its acts, including a
+deferred one.** With the envelope enabled, it installs a local
+`interrupt-request` listener. A trusted consequence carrying one of its live
+`actId`s is claimed with `stopPropagation()` synchronously, then continued
+through comparison and bidding asynchronously before `m-act` redispatches the
+finished bid from its parent. An `AttentionBid` passes through untouched, so the
+continuation cannot catch itself.
+
+This local interposition covers both cases:
+
+- after `cap.execute` returns an immediate experience, `_execute` fires the
+  trusted `InterruptRecord` as today and the local listener claims it;
+- a deferred hand fires its later trusted `InterruptRecord` from the hand, with
+  the `actId` received in execution context, and the same listener claims it as
+  it bubbles through `m-act`.
+
+Without this rule the terminal's slow result would still bypass the comparator
+even after the immediate path was repaired. `mTerminal._dispatch` therefore
+constructs an `InterruptRecord`, rather than a plain object, and preserves the
+execution `actId`. With the envelope disabled, `m-act` does not interpose and the
+event follows the phase-2 path unchanged (apart from the terminal trust bug fix).
+
+This is the seam hole 6 names, and `m-act` is where it costs least: the arbiter's
+listener stays synchronous, immediate and deferred consequences share one local
+owner, the percept id stays stable through to the receipt, and the component that
+holds the prediction and `actId` is the one that does the matching.
+
+The act adapter is exact, not implicit. It converts the trusted
+`InterruptRecord` once through `Percept.fromInterrupt`, derives
+`ComparableEvidence` from that percept's archival text rendition, and builds the
+eventual bid over the same `Percept` object and id. Its `sourceId`, provenance,
+policy powers, modality, tier, and empty gate trail therefore come from the
+existing compatibility mapping rather than a second ad hoc constructor.
 
 The trusted-adapter rule still holds: `m-act` does not read a payload for
 identity or policy. The consequence's provenance and powers come from the same
@@ -436,7 +519,7 @@ The tier-0 order on the membrane path becomes:
 acquisition gates
   → text materialization
   → construct frozen ComparableEvidence privately
-  → invoke applicable comparator ports (bounded by a deadline)
+  → invoke the bound comparator service (bounded by a deadline)
   → re-check attachment, sleep, and every aperture version
   → awareness gates
   → construct the frozen Percept with both gate verdicts and the same evidence id
@@ -449,7 +532,7 @@ and on the act path:
 ```text
 cap.execute returns an experience
   → construct frozen ComparableEvidence privately (actId lineage, no aperture)
-  → invoke applicable comparator ports (bounded by a deadline)
+  → invoke the bound comparator service (bounded by a deadline)
   → build AttentionBid through the selected bidder
   → interrupt-request
 ```
@@ -458,27 +541,40 @@ A consequence has no aperture and therefore no gates: it is the mind's own reach
 answering, not a channel it can close. That asymmetry is the point of naming both
 paths rather than pretending there is one.
 
-**Comparison runs inside the source's busy window.** `m-region` holds
-`entry.busy = true` for the whole offer path, so an `await` on a comparator
-delays that source's next candidate and refuses intervening ones with
-`reason: 'busy'` — and a comparator that never settles wedges the source
-permanently. Comparison therefore takes a bounded deadline (a component
-attribute, conservative default), and expiry yields `insufficient` plus a
-non-content diagnostic, exactly like a malformed result. Capping the number of
-evaluations does not bound the wall clock; only a deadline does.
+**Comparison does not run inside the source's busy window.** Today
+`entry.busy = true` spans the whole offer path. Phase 3 narrows it to
+materialization: once immutable `ComparableEvidence` exists, the source slot is
+released and a private evidence case continues independently. A slow comparator
+can delay that evidence's bid, but it cannot refuse the source's next candidate
+as `busy` or wedge the source permanently.
 
-`m-region` and `m-act` both discover top-level providers of `comparator` in their
-membrane — evidence judgment is mind-level, not per-aperture, and two producers
-consulting one role is not two seams. (The `bidder`, by contrast, is interior to
-the issuing aperture, consistent with `requestedFloor` being nearest-owned;
-`m-act` uses the default policy, having no aperture to read one from.) A
-duplicate at either scope fails at connect, as a duplicate regulator does.
+Each producer caps in-flight evidence cases and assigns an owner-local sequence
+before materialization. Capacity is decided before private text is produced. If
+the comparison cap is already full, comparison is skipped for that case and the
+ordinary baseline path may proceed with no match/mismatch signal; unnecessary
+private text is never retained merely to wait for comparator capacity. Optional
+interpretation must not become backpressure that silences otherwise admissible
+evidence.
 
-Each comparator must implement:
+The comparator receives `{ now, deadline, signal }`; deadline or cancellation
+aborts cooperatively, tombstones the case, and ignores late resolution by
+generation/id. Expiry yields `insufficient` plus a non-content diagnostic and
+advances the local commit sequence. Completed cases wait only for earlier cases
+from the same owner; a deadline prevents one case from blocking that local lane
+forever. Awareness, bid construction, and dispatch happen exactly once in this
+ordered commit continuation.
+
+`m-region` and `m-act` both discover the one top-level provider of `comparator`
+in their membrane. Evidence judgment is mind-level, not per-aperture, and two
+producers consulting one service is not two seams. Phase 3 does **not** support
+competing comparators: doing so would require a separate aggregation/settlement
+owner. A duplicate comparator fails at connect.
+
+The comparator must implement:
 
 ```js
 accepts(comparableEvidence) → boolean
-evaluate(comparableEvidence, { now }) → Evaluation[] | Promise<Evaluation[]>
+evaluate(comparableEvidence, { now, deadline, signal }) → Evaluation[] | Promise<Evaluation[]>
 ```
 
 Comparison may be asynchronous, so attachment, sleep, deadline, and every recorded
@@ -486,6 +582,15 @@ gate version are checked again afterward. A malformed comparator result fails th
 comparison closed (no match/mismatch signal, plus a non-content diagnostic); it
 does not suppress an otherwise valid baseline bid or convert private evidence into
 an admitted percept. Cap the number of evaluations per percept.
+
+Evaluation is side-effect-free. The comparator may index live predictions and
+attempts, but `evaluate` cannot settle either one. After the producer's ordered
+continuation revalidates the case, the producer commits the accepted evaluation
+batch exactly once: it publishes any `PredictionSettlement`, emits an id-only
+`evaluation-commit` event, and builds the bid. Timeout or invalidation therefore
+cannot leave a prediction settled by work whose evidence was later refused.
+`evaluation-commit` contains only case id, request/act id, evidence id, and frozen
+`Evaluation` records — never `ComparableEvidence` text.
 
 `ComparableEvidence` is a private frozen view containing the candidate id, trusted
 source/provenance/tier, request/act lineage, occurrence time, and materialized text
@@ -500,6 +605,10 @@ in this series has one (32 sources, 32 issued ids), and an uncapped map of live
 predictions is the same failure waiting elsewhere. It compares normalized exact
 text in the offline reference condition. This is intentionally narrow: no fuzzy
 lexical score, no LLM judge, no simulator truth, and no use of opaque `changeKey`.
+Its verdict means literal equality under the declared normalization, not semantic
+agreement. Treat it as a transport/conformance comparator for the deterministic
+fixture; ordinary natural-language expectations need a later declared comparator
+and should otherwise yield `insufficient`, not a confident mismatch.
 
 For a prediction it evaluates only evidence whose `actId` and trusted target match.
 For a search target it evaluates only evidence whose `requestId` maps to a live
@@ -509,8 +618,14 @@ late evidence, or incomplete text yields `insufficient`.
 
 ### 4.2 Bidder port
 
-The effective bidder is an interior `bidder` provider when one is wired, otherwise
-the current phase-2 `decideBid` path. The port is:
+The bidder is local policy, not a mind-level singleton. Each evidence owner
+resolves at most one interior `bidder`: `m-region` beneath the issuing aperture,
+and `m-act` beneath the hand assembler. The reference fixture mounts the same
+bidder class/configuration under both owners. With none, that owner uses the
+current phase-2 `decideBid` path. This is what lets configured mismatch behavior
+be tested on the act path without turning bidding into one global policy.
+
+The port is:
 
 ```js
 createBid({ evidence, evaluations, gainTrail, requestedFloor }) → AttentionBid
@@ -522,9 +637,13 @@ The bid records evaluation ids, not mutable evaluation objects.
 
 Binding follows the phase-2 hardening rules: a same-batch custom provider waits for
 `customElements.whenDefined` instead of silently falling back, disconnect removes
-the binding and invalidates in-flight work, duplicate singleton bidders fail at
-connect, and a bidder returning a non-finite/out-of-range salience refuses that bid
-rather than falling back to a more permissive policy.
+the binding and invalidates in-flight work, duplicate bidders under one owner fail
+at connect, and invalid output refuses that bid rather than falling back to a more
+permissive policy. Validation requires an `AttentionBid` over the exact evidence
+object/id supplied, unchanged authority powers, the committed evaluation ids and
+signal set, a finite salience in `[0,1]`, and a recomputation function that retains
+those invariants after nested gain. A trusted policy may value evidence; it may not
+replace it or grant it powers.
 
 The independent signal set becomes:
 
@@ -662,9 +781,14 @@ Port:
 
 ```js
 start(SearchTarget) → accepted target id | null
-observe(comparableEvidence, evaluations) → void
+observe({ requestId, evidenceId, evaluations }) → void
 cancel(targetId, reason) → SearchOutcome | null
 ```
+
+`m-search` listens for the transient `control-result` and `evaluation-commit`
+events on its membrane. The evaluation handoff is id-only; search does not receive
+or retain `ComparableEvidence` text. Producers commit evaluation batches, while
+search alone changes attempt/target state and publishes outcomes.
 
 Starting a target:
 
@@ -674,10 +798,29 @@ Starting a target:
    first route, with the same id and optional originating `actId`;
 4. sends it to the named top-level aperture, whose existing forwarding reaches the
    nearest owner exactly once;
-5. waits for comparable evidence, refusal, timeout, or cancellation before moving
-   to the next route. A refusal is read from `perceptDecision`'s `requestId`
-   (§2.2), so a closed route ends its attempt when it is refused rather than when
-   its deadline expires.
+5. waits for `control-result`, a committed evaluation, timeout, or cancellation
+   before moving to the next route. A closed route's transient refusal ends its
+   attempt immediately rather than spending its full deadline.
+
+The first controller has an explicit one-at-a-time attempt state machine:
+
+```text
+issued
+  → refused
+  → comparable-match
+  → comparable-nonmatch
+  → insufficient
+  → timed-out
+  → cancelled
+```
+
+Routes are attempted in declared order and cycle in that order while target
+sample/deadline budget remains. Every issued request increments
+`attemptedSamples`. Only `comparable-match` or `comparable-nonmatch` completes
+coverage for a route; refusal, insufficient evidence, malformed/expired
+comparison, and timeout advance to the next route without increasing coverage.
+The first candidate carrying an attempt id determines that attempt's evidence
+state; later candidates with the same id are ignored.
 
 At tier 0 the template does not enter the detector or materializer. It stays in the
 comparator, and `ControlRequest.template` — the field phase 1 reserved for tier-1
@@ -698,6 +841,12 @@ Stopping:
   `budget-exhausted`;
 - explicit cancellation, sleep, detachment, replacement, or scope change →
   `abandoned`.
+
+Precedence is decided at the controller's serialized target transition: an
+explicit lifecycle cancellation tombstones the target before later evidence;
+a match committed while the target is active wins; complete comparable
+nonmatch coverage wins next; only then does budget/deadline exhaustion apply.
+Every transition checks the target id and active generation.
 
 Late evaluations are ignored by target id and deadline. Replayed receipts cannot
 restart or settle a search. Search fires a non-content outcome event for
@@ -720,18 +869,20 @@ different permissions) and it is exactly why the outcome is not a sensation.
 
 ## 7. Milestones
 
-Each milestone is independently committable with the suite green. **Split point
-after M4:** M1–M4 establish prediction/evaluation/bidding; M5–M7 establish
-orientation/search and the reference assembly.
+Each milestone is independently committable with the suite green. Treat this as
+two implementation series: **phase 3A (M1–M4)** establishes
+prediction/evaluation/bidding and lands first; **phase 3B (M5–M7)** adds
+orientation/search only after 3A is stable. They may remain one design document,
+but should not be one implementation branch or one review.
 
 | # | Milestone | Done when |
 |---|---|---|
-| M1 | `predictionContracts.js`; optional `actId` lineage through control/candidate/interrupt/percept/receipt/index; `mTerminal._dispatch` fires an `InterruptRecord`; `candidateId`/`requestId` on `perceptDecision` | Constructors freeze and validate ids, scope, time, route, and outcome enums; rendering is unchanged; the deferred terminal consequence keeps its urgency **at the arbiter**, not only in the raw event |
-| M2 | Opt-in REALIZE envelope and prediction publication before execution | Existing hand schemas and realize requests are untouched with the envelope off; envelope fields are stripped from args and from `acted`; prediction timestamp precedes execution; no extra model call |
-| M3 | Comparator role/port and `m-compare`; the private evaluation point in `m-region` **and** in `m-act` | Match, mismatch, and insufficient evaluations refer to evidence ids; late/version-invalid evidence never bids; an act consequence and a membrane percept reach the same comparator; a comparator that never settles expires instead of wedging its source |
-| M4 | Bidder role/port, extended independent signals, reference policy with zero defaults | With no bidder every existing bid is numerically identical **on both paths**; configured mismatch and expected-confirmation conditions behave independently |
+| M1 | Contracts and lineage; `mTerminal._dispatch` fires an `InterruptRecord`; lifecycle cancellation event; ids on telemetry plus transient `control-result` | Constructors freeze and validate ids, scope, time, route, and outcome enums; rendering is unchanged; deferred terminal urgency survives at the arbiter; sleep/detach can abort owned work |
+| M2 | Opt-in REALIZE envelope, prediction publication, synchronous `m-act` consequence interposition, and exact act-path `Percept` adapter | Existing schemas/requests are untouched with the envelope off; immediate and deferred consequences share one owner/id path; envelope text is stripped; prediction precedes execution |
+| M3 | Singleton side-effect-free comparator; bounded producer continuations, abort/tombstone, local commit order, `evaluation-commit` | Late/version-invalid evidence never settles or bids; all three evidence cases (membrane, immediate act, deferred act) reach the service; slow work never holds a source/hand busy |
+| M4 | Owner-local bidder ports, extended independent signals, reference policy with zero defaults | With no bidder every existing bid is numerically identical on both paths; the same configured fixture policy works beneath `m-region` and `m-act`; output cannot replace evidence or powers |
 | M5 | `OrientationRequest`, provider forwarding, generic capability lanes, and `m-orient` | A nested named provider is oriented once; dwell arbitrates races; opening clears no debt and a receipt does |
-| M6 | `m-search`, target/attempt lifecycle, coverage and terminal outcomes | Found, not-detected-in-inspected-area, exhausted, abandoned, stale, and cancelled paths are deterministic and bounded |
+| M6 | `m-search`, explicit attempt state machine, id-only result handoff, coverage and terminal outcomes | Route cycling/retry, found, not-detected-in-inspected-area, exhausted, abandoned, stale, and cancelled paths are deterministic and bounded |
 | M7 | Reference ArchML/fixture, offline demo, docs, and honesty pass | One assembly demonstrates prediction match and mismatch, voluntary orientation, bounded search, and receipt-only contact credit without a model call |
 
 Do not combine M3 and M6 merely because both mention `Evaluation`: comparison is
@@ -752,7 +903,8 @@ the evidence judgment; search is one consumer with its own lifecycle.
    lineage **as the arbiter sees it** — a test that reads the raw fired payload
    proves nothing here.
 4. An orientation-triggered sample carries the orient act's `actId` to the
-   percept it produces, so an `expect` on `orient` can settle rather than expire.
+   percept it produces; an orient `expect` requires one declared source and cannot
+   be settled by whichever untargeted source answers first.
 5. With the envelope undeclared, the tool schemas sent to the realizer are
    identical to phase 2 for every existing architecture.
 6. No `expect` yields no prediction. A slipped/cancelled act settles its prediction;
@@ -763,12 +915,16 @@ the evidence judgment; search is one consumer with its own lifecycle.
 
 8. Match, mismatch, and insufficient evaluations leave the frozen `Percept`,
    other evaluations, and their bids untouched.
-9. Two comparators may disagree about one evidence id without overwriting each
-   other.
+9. A second comparator in one membrane fails at connect; the reference comparator
+   cannot settle a prediction or search target before producer commit.
 10. A comparator that never settles expires at its deadline as `insufficient`;
-    the source's busy flag clears and its next candidate is offered normally.
-11. An act consequence carrying a mismatch bids higher without any aperture,
-    gate verdict, or percept-candidate event existing for it.
+    its source's busy flag was already cleared after materialization, so a second
+    candidate can materialize and finish comparison first. It does not commit
+    ahead of the first candidate; timeout advances the source-local sequence and
+    the late first result is ignored.
+11. Immediate and deferred act consequences carrying a mismatch bid higher
+    without any aperture, gate verdict, or percept-candidate event existing for
+    them; both are synchronously claimed by `m-act` before asynchronous comparison.
 12. An exact-world oracle is unavailable to the reference comparator; only the
     materialized viewpoint-bounded text is accepted.
 13. Missing evaluation is null, not match. Unknown representation is insufficient.
@@ -788,8 +944,8 @@ the evidence judgment; search is one consumer with its own lifecycle.
     undeclared provider/source.
 19. The control lane does not consume read/world cooldowns and vice versa; existing
     lane behavior is unchanged for every old hand.
-20. Two simultaneous orientation requests are first-accepted under dwell/version;
-    the loser cannot reverse the winner.
+20. Two overlapping orientation requests are first-observed/first-accepted under
+    dwell/version; test both arrival orders, and the loser cannot reverse the winner.
 21. Opening or narrowing changes state and requests the present but does not clear
     debt; only an attended receipt does.
 22. Voluntary closure cannot outlast the reflex: with the deficit past its
@@ -809,8 +965,8 @@ the evidence judgment; search is one consumer with its own lifecycle.
     never absence.
 29. Repeating one route spends budget without increasing distinct-route coverage.
 30. A second candidate arriving inside one attempt's arming window does not
-    increase coverage; a refused route ends its attempt on the refusal, not on
-    its deadline.
+    increase coverage; refused, insufficient, and timed-out attempts advance
+    without coverage, while only comparable match/nonmatch completes a route.
 31. One controller searches two modality routes without adding search logic to
     either region or source.
 32. A closed tier-0 route leaks no template or text and cannot be searched through;
@@ -829,9 +985,14 @@ the evidence judgment; search is one consumer with its own lifecycle.
     aperture, nested fold, request lineage, and composition-hole regressions.
 37. Every existing architecture with the new components absent has identical
     rendering, bid salience, frame selection, and hand arguments.
-38. Same-batch custom comparator/bidder definitions bind after upgrade; disconnect
-    invalidates in-flight work; duplicate bidders and invalid bidder output fail
+38. Same-batch custom comparator/bidder definitions bind after upgrade; sleep,
+    disconnect, and rebinding abort/tombstone in-flight work; duplicate services,
+    duplicate owner-local bidders, and identity/power-changing bidder output fail
     closed with finite attention state.
+39. Saturating one producer's comparison cap does not block another producer or
+    suppress the saturated producer's baseline evidence. Comparison may complete
+    out of order, commits stay ordered within one source/act/target, and no test
+    assumes a global completion order.
 
 ## 9. Reference demonstration and experiments
 
@@ -851,11 +1012,11 @@ to its declared viewpoint. It must show:
 6. no model call, no semantic content in pre-awareness telemetry, and no simulator
    truth passed to the comparator.
 
-Items 1–3 must be demonstrated **on both evidence paths**: once where the answering
-evidence is a membrane percept, and once where it is the hand's own consequence
-going straight to the arbiter. A demo is free to wire a simulated source that
-answers a simulated act, and doing only that would hide precisely the hole this
-phase exists to close (§1, hole 6).
+Items 1–3 must be demonstrated on every consequence shape: a membrane percept,
+an immediate hand consequence, and a deferred hand consequence. The latter two
+are claimed locally by `m-act` before reaching the arbiter. A demo is free to wire
+a simulated source that answers a simulated act, and doing only that would hide
+precisely the hole this phase exists to close (§1, hole 6).
 
 This is an executable reference condition, not the phase-4 experiment matrix. The
 later comparison must hold sources, percept transport, and frame/memory code fixed
@@ -896,10 +1057,12 @@ Do not update the implementation sketch as though the components already exist.
   new components are absent.
 - A substitute comparator and bidder can be mounted from a test `components/`
   bundle without editing source, region, arbiter, frame, or memory code.
-- Both evidence paths — a membrane percept and a hand's consequence — reach the
-  same comparator role and the same signal set, and neither can wedge the other.
+- Membrane percepts plus immediate and deferred hand consequences reach the same
+  comparator role and signal set, and none can wedge another owner.
 - Search is bounded in attempts, time, retained targets, evaluations, and
   comparison wall-clock; sleep and detach leave no live work.
+- Slow comparison delays only the evidence it evaluates: source materialization,
+  later acts, other producers, and the arbiter continue independently.
 - No withheld source text, expectation, or template appears in logs, Studio,
   candidate events, memory, or a conscious frame before awareness permits it.
 - Commits follow milestone boundaries, ending with the documentation honesty pass.
@@ -911,9 +1074,10 @@ settle.
 
 1. **Comparator binding syntax.** The plan assumes role discovery for the callable
    port and explicit `predictionSrc` / `searchSrc` refs inside `m-compare`. A small
-   registration event is acceptable if it preserves membrane scope, plurality,
-   teardown, and the same no-content telemetry rule. Do not build general automatic
-   port matching here.
+   registration event is acceptable if it preserves membrane scope, singleton
+   enforcement, teardown, and the same no-content telemetry rule. Comparator
+   plurality requires a future aggregation owner; do not smuggle it into this phase
+   or build general automatic port matching here.
 2. **Placement of `ComparableEvidence`.** It now has two constructors (`m-region`
    and `m-act`), so it belongs somewhere both can import without either owning it
    — prediction contracts or beside `Percept`, whichever leaves the import graph
@@ -939,3 +1103,7 @@ settle.
    moves where a bid is assembled, not what a hand may do. Silent-return
    discipline, govern gates, act-writing, and manual mode remain in their own
    decision process.
+9. **Commit-order policy.** Phase 3 allows evidence cases to finish comparison out
+   of occurrence order. Do not add a global sequencer. Serialize commit only
+   within the smallest causal owner — one source, one act, or one search target —
+   and retain the original occurrence timestamps.
