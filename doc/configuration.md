@@ -109,7 +109,7 @@ pairs in [`config/models.yaml`](../config/models.yaml). Two tiers:
 | Role | Attribute | Default ref | Used for |
 |------|-----------|-------------|----------|
 | Voice | `model` on `<m-mind>` or `<m-stream>` | `voice` | the stream of thought itself |
-| Utility | `utilityModel` on `<m-mind>` | `utility` | bridges, memory compression, observers, the scribe |
+| Utility | `utilityModel` on `<m-mind>` | `utility` | memory compression, observers, the scribe |
 
 Children inherit `model`/`utilityModel` from the `<m-mind>` ancestor, so you
 usually set them once at the top. Individual components can override with their
@@ -206,7 +206,7 @@ mechanics in `src/modelAccess/llm.js` and `mStream.js`:
 
 1. **Only the conscious stream thinks.** `LOCAL_LLM_THINKING` flips the whole `local`
    provider, but utility calls (`complete` / `completeWithTools`: memory compression,
-   loop sensing, the scribe, tool-choice, bridges) read `message.content` and would
+   loop sensing, the scribe, tool-choice) read `message.content` and would
    break if the model spent its budget in `reasoning_content` — so they **always** send
    `enable_thinking:false`. Only `chatStream` honours the flag, and the spoken voice
    (`m-speech`) opts out too, so speech stays clean. Just the inner monologue thinks.
@@ -250,8 +250,8 @@ On `<m-mind>`:
   rhythm breathes.
 - `tailLength` (default `1500`) — characters of verbatim thought carried into the
   next burst. Larger = stronger continuity, bigger prompts.
-- `bridge` (default `false`) — set `"true"` to enable the LLM-written transition
-  sentence on redirects.
+- `bridge` (default `false`) — set `"true"` to insert a utility-model transition
+  sentence before the landing opener. Off unless set.
 
 The effective tick is also multiplied by the [economy](#budget-and-economy) pace
 factor, so a tiring mind slows down on its own. The current tick is broadcast as a
@@ -341,7 +341,7 @@ consolidations, `mInterrupts.js` the accept/drop decisions.
 When the logs are not enough and you want the *exact* text sent to a model —
 every stream-of-thought burst and every auxiliary call (speech, association,
 memory compression, the act decide/realize stages, the visual impulse, the
-bridge, the scribe) — set `MEDITATOR_DEBUG_PROMPTS`:
+scribe) — set `MEDITATOR_DEBUG_PROMPTS`:
 
 ```bash
 MEDITATOR_DEBUG_PROMPTS=1            bun run meditator.js -a architecture/lab/seedling.archml
@@ -364,7 +364,7 @@ debug/prompts/<runId>/<mind>/<tag>/<seq>-<tag>.txt
           never interleave
    tag    the mechanism: stream, speech-impulse, speech-voice, associate,
           memory-recent/memory-story, act-decide, act-realize, image-impulse,
-          image-generate, bridge, kb
+          image-generate, kb
    seq    global, zero-padded, monotonic counter — files sort chronologically
           within a tag and when grepped flat across the run
 ```

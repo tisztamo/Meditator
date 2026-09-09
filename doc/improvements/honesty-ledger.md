@@ -53,7 +53,8 @@ have).
   attributed correctly, emitted where the cut really happens (memory owns the tail *and* the
   journal), so m-resurface needs no separate note and can never claim a cut it lost the bid for.
 
-- **bridge** (`mMind` fires `@bridge`; `mMemory` `bridgeSrc` + `_flushJournal`). m-mind
+- **bridge** (`mMind` fires `@bridge`; `mMemory` `bridgeSrc` + `_flushJournal`). This path
+  runs only when `bridge="true"` on `<m-mind>` (off by default). When it does, m-mind
   announces the utility-written sentence on a backstage `@bridge` event. m-memory marks it
   pending and, when the next journal block flushes, peels it off the front (the stream emits it
   as the redirect burst's opening `prefix` chunk) and renders it as a `↪` provenance line. It

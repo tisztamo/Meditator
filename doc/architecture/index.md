@@ -62,7 +62,7 @@ these layers:
         appends the identical block to the durable tail, so perception
         persists and compresses like the mind's own voice>
 
-   <the bridge, if attention turned>
+   <a landing opener — a dangling first-person fragment, if attention turned>
 ```
 
 Two properties make this work over arbitrarily long runs:
@@ -76,21 +76,18 @@ Two properties make this work over arbitrarily long runs:
   budgets, the whole frame stays bounded *forever* — a mind that runs for days
   still fits in a few thousand tokens.
 
-### The bridge
+### The landing opener
 
-When a stimulus actually redirects the thought, cutting from one subject to
-another would jar. So `m-mind` makes one small **utility-model** call that writes
-the *turn itself* — one or two first-person sentences in which attention moves
-from the current thought toward what just happened. This **bridge** is both:
+When a stimulus lands, the prefill would otherwise end on a completed `> ⟂ …`
+sentence that is not the mind's own voice. Completion-trained models then stop,
+or worse, continue the *event*. So `m-mind` seeds a short dangling first-person
+**landing opener** (a phrasebook on the mechanism, not an LLM call) after the
+event block. It is emitted as a `prefix` chunk into the visible stream and
+appended to the thought in the frame, so prefill, durable tail, and journal stay
+one text and the model continues the thought.
 
-- emitted into the visible stream as a `prefix` chunk (it becomes real
-  monologue — part of the tail, the memory, the journal), and
-- appended to the tail inside the frame, so the voice model continues from a
-  pivot it has actually "said."
-
-Context switches don't cut the film; they happen on camera. The bridge is the
-*only* LLM-written part of the frame, and only on redirects. It is off by default;
-set `bridge="true"` on `<m-mind>` to enable it.
+`bridge="true"` on `<m-mind>` inserts an extra utility-model transition sentence
+before the opener. It is off by default; shipped architectures leave it off.
 
 ## The thinking loop
 

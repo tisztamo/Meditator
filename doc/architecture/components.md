@@ -107,11 +107,11 @@ is the mind's identity.
 | Attribute | Default | Meaning |
 |-----------|---------|---------|
 | `model` | `voice` | default voice model for the whole mind (inherited by children) |
-| `utilityModel` | `utility` | default model for bridge / compression / observers |
+| `utilityModel` | `utility` | default model for compression / observers |
 | `pace` | `8s` | pause between bursts |
 | `paceSigma` | `pace/4` | normal-distributed jitter on the pause |
 | `tailLength` | `1500` | chars of verbatim tail carried into each frame |
-| `bridge` | `false` | `"true"` enables the LLM-written transition on redirects |
+| `bridge` | `false` | `"true"` inserts a utility-model transition sentence before the landing opener; unused unless set |
 | `speakingPaceFactor` | `2.5` | pace multiplier while the voice is speaking (slower thinking) |
 | `speakingTokensFactor` | `0.35` | burst-token multiplier while speaking (thinner thoughts, floor 60) |
 | `tailSrc` / `compressedSrc` | the memory's `<name>/tail` and `<name>/compressed` (auto-discovered) | the narrative content mirrored into the frame; `"off"` disables |
@@ -218,7 +218,7 @@ supersedes the current burst (the in-flight stream is aborted).
 
 - **Subscribes:** `../prompt` — `{system, frame, prefix?, dedupe?, burstTokens?}` or a plain string.
 - **Publishes:**
-  - `chunk` — each text fragment as it arrives (the `prefix`/bridge is emitted as a chunk too);
+  - `chunk` — each text fragment as it arrives (the `prefix`, including the landing opener, is emitted as a chunk too);
   - `boundary` — `{reason: completed|error, burstIndex, burstChars, error?}` when a burst ends and was not superseded;
   - `state` — `{oldState, newState, timestamp}` (for the WebSocket client).
 - **Key behavior:** trims the overlap at burst seams (`trimSeamOverlap`) so the
@@ -245,13 +245,14 @@ Three memory tiers, compression, persistence, and the journal. See
 | `filedSrc` | the scribe's `<name>/filed` (auto-discovered) | scribe filings to journal as a backstage note; `"off"` disables |
 | `actedSrc` | the hands' `<name>/acted` (auto-discovered) | the hands' deeds (efference) journaled as a backstage (⌁) note; the consequence arrives separately and is journaled perceived (⟂); `"off"` disables |
 | `attendedSrc` | `..m-mind/attended` | the stimuli that entered each frame, journaled as perceived (⟂) notes; `"off"` disables |
+| `bridgeSrc` | `..m-mind/@bridge` | if the optional `bridge="true"` path fires, mark that sentence as a ↪ journal line; `"off"` disables |
 
 - **Publishes:** `compressed` — `{recent, story}` after a consolidation and once on
   load; `tail` — the verbatim tail on every change (retained, so the mind's frame
   mirrors it). The mind reads both by subscription — it never pulls.
 - **Subscribes:** the stream (`src`/`boundarySrc`), the voice's `@spoken` event
-  (`spokenSrc`), the scribe's `filed` topic (`filedSrc`), and the mind's `attended`
-  topic (`attendedSrc`) — utterances recorded, filings and perceived stimuli
+  (`spokenSrc`), the scribe's `filed` topic (`filedSrc`), the mind's `attended`
+  topic (`attendedSrc`), and optionally `@bridge` (`bridgeSrc`) — utterances recorded, filings and perceived stimuli
   journaled by *subscription*, not by those components calling in. Memory is swappable
   and several can listen to one voice/scribe.
 - **Raises:** a one-time `Waking` `interrupt-request` (bubbling) on load — the wake

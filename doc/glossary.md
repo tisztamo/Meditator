@@ -34,9 +34,12 @@ back here when a word is unclear.
   burst. It is *not* a growing chat history. It is assembled from layers:
   identity → older memory → recent memory → what just happened → the tail. See
   [Architecture](architecture/index.md#the-attention-frame).
-- **bridge** — one or two sentences that connect the old thought to a new one when
-  the mind's attention turns. Without it, the change of subject would feel like a
-  jump cut. It is the only part of the frame written by the model in advance.
+- **landing opener** — a short first-person fragment the mechanism seeds after a
+  perceived event, so the next burst continues the mind's own thought instead of
+  stopping or extending the event's words. See
+  [Architecture](architecture/index.md#the-landing-opener).
+- **bridge** — optional. If `bridge="true"` on `<m-mind>`, a utility model writes
+  one or two transition sentences before the landing opener. Off by default.
 
 ## Memory
 
@@ -230,8 +233,8 @@ back here when a word is unclear.
 
 - **voice model** — the bigger model that writes the stream of thought and speech
   (the `model` attribute).
-- **utility model** — the small, cheap model for background jobs: bridges,
-  summarizing memory, observers, the scribe (the `utilityModel` attribute).
+- **utility model** — the small, cheap model for background jobs: summarizing
+  memory, observers, the scribe (the `utilityModel` attribute).
 - **economy** — the part (`m-economy`) that watches real spending and slows the
   mind as its budget drains: fresh → tiring → tired → exhausted → resting. The
   mind never dies; the watchdog keeps it alive.

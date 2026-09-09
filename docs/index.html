@@ -361,7 +361,7 @@
           <div class="flayer" data-l="story"><span class="fn">story</span><span class="fd">slow compressed autobiography</span></div>
           <div class="flayer" data-l="recently"><span class="fn">recently</span><span class="fd">rolling summary</span></div>
           <div class="flayer stim" data-l="stimulus"><span class="fn">⟂ stimulus</span><span class="fd" id="stimSlot">— none this burst —</span></div>
-          <div class="flayer" data-l="bridge"><span class="fn">bridge</span><span class="fd">1–2 transition sentences, tiny model</span></div>
+          <div class="flayer" data-l="landing"><span class="fn">landing</span><span class="fd">dangling first-person opener after a stimulus</span></div>
           <div class="flayer tailrow" data-l="tail"><span class="fn">tail</span><span class="fd">verbatim end of the stream</span></div>
         </div>
         <div class="loopcon" id="loopCon" aria-hidden="true"></div>
@@ -447,9 +447,9 @@
           compressed into tiers that decay at different speeds. <strong>The prompt for burst 20,000 is the
           same size as the prompt for burst 20.</strong> That single property is what makes a days-long
           process affordable — and debuggable.</p>
-        <p>When attention turns — an interrupt admitted, a consequence arriving — a tiny model writes one or
-          two transition sentences into the stream itself. Context switches are part of the record, not
-          silent seams.</p>
+        <p>When attention turns — an interrupt admitted, a consequence arriving — the event is written into
+          the stream, then a short landing opener re-anchors the voice so the next burst continues the
+          thought. Context switches are part of the record, not silent seams.</p>
       </div>
       <div>
         <div class="frame" aria-label="The attention frame, layer by layer">
@@ -457,7 +457,7 @@
           <div class="layer"><span class="ln">story</span><span class="ld">slow compressed history</span></div>
           <div class="layer"><span class="ln">recently</span><span class="ld">rolling summary of the last while</span></div>
           <div class="layer stimulus"><span class="ln">⟂ stimulus</span><span class="ld">what just happened — input, sense, consequence</span></div>
-          <div class="layer"><span class="ln">bridge</span><span class="ld">the turn of attention, written into the stream</span></div>
+          <div class="layer"><span class="ln">landing</span><span class="ld">dangling first-person opener after a stimulus</span></div>
           <div class="layer tail"><span class="ln">tail</span><span class="ld">the verbatim end — always carried, always last</span></div>
           <div class="arrow">▼</div>
           <div class="layer" style="border-style:dashed"><span class="ln">next burst</span><span class="ld">continues exactly where the tail leaves off</span></div>
@@ -971,7 +971,7 @@ $("comp-code").innerHTML = hlJS($("src-comp").textContent);
       // 1 — assemble
       stimSlot.textContent = stim ? stim.slot : "— none this burst —";
       for (const l of layers){
-        if (l.dataset.l === "stimulus" && !stim){ continue; }
+        if ((l.dataset.l === "stimulus" || l.dataset.l === "landing") && !stim){ continue; }
         l.classList.add("hot"); await sleep(130);
       }
       const frameTok = (3.7 + Math.random()*0.4).toFixed(1);

@@ -16,8 +16,7 @@ const log = logger('mInterrupts.js');
  * mint a new id and break receipt crediting.
  *
  * The decision is mechanical, not an LLM pipeline: the generator that raised
- * the interrupt knows why it fired and supplies the salience itself. The only
- * intelligence spent on a context switch is the mind's bridge call. Nested
+ * the interrupt knows why it fired and supplies the salience itself. Nested
  * arbiters re-weight by appending a gain-trail entry on the bid — they never
  * write the evidence.
  *

@@ -3,7 +3,7 @@
 // Best-effort, env-gated dump of every prompt the mind actually sends to a
 // model — the stream-of-thought bursts AND the small utility calls every other
 // mechanism makes (speech impulse + voice, association, memory consolidation,
-// the act decide/realize stages, the visual impulse, kb, the bridge). One file
+// the act decide/realize stages, the visual impulse, kb, and the optional bridge). One file
 // per call.
 //
 // OFF by default. Turn on with MEDITATOR_DEBUG_PROMPTS:

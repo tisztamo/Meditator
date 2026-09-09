@@ -116,7 +116,7 @@ export class MStream extends MBaseComponent {
             if (prefill) messages.push({ role: 'assistant', content: prefill })
         }
 
-        // The bridge (or any injected text) physically enters the stream:
+        // Injected prefix (landing opener, optional bridge, …) physically enters the stream:
         // it becomes part of the monologue, the tail, the memory, the journal.
         if (prefix) {
             this._emitChunk(prefix)

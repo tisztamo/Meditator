@@ -66,8 +66,7 @@ const LANDING_PHRASES = {
  *   [tail]       verbatim end of the stream — "what I was just saying" — always last,
  *                ending with any freshly perceived stimuli as `> ⟂ …` lines (from the
  *                m-interrupts arbiter), at the honest position: after the last words,
- *                because that is when they entered the thinking
- *   [bridge]     1-2 transition sentences, the only LLM-written part, redirects only
+ *                because that is when they entered the thinking, then a landing opener
  *
  * The identity is the seed of the SELF and stands in every frame. Distinct from
  * it is the seed of the THOUGHT — a child <m-origin>, the one matter the mind was
@@ -86,7 +85,7 @@ const LANDING_PHRASES = {
  *
  * Attributes:
  *   - model: default model for the whole mind (children inherit via env())
- *   - utilityModel: default for bridge/compression/observer calls
+ *   - utilityModel: default for compression/observer calls (and the optional bridge)
  *   - pace: the burst-to-burst tick (default "8s"), paceSigma: jitter (default "2s")
  *   - tailLength: verbatim carryover size in chars (default 1500)
  *   - bridge: "true"|"false" — whether redirects get an LLM-written bridge (default false)

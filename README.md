@@ -13,7 +13,6 @@ The "continuous" stream is implemented as a sequence of short **bursts** — eac
 [story]      slow compressed autobiography           (m-memory, first person)
 [recently]   faster rolling summary                  (m-memory)
 [stimulus]   what just happened, if anything         (from the arbiter)
-[bridge]     1–2 transition sentences written by a tiny model, redirects only
 [tail]       the verbatim end of the stream — "what I was just saying"
 ```
 
@@ -68,7 +67,7 @@ Two tiers, configured in [`config/models.yaml`](config/models.yaml) and
 referenced by role in the archml:
 
 - **voice** (`model` attribute) — the thinking stream and speech output
-- **utility** (`utilityModel` attribute) — bridges, compression, observers, scribe
+- **utility** (`utilityModel` attribute) — compression, observers, scribe
 
 ```html
 <m-mind model="voice" utilityModel="utility" …>

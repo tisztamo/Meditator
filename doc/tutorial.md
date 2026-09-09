@@ -116,17 +116,17 @@ the arbiter let through:
 
 ⟂ My mind drifts toward something else.
 
-Hold on — something just shifted, and I want to turn toward it without dropping
+This lands, and I want to turn toward it without dropping
 the thread entirely.  There is a difference between waiting and resting…
 ```
 
 Two things to notice:
 
 - The `⟂` line is the stimulus arriving at a boundary.
-- The sentence right after it ("Hold on — something just shifted…") is the
-  **bridge**: a short connecting sentence so the change of subject does not feel
-  like a jump cut. After the bridge, the mind continues thinking — now aimed at
-  the new direction.
+- The words right after it are a **landing opener** — a short first-person
+  fragment the mechanism seeds so the model continues the thought instead of
+  stopping on the event. After that, the mind keeps thinking, now aimed at the
+  new direction.
 
 Try changing `salience="0.7"` to `salience="0.2"`. Because `0.2` is *below* the
 arbiter's `threshold="0.35"`, the wander is now ignored — no `⟂` lines appear.
@@ -202,7 +202,7 @@ You have seen, with your own eyes, every core idea:
 
 - **burst** and **boundary** — the rhythm of thinking (Step 2),
 - **tail** — how a thought continues unbroken (Step 2),
-- **stimulus**, **salience**, **arbiter**, **bridge** — how attention is won and
+- **stimulus**, **salience**, **arbiter**, **landing opener** — how attention is won and
   redirected (Step 3),
 - **urgent** interruption — how a human voice cuts in (Step 4),
 - **pace** — tuning the rhythm (Step 5),

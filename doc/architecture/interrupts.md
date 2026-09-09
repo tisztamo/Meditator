@@ -6,8 +6,9 @@ describes how a stimulus is raised, how the **arbiter** decides whether it wins
 attention, and the observers that generate stimuli.
 
 > There is **no multi-stage LLM pipeline** here, and no "state chain." The
-> arbiter is mechanical. The only intelligence spent on a context switch is the
-> mind's single [bridge](index.md#the-bridge) call.
+> arbiter is mechanical. After a stimulus is admitted, `m-mind` seeds a
+> [landing opener](index.md#the-landing-opener) so the voice continues from the
+> event; that opener is a phrasebook, not a model call.
 
 ## The shape of attention
 
@@ -135,7 +136,8 @@ the model itself chose, and the arbiter decides whether it wins.
   of urgent stimulus.
 
 Both supersede the running burst, so the mind turns to address you within a
-sentence or two — via a [bridge](index.md#the-bridge), so the turn is on camera.
+sentence or two. The next frame opens on the event plus a
+[landing opener](index.md#the-landing-opener).
 
 ## Writing your own generator
 
