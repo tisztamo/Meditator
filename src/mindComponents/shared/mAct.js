@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto"
 import { MObserver } from "../mind/mObserver.js"
 import { parseSpeechDecision } from "../mind/mSpeech.js"
 import { validateAgainstSchema } from "./toolSchema.js"
@@ -7,9 +8,22 @@ import { readKept } from "./recallSources.js"
 import { contentStems, containment } from "./loopMath.js"
 import { ENERGY } from "./infoton.js"
 import { InterruptRecord } from '../../infrastructure/interruptRecord.js';
+import { Percept } from '../../infrastructure/percept.js';
+import { AttentionBid } from '../../infrastructure/attentionBid.js';
+import {
+    Prediction, firePrediction, firePredictionSettlement, expirePrediction, cancelPrediction,
+    MAX_PREDICTION_LIFETIME_MS,
+} from '../../infrastructure/predictionContracts.js';
 import { mindHome } from '../../infrastructure/memoryVault.js';
 import { parseTime } from '../../config/timeParser.js';
 import { logger } from '../../infrastructure/logger.js';
+
+/** Ceiling on how many live actIds this producer tracks. Oldest expire without mismatch. */
+const MAX_LIVE_ACTS = 32
+const EXPECT_FIELD = Object.freeze({
+    type: "string",
+    description: "the consequence expected from this act",
+})
 
 const log = logger('mAct.js');
 
@@ -85,6 +99,9 @@ const log = logger('mAct.js');
  * only the realizer; no tool ever reaches the conscious stream.
  *   - tailSrc / compressedSrc: memory topics mirrored for the realize frame (default:
  *     auto-discovered from the enclosing mind's <m-memory>; "off" to disable)
+ *   - prediction: "on" enables the REALIZE `expect` envelope, publishes a Prediction
+ *     before hand execution, and interposes this act's live consequences (default off —
+ *     identical to phase 2: no extra schema fields, no actId, no listener)
  *   - recallForRealize: "off" to skip the cue-matched note/knowledge lookup (default on)
  *   - recallDir / recallKb: where the kept pool lives (default: follow a co-located
  *     m-recall/m-note's dir/kb, else the vault home; recallKb="off" = notebook only)
@@ -116,6 +133,7 @@ export class MAct extends MObserver {
     _memTail = ""         // mirrors of memory's content, fed by its topics (grounding the realizer)
     _memRecent = ""
     _memStory = ""
+    _liveActs = new Map() // actId → { prediction, validUntilMs, timer }
 
     onObserverConnect() {
         // Interoception, gated: a tired or near-broke mind does not reach. Tracks the
@@ -136,6 +154,11 @@ export class MAct extends MObserver {
         // Each hand announces itself with a bubbling "capability" event; one self-listener
         // catches them all (incl. hands added later). Synchronous listener — see decoupling.md.
         this.addEventListener("capability", e => this._registerCapability(e?.detail))
+        if (this._predictionEnabled()) this._ensurePredictionListener()
+    }
+
+    onDisconnect() {
+        this._teardownPrediction("disconnect")
     }
 
     // Register a hand from its "capability" event detail (efference.md §3). Returns false
@@ -157,6 +180,8 @@ export class MAct extends MObserver {
             felt: (spec.felt || "").trim(),
             readonly: spec.readonly !== false,   // read-only unless explicitly opted out (§6c)
             execute: spec.execute.bind(spec),
+            // Architecture-owned target metadata for a Prediction. Never parsed from expect text.
+            predictionTarget: freezePredictionTarget(spec.predictionTarget),
         })
         log.info(`hand registered: ${spec.name}${spec.readonly === false ? " (WORLD-CHANGING)" : ""}`)
         this._publishEmbodiment()
@@ -281,7 +306,7 @@ export class MAct extends MObserver {
         }
         const tools = openHands.map(c => ({
             type: "function",
-            function: { name: c.name, description: c.description, parameters: c.parameters },
+            function: { name: c.name, description: c.description, parameters: this._toolParameters(c) },
         }))
 
         // Cue-matched recall (B): pull the kept notes/knowledge whose vocabulary most
@@ -358,15 +383,61 @@ export class MAct extends MObserver {
             log.warn(`hand "${name}": arguments were not valid JSON — ignored`)
             return
         }
-        const invalid = validateAgainstSchema(args, cap.parameters)
-        if (invalid) {
-            log.warn(`hand "${name}": args failed schema (${invalid}) — ignored`)
-            return
+
+        const predictionOn = this._predictionEnabled()
+        let handArgs = args
+        let expectText = ""
+        if (predictionOn) {
+            const invalidAugmented = validateAgainstSchema(args, parametersWithExpect(cap.parameters))
+            if (invalidAugmented) {
+                log.warn(`hand "${name}": args failed schema (${invalidAugmented}) — ignored`)
+                return
+            }
+            handArgs = { ...args }
+            const rawExpect = handArgs.expect
+            delete handArgs.expect
+            expectText = typeof rawExpect === "string" ? rawExpect.trim() : ""
+            const invalidHand = validateAgainstSchema(handArgs, cap.parameters)
+            if (invalidHand) {
+                log.warn(`hand "${name}": args failed schema (${invalidHand}) — ignored`)
+                return
+            }
+            this._ensurePredictionListener()
+        } else {
+            const invalid = validateAgainstSchema(args, cap.parameters)
+            if (invalid) {
+                log.warn(`hand "${name}": args failed schema (${invalid}) — ignored`)
+                return
+            }
         }
 
         // Claim this hand's cooldown lane now (at the point of acting, including a slip),
         // so the world-changing and read-only lanes advance independently.
         this._claimLane(cap.readonly)
+
+        let actId = null
+        let predictionId = null
+        if (predictionOn) {
+            actId = randomUUID()
+            if (expectText) {
+                const published = new Prediction({
+                    producer: this._actIdentity(),
+                    scopeId: this._actIdentity(),
+                    actId,
+                    kind: "belief",
+                    target: targetForCapability(cap),
+                    representation: { kind: "text", value: expectText },
+                    basis: { kind: "realize", text: expectText },
+                    validUntil: new Date(Date.now() + this._predictionWindowMs()).toISOString(),
+                })
+                // Publication and basisAt precede cap.execute.
+                firePrediction(this, published)
+                this._rememberLiveAct(actId, published)
+                predictionId = published.id
+            } else {
+                this._rememberLiveAct(actId, null)
+            }
+        }
 
         // A hand that slips must never crash the mind, exactly as a sense going quiet
         // must not (m-sense). On error: no afference (failure is silent, not self-blame
@@ -377,23 +448,30 @@ export class MAct extends MObserver {
         // ground the experience in what the mind was actually reaching for, even when
         // the realizer did not restate it in its own args (agent-loop.md-style context,
         // fixing the "intent never reaches the tail" gap the deferred path exposed).
+        // When prediction is off, the ctx is still only `{ intent }` — extra fields
+        // would be ignored, but the disabled path stays bitwise-familiar.
         let out = null, ok = false, errMsg = null
         try {
-            out = await cap.execute(args, { intent: decision.gist || null })
+            out = predictionOn
+                ? await cap.execute(handArgs, { intent: decision.gist || null, actId, predictionId })
+                : await cap.execute(args, { intent: decision.gist || null })
             ok = true
         } catch (error) {
             errMsg = error?.message || String(error)
             log.warn(`hand "${name}" slipped: ${errMsg}`)
+            if (predictionOn && actId) this._cancelLiveAct(actId, "execution-failed")
         }
 
         const experience = ok && out && typeof out.experience === "string" ? out.experience.trim() : ""
+        const deedArgs = predictionOn ? handArgs : args
 
         // The DEED — fired for a memory to journal BACKSTAGE (⌁). The mind never
-        // sees this; it is recorded for us. (efference.md §5.3.)
+        // sees this; it is recorded for us. (efference.md §5.3.) `expect` is never
+        // in args — it was stripped before execute.
         this.fire("acted", {
             intent: decision.gist || null,
             capability: name,
-            args,
+            args: deedArgs,
             ok,
             experience: experience || null,
             data: ok && out ? (out.data ?? null) : null,
@@ -419,10 +497,109 @@ export class MAct extends MObserver {
                 // non-urgent stimulus loses the arbiter's rate-limit race regardless
                 // of salience (mInterrupts.js §_onRequest). efference.md §5.2.
                 urgent: !!(out && out.urgent),
+                actId: predictionOn ? actId : null,
             })
             log.debug(`consequence of "${name}": ${record}`)
             this.fire("interrupt-request", record)
         }
+    }
+
+    /** Prediction is opt-in. Absent or any value other than "on" is phase-2 behavior. */
+    _predictionEnabled() { return this.attr("prediction") === "on" }
+
+    /** REALIZE tool parameters: the original object when off; a copy with `expect` when on. */
+    _toolParameters(cap) {
+        if (!this._predictionEnabled()) return cap.parameters
+        return parametersWithExpect(cap.parameters)
+    }
+
+    _actIdentity() {
+        return this.attr("name") || this.localName || "m-act"
+    }
+
+    /** Default validity window: intentCooldown, capped at MAX_PREDICTION_LIFETIME_MS. */
+    _predictionWindowMs() {
+        const requested = parseTime(this.attr("intentCooldown") || "15m")
+        const ms = Number.isFinite(requested) && requested > 0 ? requested : MAX_PREDICTION_LIFETIME_MS
+        return Math.min(ms, MAX_PREDICTION_LIFETIME_MS)
+    }
+
+    _ensurePredictionListener() {
+        if (this._predictionListener) return
+        this._predictionListener = this._onLiveConsequence
+        this.addEventListener("interrupt-request", this._predictionListener)
+    }
+
+    _teardownPrediction(reason = "disconnect") {
+        if (this._predictionListener) {
+            this.removeEventListener("interrupt-request", this._predictionListener)
+            this._predictionListener = null
+        }
+        for (const actId of [...this._liveActs.keys()]) this._cancelLiveAct(actId, reason)
+    }
+
+    _rememberLiveAct(actId, prediction) {
+        this._pruneLiveActs()
+        while (this._liveActs.size >= MAX_LIVE_ACTS) {
+            const oldest = this._liveActs.keys().next().value
+            this._settleLiveAct(oldest, "expired", "capacity")
+        }
+        const validUntilMs = prediction
+            ? Date.parse(prediction.validUntil)
+            : Date.now() + this._predictionWindowMs()
+        const entry = { prediction, validUntilMs, timer: null }
+        const delayMs = Math.max(0, validUntilMs - Date.now())
+        entry.timer = setTimeout(() => this._settleLiveAct(actId, "expired", "expired"), delayMs)
+        this._liveActs.set(actId, entry)
+    }
+
+    _liveAct(actId) {
+        this._pruneLiveActs()
+        return this._liveActs.get(actId) || null
+    }
+
+    _pruneLiveActs(now = Date.now()) {
+        const stale = []
+        for (const [id, entry] of this._liveActs) {
+            if (entry.validUntilMs <= now) stale.push(id)
+        }
+        for (const id of stale) this._settleLiveAct(id, "expired", "expired")
+    }
+
+    _cancelLiveAct(actId, reason = "cancelled") {
+        this._settleLiveAct(actId, "cancelled", reason)
+    }
+
+    _settleLiveAct(actId, status, reason) {
+        const entry = this._liveActs.get(actId)
+        if (!entry) return
+        this._liveActs.delete(actId)
+        if (entry.timer) clearTimeout(entry.timer)
+        if (!entry.prediction) return
+        const settlement = status === "expired"
+            ? expirePrediction(entry.prediction, { reason })
+            : cancelPrediction(entry.prediction, { reason })
+        firePredictionSettlement(this, settlement)
+    }
+
+    /**
+     * Local claim of this act's live trusted consequences. Synchronous stop + convert
+     * + default bid, then redispatch from the parent so the mind arbiter still hears
+     * it and this listener cannot re-enter. AttentionBids pass through. Plain objects
+     * cannot steal lineage. No comparator / evaluation-commit here (A3).
+     */
+    _onLiveConsequence = event => {
+        const detail = event.detail
+        if (detail instanceof AttentionBid) return
+        if (!(detail instanceof InterruptRecord)) return
+        const actId = detail.actId
+        if (typeof actId !== "string" || !actId || !this._liveAct(actId)) return
+        event.stopPropagation()
+        const percept = Percept.fromInterrupt(detail)
+        const bid = new AttentionBid({ evidence: percept })
+        const host = this.parentElement
+        if (host && typeof host.fire === "function") host.fire("interrupt-request", bid)
+        else if (host) host.dispatchEvent(new CustomEvent("interrupt-request", { detail: bid, bubbles: true }))
     }
 
     /** Whether this mind splits read-only hands onto their own cooldown lane (P2). */
@@ -575,6 +752,30 @@ Reply with ONE of:
             .slice(0, topK)
             .map(s => s.item)
     }
+}
+
+/** Copy a hand schema and add optional `expect`. Never mutates `cap.parameters`. */
+function parametersWithExpect(parameters) {
+    const base = parameters && typeof parameters === "object" ? parameters : { type: "object", properties: {} }
+    const properties = { ...(base.properties || {}) }
+    properties.expect = { ...EXPECT_FIELD }
+    const copy = { ...base, type: base.type || "object", properties }
+    if (Array.isArray(base.required)) copy.required = [...base.required]
+    return copy
+}
+
+function freezePredictionTarget(raw) {
+    if (raw == null || typeof raw !== "object") return null
+    const next = {}
+    if (typeof raw.sourceId === "string" && raw.sourceId) next.sourceId = raw.sourceId
+    if (typeof raw.modality === "string" && raw.modality) next.modality = raw.modality
+    if (typeof raw.eventType === "string" && raw.eventType) next.eventType = raw.eventType
+    return Object.keys(next).length ? Object.freeze(next) : null
+}
+
+function targetForCapability(cap) {
+    if (cap.predictionTarget) return { ...cap.predictionTarget }
+    return { eventType: `Sense-${cap.name}` }
 }
 
 /** Clip a kept note to a length that grounds without flooding the realize frame. Pure. */
