@@ -272,9 +272,10 @@ export class AnnotatedCandidate {
 export class ControlRequest {
     constructor({
         id, kind, issuedBy, target, reason, detail, budget, deadline,
-        issuedAt = Date.now(), template,
+        issuedAt = Date.now(), template, actId = null,
     } = {}) {
         this.id = requireId('ControlRequest.id', id ?? randomUUID());
+        this.actId = actId == null ? null : requireId('ControlRequest.actId', actId);
         this.kind = requireEnum('kind', kind, CONTROL_KINDS);
         if (typeof issuedBy !== 'string' || !issuedBy) throw new Error('ControlRequest needs issuedBy');
         this.issuedBy = issuedBy;
@@ -370,7 +371,7 @@ export class EdgeEvidence {
 export class PerceptReceipt {
     constructor({
         perceptId, frameId, sourceId, modality, provenance, tier,
-        occurredAt, attendedAt, receivedKind, renditionText, requestId = null, policy, percept,
+        occurredAt, attendedAt, receivedKind, renditionText, requestId = null, actId = null, policy, percept,
     } = {}) {
         this.perceptId = requireId('perceptId', perceptId);
         this.frameId = requireId('frameId', frameId);
@@ -390,6 +391,7 @@ export class PerceptReceipt {
         if (typeof renditionText !== 'string') throw new Error('PerceptReceipt needs renditionText');
         this.renditionText = renditionText;
         this.requestId = requestId === null || requestId === undefined ? null : requireId('requestId', requestId);
+        this.actId = actId === null || actId === undefined ? null : requireId('actId', actId);
         if (percept !== undefined) hide(this, 'percept', percept);
         Object.freeze(this);
     }

@@ -172,7 +172,9 @@ export class MRegion extends MBaseComponent {
             if (!attached() || this._mind()?._sleeping) return null
             const control = entry.controlStack[entry.controlStack.length - 1] ?? entry.control ?? null
             const requestId = control?.id ?? header.requestId ?? null
-            const candidate = new PerceptCandidate({ ...header, requestId }, materialize)
+            // Act lineage comes only from a trusted ControlRequest, never a source header.
+            const actId = control?.actId ?? null
+            const candidate = new PerceptCandidate({ ...header, requestId, actId }, materialize)
             const now = Date.now()
             // Closed still observes the header (debt); composition decides materialization.
             this.aperture.observe(contract.name, candidate, now)
@@ -255,11 +257,12 @@ export class MRegion extends MBaseComponent {
                     id: candidate.id, sourceId: contract.name, modality: contract.modality,
                     provenance: contract.provenance, tier: contract.tier, policy: contract.powers,
                     requestId: candidate.requestId,
+                    actId: candidate.actId,
                     occurredAt: new Date(Math.min(now, candidate.occurredAt)).toISOString(),
                     record: new InterruptRecord({ source: 'External', type: `Sense-${contract.name}`, reason: text,
                         // Raw change magnitude. The requested floor is applied inside
                         // decideBid, not merged into evidence salience here.
-                        salience: candidate.changeMagnitude }),
+                        salience: candidate.changeMagnitude, actId: candidate.actId }),
                     gateTrail: [acquisition, awareness],
                 })
                 this._publishDecision(awareness, annotated)

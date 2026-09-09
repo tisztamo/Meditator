@@ -162,6 +162,7 @@ function frameReceipts(stimuli, rendered) {
                 receivedKind: percept.receivedKind,
                 renditionText: rendered[i],
                 requestId: percept.requestId,
+                actId: percept.actId,
                 policy: percept.policy,
             }))
         } catch (error) {

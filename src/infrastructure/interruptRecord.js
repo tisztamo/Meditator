@@ -89,6 +89,7 @@ export class InterruptRecord {
     settle = null,
     episode = null,
     kind = null,
+    actId = null,
     context = {},
     additionalData = {}
   }) {
@@ -118,6 +119,9 @@ export class InterruptRecord {
     this.settle = settle;
     this.episode = episode;
     this.kind = (kind && String(kind).trim()) || null;
+    // Association with an act, not proof of causation. Trusted constructors may
+    // set it; coerce from a plain object or string never grants it.
+    this.actId = (typeof actId === 'string' && actId) ? actId : null;
     this.context = {
       lastOutput: context.lastOutput || '',
       streamState: context.streamState || 'unknown'
@@ -166,7 +170,10 @@ export class InterruptRecord {
       if (detail.includes('## Interrupt Record')) return InterruptRecord.fromMarkdown(detail);
       return new InterruptRecord({ source: 'External', type: 'Raw', reason: detail, urgent: true, salience: 1 });
     }
-    if (detail && typeof detail === 'object') return new InterruptRecord(detail);
+    if (detail && typeof detail === 'object') {
+      const { actId: _untrustedActId, ...rest } = detail;
+      return new InterruptRecord(rest);
+    }
     return new InterruptRecord({ source: 'Unknown', type: 'Unknown', reason: String(detail) });
   }
 

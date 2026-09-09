@@ -383,6 +383,12 @@ describe('ControlRequest and RenditionRequest', () => {
         expect(() => new ControlRequest({ kind: 'orient', issuedBy: 'x', reason: 'y' }))
             .toThrow(/Unknown kind/);
         expect(new ControlRequest({ kind: 'detail', issuedBy: 'x', reason: 'y' }).kind).toBe('detail');
+        expect(sample.actId).toBeNull();
+        const withAct = new ControlRequest({
+            kind: 'sample', issuedBy: 'm-act', reason: 'look', actId: 'act-1',
+        });
+        expect(withAct.actId).toBe('act-1');
+        expect(withAct.id).not.toBe('act-1');
     });
 
     test('RenditionRequest keeps kinds as a frozen list', () => {
@@ -508,7 +514,15 @@ describe('PerceptReceipt', () => {
             receivedKind: 'text', renditionText: 'A cat.',
         });
         expect(receipt.requestId).toBeNull();
+        expect(receipt.actId).toBeNull();
         expect(receipt.tier).toBe(0);
+        const lined = new PerceptReceipt({
+            perceptId: 'p', frameId: 'f', sourceId: 's', modality: 'text',
+            provenance: 'simulated', occurredAt: 0, attendedAt: 0,
+            receivedKind: 'text', renditionText: 'A cat.', requestId: 'req-1', actId: 'act-1',
+        });
+        expect(lined.requestId).toBe('req-1');
+        expect(lined.actId).toBe('act-1');
         expect(PROVENANCE).toContain('legacy-unspecified');
     });
 

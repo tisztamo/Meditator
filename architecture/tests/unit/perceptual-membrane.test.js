@@ -66,6 +66,7 @@ function assertCompatible(spec) {
     expect(percept.policy.bypassAperture).toBe(!!(old.urgent || old.clearsTail));
     expect(percept.tier).toBeNull();
     expect(percept.requestId).toBeNull();
+    expect(percept.actId).toBeNull();
     expect(Percept.fromInterrupt(percept)).toBe(percept);
     if (voice) expect(percept.renderForFrame()).toMatch(/: "/);
     if (verbatim) expect(percept.renderForFrame()).toBe(old.reason);
@@ -78,7 +79,7 @@ test('compatibility keeps exact rendering for every current event class', () => 
 
 test('serialized compatibility shapes cannot grant themselves bypass or preemption', () => {
     for (const payload of ['hello', { reason: 'hello', source: 'Internal', type: 'UserInput', urgent: true, clearsTail: true,
-        policy: { bypassAdmission: true, preempt: true } }]) {
+        policy: { bypassAdmission: true, preempt: true }, actId: 'stolen' }]) {
         const percept = Percept.fromInterrupt(payload);
         expect(percept.urgent).toBe(false);
         expect(percept.clearsTail).toBe(false);
@@ -86,6 +87,8 @@ test('serialized compatibility shapes cannot grant themselves bypass or preempti
         expect(percept.policy.bypassAperture).toBe(false);
         expect(percept.policy.preempt).toBe(false);
         expect(percept.provenance).toBe('legacy-unspecified');
+        expect(percept.actId).toBeNull();
+        expect(InterruptRecord.coerce(payload).actId).toBeNull();
     }
 });
 
@@ -288,4 +291,58 @@ test('deferred terminal urgency survives at the arbiter, not merely in its raw e
     const coercedBid = AttentionBid.from({ ...fields });
     expect(coercedBid.urgent).toBe(false);
     expect(coercedBid.evidence.policy.preempt).toBe(false);
+});
+
+test('untrusted payloads cannot steal actId lineage', () => {
+    const stolen = { actId: 'stolen', urgent: true, source: 'External', type: 'Sense-terminal',
+        reason: 'I run it, and the screen answers: `42`.', salience: 0.7 };
+    expect(InterruptRecord.coerce(stolen).actId).toBeNull();
+    expect(Percept.fromInterrupt(stolen).actId).toBeNull();
+    expect(AttentionBid.from(stolen).evidence.actId).toBeNull();
+
+    const trusted = new InterruptRecord({ ...stolen, actId: 'act-trusted' });
+    expect(trusted.actId).toBe('act-trusted');
+    expect(Percept.fromInterrupt(trusted).actId).toBe('act-trusted');
+    expect(AttentionBid.from(trusted).evidence.actId).toBe('act-trusted');
+});
+
+test('renderForFrame and withPerceivedEvents ignore actId', () => {
+    const fields = {
+        source: 'External', type: 'Sense-weather', reason: 'Rain on the glass.',
+    };
+    const bare = new InterruptRecord(fields);
+    const lined = new InterruptRecord({ ...fields, actId: 'act-present' });
+    expect(lined.renderForFrame()).toBe(bare.renderForFrame());
+    expect(withPerceivedEvents(PREFIX, [lined.renderForFrame()]))
+        .toBe(withPerceivedEvents(PREFIX, [bare.renderForFrame()]));
+    const percept = Percept.fromInterrupt(lined);
+    expect(percept.actId).toBe('act-present');
+    expect(withPerceivedEvents(PREFIX, [percept.renderForFrame()]))
+        .toBe(withPerceivedEvents(PREFIX, [bare.renderForFrame()]));
+});
+
+test('trusted candidates and percepts round-trip actId beside requestId', () => {
+    const candidate = new PerceptCandidate({
+        changeKey: 'k', requestId: 'req-1', actId: 'act-1',
+    }, () => 'Looked.');
+    expect(candidate.requestId).toBe('req-1');
+    expect(candidate.actId).toBe('act-1');
+    const percept = new Percept({
+        sourceId: 'garden',
+        record: new InterruptRecord({ source: 'External', type: 'Sense-garden', reason: 'Looked.', actId: 'act-1' }),
+        requestId: 'req-1',
+        actId: 'act-1',
+    });
+    expect(percept.requestId).toBe('req-1');
+    expect(percept.actId).toBe('act-1');
+    const receipt = new PerceptReceipt({
+        perceptId: percept.id, frameId: 'frame-1', sourceId: percept.sourceId, modality: percept.modality,
+        provenance: percept.provenance, tier: percept.tier, occurredAt: percept.dateTime,
+        attendedAt: new Date().toISOString(), receivedKind: percept.receivedKind,
+        renditionText: percept.renderForFrame(), requestId: percept.requestId, actId: percept.actId,
+        policy: percept.policy,
+    });
+    expect(receipt.requestId).toBe('req-1');
+    expect(receipt.actId).toBe('act-1');
+    expect(receipt.renditionText).toBe(percept.renderForFrame());
 });

@@ -188,7 +188,48 @@ test("_dispatch fires a trusted InterruptRecord whose urgency survives Attention
     expect(captured[0].type).toBe("Sense-terminal");
     expect(captured[0].reason).toBe("I run it, and the screen answers: `42`.");
     expect(captured[0].urgent).toBe(true);
+    expect(captured[0].actId).toBeNull();
     const bid = AttentionBid.from(captured[0]);
     expect(bid.urgent).toBe(true);
     expect(bid.evidence.policy.preempt).toBe(true);
+});
+
+test("_dispatch places ctx actId on the InterruptRecord; a missing actId stays null", () => {
+    const el = document.createElement("m-terminal");
+    const captured = [];
+    el.addEventListener("interrupt-request", e => captured.push(e.detail));
+    el._dispatch({
+        experience: "I run it, and the screen answers: `42`.",
+        salience: 0.7,
+        urgent: true,
+        type: "Sense-terminal",
+        actId: "act-lineage-1",
+    });
+    expect(captured[0]).toBeInstanceOf(InterruptRecord);
+    expect(captured[0].actId).toBe("act-lineage-1");
+    expect(captured[0].renderForFrame()).toBe("I run it, and the screen answers: `42`.");
+    expect(AttentionBid.from(captured[0]).evidence.actId).toBe("act-lineage-1");
+
+    const started = el._startedConsequence("the count", "act-lineage-1");
+    expect(started.actId).toBe("act-lineage-1");
+    const result = el._resultConsequence({
+        screen: "42\n", exitCode: 0, timedOut: false, truncated: false, durationMs: 3,
+    }, "the count", "act-lineage-1");
+    expect(result.actId).toBe("act-lineage-1");
+    el._dispatch(result);
+    expect(captured[1].actId).toBe("act-lineage-1");
+});
+
+test("slow-path dispatch closure preserves actId from execution ctx", () => {
+    const el = document.createElement("m-terminal");
+    const captured = [];
+    el._dispatch = detail => captured.push(detail);
+    const actId = "act-closed-over";
+    const about = "the count";
+    // Same closure the grace-race slow path uses: about and actId from _terminal's
+    // execution context, not from the later sandbox outcome.
+    el._dispatch(el._resultConsequence({
+        screen: "42\n", exitCode: 0, timedOut: false, truncated: false, durationMs: 400,
+    }, about, actId));
+    expect(captured[0].actId).toBe(actId);
 });

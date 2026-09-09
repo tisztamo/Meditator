@@ -4,12 +4,12 @@ import { GateVerdict, RenditionRequest, legacyCompatibility } from './perception
 
 export const clamp01 = value => Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
 
-function lineageId(requestId) {
-    if (requestId == null) return null;
-    if (typeof requestId !== 'string' || !requestId) {
-        throw new Error('requestId is acquisition lineage, keyed by id');
+function lineageId(value, name = 'requestId') {
+    if (value == null) return null;
+    if (typeof value !== 'string' || !value) {
+        throw new Error(`${name} is lineage, keyed by id`);
     }
-    return requestId;
+    return value;
 }
 
 /** Private edge header. No payload, filename, transcript, or source-supplied policy.
@@ -18,15 +18,17 @@ function lineageId(requestId) {
 export class PerceptCandidate {
     #materialize;
 
-    constructor({ changeMagnitude = 0, changeKey = '', occurredAt = Date.now(), requestId = null } = {}, materialize) {
+    constructor({ changeMagnitude = 0, changeKey = '', occurredAt = Date.now(), requestId = null, actId = null } = {}, materialize) {
         if (typeof materialize !== 'function') throw new Error('A candidate needs a lazy materializer');
         this.id = randomUUID();
         this.occurredAt = Number.isFinite(occurredAt) ? occurredAt : Date.now();
         this.changeMagnitude = clamp01(changeMagnitude);
         this.changeKey = createHash('sha256').update(String(changeKey).slice(0, 256)).digest('hex');
         // Acquisition lineage only, not causal attribution — looking caused the
-        // sample, not everything visible in it.
+        // sample, not everything visible in it. `actId` is association with an
+        // act, not proof of causation.
         this.requestId = lineageId(requestId);
+        this.actId = lineageId(actId, 'actId');
         this.#materialize = materialize;
         Object.freeze(this);
     }
@@ -53,7 +55,7 @@ export class PerceptCandidate {
 export class Percept extends InterruptRecord {
     constructor({ record, sourceId, modality = 'text', provenance = 'legacy-unspecified',
         policy = {}, id = randomUUID(), occurredAt = record.dateTime, tier = null,
-        requestId = null, gateTrail = [] }) {
+        requestId = null, actId = null, gateTrail = [] }) {
         super(record);
         if (record.infoton) this.infoton = record.infoton;
         this.dateTime = occurredAt;
@@ -63,6 +65,7 @@ export class Percept extends InterruptRecord {
         this.provenance = provenance;
         this.tier = tier ?? null;
         this.requestId = lineageId(requestId);
+        this.actId = lineageId(actId, 'actId');
         this.policy = Object.freeze({
             privacy: 'resident-private',
             bypassAperture: policy.bypassAperture === true,
@@ -98,6 +101,12 @@ export class Percept extends InterruptRecord {
         const record = InterruptRecord.coerce(detail);
         if (!trusted) { record.urgent = false; record.clearsTail = false; }
         const { provenance, policy } = legacyCompatibility(record, { trusted });
-        return new Percept({ record, provenance, sourceId: record.type || 'legacy', policy, tier: null });
+        return new Percept({
+            record, provenance, sourceId: record.type || 'legacy', policy, tier: null,
+            // Lineage follows urgency: only a trusted in-process InterruptRecord
+            // keeps actId. Coerced plain objects cannot steal it, even if coerce
+            // also strips the field.
+            actId: trusted ? record.actId : null,
+        });
     }
 }

@@ -103,6 +103,7 @@ function cloneReceipt(receipt, overrides = {}) {
         receivedKind: receipt.receivedKind,
         renditionText: receipt.renditionText,
         requestId: receipt.requestId,
+        actId: receipt.actId,
         ...overrides,
     });
 }
@@ -402,10 +403,41 @@ test('percepts.jsonl entries carry the complete pre-receipt field set plus tier/
     await memory._journalQueue;
     const entry = indexEntries().at(-1);
     expect(Object.keys(entry).sort()).toEqual([
-        'attendedAt', 'frameId', 'id', 'modality', 'occurredAt', 'policy',
+        'actId', 'attendedAt', 'frameId', 'id', 'modality', 'occurredAt', 'policy',
         'provenance', 'receivedKind', 'renditions', 'requestId', 'source', 'tier',
     ]);
     expect(entry.policy).toEqual(AttentionBid.evidenceOf(percept).policy);
+    expect(entry.actId).toBeNull();
+});
+
+test('ControlRequest actId threads to percept, receipt, and index; a source header cannot steal it', async () => {
+    allowOrientation();
+    region.orient('open');
+    const offer = region.registerSource(source, request => offer({
+        ...header('act-lineage'),
+        actId: 'stolen-from-header',
+        requestId: 'stolen-request',
+    }, () => 'The simulated light is blue now.'));
+    const request = new ControlRequest({
+        kind: 'sample', issuedBy: 'test', reason: 'look', target: 'mock', actId: 'act-trusted',
+    });
+    region.requestControl(request);
+    await delay(5);
+    const pending = global.takePending();
+    expect(pending).toHaveLength(1);
+    const evidence = AttentionBid.evidenceOf(pending[0]);
+    expect(evidence.requestId).toBe(request.id);
+    expect(evidence.actId).toBe('act-trusted');
+    expect(evidence.renderForFrame()).toBe('The simulated light is blue now.');
+    const fired = interceptFire(mind);
+    await frame(pending);
+    const receipt = receiptOf(fired);
+    expect(receipt.actId).toBe('act-trusted');
+    expect(receipt.requestId).toBe(request.id);
+    await memory._journalQueue;
+    const entry = indexEntries().at(-1);
+    expect(entry.actId).toBe('act-trusted');
+    expect(entry.requestId).toBe(request.id);
 });
 
 test('closed aperture publishes a non-semantic acquisition denial and never the withheld text', async () => {

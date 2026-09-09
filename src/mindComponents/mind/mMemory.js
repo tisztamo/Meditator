@@ -432,6 +432,7 @@ export class MMemory extends MBaseComponent {
             policy: r.policy,
             tier: r.tier,
             requestId: r.requestId,
+            actId: r.actId,
             frameId: r.frameId,
         }))
         if (!entries.length) return

@@ -162,13 +162,14 @@ export class MTerminal extends MBaseComponent {
         if (this._forAgent) return this._runForAgent({ language, script, purpose })
 
         const about = (purpose || ctx.intent || "").trim()
+        const actId = ctx?.actId ?? null
         const body = (script || "").trim()
         if (!body) throw new Error("there was no script to run")
         if (language !== "python" && language !== "bash") throw new Error(`unsupported language "${language}"`)
 
         // Dry-run never executes real code (terminal.md §4.6): a deterministic stub so
         // tests and offline runs exercise the whole loop without a sandbox.
-        if (isDryRun()) return this._dryResult()
+        if (isDryRun()) return { ...this._dryResult(), actId }
 
         // Single-slot desk (terminal.md §3.1): one script at a time. A neutral, very
         // low-salience line that barely registers — the mind just keeps thinking.
@@ -176,6 +177,7 @@ export class MTerminal extends MBaseComponent {
             return {
                 experience: "The desk is still busy with the last thing I set going; I leave it to finish.",
                 salience: 0.2,
+                actId,
             }
         }
 
@@ -215,7 +217,7 @@ export class MTerminal extends MBaseComponent {
             // FAST PATH: finished within grace → the answer is already on the screen.
             this._running = null
             await this._writeTranscript(n, language, body, about, outcome)
-            return this._resultConsequence(outcome, about)
+            return this._resultConsequence(outcome, about, actId)
         }
 
         // SLOW PATH: still running after grace → reassure now, deliver the result later.
@@ -225,20 +227,20 @@ export class MTerminal extends MBaseComponent {
             // The mind made the reach bursts ago; its answer now lands in a contended
             // window, so dispatch it as its OWN urgent interrupt-request straight onto
             // the afferent bus (terminal.md §2 — the deferred-consequence path). `about`
-            // rides along so the mind reads not just an answer, but what it answers.
-            this._dispatch(this._resultConsequence(result, about))
+            // and `actId` ride along from this execution context.
+            this._dispatch(this._resultConsequence(result, about, actId))
         }).catch(error => {
             this._running = null
             log.warn(`terminal run ${n} failed after grace: ${error?.message || error}`)
         })
 
-        return this._startedConsequence(about)
+        return this._startedConsequence(about, actId)
     }
 
     // The result, as the consequence the mind perceives. The result re-enters URGENT
     // (like m-recall) and at the result salience; the experience names NO mechanism.
     // `about` (see _terminal) grounds it in what the run was for, not just its output.
-    _resultConsequence(outcome, about) {
+    _resultConsequence(outcome, about, actId = null) {
         const { experience } = screenToExperience(outcome, { maxChars: this._maxChars(), openings: ANSWER_LEADS, leadIdx: ++this._leadIdx, purpose: about })
         return {
             experience,
@@ -246,6 +248,7 @@ export class MTerminal extends MBaseComponent {
             urgent: this.attr("urgent") !== "false",
             type: `Sense-${this.attr("name") || "terminal"}`,
             data: { exitCode: outcome.exitCode, timedOut: outcome.timedOut, truncated: outcome.truncated, ms: outcome.durationMs },
+            actId,
         }
     }
 
@@ -253,7 +256,7 @@ export class MTerminal extends MBaseComponent {
     // not commandeer a burst. The blinking cursor lives here, and only here, because
     // here it is literally true (§6d). `about`, when known, still names what it is
     // running FOR — so even this early sensation is not pure "something is happening."
-    _startedConsequence(about) {
+    _startedConsequence(about, actId = null) {
         const leads = STARTED_LEADS
         const line = leads[(++this._leadIdx % leads.length + leads.length) % leads.length]
         return {
@@ -261,12 +264,13 @@ export class MTerminal extends MBaseComponent {
             salience: Number(this.attr("startedSalience") || 0.45),
             urgent: false,
             type: `Sense-${this.attr("name") || "terminal"}-start`,
+            actId,
         }
     }
 
     // Dispatch a consequence directly onto the afferent bus — it bubbles to the mind's
     // arbiter exactly like a push-sense (the deferred-consequence path, terminal.md §2).
-    _dispatch({ experience, salience, urgent, type }) {
+    _dispatch({ experience, salience, urgent, type, actId = null }) {
         // Build a minimal record the arbiter understands; reuse the same shape m-act does.
         this.fire("interrupt-request", new InterruptRecord({
             source: "External",
@@ -274,6 +278,7 @@ export class MTerminal extends MBaseComponent {
             reason: experience,
             salience,
             urgent,
+            actId,
         }))
         log.debug(`deferred consequence dispatched: ${experience.slice(0, 80)}`)
     }
