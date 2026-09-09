@@ -1,6 +1,6 @@
 # Perceptual membrane — Phase 3A implementation plan: prediction and bidding
 
-**Status: proposed, 2026-09-08.** This is the first implementation series split
+**Status: implemented, 2026-09-09.** This is the first implementation series split
 from the broader [phase 3 roadmap](perceptual-membrane-phase-3.md). It implements
 only:
 
@@ -41,7 +41,7 @@ Orientation and search introduce different lifecycles: provider arbitration,
 control cooldowns, route coverage, retry, and uncertain stopping. Building them
 now would enlarge the protocol before prediction has demonstrated that its seams
 are useful. Phase 3A therefore ends with an offline reference condition and an
-explicit stop for review.
+explicit stop for review. That stop is in force: Phase 3B is not started.
 
 ## 2. Architectural stance
 
@@ -508,9 +508,9 @@ trusted consequence keeps the urgency it already intended to have.
 
 ## 12. Stop condition and questions carried forward
 
-Phase 3A is done when the tests and offline reference condition pass and the
-existing suite remains green. Do not begin Phase 3B in the same implementation
-series.
+Phase 3A landed 2026-09-09. Tests and the offline reference condition are the
+stop criterion. Do not begin Phase 3B in the same implementation series. The
+review questions below are carried forward unanswered.
 
 The review after A4 asks:
 

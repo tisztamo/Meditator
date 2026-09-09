@@ -365,6 +365,77 @@ describe('decideBid', () => {
             requestedFloor: 0,
         })).toBeCloseTo(0.4);
     });
+
+    test('15. zero expectedFloor and mismatchWeight reproduce phase-2 salience bit-for-bit', () => {
+        const phase2 = decideBid({
+            signals: signals({ changeMagnitude: 0.8, requested: false, novelty: null }),
+            gainTrail: trail,
+        });
+        const withSlots = decideBid({
+            signals: signals({
+                changeMagnitude: 0.8, requested: false, novelty: null,
+                predictionMatch: null, predictionMismatch: null,
+                targetMatch: null, causalAttribution: null, confidence: null,
+            }),
+            gainTrail: trail,
+            expectedFloor: 0,
+            mismatchWeight: 0,
+        });
+        expect(withSlots).toBe(phase2);
+        expect(withSlots).toBe(0.4);
+        expect(decideBid({
+            signals: signals({ changeMagnitude: 0.8, predictionMatch: 1, predictionMismatch: 1 }),
+            gainTrail: trail,
+            expectedFloor: 0,
+            mismatchWeight: 0,
+        })).toBe(0.4);
+        expect(decideBid({
+            signals: signals({ changeMagnitude: 0.8 }),
+            gainTrail: [{ gate: 'local', factor: 0.5 }, { gate: 'loud', factor: 2 }],
+            expectedFloor: 0,
+            mismatchWeight: 0,
+        })).toBe(0.8);
+    });
+
+    test('predictionMatch/Mismatch are independent max terms; null is 0 not match', () => {
+        expect(decideBid({
+            signals: signals({ changeMagnitude: 0.2, predictionMatch: null, predictionMismatch: null }),
+            gainTrail: [],
+            expectedFloor: 0.9,
+            mismatchWeight: 0.9,
+        })).toBe(0.2);
+        expect(decideBid({
+            signals: signals({ changeMagnitude: 0.2, predictionMatch: 1 }),
+            gainTrail: [],
+            expectedFloor: 0.7,
+        })).toBe(0.7);
+        expect(decideBid({
+            signals: signals({ changeMagnitude: 0.2, predictionMismatch: 1 }),
+            gainTrail: [],
+            mismatchWeight: 0.9,
+        })).toBe(0.9);
+        expect(decideBid({
+            signals: signals({ changeMagnitude: 0.4, predictionMismatch: 1 }),
+            gainTrail: [],
+            mismatchWeight: 0.3,
+        })).toBe(0.4);
+        expect(() => decideBid({
+            signals: signals({ predictionMatch: 1.2 }),
+            gainTrail: [],
+        })).toThrow(/predictionMatch/);
+        expect(() => decideBid({
+            signals: signals({ predictionMismatch: -0.1 }),
+            gainTrail: [],
+        })).toThrow(/predictionMismatch/);
+        expect(() => decideBid({
+            signals: signals(),
+            expectedFloor: '0.5',
+        })).toThrow(/expectedFloor/);
+        expect(() => decideBid({
+            signals: signals(),
+            mismatchWeight: 1.5,
+        })).toThrow(/mismatchWeight/);
+    });
 });
 
 describe('ControlRequest and RenditionRequest', () => {

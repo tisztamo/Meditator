@@ -10,6 +10,7 @@ import { ENERGY } from "./infoton.js"
 import { InterruptRecord } from '../../infrastructure/interruptRecord.js';
 import { Percept } from '../../infrastructure/percept.js';
 import { AttentionBid } from '../../infrastructure/attentionBid.js';
+import { issueOwnerBid } from '../../infrastructure/bidderPolicy.js';
 import {
     Prediction, firePrediction, firePredictionSettlement, expirePrediction, cancelPrediction,
     MAX_PREDICTION_LIFETIME_MS, predictionSettlement, EVALUATION_COMMIT_EVENT,
@@ -21,7 +22,7 @@ import {
     CompareBudget, CommitOrder, asEvaluations, compareDeadlineMs, evaluationIdsOf, verdictsOf,
     awaitUntilAbort, DEFAULT_COMPARE_DEADLINE_MS,
 } from '../../infrastructure/compareContinuation.js';
-import { part } from "./enclosure.js";
+import { part, bidOwnerOf, isCustomElementDefined } from "./enclosure.js";
 import { mindHome } from '../../infrastructure/memoryVault.js';
 import { parseTime } from '../../config/timeParser.js';
 import { logger } from '../../infrastructure/logger.js';
@@ -625,7 +626,7 @@ export class MAct extends MObserver {
         const percept = Percept.fromInterrupt(detail)
         const comparator = this._liveComparator()
         if (!comparator) {
-            this._redispatchBid(new AttentionBid({ evidence: percept }))
+            this._dispatchOwnerBid(percept, [])
             return
         }
         const reserved = this._compareBudget.tryAcquire()
@@ -673,10 +674,7 @@ export class MAct extends MObserver {
                         predictionId,
                     }))
                 }
-                this._redispatchBid(new AttentionBid({
-                    evidence: percept,
-                    evaluationIds: evaluationIdsOf(evaluations),
-                }))
+                this._dispatchOwnerBid(percept, evaluations)
             } finally {
                 clearTimeout(timer)
                 this._compareAborts.delete(controller)
@@ -689,6 +687,19 @@ export class MAct extends MObserver {
             if (reserved) this._compareBudget.release()
             ticket.complete()
         })
+    }
+
+    _dispatchOwnerBid(percept, evaluations) {
+        const bid = issueOwnerBid({
+            bidder: this._liveBidder(),
+            evidence: percept,
+            evaluations,
+        })
+        if (!bid) {
+            this.pub("bidRefusal", { evidenceId: percept.id, reason: "invalid-bidder" })
+            return
+        }
+        this._redispatchBid(bid)
     }
 
     _redispatchBid(bid) {
@@ -709,6 +720,17 @@ export class MAct extends MObserver {
         const el = found[0]
         if (!el) return null
         if (typeof el.accepts !== "function" || typeof el.evaluate !== "function") return null
+        return el
+    }
+
+    /** Owner-local: a bidder under this act, not under a sibling region. */
+    _liveBidder() {
+        const found = part(this, "bidder").filter(el => bidOwnerOf(el) === this)
+        if (found.length > 1) throw new Error("an act may have only one bidder")
+        const el = found[0]
+        if (!el) return null
+        if (isCustomElementDefined(el)) customElements.upgrade(el)
+        if (typeof el.createBid !== "function") return { createBid() { throw new Error("bidder is missing createBid") } }
         return el
     }
 

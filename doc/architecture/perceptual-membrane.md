@@ -10,7 +10,8 @@ see [Implementation sketch](#implementation-sketch) for its boundaries.*
 The revised design makes prediction, attention bidding, contact regulation, and
 search replaceable through architecture wiring. Attention bidding, contact
 regulation, pressure aggregation, and nested source control now have those
-seams. Prediction, search, and the `orient` hand do not.
+seams. Act-bound prediction, comparison, and owner-local bidding (phase 3A)
+are in. Search and the `orient` hand are not.
 [Prediction and search](../improvements/prediction-mismatch.md) records the
 shared constraints, known issues, and proposed high-level comparisons.
 
@@ -31,6 +32,12 @@ suppresses a candidate with zero materializer calls, then opens the outer
 boundary and admits the same scene. It prints the bid's gain trail and one typed
 frame receipt that credits exactly one provider. It runs the real frame assembler
 without starting a thinking loop or touching resident memory.
+
+Phase 3A adds a second offline script, `bun scripts/dev/demo-membrane-phase-3a.mjs`,
+that shows act-bound expectation, exact-text comparison, and owner-local bidding
+on membrane and hand-consequence paths. It does not claim exact text is a useful
+cognitive comparator, that mismatch improves functioning, or that fixture weights
+belong in a resident mind. Orientation and search are not in that demo.
 
 Opt in with `modality="text"` on an `m-region`. `aperture` defaults to `open`;
 `soft` halves salience, `narrow` selects one registered source, and `closed` withholds
@@ -131,22 +138,26 @@ The generality review identified the following limitations. Phase 1 of the
 declaration and typed-regulator-input half of the processing-tier row, and gave
 source control a door. Phase 2 ([plan](../plans/perceptual-membrane-phase-2.md))
 closed rows 1, 3, and 4, moved row 2 as far as the membrane can move it, and
-closed the nesting half of row 5. Rows 5 (controller) and 6 stay open. This
-design revision does not run the experiments they describe.
+closed the nesting half of row 5. Phase 3A filled row 2's match/mismatch *slots*
+with zero default weights and an opt-in producer; it did not retune residents
+or add orientation/search. Rows 5 (controller) and 6 stay open. The terminal
+trust correction (deferred `InterruptRecord`) is the sole deliberate baseline
+bug fix. This design revision does not run the experiments they describe.
 
 | Issue | Consequence and intended direction |
 |---|---|
 | Only the nearest sensory aperture participates | **Closed (phase 2).** Every aperture on the path answers `percept-candidate`; permission is the conjunction, fail-closed if a gate is missing. An inner `open` no longer delivers through an outer `closed` (W3). |
-| Sensory change directly sets salience | The bid is separate and derives salience from independent signals through a replaceable policy; **no independent relevance producer exists and the default weights are unchanged.** `requestedFloor` is the route (default 0). Mismatch must not replace `changeMagnitude`. [Prediction and search](../improvements/prediction-mismatch.md). |
+| Sensory change directly sets salience | The bid is separate and derives salience from independent signals through a replaceable policy. Phase 3A stores `predictionMatch` / `predictionMismatch` (and unused `targetMatch`, `causalAttribution`, `novelty`, `confidence` as null). **Default `expectedFloor` and `mismatchWeight` are 0**, so absent or disabled prediction leaves phase-2 salience unchanged. Mismatch must not replace `changeMagnitude`. No resident architecture acquires this policy unless an author adds `prediction="on"`, `m-compare`, and `m-bid`. [Prediction and search](../improvements/prediction-mismatch.md). |
 | Policy is constructed or discovered inside consumers | **Closed (phase 2).** `regulator` and `aggregator` are replaceable interior roles; the aperture provider is replaceable (C1/S1). `Aperture` is the reference contact policy, not the provider. |
 | Evidence and bid state share mutable records | **Closed (phase 2).** `AttentionBid` is the mutable competition record; `Percept` is frozen at issue. Nested gain is a trail entry. `assembleFrame` uses `evidenceOf`. |
 | Source control has a door, not a controller | `requestControl` now forwards through nested providers; a named target is delivered once by the nearest owner. **There is still no search controller, no `orient` hand, no cadence control beyond the sense timer, and no grounding query on the reserved `template` field.** `focus` is accepted and changes no policy. |
 | Processing tier is declared, not implemented above 0 | Sources declare `tier` (default 0); 1 and 2 throw at registration. Provenance and journal carry the field. The regulator accepts only a `PerceptCandidate`; `EdgeEvidence` is a typed refusal and nothing produces it. Acquisition and awareness are distinct stages (`tier-0-mirror` at lean). What remains: no tier-1 or tier-2 *implementations*, no scores into the deficit, no grounding query. The lean-versus-edge-grounded experiment is still unrun. |
 
 Existing eager senses remain outside aperture control, and native media,
-prediction lifecycle, search, and tiers 1 and 2 are still deferred. The
-constraints below are the target contract, not a claim that these limits have
-already been removed.
+search, the `orient` hand, and tiers 1 and 2 are still deferred. With prediction
+absent or disabled, REALIZE, hands, evidence, salience, frames, journal, and
+contact credit are unchanged. The constraints below are the target contract, not
+a claim that these remaining limits have already been removed.
 
 ## The proposal
 
@@ -785,10 +796,11 @@ cannot reveal them. Private source contents remain absent until admission.
 
 Step 1 is implemented
 ([phase 1 plan](../plans/perceptual-membrane-phase-1.md)). Step 2 is implemented
-([phase 2 plan](../plans/perceptual-membrane-phase-2.md)). Step 3 is planned but
-not built ([roadmap](../plans/perceptual-membrane-phase-3.md)); implementation
-starts with the smaller
-[phase 3A plan](../plans/perceptual-membrane-phase-3a.md). Steps 3–6 remain future
+([phase 2 plan](../plans/perceptual-membrane-phase-2.md)). Step 3 is **partially**
+implemented: 3A (act-bound prediction, comparison, bidding) is in
+([phase 3A plan](../plans/perceptual-membrane-phase-3a.md)); 3B (orient, bounded
+search) is **not**. Do not mark the whole of step 3 implemented.
+([roadmap](../plans/perceptual-membrane-phase-3.md)). Steps 4–6 remain future
 work; they are not implemented here and the experiments they describe have not
 been run.
 
@@ -805,7 +817,8 @@ been run.
 3. Assemble the existing deficit/reflex and inexpensive act-bound prediction as
    the first reference architecture. Add `orient` and bounded search through
    declared control interfaces; retain uncertainty in search outcomes.
-   **Planned, not built.**
+   **Partially implemented (2026-09-09).** 3A — act-bound prediction, comparison,
+   and bidding — is in. 3B — `orient` and bounded search — is not.
    ([roadmap](../plans/perceptual-membrane-phase-3.md);
    [phase 3A implementation plan](../plans/perceptual-membrane-phase-3a.md))
 4. Describe and later evaluate alternative architectures with the same sources,

@@ -8,8 +8,10 @@ import path from 'node:path';
 import { delay } from './setup.js';
 import { loadMindComponents } from '../../../src/startup/loadMindComponents.js';
 import { Percept } from '../../../src/infrastructure/percept.js';
+import { InterruptRecord } from '../../../src/infrastructure/interruptRecord.js';
 import { AttentionBid } from '../../../src/infrastructure/attentionBid.js';
 import { GateVerdict, ControlRequest } from '../../../src/infrastructure/perceptionContracts.js';
+import { expectedBidSignals } from '../../../src/infrastructure/bidderPolicy.js';
 import {
     Prediction, firePrediction, PREDICTION_EVENT, PREDICTION_SETTLED_EVENT,
     EVALUATION_COMMIT_EVENT,
@@ -22,7 +24,7 @@ const EXPECT_PHRASE = 'EXPECT_PHRASE_A3_DO_NOT_LEAK';
 const EXPERIENCE = 'I turn toward the sky and the light has gone grey.';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-let mind, region, source, other, global, memory, act, compare, journalDir;
+let mind, region, source, other, global, memory, act, compare, terminal, journalDir;
 
 function header(key) {
     return { changeMagnitude: 0.9, changeKey: key, occurredAt: Date.now() };
@@ -96,8 +98,12 @@ beforeEach(async () => {
           <m-memory name="memory" persist="off" journal="${journalDir}"></m-memory>
           <m-interrupts name="attention" threshold="0" rateLimit="0s" keep="9"></m-interrupts>
           <m-compare name="compare"></m-compare>
-          <m-act name="hands" prediction="on" every="1" cooldown="0s" intentCooldown="15m"></m-act>
+          <m-act name="hands" prediction="on" every="1" cooldown="0s" intentCooldown="15m">
+            <m-bid name="act-bid"></m-bid>
+            <m-terminal name="terminal"></m-terminal>
+          </m-act>
           <m-region name="outside" modality="text" aperture="open" dwell="1s" contactHorizon="10s">
+            <m-bid name="region-bid"></m-bid>
             <m-interrupts name="local" threshold="0" rateLimit="0s"></m-interrupts>
             <span name="mock" provenance="simulated"></span>
             <span name="other" provenance="simulated"></span>
@@ -113,6 +119,7 @@ beforeEach(async () => {
     memory = mind.querySelector('m-memory');
     act = mind.querySelector('m-act');
     compare = mind.querySelector('m-compare');
+    terminal = mind.querySelector('m-terminal');
     allowOrientation();
 });
 
@@ -140,7 +147,12 @@ test('8. exact fixture text on the membrane produces match/mismatch without rewr
     expect(evidence.renderForFrame()).toBe(FIXTURE);
     expect(evidence.reason).toBe(FIXTURE);
     expect(bid.evaluationIds).toHaveLength(1);
-    expect(bid.signals).toEqual({ changeMagnitude: 0.9, requested: true, novelty: null });
+    expect(bid.signals).toEqual({ changeMagnitude: 0.9, requested: true, novelty: null,
+        predictionMatch: 1, predictionMismatch: null,
+        targetMatch: null, causalAttribution: null, confidence: null });
+    expect(bid.salience).toBe(0.9);
+    expect(bid.expectedFloor).toBe(0);
+    expect(bid.mismatchWeight).toBe(0);
     await waitUntil(() => commits.length);
     expect(commits[0].evaluationIds).toEqual(bid.evaluationIds);
     expect(JSON.stringify(commits[0])).not.toContain(EXPECT_PHRASE);
@@ -156,6 +168,10 @@ test('8. exact fixture text on the membrane produces match/mismatch without rewr
     const mismatchBid = await offer(header('mismatch'), () => MISMATCH_TEXT);
     expect(AttentionBid.evidenceOf(mismatchBid).renderForFrame()).toBe(MISMATCH_TEXT);
     expect(mismatchBid.evaluationIds.length).toBe(1);
+    expect(mismatchBid.signals.changeMagnitude).toBe(0.9);
+    expect(mismatchBid.signals.predictionMismatch).toBe(1);
+    expect(mismatchBid.signals.predictionMatch).toBeNull();
+    expect(mismatchBid.salience).toBe(0.9);
     await waitUntil(() => settlements.some(s => s.predictionId === pred2.id));
     expect(settlements.find(s => s.predictionId === pred2.id).status).toBe('mismatched');
 });
@@ -418,4 +434,154 @@ test('act-path without comparator stays synchronous A2 redispatch', async () => 
     expect(bid).toBeDefined();
     expect(bid.evaluationIds).toEqual([]);
     expect(bid.evidence.renderForFrame()).toContain('grey');
+});
+
+test('14. immediate and deferred mismatches raise bids through the same configured bidder', async () => {
+    const regionBid = region.querySelector('[name="region-bid"]');
+    const actBid = act.querySelector('[name="act-bid"]');
+    for (const el of [regionBid, actBid]) {
+        el.setAttribute('mismatchWeight', '0.95');
+        el.setAttribute('expectedFloor', '0.8');
+    }
+
+    const pred = liveExpect(makePrediction());
+    const offer = region.registerSource(source);
+    armActId(pred.actId);
+    const membrane = await offer({ changeMagnitude: 0.2, changeKey: 'mm-membrane', occurredAt: Date.now() },
+        () => MISMATCH_TEXT);
+    expect(membrane.signals.predictionMismatch).toBe(1);
+    expect(membrane.signals.changeMagnitude).toBe(0.2);
+    expect(membrane.salience).toBe(0.95);
+
+    act._registerCapability({
+        name: 'imm-mismatch',
+        description: 'fixture',
+        parameters: { type: 'object', properties: { q: { type: 'string' } }, required: ['q'] },
+        felt: 'reach',
+        execute: async () => ({ experience: MISMATCH_TEXT, salience: 0.2 }),
+    });
+    const bids = [];
+    mind.addEventListener('interrupt-request', e => {
+        if (e.detail instanceof AttentionBid) bids.push(e.detail);
+    });
+    await act._execute(
+        { function: { name: 'imm-mismatch', arguments: JSON.stringify({ q: 'sky', expect: FIXTURE }) } },
+        { gist: 'look' },
+    );
+    const immediate = await waitUntil(() => bids.find(b => b.evidence?.reason === MISMATCH_TEXT
+        && b.signals.predictionMismatch === 1));
+    expect(immediate.signals.changeMagnitude).toBe(0.2);
+    expect(immediate.salience).toBe(0.95);
+
+    let seenCtx = null;
+    act._registerCapability({
+        name: 'defer-mismatch',
+        description: 'fixture',
+        parameters: { type: 'object', properties: { q: { type: 'string' } }, required: ['q'] },
+        felt: 'reach',
+        execute: async (_args, ctx) => {
+            seenCtx = ctx;
+            return { experience: '' };
+        },
+        predictionTarget: { eventType: 'Sense-terminal' },
+    });
+    await act._execute(
+        { function: { name: 'defer-mismatch', arguments: JSON.stringify({ q: 'sky', expect: FIXTURE }) } },
+        { gist: 'run' },
+    );
+    const before = bids.length;
+    terminal._dispatch({
+        experience: MISMATCH_TEXT,
+        salience: 0.2,
+        urgent: true,
+        type: 'Sense-terminal',
+        actId: seenCtx.actId,
+    });
+    const deferred = await waitUntil(() => bids.slice(before).find(b => String(b.type).startsWith('Sense-terminal')
+        && b.signals.predictionMismatch === 1));
+    expect(deferred.signals.changeMagnitude).toBe(0.2);
+    expect(deferred.salience).toBe(0.95);
+});
+
+test('owner-local: a region bidder does not bind for m-act', async () => {
+    act.querySelector('[name="act-bid"]').remove();
+    region.querySelector('[name="region-bid"]').setAttribute('mismatchWeight', '0.95');
+    act._registerCapability({
+        name: 'no-act-bidder',
+        description: 'fixture',
+        parameters: { type: 'object', properties: { q: { type: 'string' } }, required: ['q'] },
+        felt: 'reach',
+        execute: async () => ({ experience: MISMATCH_TEXT, salience: 0.2 }),
+    });
+    const bids = [];
+    mind.addEventListener('interrupt-request', e => {
+        if (e.detail instanceof AttentionBid) bids.push(e.detail);
+    });
+    await act._execute(
+        { function: { name: 'no-act-bidder', arguments: JSON.stringify({ q: 'sky', expect: FIXTURE }) } },
+        { gist: 'look' },
+    );
+    const actBid = await waitUntil(() => bids.find(b => b.evidence?.reason === MISMATCH_TEXT));
+    expect(actBid.signals.predictionMismatch).toBeNull();
+    expect(actBid.salience).toBe(0.2);
+
+    const pred = liveExpect(makePrediction());
+    const offer = region.registerSource(source);
+    armActId(pred.actId);
+    const membrane = await offer({ changeMagnitude: 0.2, changeKey: 'region-only', occurredAt: Date.now() },
+        () => MISMATCH_TEXT);
+    expect(membrane.signals.predictionMismatch).toBe(1);
+    expect(membrane.salience).toBe(0.95);
+});
+
+test('16. missing evaluation is null on the membrane; mismatch does not replace changeMagnitude', async () => {
+    const offer = region.registerSource(source);
+    const none = await offer(header('none'), () => 'no live prediction here');
+    expect(none.signals.predictionMatch).toBeNull();
+    expect(none.signals.predictionMismatch).toBeNull();
+    expect(none.signals.changeMagnitude).toBe(0.9);
+
+    region.querySelector('[name="region-bid"]').setAttribute('mismatchWeight', '0.5');
+    const pred = liveExpect(makePrediction());
+    armActId(pred.actId);
+    const mismatch = await offer(header('mm16'), () => MISMATCH_TEXT);
+    expect(mismatch.signals.changeMagnitude).toBe(0.9);
+    expect(mismatch.signals.predictionMismatch).toBe(1);
+    expect(mismatch.salience).toBe(0.9);
+});
+
+test('17. invalid custom bidder output refuses the bid', async () => {
+    const bidder = region.querySelector('[name="region-bid"]');
+    bidder.createBid = ({ evidence }) => new AttentionBid({
+        evidence: new Percept({
+            sourceId: 'other',
+            record: new InterruptRecord({
+                source: 'External', type: 'Sense-other', reason: 'forged evidence', salience: 1,
+            }),
+            gateTrail: [
+                new GateVerdict({ stage: 'acquisition', permitted: true, reason: 'open',
+                    apertureState: 'open', gate: 'outside' }),
+                new GateVerdict({ stage: 'awareness', permitted: true, reason: 'tier-0-mirror',
+                    apertureState: 'open', gate: 'outside' }),
+            ],
+        }),
+        signals: expectedBidSignals({ evidence, populatePrediction: false }),
+    });
+    const refusals = [];
+    const origPub = region.pub.bind(region);
+    region.pub = (topic, data) => {
+        if (topic === 'bidRefusal') refusals.push(data);
+        return origPub(topic, data);
+    };
+    const bids = [];
+    mind.addEventListener('interrupt-request', e => {
+        if (e.detail instanceof AttentionBid) bids.push(e.detail);
+    });
+    const offer = region.registerSource(source);
+    const result = await offer(header('forge'), () => 'still admitted text');
+    expect(result).toBeNull();
+    expect(bids).toHaveLength(0);
+    expect(refusals).toHaveLength(1);
+    expect(refusals[0].evidenceId).toMatch(UUID);
+    expect(JSON.stringify(refusals)).not.toContain('still admitted text');
 });

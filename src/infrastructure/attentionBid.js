@@ -14,12 +14,35 @@ function copyTrail(gainTrail) {
     return gainTrail.map(entry => Object.freeze({ gate: entry.gate, factor: entry.factor }));
 }
 
-function freezeSignals(signals) {
+function optionalUnit(name, value) {
+    if (value === undefined) return null;
+    if (value === null) return null;
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1) {
+        throw new Error(`${name} must be a number in [0, 1] or null, got ${value}`);
+    }
+    return value;
+}
+
+/** Independent signal set. Unset optional slots are null, never 0-as-match. */
+export function independentSignals({
+    changeMagnitude, requested, novelty = null,
+    predictionMatch = null, predictionMismatch = null,
+    targetMatch = null, causalAttribution = null, confidence = null,
+} = {}) {
     return Object.freeze({
-        changeMagnitude: signals.changeMagnitude,
-        requested: signals.requested,
-        novelty: signals.novelty === undefined ? null : signals.novelty,
+        changeMagnitude,
+        requested,
+        novelty: novelty === undefined ? null : novelty,
+        predictionMatch: optionalUnit('predictionMatch', predictionMatch),
+        predictionMismatch: optionalUnit('predictionMismatch', predictionMismatch),
+        targetMatch: optionalUnit('targetMatch', targetMatch),
+        causalAttribution: optionalUnit('causalAttribution', causalAttribution),
+        confidence: optionalUnit('confidence', confidence),
     });
+}
+
+function freezeSignals(signals) {
+    return independentSignals(signals ?? {});
 }
 
 function freezeEvaluationIds(evaluationIds) {
@@ -31,13 +54,25 @@ function freezeEvaluationIds(evaluationIds) {
     }));
 }
 
+function hide(object, key, value) {
+    Object.defineProperty(object, key, {
+        value,
+        enumerable: false,
+        writable: false,
+        configurable: false,
+    });
+}
+
 /** The mutable competition record. The percept is the evidence; this is the bid
  * on it. Nested arbiters append a gain-trail entry and recompute `salience`
- * through decideBid with the signal set and floor stored at issue; they never
+ * through decideBid with the signal set and floors stored at issue; they never
  * write the evidence. A bid has its own `id`; receipts credit `evidenceId`
  * (the percept id). */
 export class AttentionBid {
-    constructor({ evidence, gainTrail = [], signals, requestedFloor = 0, evaluationIds = [] } = {}) {
+    constructor({
+        evidence, gainTrail = [], signals, requestedFloor = 0,
+        expectedFloor = 0, mismatchWeight = 0, evaluationIds = [],
+    } = {}) {
         if (!(evidence instanceof Percept)) throw new Error('An attention bid needs Percept evidence');
         this.id = randomUUID();
         this.evidenceId = evidence.id;
@@ -52,30 +87,24 @@ export class AttentionBid {
             changeMagnitude: evidence.salience,
             requested: evidence.requestId != null,
             novelty: null,
+            predictionMatch: null,
+            predictionMismatch: null,
+            targetMatch: null,
+            causalAttribution: null,
+            confidence: null,
         });
-        Object.defineProperty(this, 'evidence', {
-            value: evidence,
-            enumerable: false,
-            writable: false,
-            configurable: false,
-        });
-        Object.defineProperty(this, 'signals', {
-            value: signalSet,
-            enumerable: false,
-            writable: false,
-            configurable: false,
-        });
-        Object.defineProperty(this, 'requestedFloor', {
-            value: requestedFloor,
-            enumerable: false,
-            writable: false,
-            configurable: false,
-        });
+        hide(this, 'evidence', evidence);
+        hide(this, 'signals', signalSet);
+        hide(this, 'requestedFloor', requestedFloor);
+        hide(this, 'expectedFloor', expectedFloor);
+        hide(this, 'mismatchWeight', mismatchWeight);
         this.salience = decideBid({
             evidence,
             signals: signalSet,
             gainTrail: this.gainTrail,
             requestedFloor,
+            expectedFloor,
+            mismatchWeight,
         });
         for (const key of DELEGATED) {
             Object.defineProperty(this, key, {
@@ -87,7 +116,7 @@ export class AttentionBid {
     }
 
     /** Recompute gained salience through decideBid with the stored signals
-     * and the floor used at issue, times the updated trail. Multiplying
+     * and the floors used at issue, times the updated trail. Multiplying
      * evidence.salience alone would wipe a requested floor on a zero-change
      * sample. Arbiter factors may be > 1; they are competition, not enclosure,
      * so they must not go through pushGainTrail. decideBid clamps after each
@@ -98,6 +127,8 @@ export class AttentionBid {
             signals: this.signals,
             gainTrail: this.gainTrail,
             requestedFloor: this.requestedFloor,
+            expectedFloor: this.expectedFloor,
+            mismatchWeight: this.mismatchWeight,
         });
         return this.salience;
     }

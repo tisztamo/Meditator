@@ -193,6 +193,18 @@ export function part(root, role) {
     return found
 }
 
+/**
+ * Nearest issuing owner for an owner-local bidder: a sensory aperture, or an
+ * `m-act`. Nested region/act interiors do not bind for an ancestor.
+ */
+export function bidOwnerOf(el) {
+    for (let cur = el?.parentElement; cur && cur.nodeType === 1; cur = cur.parentElement) {
+        if (providesOf(cur, 'aperture') || cur.localName === 'm-act') return cur
+        if (isMembrane(cur)) break
+    }
+    return null
+}
+
 /** Whether `el`'s tag has been `customElements.define`d.
  * `customElements.upgrade()` is a no-op until then — it cannot define a tag. */
 export function isCustomElementDefined(el) {

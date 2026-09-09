@@ -177,29 +177,49 @@ export function pushGainTrail(trail, gate, factor) {
     trail.push(Object.freeze({ gate, factor }));
 }
 
+function requireUnitWeight(name, value) {
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1) {
+        throw new Error(`${name} must be a number in [0, 1], got ${value}`);
+    }
+    return value;
+}
+
+/** Treat null/missing prediction signals as 0 in the formula; a present value
+ * must be a finite number in [0, 1]. */
+function predictionTerm(name, value) {
+    if (value == null) return 0;
+    return requireUnitWeight(name, value);
+}
+
 /** Pure bidding policy. Independent signals, never merged upstream.
  *
- * Weight is `clamp01(max(changeMagnitude, requested ? requestedFloor : 0))`.
- * Each gain-trail factor then multiplies and is clamped to [0, 1], matching
+ * Base is clamp01(max(
+ *   changeMagnitude,
+ *   requested ? requestedFloor : 0,
+ *   predictionMatch * expectedFloor,
+ *   predictionMismatch * mismatchWeight
+ * )). Each gain-trail factor then multiplies and is clamped to [0, 1], matching
  * nested promotion (`salience = clamp(salience * gain)` per hop). Enclosure
  * factors are ≤ 1; arbiter factors may be > 1. A single unclamped product
  * would let 0.8 × 2 exceed 1 and would make mixed amplification/attenuation
  * disagree with hop order.
  *
  * `requested` is acquisition lineage — the observation answers a sample/detail
- * the mind issued — not a prediction and not causal attribution. `requestedFloor`
- * defaults to 0 so this refactor does not retune: max(x, 0) times identity trail
- * is x. The attribute on the issuing aperture is the route; choosing the number
- * is later. `novelty` is part of the signal set and ignored; no producer in
- * this phase. No DOM, no component state. `requestedFloor` is an argument, not
- * read from an element. Nonsense floors (not a number, or outside [0, 1]) throw. */
-export function decideBid({ evidence, signals, gainTrail = [], requestedFloor = 0 } = {}) {
-    if (typeof requestedFloor !== 'number' || !Number.isFinite(requestedFloor)
-        || requestedFloor < 0 || requestedFloor > 1) {
-        throw new Error(`requestedFloor must be a number in [0, 1], got ${requestedFloor}`);
-    }
+ * the mind issued — not a prediction and not causal attribution. Floors
+ * (`requestedFloor`, `expectedFloor`, `mismatchWeight`) default to 0 so this
+ * does not retune: max(x, 0, 0, 0) times identity trail is x. `novelty`,
+ * `targetMatch`, `causalAttribution`, and `confidence` are stored and ignored;
+ * phase 3A produces only prediction match/mismatch. No DOM, no component state.
+ * Floors are arguments, not read from an element. Nonsense floors throw. */
+export function decideBid({
+    evidence, signals, gainTrail = [], requestedFloor = 0,
+    expectedFloor = 0, mismatchWeight = 0,
+} = {}) {
+    requireUnitWeight('requestedFloor', requestedFloor);
+    requireUnitWeight('expectedFloor', expectedFloor);
+    requireUnitWeight('mismatchWeight', mismatchWeight);
     if (signals == null || typeof signals !== 'object') {
-        throw new Error('decideBid needs independent signals { changeMagnitude, requested, novelty }');
+        throw new Error('decideBid needs independent signals { changeMagnitude, requested, novelty, predictionMatch, predictionMismatch, targetMatch, causalAttribution, confidence }');
     }
     const { changeMagnitude, requested } = signals;
     if (typeof changeMagnitude !== 'number' || !Number.isFinite(changeMagnitude)) {
@@ -209,8 +229,10 @@ export function decideBid({ evidence, signals, gainTrail = [], requestedFloor = 
         throw new Error('decideBid.requested is a boolean (acquisition lineage)');
     }
     if (!Array.isArray(gainTrail)) throw new Error('gain trail is a list');
-    const floor = requested ? requestedFloor : 0;
-    let salience = Math.max(0, Math.min(1, Math.max(changeMagnitude, floor)));
+    const requestedTerm = requested ? requestedFloor : 0;
+    const matchTerm = predictionTerm('predictionMatch', signals.predictionMatch) * expectedFloor;
+    const mismatchTerm = predictionTerm('predictionMismatch', signals.predictionMismatch) * mismatchWeight;
+    let salience = Math.max(0, Math.min(1, Math.max(changeMagnitude, requestedTerm, matchTerm, mismatchTerm)));
     for (const entry of gainTrail) {
         const factor = entry?.factor;
         if (typeof factor !== 'number' || !Number.isFinite(factor)) {

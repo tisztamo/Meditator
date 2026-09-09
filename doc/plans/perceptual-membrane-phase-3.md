@@ -17,10 +17,10 @@ row 5 — leaving that row's cadence-control gap open — and a real producer to
 2; it deliberately leaves processing tiers 1–2 (row 6) open.
 
 **Implementation is split.** The focused
-[phase 3A plan](perceptual-membrane-phase-3a.md) lands prediction, comparison,
-and bidding first, then stops for review. Orientation and search remain the
-phase 3B direction in this roadmap; they do not belong on the 3A implementation
-branch.
+[phase 3A plan](perceptual-membrane-phase-3a.md) is implemented (2026-09-09):
+prediction, comparison, and bidding. Orientation and search remain the
+phase 3B direction in this roadmap; they are not implemented and do not belong
+on the landed 3A seams.
 
 The constraining companions are
 [prediction, mismatch, and top-down search](../improvements/prediction-mismatch.md)

@@ -841,7 +841,9 @@ test('12. requested route: default floor leaves a zero-change sample inaudible',
     }));
     await delay(5);
     expect(bids).toHaveLength(1);
-    expect(bids[0].signals).toEqual({ changeMagnitude: 0, requested: true, novelty: null });
+    expect(bids[0].signals).toEqual({ changeMagnitude: 0, requested: true, novelty: null,
+        predictionMatch: null, predictionMismatch: null,
+        targetMatch: null, causalAttribution: null, confidence: null });
     expect(bids[0].requestedFloor).toBe(0);
     expect(bids[0].salience).toBeCloseTo(0);
     expect(AttentionBid.evidenceOf(bids[0]).salience).toBe(0);
@@ -875,6 +877,8 @@ test('12. requested route: requestedFloor 0.5 carries a zero-change sample and c
     expect(bids[0].signals.changeMagnitude).toBe(0);
     expect(bids[0].signals.requested).toBe(true);
     expect(bids[0].signals.novelty).toBeNull();
+    expect(bids[0].signals.predictionMatch).toBeNull();
+    expect(bids[0].signals.predictionMismatch).toBeNull();
     expect(bids[0].requestedFloor).toBe(0.5);
     expect(bids[0].salience).toBeCloseTo(0.5);
     expect(AttentionBid.evidenceOf(bids[0]).salience).toBe(0);
@@ -894,7 +898,9 @@ test('12. requested route: requestedFloor 0.5 carries a zero-change sample and c
 
     const spontaneous = await offer({ changeMagnitude: 0, changeKey: 'unasked', occurredAt: Date.now() },
         () => 'Still unchanged, and unasked.');
-    expect(spontaneous.signals).toEqual({ changeMagnitude: 0, requested: false, novelty: null });
+    expect(spontaneous.signals).toEqual({ changeMagnitude: 0, requested: false, novelty: null,
+        predictionMatch: null, predictionMismatch: null,
+        targetMatch: null, causalAttribution: null, confidence: null });
     expect(spontaneous.salience).toBeCloseTo(0);
     expect(global.takePending()).toHaveLength(0);
 });

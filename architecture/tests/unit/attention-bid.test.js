@@ -104,6 +104,8 @@ test('delegated read surface is not a second Percept; salience is the gained val
     expect(Object.keys(bid)).not.toContain('evidence');
     expect(Object.keys(bid)).not.toContain('signals');
     expect(JSON.stringify(bid)).not.toContain('requestedFloor');
+    expect(JSON.stringify(bid)).not.toContain('expectedFloor');
+    expect(JSON.stringify(bid)).not.toContain('mismatchWeight');
 });
 
 test('recomputeSalience reapplies decideBid so a requested floor survives nested gain', () => {
@@ -135,7 +137,9 @@ test('recomputeSalience reapplies decideBid so a requested floor survives nested
     bid.recomputeSalience();
     expect(bid.salience).toBeCloseTo(0.5);
     expect(evidence.salience).toBe(0);
-    expect(bid.signals).toEqual({ changeMagnitude: 0, requested: true, novelty: null });
+    expect(bid.signals).toEqual({ changeMagnitude: 0, requested: true, novelty: null,
+        predictionMatch: null, predictionMismatch: null,
+        targetMatch: null, causalAttribution: null, confidence: null });
     expect(bid.requestedFloor).toBe(0.5);
 });
 
@@ -146,9 +150,35 @@ test('legacy from(InterruptRecord) derives default signals and floor 0', () => {
     expect(passed.salience).toBeCloseTo(0.8);
     expect(passed.signals).toEqual({
         changeMagnitude: 0.8, requested: false, novelty: null,
+        predictionMatch: null, predictionMismatch: null,
+        targetMatch: null, causalAttribution: null, confidence: null,
     });
     expect(passed.requestedFloor).toBe(0);
     passed.gainTrail.push(Object.freeze({ gate: 'faculty', factor: 0.5 }));
     passed.recomputeSalience();
     expect(passed.salience).toBeCloseTo(0.4);
+});
+
+test('15. extra null signals and zero prediction weights leave nested gain bit-for-bit', () => {
+    const evidence = evidenceAt(0.8);
+    const bid = new AttentionBid({
+        evidence,
+        gainTrail: [{ gate: 'outside', factor: 0.5 }],
+        signals: {
+            changeMagnitude: 0.8, requested: false, novelty: null,
+            predictionMatch: null, predictionMismatch: null,
+            targetMatch: null, causalAttribution: null, confidence: null,
+        },
+        expectedFloor: 0,
+        mismatchWeight: 0,
+    });
+    expect(bid.salience).toBe(0.4);
+    bid.gainTrail.push(Object.freeze({ gate: 'loud', factor: 2 }));
+    bid.recomputeSalience();
+    expect(bid.salience).toBe(0.8);
+    expect(bid.expectedFloor).toBe(0);
+    expect(bid.mismatchWeight).toBe(0);
+    expect(bid.signals.predictionMatch).toBeNull();
+    expect(bid.signals.predictionMismatch).toBeNull();
+    expect(evidence.salience).toBe(0.8);
 });

@@ -1,8 +1,8 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
-import { enclosingOf, enclosingAllOf, isMembrane, providesOf, isCustomElementDefined, part } from "../shared/enclosure.js"
+import { enclosingOf, enclosingAllOf, isMembrane, providesOf, isCustomElementDefined, part, bidOwnerOf } from "../shared/enclosure.js"
 import { Aperture } from '../../infrastructure/aperture.js'
 import { Percept, PerceptCandidate } from '../../infrastructure/percept.js'
-import { AttentionBid } from '../../infrastructure/attentionBid.js'
+import { issueOwnerBid } from '../../infrastructure/bidderPolicy.js'
 import { SourceContract, AnnotatedCandidate, decideGate, GateVerdict, ControlRequest, RenditionRequest, PerceptReceipt, Evaluation, pushGainTrail } from '../../infrastructure/perceptionContracts.js'
 import { InterruptRecord } from '../../infrastructure/interruptRecord.js'
 import { parseTime } from '../../config/timeParser.js'
@@ -83,8 +83,9 @@ export function gateIdOf(el) {
  *   second pass of the same event after materialization, not a capture-phase veto
  *   on interrupt-request. The offer path issues an AttentionBid wrapping a frozen
  *   Percept; aperture gain lives on the bid's trail, not on the evidence. decideBid
- *   reads { changeMagnitude, requested, novelty } separately — the floor is applied
- *   there, not merged upstream.
+ *   reads independent signals separately — floors are applied there, not merged
+ *   upstream. Interior role `bidder` is owner-local (`part(region, 'bidder')`);
+ *   absent one, prediction slots stay null and new weights stay 0.
  * Aperture providers form a tree (`_children`), not a graph: each source and each
  * child provider registers with the nearest enclosing aperture only, in both
  * directions (announce on connect, plus an interior scan so connect order does
@@ -342,20 +343,20 @@ export class MRegion extends MBaseComponent {
                 })
                 this._publishDecision(awareness, annotated)
                 if (!awareness.permitted) return null
+                if (evaluations.length) this._commitEvaluations(evaluations, percept)
+                const bid = issueOwnerBid({
+                    bidder: this._liveBidder(),
+                    evidence: percept,
+                    evaluations,
+                    gainTrail: detail.gainTrail,
+                    requestedFloor: this._requestedFloor(),
+                })
+                if (!bid) {
+                    this.pub('bidRefusal', { evidenceId: percept.id, reason: 'invalid-bidder' })
+                    return null
+                }
                 const issuedAt = Date.parse(percept.dateTime)
                 this._recordIssued(percept.id, Number.isFinite(issuedAt) ? issuedAt : Date.now())
-                if (evaluations.length) this._commitEvaluations(evaluations, percept)
-                const bid = new AttentionBid({
-                    evidence: percept,
-                    gainTrail: detail.gainTrail,
-                    signals: {
-                        changeMagnitude: candidate.changeMagnitude,
-                        requested: candidate.requestId != null,
-                        novelty: null,
-                    },
-                    requestedFloor: this._requestedFloor(),
-                    evaluationIds: evaluationIdsOf(evaluations),
-                })
                 element.dispatchEvent(new CustomEvent('interrupt-request', { bubbles: true, detail: bid }))
                 return bid
             } finally {
@@ -534,6 +535,17 @@ export class MRegion extends MBaseComponent {
         if (!el) return null
         if (isCustomElementDefined(el)) customElements.upgrade(el)
         if (typeof el.accepts !== 'function' || typeof el.evaluate !== 'function') return null
+        return el
+    }
+
+    /** Owner-local: a bidder under this region, not under a nested aperture or m-act. */
+    _liveBidder() {
+        const found = this.part('bidder').filter(el => bidOwnerOf(el) === this)
+        if (found.length > 1) throw new Error(`a region may have only one bidder (${this._gateId()})`)
+        const el = found[0]
+        if (!el) return null
+        if (isCustomElementDefined(el)) customElements.upgrade(el)
+        if (typeof el.createBid !== 'function') return { createBid() { throw new Error('bidder is missing createBid') } }
         return el
     }
 
