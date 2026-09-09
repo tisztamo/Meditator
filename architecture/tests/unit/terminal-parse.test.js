@@ -3,7 +3,9 @@
 // executing anything. The dangerous code is small and impure (runScript); everything
 // here is pure and locked down by these tests.
 import { test, expect } from "bun:test";
-import { screenToExperience, stripAnsi } from "../../../src/mindComponents/shared/mTerminal.js";
+import { MTerminal, screenToExperience, stripAnsi } from "../../../src/mindComponents/shared/mTerminal.js";
+import { InterruptRecord } from "../../../src/infrastructure/interruptRecord.js";
+import { AttentionBid } from "../../../src/infrastructure/attentionBid.js";
 import {
     assembleCommand, scrubbedEnv, interpreterFor,
     parseSizeKb, parseSizeBytes, toSeconds,
@@ -167,4 +169,26 @@ test("size and time parsers", () => {
     expect(interpreterFor("python")).toBe("python3");
     expect(interpreterFor("bash")).toBe("bash");
     expect(() => interpreterFor("ruby")).toThrow();
+});
+
+test("_dispatch fires a trusted InterruptRecord whose urgency survives AttentionBid.from", () => {
+    const el = document.createElement("m-terminal");
+    expect(el).toBeInstanceOf(MTerminal);
+    const captured = [];
+    el.addEventListener("interrupt-request", e => captured.push(e.detail));
+    el._dispatch({
+        experience: "I run it, and the screen answers: `42`.",
+        salience: 0.7,
+        urgent: true,
+        type: "Sense-terminal",
+    });
+    expect(captured).toHaveLength(1);
+    expect(captured[0]).toBeInstanceOf(InterruptRecord);
+    expect(captured[0].source).toBe("External");
+    expect(captured[0].type).toBe("Sense-terminal");
+    expect(captured[0].reason).toBe("I run it, and the screen answers: `42`.");
+    expect(captured[0].urgent).toBe(true);
+    const bid = AttentionBid.from(captured[0]);
+    expect(bid.urgent).toBe(true);
+    expect(bid.evidence.policy.preempt).toBe(true);
 });

@@ -13,6 +13,8 @@ import path from "node:path";
 import { delay } from "./setup.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
 import { probeBackend, resetBackendProbe } from "../../../src/infrastructure/sandbox.js";
+import { InterruptRecord } from "../../../src/infrastructure/interruptRecord.js";
+import { AttentionBid } from "../../../src/infrastructure/attentionBid.js";
 
 let mind, act, terminal, memory, journalDir, workspaceDir, savedDry, savedBackend;
 let BACKEND = "none";
@@ -79,6 +81,29 @@ afterAll(() => {
 test("a backend was probed on this host (informational)", () => {
     expect(["bwrap", "unshare", "none"]).toContain(BACKEND);
     if (BACKEND === "none") console.warn("No sandbox backend on this host — real-exec terminal tests are skipped.");
+});
+
+test("deferred _dispatch is a trusted InterruptRecord whose urgency survives the arbiter", () => {
+    const captured = [];
+    const onReq = e => captured.push(e.detail);
+    terminal.addEventListener("interrupt-request", onReq);
+    try {
+        terminal._dispatch({
+            experience: "I run it, and the screen answers: `42`.",
+            salience: 0.7,
+            urgent: true,
+            type: "Sense-terminal",
+        });
+    } finally {
+        terminal.removeEventListener("interrupt-request", onReq);
+    }
+    expect(captured).toHaveLength(1);
+    expect(captured[0]).toBeInstanceOf(InterruptRecord);
+    expect(captured[0].reason).toBe("I run it, and the screen answers: `42`.");
+    expect(captured[0].type).toBe("Sense-terminal");
+    const bid = AttentionBid.from(captured[0]);
+    expect(bid.urgent).toBe(true);
+    expect(bid.evidence.policy.preempt).toBe(true);
 });
 
 test("the terminal hand registers as WORLD-CHANGING when a backend exists (else stays inert)", () => {
@@ -173,10 +198,14 @@ test("SLOW path: a long run reassures now (ambient) and DELIVERS the result late
     // …then, bursts later, the result arrives on its own through the afferent bus.
     const deferred = await waitForConsequence(before, 4000);
     expect(deferred).toBeDefined();
+    expect(deferred).toBeInstanceOf(InterruptRecord);
     expect(deferred.type).toBe("Sense-terminal");
     expect(deferred.reason).toMatch(/the late answer is 42/);
     expect(deferred.urgent).toBe(true);                 // urgent, as m-recall is (§2)
     expect(deferred.reason).not.toMatch(MECHANISM);
+    const bid = AttentionBid.from(deferred);
+    expect(bid.urgent).toBe(true);
+    expect(bid.evidence.policy.preempt).toBe(true);
     terminal.setAttribute("grace", "2s");
 });
 

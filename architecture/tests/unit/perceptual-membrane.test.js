@@ -2,6 +2,7 @@ import { test, expect } from 'bun:test';
 import { Aperture } from '../../../src/infrastructure/aperture.js';
 import { Percept, PerceptCandidate } from '../../../src/infrastructure/percept.js';
 import { InterruptRecord, withPerceivedEvents } from '../../../src/infrastructure/interruptRecord.js';
+import { AttentionBid } from '../../../src/infrastructure/attentionBid.js';
 import { EdgeEvidence, legacyCompatibility, legacyProvenance, RenditionRequest, PerceptReceipt } from '../../../src/infrastructure/perceptionContracts.js';
 
 const unusedMaterializer = () => 'x';
@@ -267,4 +268,24 @@ test('aperture bypass, admission bypass, and preemption remain independent', () 
         policy: { bypassAdmission: true } });
     expect(percept.urgent).toBe(false);
     expect(percept.policy.bypassAdmission).toBe(true);
+});
+
+test('deferred terminal urgency survives at the arbiter, not merely in its raw event', () => {
+    const fields = {
+        source: 'External', type: 'Sense-terminal',
+        reason: 'I run it, and the screen answers: `42`.', salience: 0.7, urgent: true,
+    };
+    const trusted = Percept.fromInterrupt(new InterruptRecord(fields));
+    expect(trusted.urgent).toBe(true);
+    expect(trusted.policy.preempt).toBe(true);
+    const trustedBid = AttentionBid.from(new InterruptRecord(fields));
+    expect(trustedBid.urgent).toBe(true);
+    expect(trustedBid.evidence.policy.preempt).toBe(true);
+
+    const coerced = Percept.fromInterrupt({ ...fields });
+    expect(coerced.urgent).toBe(false);
+    expect(coerced.policy.preempt).toBe(false);
+    const coercedBid = AttentionBid.from({ ...fields });
+    expect(coercedBid.urgent).toBe(false);
+    expect(coercedBid.evidence.policy.preempt).toBe(false);
 });
