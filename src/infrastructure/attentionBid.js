@@ -22,19 +22,29 @@ function freezeSignals(signals) {
     });
 }
 
+function freezeEvaluationIds(evaluationIds) {
+    if (evaluationIds == null) return Object.freeze([]);
+    if (!Array.isArray(evaluationIds)) throw new Error('evaluationIds is a list of ids');
+    return Object.freeze(evaluationIds.map(id => {
+        if (typeof id !== 'string' || !id) throw new Error('evaluationIds is a list of ids');
+        return id;
+    }));
+}
+
 /** The mutable competition record. The percept is the evidence; this is the bid
  * on it. Nested arbiters append a gain-trail entry and recompute `salience`
  * through decideBid with the signal set and floor stored at issue; they never
  * write the evidence. A bid has its own `id`; receipts credit `evidenceId`
  * (the percept id). */
 export class AttentionBid {
-    constructor({ evidence, gainTrail = [], signals, requestedFloor = 0 } = {}) {
+    constructor({ evidence, gainTrail = [], signals, requestedFloor = 0, evaluationIds = [] } = {}) {
         if (!(evidence instanceof Percept)) throw new Error('An attention bid needs Percept evidence');
         this.id = randomUUID();
         this.evidenceId = evidence.id;
         this.createdAt = new Date().toISOString();
         this.gainTrail = copyTrail(gainTrail);
         this.decisions = [];
+        this.evaluationIds = freezeEvaluationIds(evaluationIds);
         this.urgent = evidence.policy.preempt === true;
         this.bypassAdmission = evidence.policy.bypassAdmission === true;
         this.infoton = evidence.infoton;

@@ -12,8 +12,16 @@ import { Percept } from '../../infrastructure/percept.js';
 import { AttentionBid } from '../../infrastructure/attentionBid.js';
 import {
     Prediction, firePrediction, firePredictionSettlement, expirePrediction, cancelPrediction,
-    MAX_PREDICTION_LIFETIME_MS,
+    MAX_PREDICTION_LIFETIME_MS, predictionSettlement, EVALUATION_COMMIT_EVENT,
+    evaluationCommitPayload, fireEvaluationCommit,
 } from '../../infrastructure/predictionContracts.js';
+import { Evaluation } from '../../infrastructure/perceptionContracts.js';
+import { projectEvidenceFromPercept } from '../../infrastructure/evidenceView.js';
+import {
+    CompareBudget, CommitOrder, asEvaluations, compareDeadlineMs, evaluationIdsOf, verdictsOf,
+    awaitUntilAbort, DEFAULT_COMPARE_DEADLINE_MS,
+} from '../../infrastructure/compareContinuation.js';
+import { part } from "./enclosure.js";
 import { mindHome } from '../../infrastructure/memoryVault.js';
 import { parseTime } from '../../config/timeParser.js';
 import { logger } from '../../infrastructure/logger.js';
@@ -134,6 +142,10 @@ export class MAct extends MObserver {
     _memRecent = ""
     _memStory = ""
     _liveActs = new Map() // actId → { prediction, validUntilMs, timer }
+    _compareBudget = new CompareBudget()
+    _actCommit = new Map()
+    _compareAborts = new Set()
+    _compareBindGen = 0
 
     onObserverConnect() {
         // Interoception, gated: a tired or near-broke mind does not reach. Tracks the
@@ -528,13 +540,29 @@ export class MAct extends MObserver {
         if (this._predictionListener) return
         this._predictionListener = this._onLiveConsequence
         this.addEventListener("interrupt-request", this._predictionListener)
+        const mind = this.membrane()
+        this._commitHost = mind
+        if (mind && !this._evaluationCommitListener) {
+            this._evaluationCommitListener = this._onEvaluationCommit
+            mind.addEventListener(EVALUATION_COMMIT_EVENT, this._evaluationCommitListener)
+        }
     }
 
     _teardownPrediction(reason = "disconnect") {
+        this._compareBindGen = (this._compareBindGen || 0) + 1
+        for (const controller of this._compareAborts) {
+            try { controller.abort() } catch { /* cooperative */ }
+        }
+        this._compareAborts.clear()
         if (this._predictionListener) {
             this.removeEventListener("interrupt-request", this._predictionListener)
             this._predictionListener = null
         }
+        if (this._commitHost && this._evaluationCommitListener) {
+            this._commitHost.removeEventListener(EVALUATION_COMMIT_EVENT, this._evaluationCommitListener)
+        }
+        this._evaluationCommitListener = null
+        this._commitHost = null
         for (const actId of [...this._liveActs.keys()]) this._cancelLiveAct(actId, reason)
     }
 
@@ -583,10 +611,9 @@ export class MAct extends MObserver {
     }
 
     /**
-     * Local claim of this act's live trusted consequences. Synchronous stop + convert
-     * + default bid, then redispatch from the parent so the mind arbiter still hears
-     * it and this listener cannot re-enter. AttentionBids pass through. Plain objects
-     * cannot steal lineage. No comparator / evaluation-commit here (A3).
+     * Local claim of this act's live trusted consequences. Synchronous stop + convert.
+     * Absent a comparator, redispatch the default bid immediately (A2). With one,
+     * compare asynchronously then revalidate and dispatch one finished bid.
      */
     _onLiveConsequence = event => {
         const detail = event.detail
@@ -596,10 +623,124 @@ export class MAct extends MObserver {
         if (typeof actId !== "string" || !actId || !this._liveAct(actId)) return
         event.stopPropagation()
         const percept = Percept.fromInterrupt(detail)
-        const bid = new AttentionBid({ evidence: percept })
+        const comparator = this._liveComparator()
+        if (!comparator) {
+            this._redispatchBid(new AttentionBid({ evidence: percept }))
+            return
+        }
+        const reserved = this._compareBudget.tryAcquire()
+        const bindGen = this._compareBindGen
+        const comparatorGen = comparator._bindGen
+        const ticket = this._orderForAct(actId).enqueue()
+        const controller = new AbortController()
+        this._compareAborts.add(controller)
+        const deadline = Date.now() + this._compareDeadlineMs()
+        const timer = setTimeout(() => controller.abort(), Math.max(0, deadline - Date.now()))
+        Promise.resolve().then(async () => {
+            let releasedBudget = !reserved
+            try {
+                const view = projectEvidenceFromPercept(percept)
+                let evaluations = []
+                if (reserved && typeof comparator.accepts === "function" && comparator.accepts(view)) {
+                    try {
+                        const raw = await awaitUntilAbort(comparator.evaluate(view, {
+                            now: Date.now(), deadline, signal: controller.signal,
+                        }), controller.signal)
+                        if (!controller.signal.aborted && Date.now() < deadline) {
+                            evaluations = asEvaluations(raw, Evaluation)
+                        }
+                    } catch {
+                        evaluations = []
+                    }
+                }
+                if (reserved && !releasedBudget) {
+                    this._compareBudget.release()
+                    releasedBudget = true
+                }
+                await ticket.wait()
+                if (!this.isConnected || this._compareBindGen !== bindGen) return
+                if (this._liveComparator() !== comparator || comparator._bindGen !== comparatorGen) return
+                if (this.membrane()?._sleeping) return
+                if (controller.signal.aborted || Date.now() >= deadline) evaluations = []
+                if (evaluations.length) {
+                    const predictionId = evaluations.find(e => e.subject?.kind === "prediction")?.subject?.id
+                        ?? this._liveAct(actId)?.prediction?.id ?? null
+                    fireEvaluationCommit(this, evaluationCommitPayload({
+                        evaluationIds: evaluationIdsOf(evaluations),
+                        verdicts: verdictsOf(evaluations),
+                        evidenceId: percept.id,
+                        actId,
+                        predictionId,
+                    }))
+                }
+                this._redispatchBid(new AttentionBid({
+                    evidence: percept,
+                    evaluationIds: evaluationIdsOf(evaluations),
+                }))
+            } finally {
+                clearTimeout(timer)
+                this._compareAborts.delete(controller)
+                if (!releasedBudget) this._compareBudget.release()
+                ticket.complete()
+            }
+        }).catch(() => {
+            clearTimeout(timer)
+            this._compareAborts.delete(controller)
+            if (reserved) this._compareBudget.release()
+            ticket.complete()
+        })
+    }
+
+    _redispatchBid(bid) {
         const host = this.parentElement
         if (host && typeof host.fire === "function") host.fire("interrupt-request", bid)
         else if (host) host.dispatchEvent(new CustomEvent("interrupt-request", { detail: bid, bubbles: true }))
+    }
+
+    _compareDeadlineMs() {
+        return compareDeadlineMs(this, DEFAULT_COMPARE_DEADLINE_MS)
+    }
+
+    _liveComparator() {
+        const mind = this.membrane()
+        if (!mind) return null
+        const found = part(mind, "comparator")
+        if (found.length > 1) throw new Error("a mind may have only one comparator")
+        const el = found[0]
+        if (!el) return null
+        if (typeof el.accepts !== "function" || typeof el.evaluate !== "function") return null
+        return el
+    }
+
+    _orderForAct(actId) {
+        let order = this._actCommit.get(actId)
+        if (!order) {
+            order = new CommitOrder()
+            this._actCommit.set(actId, order)
+        }
+        return order
+    }
+
+    _onEvaluationCommit = event => {
+        const commit = event.detail
+        if (!commit || typeof commit !== "object") return
+        const actId = commit.actId
+        if (typeof actId !== "string" || !actId) return
+        const entry = this._liveActs.get(actId)
+        if (!entry?.prediction) return
+        if (commit.predictionId && commit.predictionId !== entry.prediction.id) return
+        const verdicts = Array.isArray(commit.verdicts) ? commit.verdicts : []
+        const hasMismatch = verdicts.includes("mismatch")
+        const hasMatch = verdicts.includes("match")
+        if (!hasMismatch && !hasMatch) return
+        this._liveActs.delete(actId)
+        if (entry.timer) clearTimeout(entry.timer)
+        const status = hasMismatch ? "mismatched" : "matched"
+        firePredictionSettlement(this, predictionSettlement(entry.prediction, {
+            status,
+            evaluationIds: Array.isArray(commit.evaluationIds) ? commit.evaluationIds : [],
+            reason: status,
+        }))
     }
 
     /** Whether this mind splits read-only hands onto their own cooldown lane (P2). */

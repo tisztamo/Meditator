@@ -10,6 +10,9 @@ export const MAX_PREDICTION_LIFETIME_MS = 15 * 60 * 1000;
 export const PREDICTION_EVENT = 'prediction';
 export const PREDICTION_SETTLED_EVENT = 'prediction-settled';
 export const PREDICTION_DELIVERY = 'fire';
+export const EVALUATION_COMMIT_EVENT = 'evaluation-commit';
+export const EVALUATION_COMMIT_DELIVERY = 'fire';
+export const MAX_LIVE_PREDICTIONS = 32;
 
 export const PREDICTION_KIND = 'belief';
 export const PREDICTION_SETTLEMENT_STATUSES = Object.freeze([
@@ -166,4 +169,45 @@ export function firePredictionSettlement(host, settlement) {
         throw new Error('prediction events use fire(), not pub()');
     }
     return host.fire(PREDICTION_SETTLED_EVENT, settlement);
+}
+
+const COMMIT_VERDICTS = Object.freeze(['match', 'mismatch', 'insufficient']);
+
+function freezeIdList(name, ids = []) {
+    if (!Array.isArray(ids)) throw new Error(`${name} is a list of ids`);
+    return Object.freeze(ids.map(id => {
+        if (typeof id !== 'string' || !id) throw new Error(`${name} is a list of ids`);
+        return id;
+    }));
+}
+
+/** Id-only commit after an evidence owner revalidates. No expectation or archival text. */
+export function evaluationCommitPayload({
+    evaluationIds = [], verdicts = [], evidenceId, actId = null, predictionId = null,
+} = {}) {
+    const ids = freezeIdList('evaluationIds', evaluationIds);
+    const frozenVerdicts = Object.freeze(verdicts.map(verdict => {
+        if (!COMMIT_VERDICTS.includes(verdict)) throw new Error(`Unknown evaluation verdict: ${verdict}`);
+        return verdict;
+    }));
+    if (ids.length !== frozenVerdicts.length) {
+        throw new Error('evaluation-commit pairs each id with a verdict');
+    }
+    return Object.freeze({
+        evaluationIds: ids,
+        verdicts: frozenVerdicts,
+        evidenceId: evidenceId == null ? null : requireText('evidenceId', evidenceId),
+        actId: actId == null ? null : requireText('actId', actId),
+        predictionId: predictionId == null ? null : requireText('predictionId', predictionId),
+    });
+}
+
+export function fireEvaluationCommit(host, payload) {
+    const commit = payload && payload.evaluationIds && Object.isFrozen(payload)
+        ? payload
+        : evaluationCommitPayload(payload);
+    if (host == null || typeof host.fire !== 'function') {
+        throw new Error('evaluation-commit uses fire(), not pub()');
+    }
+    return host.fire(EVALUATION_COMMIT_EVENT, commit);
 }

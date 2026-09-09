@@ -1,11 +1,14 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
-import { enclosingOf, enclosingAllOf, isMembrane, providesOf, isCustomElementDefined } from "../shared/enclosure.js"
+import { enclosingOf, enclosingAllOf, isMembrane, providesOf, isCustomElementDefined, part } from "../shared/enclosure.js"
 import { Aperture } from '../../infrastructure/aperture.js'
 import { Percept, PerceptCandidate } from '../../infrastructure/percept.js'
 import { AttentionBid } from '../../infrastructure/attentionBid.js'
-import { SourceContract, AnnotatedCandidate, decideGate, GateVerdict, ControlRequest, RenditionRequest, PerceptReceipt, pushGainTrail } from '../../infrastructure/perceptionContracts.js'
+import { SourceContract, AnnotatedCandidate, decideGate, GateVerdict, ControlRequest, RenditionRequest, PerceptReceipt, Evaluation, pushGainTrail } from '../../infrastructure/perceptionContracts.js'
 import { InterruptRecord } from '../../infrastructure/interruptRecord.js'
 import { parseTime } from '../../config/timeParser.js'
+import { projectEvidenceView } from '../../infrastructure/evidenceView.js'
+import { CompareBudget, CommitOrder, asEvaluations, compareDeadlineMs, evaluationIdsOf, verdictsOf, awaitUntilAbort, DEFAULT_COMPARE_DEADLINE_MS } from '../../infrastructure/compareContinuation.js'
+import { evaluationCommitPayload, fireEvaluationCommit } from '../../infrastructure/predictionContracts.js'
 
 /** Stable id for a gate: `name` attribute, else the tag. Unique among apertures in a membrane. */
 export function gateIdOf(el) {
@@ -106,6 +109,9 @@ export class MRegion extends MBaseComponent {
         // Role, not the `modality` attribute: a substitute provider binds without it.
         if (!this._bindsAsAperture()) return
         this._sources = new Map()
+        this._compareBudget = new CompareBudget()
+        this._sourceCommit = new Map()
+        this._compareAborts = new Set()
         // Child aperture providers. A tree, not a graph: nearest-only in both
         // directions. The pressure fold notifies only this parent pointer.
         this._children = []
@@ -132,11 +138,16 @@ export class MRegion extends MBaseComponent {
 
     onDisconnect() {
         this._bindGen = (this._bindGen || 0) + 1
+        for (const controller of this._compareAborts || []) {
+            try { controller.abort() } catch { /* cooperative */ }
+        }
+        this._compareAborts?.clear()
         this._unlistenPercepts?.()
         this.removeEventListener('percept-candidate', this._onPerceptCandidate)
         this.removeEventListener('aperture-register', this._onApertureRegister)
         if (this.aperture) this.aperture.version++
         this._sources?.clear()
+        this._sourceCommit?.clear()
         this._children = []
         this._issued?.clear()
         this.aperture = null
@@ -215,9 +226,25 @@ export class MRegion extends MBaseComponent {
             }
             this._publishDecision(acquisition, annotated)
             if (!acquisition.permitted) return null
+
+            const regionGen = this._bindGen
+            const comparator = this._liveComparator()
+            const comparatorGen = comparator?._bindGen
+            const comparing = comparator != null
+            const reserved = comparing ? this._compareBudget.tryAcquire() : false
+            const ticket = comparing ? this._orderFor(contract.name).enqueue() : null
+            const controller = new AbortController()
+            if (comparing) this._compareAborts.add(controller)
+            const deadline = Date.now() + this._compareDeadlineMs()
+            const timer = comparing
+                ? setTimeout(() => controller.abort(), Math.max(0, deadline - Date.now()))
+                : null
+            let releasedBudget = !reserved
+
             entry.busy = true
+            let text
+            let failed = false
             try {
-                let text
                 try {
                     text = await candidate.materialize(new RenditionRequest({
                         kinds: ['text'],
@@ -227,10 +254,58 @@ export class MRegion extends MBaseComponent {
                 } catch {
                     // A failed renderer is not a sensation; errors can themselves contain private payloads.
                     this.pub('materializationFailure', { source: contract.name, candidateId: candidate.id })
-                    return null
+                    failed = true
                 }
+            } finally { entry.busy = false }
+
+            try {
+                if (failed) return null
                 if (!attached() || this._mind()?._sleeping
                     || !this._versionsHold(annotated)) return null
+
+                const occurredAt = new Date(Math.min(now, candidate.occurredAt)).toISOString()
+                const view = projectEvidenceView({
+                    id: candidate.id,
+                    sourceId: contract.name,
+                    modality: contract.modality,
+                    provenance: contract.provenance,
+                    tier: contract.tier,
+                    requestId: candidate.requestId,
+                    actId: candidate.actId,
+                    occurredAt,
+                    archivalText: text,
+                    eventType: `Sense-${contract.name}`,
+                })
+
+                let evaluations = []
+                if (reserved && comparator && typeof comparator.accepts === 'function'
+                    && comparator.accepts(view)) {
+                    try {
+                        const raw = await awaitUntilAbort(comparator.evaluate(view, {
+                            now: Date.now(), deadline, signal: controller.signal,
+                        }), controller.signal)
+                        if (!controller.signal.aborted && Date.now() < deadline) {
+                            evaluations = asEvaluations(raw, Evaluation)
+                        }
+                    } catch {
+                        evaluations = []
+                    }
+                }
+                if (reserved && !releasedBudget) {
+                    this._compareBudget.release()
+                    releasedBudget = true
+                }
+
+                if (ticket) await ticket.wait()
+
+                const liveCmp = this._liveComparator()
+                if (!attached() || this._mind()?._sleeping) return null
+                if (this._bindGen !== regionGen) return null
+                if (comparing && (liveCmp !== comparator || liveCmp?._bindGen !== comparatorGen)) return null
+                if (!this._versionsHold(annotated)) return null
+                // Timeout/abort cannot settle; still admit without match/mismatch.
+                if (controller.signal.aborted || Date.now() >= deadline) evaluations = []
+
                 // Awareness is the second pass of the same event, after materialization
                 // and the version re-check, before interrupt-request. bypassAperture is
                 // an acquisition privilege; tier 0 awareness mirrors decideGate's permitted
@@ -258,7 +333,7 @@ export class MRegion extends MBaseComponent {
                     provenance: contract.provenance, tier: contract.tier, policy: contract.powers,
                     requestId: candidate.requestId,
                     actId: candidate.actId,
-                    occurredAt: new Date(Math.min(now, candidate.occurredAt)).toISOString(),
+                    occurredAt,
                     record: new InterruptRecord({ source: 'External', type: `Sense-${contract.name}`, reason: text,
                         // Raw change magnitude. The requested floor is applied inside
                         // decideBid, not merged into evidence salience here.
@@ -269,6 +344,7 @@ export class MRegion extends MBaseComponent {
                 if (!awareness.permitted) return null
                 const issuedAt = Date.parse(percept.dateTime)
                 this._recordIssued(percept.id, Number.isFinite(issuedAt) ? issuedAt : Date.now())
+                if (evaluations.length) this._commitEvaluations(evaluations, percept)
                 const bid = new AttentionBid({
                     evidence: percept,
                     gainTrail: detail.gainTrail,
@@ -278,10 +354,16 @@ export class MRegion extends MBaseComponent {
                         novelty: null,
                     },
                     requestedFloor: this._requestedFloor(),
+                    evaluationIds: evaluationIdsOf(evaluations),
                 })
                 element.dispatchEvent(new CustomEvent('interrupt-request', { bubbles: true, detail: bid }))
                 return bid
-            } finally { entry.busy = false }
+            } finally {
+                if (timer) clearTimeout(timer)
+                this._compareAborts.delete(controller)
+                if (!releasedBudget) this._compareBudget.release()
+                ticket?.complete()
+            }
         }
         this._sources.set(element, entry)
         return entry.offer
@@ -437,6 +519,43 @@ export class MRegion extends MBaseComponent {
             throw new Error(`requestedFloor must be a number in [0, 1], got ${JSON.stringify(raw)}`)
         }
         return n
+    }
+
+    _compareDeadlineMs() {
+        return compareDeadlineMs(this, DEFAULT_COMPARE_DEADLINE_MS)
+    }
+
+    _liveComparator() {
+        const mind = this._mind()
+        if (!mind) return null
+        const found = part(mind, 'comparator')
+        if (found.length > 1) throw new Error('a mind may have only one comparator')
+        const el = found[0]
+        if (!el) return null
+        if (isCustomElementDefined(el)) customElements.upgrade(el)
+        if (typeof el.accepts !== 'function' || typeof el.evaluate !== 'function') return null
+        return el
+    }
+
+    _orderFor(sourceName) {
+        if (!this._sourceCommit) this._sourceCommit = new Map()
+        let order = this._sourceCommit.get(sourceName)
+        if (!order) {
+            order = new CommitOrder()
+            this._sourceCommit.set(sourceName, order)
+        }
+        return order
+    }
+
+    _commitEvaluations(evaluations, percept) {
+        const predictionId = evaluations.find(e => e.subject?.kind === 'prediction')?.subject?.id ?? null
+        fireEvaluationCommit(this, evaluationCommitPayload({
+            evaluationIds: evaluationIdsOf(evaluations),
+            verdicts: verdictsOf(evaluations),
+            evidenceId: percept.id,
+            actId: percept.actId,
+            predictionId,
+        }))
     }
 
     /** Every aperture on the path answers. Nobody but the membrane stops this event. */
