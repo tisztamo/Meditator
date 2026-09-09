@@ -4,7 +4,7 @@
 // with NO change to the kernel.
 //
 // This also pins the events-refactor fix: the guard subscribes to the agent's `step`
-// with the "@" event ref (..m-agent/@step) and reads e.detail. If that ref were wrong
+// with the "@" event ref (!scope/@step) and reads e.detail. If that ref were wrong
 // (the stale pre-refactor "/step" topic form the design doc showed), the guard would
 // never hear a step and NO nudge would ever fire — so every assertion below would fail.
 import "./setup.js";
@@ -33,7 +33,7 @@ async function makeGuardedAgent(attrs = `nudgeAt="2" haltAt="3"`) {
     const nudges = [], halts = [];
     agent.addEventListener("nudge", e => nudges.push(e.detail));
     agent.addEventListener("halt", e => halts.push(e.detail));
-    await delay(120);   // let the guard's async sub bind to ..m-agent/@step
+    await delay(120);   // let the guard's async sub bind to !scope/@step
     return { agent, nudges, halts };
 }
 

@@ -29,7 +29,7 @@ const log = logger("mWs.js");
  *   - port: Port to listen on for WebSocket connections (defaults to 7627)
  *   - src / stateSrc: override which topics feed thought_fragment / status
  *
- * Subscriptions (transport): "..m-mind/stream/chunk", "..m-mind/stream/state"
+ * Subscriptions (transport): "!scope/stream/chunk", "!scope/stream/state"
  * Subscriptions (instrument, guarded): "../prompt", "/stream/@boundary",
  *   "../@interrupt-request", "../@interrupt", "/<arbiter>/decision",
  *   "/<economy>/energy", "/<memory>/compressed", "/<scribe>/filed",
@@ -92,13 +92,13 @@ export class MWs extends MBaseComponent {
         return;
       }
 
-      // Subscribe to stream chunks and state changes. Mind-relative refs (..m-mind/…)
+      // Subscribe to stream chunks and state changes. Mind-relative refs (!scope/…)
       // so this binds to ITS OWN mind's stream even when several minds run together in
       // one document (a society); for a lone mind it resolves to the very same element
       // the old absolute "/stream/chunk" did. These power the classic, backward-
       // compatible thought_fragment / status messages.
-      this.sub(this.attr("src") || "..m-mind/stream/chunk", this.onChunk);
-      this.sub(this.attr("stateSrc") || "..m-mind/stream/state", this.onState);
+      this.sub(this.attr("src") || "!scope/stream/chunk", this.onChunk);
+      this.sub(this.attr("stateSrc") || "!scope/stream/state", this.onState);
 
       // Subscribe to the rest of the mind's signals for the dashboard.
       this._instrument();
@@ -562,7 +562,7 @@ export class MWs extends MBaseComponent {
    * Studio's Structure column works for an agent with no extra wiring.
    */
   _instrumentAgent() {
-    this.sub("..m-agent/status", status => {
+    this.sub("!scope/status", status => {
       if (!status) return;
       this.broadcastToClients({ type: "status", data: status });   // header state pill (mind-parallel)
       this._emit("agent", "status", {                              // rich snapshot for the transcript panel
@@ -570,14 +570,14 @@ export class MWs extends MBaseComponent {
       });
     }).catch(() => {});
 
-    this.sub("..m-agent/tools", tools => {
+    this.sub("!scope/tools", tools => {
       if (!Array.isArray(tools)) return;
       this._emit("agent", "tools", { names: tools.map(t => t?.function?.name).filter(Boolean) });
     }).catch(() => {});
 
     // `step` and `done` are FIRED events on the m-agent element (like m-stream's boundary),
     // so subscribe with the "@" event ref and read the payload from e.detail.
-    this.sub("..m-agent/@step", e => {
+    this.sub("!scope/@step", e => {
       const step = e && e.detail;
       if (!step) return;
       this._emit("agent", "step", {
@@ -590,7 +590,7 @@ export class MWs extends MBaseComponent {
       });
     }).catch(() => {});
 
-    this.sub("..m-agent/@done", e => {
+    this.sub("!scope/@done", e => {
       const d = e && e.detail;
       if (!d) return;
       this._emit("agent", "answer", { answer: (d.answer || "").slice(0, 8000), reason: d.reason || null, steps: d.steps });
@@ -610,16 +610,16 @@ export class MWs extends MBaseComponent {
     const member = mind.getAttribute("name");
     if (!member) return;
     const emit = (process, kind, payload = {}) => this._emit(process, kind, { member, public: false, ...payload });
-    const subMind = (suffix, cb) => this.sub(`..m-society/${member}/${suffix}`, cb);
+    const subMind = (suffix, cb) => this.sub(`!cluster/${member}/${suffix}`, cb);
     const subProp = (el, prop, cb) => {
       if (!el) return;
       const name = el.getAttribute("name");
-      if (name) this.sub(`..m-society/${member}/${name}/${prop}`, cb);
+      if (name) this.sub(`!cluster/${member}/${name}/${prop}`, cb);
     };
     const subEvent = (el, name, cb) => {
       if (!el) return;
       const elName = el.getAttribute("name");
-      if (elName) this.sub(`..m-society/${member}/${elName}/@${name}`, e => cb(e && e.detail));
+      if (elName) this.sub(`!cluster/${member}/${elName}/@${name}`, e => cb(e && e.detail));
     };
 
     subMind("prompt", payload => {
@@ -701,7 +701,7 @@ export class MWs extends MBaseComponent {
       log.debug(`Cannot instrument <${(el.tagName || "").toLowerCase()}>: no name attribute`);
       return;
     }
-    this.sub(`..m-mind/${name}/${prop}`, cb);
+    this.sub(`!scope/${name}/${prop}`, cb);
   }
 
   /** Subscribe to a transient DOM event fired by a (possibly absent) named sibling.
@@ -714,7 +714,7 @@ export class MWs extends MBaseComponent {
       log.debug(`Cannot instrument <${(el.tagName || "").toLowerCase()}>: no name attribute`);
       return;
     }
-    this.sub(`..m-mind/${elName}/@${name}`, e => cb(e && e.detail));
+    this.sub(`!scope/${elName}/@${name}`, e => cb(e && e.detail));
   }
 
   /** Broadcast one telemetry event and remember it as the latest of its kind. */

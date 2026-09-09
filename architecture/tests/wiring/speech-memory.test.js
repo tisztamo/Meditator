@@ -22,7 +22,7 @@ beforeAll(async () => {
         <m-stream name="stream"></m-stream>
         <m-memory name="memory" persist="off" journal="off"></m-memory>
         <m-memory name="memory2" persist="off" journal="off"
-                  spokenSrc="..m-mind/voice/@spoken"></m-memory>
+                  spokenSrc="!scope/voice/@spoken"></m-memory>
         <m-speech name="voice"></m-speech>
       </m-mind>
     `;

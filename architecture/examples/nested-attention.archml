@@ -32,7 +32,7 @@
 
   <!-- The watchdog is keep-alive and must never be gated by a faculty, so it
        bids straight to the global arbiter. -->
-  <m-timeout name="watchdog" timeout="120s" reset="..m-mind/stream/chunk" salience="0.9" urgent="true"
+  <m-timeout name="watchdog" timeout="120s" reset="!scope/stream/chunk" salience="0.9" urgent="true"
              prompt="I notice I have been silent for a while; I gather myself and continue."></m-timeout>
 
   <!-- DRIFT faculty: the internal sources of a change of direction. They compete

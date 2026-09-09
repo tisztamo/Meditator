@@ -68,6 +68,11 @@ export async function loadMindComponents(dom) {
       log.warn(
         `authored provides="${prev}" on <${el.localName}> was overwritten; roles come from the class, not the markup`
       );
+    },
+    (el, prev) => {
+      log.warn(
+        `authored boundary="${prev}" on <${el.localName}> was overwritten; scope roots are derived, not the markup`
+      );
     }
   );
 

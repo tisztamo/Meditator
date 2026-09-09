@@ -53,14 +53,16 @@ Every cross-component dependency follows the same shape (mirroring the
 **Limits of auto-discovery.** The convenience default is still **tag-bound** on
 both hops: `closest('m-mind')` and `querySelector('m-speech[name]')`. A drop-in
 `<my-speech name="voice">` is invisible to that lookup, so auto-discovery silently
-skips the wire unless the author sets `spokenSrc="..m-mind/voice/@spoken"` (that
-ref resolves the faculty step by `name`, not tag). `querySelector` also returns
-**exactly one** match and `sub()` binds **one** target — fan-out is on the producer
-side (many consumers each `sub()` to the same ref), not on discovery finding every
-`m-speech`. **Substitution invariance** — any provider of a role swappable without
-rewiring consumers — is not satisfied by auto-discovery; see
-[substitution-invariance.md](../improvements/substitution-invariance.md) and
-[enclosure by role](../improvements/enclosure-by-role.md).
+skips the wire unless the author sets an explicit `spokenSrc` (the faculty step in
+that ref is `name`-based, e.g. `!scope/voice/@spoken` once
+[boundary refs](../improvements/amanita-boundary-refs.md) land; today
+`..m-mind/voice/@spoken`). `querySelector` also returns **exactly one** match and
+`sub()` binds **one** target — fan-out is on the producer side (many consumers each
+`sub()` to the same ref), not on discovery finding every `m-speech`. **Substitution
+invariance** is not satisfied by auto-discovery; the planned fix is Amanita's
+generic `!value` scope step on a `boundary` attribute, with Meditator reflecting
+`boundary="scope"` on identity roots — see
+[substitution-invariance.md](../improvements/substitution-invariance.md).
 
 Three Amanita facts make this robust and are worth keeping in mind:
 

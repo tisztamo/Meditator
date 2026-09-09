@@ -9,7 +9,7 @@ const log = logger("mCommons.js")
  * It subscribes to each named member's voice and republishes a single `gossip` topic:
  *   { speaker, text, at, sourceAt }
  *
- * Listeners then need one m-ear pointed at `..m-society/commons/gossip`, instead of
+ * Listeners then need one m-ear pointed at `!cluster/commons/gossip`, instead of
  * N-1 ears per mind. The relay stays on the pub/sub side of the membrane; ingress
  * into any particular mind still happens through that mind's own m-ear.
  *
@@ -37,7 +37,7 @@ export class MCommons extends MBaseComponent {
         const eventTopic = this._topic.startsWith("@") ? this._topic : `@${this._topic}`
         const members = this._members()
         for (const member of members) {
-            const ref = `..m-society/${member}/${this._port}/${eventTopic}`
+            const ref = `!cluster/${member}/${this._port}/${eventTopic}`
             this.sub(ref, msg => this._relay(member, msg), 12)
                 .catch(err => log.warn(`could not bind ${ref}: ${err?.message || err}`))
         }

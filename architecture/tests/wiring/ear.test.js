@@ -1,6 +1,6 @@
 // m-ear — a peer mind's spoken voice crosses the membrane into another mind: it is
 // framed as a voice and raised as a bubbling interrupt-request on the listener. Also
-// pins the society-relative cross-mind ref (..m-society/<member>/voice/@spoken): it must
+// pins the society-relative cross-mind ref (!cluster/<member>/voice/@spoken): it must
 // resolve to the NAMED member, so two minds reusing the same component name ("voice")
 // never cross-bind. The voice is a FIRED @event (m-speech fire()s `spoken`), so the ear
 // subscribes to `@spoken` and the publisher here fire()s it. (doc/architecture/multi-mind.md)
@@ -22,11 +22,11 @@ beforeAll(async () => {
     <m-society name="duet">
       <section name="prover">
         <m-region name="voice"></m-region>
-        <m-ear from="..m-society/checker/voice/@spoken" as="Checker" salience="0.85"></m-ear>
+        <m-ear from="!cluster/checker/voice/@spoken" as="Checker" salience="0.85"></m-ear>
       </section>
       <section name="checker">
         <m-region name="voice"></m-region>
-        <m-ear from="..m-society/prover/voice/@spoken" as="Prover" salience="0.85"></m-ear>
+        <m-ear from="!cluster/prover/voice/@spoken" as="Prover" salience="0.85"></m-ear>
       </section>
     </m-society>
   `;

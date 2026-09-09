@@ -29,7 +29,7 @@ export function gateIdOf(el) {
  * survivors to the region's parent, so the very same arbiter code works at any depth.
  *
  * Observers inside a region still see the MIND's stream — their default source
- * is the mind-relative "..m-mind/stream/chunk", which skips the region. Only
+ * is the mind-relative "!scope/stream/chunk", which skips the region. Only
  * attention (interrupt-request events) is scoped to the region.
  *
  * See doc/architecture/deep-structure.md → "Nested attention".
@@ -119,10 +119,10 @@ export class MRegion extends MBaseComponent {
         // closest() is empty after removal; remember the connect-time host for unlisten.
         this._unlistenPercepts = () => mind?.removeEventListener('percepts-attended', this._onPerceptsAttended)
         if (mind?.querySelector('m-stream')) {
-            this.sub('..m-mind/stream/@boundary', () => this.onBoundary()).catch(() => {})
+            this.sub('!scope/stream/@boundary', () => this.onBoundary()).catch(() => {})
         }
         if (mind?.querySelector('m-economy')) {
-            this.sub('..m-mind/economy/arousal', value => { this._arousal = value }).catch(() => {})
+            this.sub('!scope/economy/arousal', value => { this._arousal = value }).catch(() => {})
         }
         this._requestedFloor()
         this.addEventListener('percept-candidate', this._onPerceptCandidate)

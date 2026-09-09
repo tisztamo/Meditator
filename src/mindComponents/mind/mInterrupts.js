@@ -94,7 +94,7 @@ export class MInterrupts extends MBaseComponent {
         // m-act's arousal sub: with no economy the topic never resolves, and arousal
         // stays 1 (never muffles), rather than leaking an unhandled RefResolutionError.
         if (!this._region && Number(this.attr("arousalSensitivity") || 0) > 0) {
-            this.sub("..m-mind/economy/arousal", value => { this._arousal = value }).catch(() => {})
+            this.sub("!scope/economy/arousal", value => { this._arousal = value }).catch(() => {})
         }
     }
 

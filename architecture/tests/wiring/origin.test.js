@@ -37,7 +37,7 @@ test("m-origin publishes its text content on `prompt`, for the mind to subscribe
     const mind = document.querySelector("m-mind");
     let seen = null;
     // From the mind, a child's topic is addressed <childName>/<topic> — the same
-    // shape the real m-mind mirrors via its `..m-mind/<name>/prompt` ref.
+    // shape the real m-mind mirrors via its `!scope/<name>/prompt` ref.
     await mind.sub("origin/prompt", v => { seen = v; });
     await delay(10);
 

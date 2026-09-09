@@ -24,8 +24,8 @@ const HTML = `
     </section>
     <section name="checker">
       <m-region name="voice"></m-region>
-      <m-ear name="plainear" from="..m-society/commons/gossip" as="Prover" salience="0.85"></m-ear>
-      <m-ear name="coupledear" from="..m-society/commons/gossip" as="Prover" salience="0.85" plenumCoupling="1"></m-ear>
+      <m-ear name="plainear" from="!cluster/commons/gossip" as="Prover" salience="0.85"></m-ear>
+      <m-ear name="coupledear" from="!cluster/commons/gossip" as="Prover" salience="0.85" plenumCoupling="1"></m-ear>
     </section>
     <m-region name="quiet"></m-region>
   </m-society>
@@ -141,7 +141,7 @@ test("convergence is the accumulation of exchanges, and it floors exactly on the
 test("a replayed retained value is an old message: a late subscriber spends no infoton on it", async () => {
   const late = document.createElement("m-ear");
   late.setAttribute("name", "lateear");
-  late.setAttribute("from", "..m-society/commons/gossip");
+  late.setAttribute("from", "!cluster/commons/gossip");
   late.setAttribute("as", "Prover");
   checkerSec.appendChild(late);
   const seed = { ...late.pos };

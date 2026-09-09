@@ -4,7 +4,7 @@
   "workspaces": {
     "": {
       "dependencies": {
-        "amanita": "^0.4.0",
+        "amanita": "0.5.0",
         "express": "^4.22.2",
         "jsdom": "^26.1.0",
         "openai": "^4.104.0",
@@ -38,7 +38,7 @@
 
     "agentkeepalive": ["agentkeepalive@4.6.0", "", { "dependencies": { "humanize-ms": "^1.2.1" } }, "sha512-kja8j7PjmncONqaTsB8fQ+wE2mSU2DJ9D4XKoJ5PFWIdRMa6SLSN1ff4mOr4jCbfRSsxR4keIiySJU0N9T5hIQ=="],
 
-    "amanita": ["amanita@0.4.0", "", {}, "sha512-94tddJpUB+wAKs61SoVcLTKyrxvk0lGG+ChqX1rdCyRlGDu6gOA1F+ocF+tbw03uO8Xj9FnRvTKisv6czFKUAg=="],
+    "amanita": ["amanita@0.5.0", "", {}, "sha512-jysZoy6BrT/3gL/FQkT22Cb9EGTRXhN6gelJa9C0Wrs9ODH2kLpep+J0AX241qNXFITUxaqv0HeevpCM03zozA=="],
 
     "array-flatten": ["array-flatten@1.1.1", "", {}, "sha512-PCVAQswWemu6UdxsDFFX/+gVeYqKAod3D3UVm91jHwynguOwAvYPhx8nNlM++NqRcK6CxxpUafjmhIdKiHibqg=="],
 

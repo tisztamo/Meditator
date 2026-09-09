@@ -28,7 +28,7 @@ const log = logger('mKb.js');
  *   - dir: knowledge base directory (default "knowledge")
  *   - model: librarian model (default ancestor utilityModel)
  *   - maxOps: max file operations per run (default 4)
- *   - src (default "..m-mind/stream/chunk"), boundarySrc (default "..m-mind/stream/@boundary")
+ *   - src (default "!scope/stream/chunk"), boundarySrc (default "!scope/stream/@boundary")
  *   - window: chars of verbatim recent thought kept for distillation (default 2000)
  *   - compressedSrc (default: the mind's m-memory `<name>/compressed`, auto-discovered;
  *     "off" disables): the compressed "recently" summary folded into the distill prompt
@@ -43,22 +43,18 @@ export class MKb extends MBaseComponent {
     _recent = ""
 
     onConnect() {
-        this.sub(this.attr("boundarySrc") || "..m-mind/stream/@boundary", e => this._onBoundary(e.detail))
+        this.sub(this.attr("boundarySrc") || "!scope/stream/@boundary", e => this._onBoundary(e.detail))
 
         // The verbatim "recent thoughts" come from the scribe's OWN rolling stream
         // window (like an observer), not by reaching into m-memory for its tail.
         this.windowSize = Number(this.attr("window") || 2000)
-        this.sub(this.attr("src") || "..m-mind/stream/chunk", chunk => {
+        this.sub(this.attr("src") || "!scope/stream/chunk", chunk => {
             this.window = (this.window + chunk).slice(-this.windowSize)
         })
 
-        // The compressed "recently" summary arrives on memory's `compressed` topic
-        // (auto-discovered, explicit, or "off"), so the scribe never names memory.
-        const explicitCompressedSrc = this.attr("compressedSrc")
-        const mem = this.closest("m-mind")?.querySelector("m-memory[name]")
-        const compressedSrc = explicitCompressedSrc || (mem ? `..m-mind/${mem.getAttribute("name")}/compressed` : null)
-        if (compressedSrc && compressedSrc !== "off") {
-            this.sub(compressedSrc, c => { if (c) this._recent = c.recent || "" })
+        if (this.attr("compressedSrc") !== "off") {
+            this.sub(this.attr("compressedSrc") || "!scope/memory/compressed", c => { if (c) this._recent = c.recent || "" })
+                .catch(() => {})
         }
     }
 

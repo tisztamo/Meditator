@@ -102,7 +102,7 @@
 
   <!-- watchdog: keep-alive. It picks the thread back up rather than narrating silence
        — and for this mind the thread is always the problem. -->
-  <m-timeout name="watchdog" timeout="150s" reset="..m-mind/stream/chunk" salience="0.9" urgent="true"
+  <m-timeout name="watchdog" timeout="150s" reset="!scope/stream/chunk" salience="0.9" urgent="true"
              prompt="The line of reasoning I was following is still here; I take it up again."></m-timeout>
 
   <!-- No senses. There is no m-daylight, m-weather, or m-feed: no hour, no weather,

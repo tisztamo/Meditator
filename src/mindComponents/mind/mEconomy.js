@@ -34,7 +34,7 @@ export class MEconomy extends MBaseComponent {
     _boundaries = 0
 
     onConnect() {
-        this.sub(this.attr("boundarySrc") || "..m-mind/stream/@boundary", this._onBoundary)
+        this.sub(this.attr("boundarySrc") || "!scope/stream/@boundary", this._onBoundary)
     }
 
     _onBoundary = () => {

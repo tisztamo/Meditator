@@ -204,65 +204,57 @@ export class MMind extends MBaseComponent {
         // If the mind has a speaking voice, follow its "speaking" flag so thinking
         // can be thinned (fewer tokens, slower pace) while it talks — true limited
         // parallelism: the verbal effort goes to speech, but thought never stops.
-        const voice = this.querySelector('m-speech')
-        if (voice) {
-            const name = voice.getAttribute('name') || 'voice'
-            this.sub(`/${name}/speaking`, speaking => { this._speaking = !!speaking })
-        }
+        this.sub("/voice/speaking", speaking => { this._speaking = !!speaking }).catch(() => {})
 
         // Mirror memory's content from the topics it publishes, instead of pulling
-        // getTail()/getRecent()/getStory() at frame time. The refs auto-discover the
-        // mind's memory (or set tailSrc/compressedSrc explicitly, or "off"); behaviour-
-        // value replay means the mirrors are populated as soon as memory loads.
-        const mem = this.querySelector('m-memory[name]')
-        const memName = mem?.getAttribute('name')
-        const tailSrc = this.attr('tailSrc') || (memName ? `..m-mind/${memName}/tail` : null)
-        const compressedSrc = this.attr('compressedSrc') || (memName ? `..m-mind/${memName}/compressed` : null)
-        if (tailSrc && tailSrc !== 'off') this.sub(tailSrc, t => { this._memTail = t || "" })
-        if (compressedSrc && compressedSrc !== 'off') {
+        // getTail()/getRecent()/getStory() at frame time. Slot-name defaults use
+        // !scope/… so a custom implementation keeps the same `name` and wires through.
+        const tailSrc = this.attr('tailSrc') || '!scope/memory/tail'
+        const compressedSrc = this.attr('compressedSrc') || '!scope/memory/compressed'
+        if (tailSrc !== 'off') this.sub(tailSrc, t => { this._memTail = t || "" })
+        if (compressedSrc !== 'off') {
             this.sub(compressedSrc, c => { if (c) { this._memRecent = c.recent || ""; this._memStory = c.story || "" } })
         }
 
-        // Mirror pinned FACTS — keyed, verbatim knowing distinct from narrative
-        // memory. m-facts publishes the whole pinned block as a retained value; we
-        // weave it into every frame and never send it through the compressor.
-        const facts = this.querySelector('m-facts[name]')
-        const factsName = facts?.getAttribute('name')
-        const factsSrc = this.attr('factsSrc') || (factsName ? `..m-mind/${factsName}/pinned` : null)
-        this._hasFacts = !!(factsSrc && factsSrc !== 'off')
-        if (this._hasFacts) {
+        const factsSrc = this.attr('factsSrc')
+        if (factsSrc === 'off') {
+            this._hasFacts = false
+        } else if (factsSrc) {
+            this._hasFacts = true
             this.sub(factsSrc, f => { this._factsPinned = f || ""; this._factsReady = true })
+                .catch(() => { this._hasFacts = false; this._factsReady = true })
+        } else {
+            this._hasFacts = !!this.querySelector('[name="facts"]')
+            if (this._hasFacts) {
+                this.sub('!scope/facts/pinned', f => { this._factsPinned = f || ""; this._factsReady = true })
+                    .catch(() => { this._hasFacts = false; this._factsReady = true })
+            }
         }
 
-        // Mirror the hands' BODY SCHEMA from m-act's `embodiment` topic, the same way
-        // memory's tail/compressed are mirrored — so the mind's identity carries a
-        // standing, world-facing sense of what it can reach (efference.md §Embodiment),
-        // never a tool menu. Auto-discovered from the m-act's name, or set explicitly,
-        // or "off". Behaviour-value replay populates it as soon as the hands register.
-        const hands = this.querySelector('m-act[name]')
-        const handsName = hands?.getAttribute('name')
-        const embodimentSrc = this.attr('embodimentSrc') || (handsName ? `..m-mind/${handsName}/embodiment` : null)
-        if (embodimentSrc && embodimentSrc !== 'off') this.sub(embodimentSrc, e => { this._embodiment = e || "" })
-
-        // Mirror m-economy's paceFactor (defaults to 1; no economy / "off" keeps it 1).
-        const econ = this.querySelector('m-economy')
-        const econName = econ ? (econ.getAttribute('name') || 'economy') : null
-        const paceFactorSrc = this.attr('paceFactorSrc') || (econName ? `..m-mind/${econName}/paceFactor` : null)
-        if (paceFactorSrc && paceFactorSrc !== 'off') {
-            this.sub(paceFactorSrc, f => { if (typeof f === 'number' && f > 0) this._paceFactor = f }).catch(() => {})
+        const embodimentSrc = this.attr('embodimentSrc')
+        if (embodimentSrc !== 'off') {
+            this.sub(embodimentSrc || '!scope/hands/embodiment', e => { this._embodiment = e || "" }).catch(() => {})
         }
 
-        // Mirror the ORIGIN — the matter this mind was first set thinking about — the
-        // same decoupled way: m-origin publishes its text on `prompt`, we mirror it
-        // from an auto-discovered, overridable ref, never a querySelector reach-in
-        // (decoupling.md). The querySelector here only reads m-origin's NAME to build
-        // the ref, exactly as memory and the hands are discovered above. Read once,
-        // at birth, by _seedIfFresh.
-        const origin = this.querySelector('m-origin[name]')
-        const originName = origin?.getAttribute('name')
-        const originSrc = this.attr('originSrc') || (originName ? `..m-mind/${originName}/prompt` : null)
-        this._hasOrigin = !!(originSrc && originSrc !== 'off')
-        if (this._hasOrigin) this.sub(originSrc, o => { this._originText = o || ""; this._originReady = true })
+        const paceFactorSrc = this.attr('paceFactorSrc')
+        if (paceFactorSrc !== 'off') {
+            this.sub(paceFactorSrc || '!scope/economy/paceFactor', f => { if (typeof f === 'number' && f > 0) this._paceFactor = f }).catch(() => {})
+        }
+
+        const originSrc = this.attr('originSrc')
+        if (originSrc === 'off') {
+            this._hasOrigin = false
+        } else if (originSrc) {
+            this._hasOrigin = true
+            this.sub(originSrc, o => { this._originText = o || ""; this._originReady = true })
+                .catch(() => { this._hasOrigin = false; this._originReady = true })
+        } else {
+            this._hasOrigin = !!this.querySelector('[name="origin"]')
+            if (this._hasOrigin) {
+                this.sub('!scope/origin/prompt', o => { this._originText = o || ""; this._originReady = true })
+                    .catch(() => { this._hasOrigin = false; this._originReady = true })
+            }
+        }
 
         this._begin()
     }

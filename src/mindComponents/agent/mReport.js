@@ -16,7 +16,7 @@ const log = logger("mReport.js")
  *   - port: the topic name to publish the report on (default "report").
  *   - every: log a step-progress line every Nth step (default 1); status changes always log.
  *
- * Subscriptions: "..m-agent/status", "..m-agent/@step".
+ * Subscriptions: "!scope/status", "!scope/@step".
  * Topics published: the report (name given by `port`) — {state, step, maxSteps, done, answer?}.
  */
 export class MReport extends MBaseComponent {
@@ -27,10 +27,10 @@ export class MReport extends MBaseComponent {
         this._every = Math.max(1, Number(this.attr("every") || 1))
         // Explicit .catch() (never auto-sub fields) so a report placed outside an <m-agent>
         // fails quietly rather than leaking an unhandled ref-resolution rejection.
-        this.sub("..m-agent/status", s => this._onStatus(s)).catch(() => {
-            log.warn("m-report found no ..m-agent/status — it must sit inside an <m-agent>")
+        this.sub("!scope/status", s => this._onStatus(s)).catch(() => {
+            log.warn("m-report found no !scope/status — it must sit inside an <m-agent>")
         })
-        this.sub("..m-agent/@step", e => this._onStep(e?.detail)).catch(() => {})
+        this.sub("!scope/@step", e => this._onStep(e?.detail)).catch(() => {})
     }
 
     _onStatus(status) {

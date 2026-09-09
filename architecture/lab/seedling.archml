@@ -56,7 +56,7 @@
 
   <!-- watchdog: keep-alive. Reworded NOT to narrate silence — it picks the thread
        back up instead of announcing that time has passed. -->
-  <m-timeout name="watchdog" timeout="120s" reset="..m-mind/stream/chunk" salience="0.9" urgent="true"
+  <m-timeout name="watchdog" timeout="120s" reset="!scope/stream/chunk" salience="0.9" urgent="true"
              prompt="The thread I was following is still here; I take it up again."></m-timeout>
 
   <!-- Afference (lifecycle.md §Phase 5): the SENSES — an outside that is neither the

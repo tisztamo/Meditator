@@ -304,7 +304,7 @@ export class MSpeech extends MObserver {
 
     _speechFrame(decision, addressed) {
         // "What you have been thinking" comes from this observer's own rolling
-        // stream window (already bound to ..m-mind/stream/chunk), not by reaching
+        // stream window (already bound to !scope/stream/chunk), not by reaching
         // into m-memory. It is the same window _decide() judges from, so the frame
         // and the impulse stay consistent — and the voice needs no knowledge of memory.
         const book = this._phrasebook()

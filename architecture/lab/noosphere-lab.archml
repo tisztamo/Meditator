@@ -54,9 +54,9 @@
               blockMin="800" storyEvery="5"></m-memory>
     <m-interrupts name="attention" threshold="0.42" rateLimit="12s" keep="3"
                   arousalSensitivity="0.25"></m-interrupts>
-    <m-timeout name="watchdog" timeout="160s" reset="..m-mind/stream/chunk" salience="0.9" urgent="true"
+    <m-timeout name="watchdog" timeout="160s" reset="!scope/stream/chunk" salience="0.9" urgent="true"
                prompt="The thread is still here; I take it up again."></m-timeout>
-    <m-ear name="commons" from="..m-society/commons/gossip" as="Commons" ignoreSelf="true"
+    <m-ear name="commons" from="!cluster/commons/gossip" as="Commons" ignoreSelf="true"
            salience="0.66" cooldown="18s"></m-ear>
 
     <m-region name="drift">

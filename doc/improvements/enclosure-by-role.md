@@ -123,8 +123,11 @@ Reflection is what makes the rest free:
 
 - `closest('[provides~="aperture"]')` works on un-upgraded elements, so the race
   that forced `m-interrupts` onto tag names is handled the same way it is today.
-- Amanita refs need no grammar change: `..[provides~="mind"]/economy/arousal`
-  already parses (`..selector` → `closest(selector)`).
+- Amanita refs can use selector upward steps today (`..[provides~="mind"]/…` →
+  `closest(selector)`). The preferred short form is the generic
+  [boundary scope step](amanita-boundary-refs.md): `!scope/economy/arousal`, with
+  Meditator reflecting `boundary="scope"` on identity roots — Amanita does not
+  interpret the value.
 - `querySelectorAll('[provides~="aperture"]')` gives scoped downward lookups.
 - Studio's live-tree telemetry shows roles without any extra plumbing.
 
@@ -267,7 +270,7 @@ migrate afterward, grouped by what they become:
 | `enclosing('assembler')` / `provides()` | `mAgent.js:178`; `mTerminal.js:77`; `mFacts.js:154` |
 | `membrane()` | all `closest('m-mind')`, `closest('m-mind, m-agent')`, `closest('m-agent')` in `mConsole`, `mImage`, `mKb`, `mLoopDetector`, `mAct`, `mSpeech`, `mClearMind`, `mResurface`, `mMemory`, `mFacts`, `mEar`, `mJobs`, `mRegion`, `memoryVault.js:49` |
 | `part(role)` | `mMind.js:163–217`, `:283`, `:328`, `:416–419`, `:530`, `:560`; `mMemory.js:120–147`; `mKb.js:58`; `mLoopDetector.js:60`; `mAct.js:135`; `mClearMind.js:55`; `mResurface.js:81`; `mInterrupts.js:215` |
-| `..[provides~="mind"]/…` refs | `..m-mind/economy/arousal` in `mInterrupts`, `mLoopDetector`, `mAct`, `mRegion`; `..m-mind/stream/@boundary` in `mRegion`; `..m-mind/@percepts-attended`, `..m-mind/@aperture-change` in `mMemory`; `..m-agent/…` in `mReport`, `mContext`, `mWs` |
+| `!scope/…` and `!cluster/…` refs | `..m-mind/…` and `..m-agent/…` → `!scope/…`; `..m-society/…` → `!cluster/…` (requires [amanita-boundary-refs.md](amanita-boundary-refs.md) + loader reflection of `boundary`). Until then, `..[provides~="mind"]/…` works as an interim selector form. Sites: `mInterrupts`, `mLoopDetector`, `mAct`, `mRegion`, `mMemory`, `mReport`, `mContext`, `mWs`, … |
 | leave as is | `startup/*` (build-time text), `studio/architectureSurface.js` (parses the file), `mWs.js` society/mind enumeration (identity roots; migrate for uniformity later), `mSociety.js:41` |
 
 `m-mind` and `m-agent` are identity roots, so their tag-based refs are not wrong.
@@ -293,9 +296,9 @@ agent, a mind, or a society without a case list.
    used by S1; then the perceptual-membrane known-issues rows 1, 3, and 4 point
    here and the `Aperture` class is documented as the reference policy, not the
    provider. **Landed** (membrane phase 2 M9).
-5. **Later.** Role-based Plenum seed path; a `..~role/…` ref shorthand if the
-   attribute selector proves noisy in practice; generated port declarations from
-   conformance suites.
+5. **Later.** Role-based Plenum seed path; generated port declarations from
+   conformance suites. Ref shorthand for scope roots: [amanita-boundary-refs.md](amanita-boundary-refs.md)
+   (`!value` on `boundary`, not application-specific vocabulary in Amanita).
 
 ## Decisions
 
@@ -310,10 +313,10 @@ Settled with Kris on 2026-09-06.
    Authored values are overwritten with a warning (fixture A1).
 2. **Identity-root lookups migrate in Phase 1**, mechanically, together with the
    faculty and aperture lookups. `membrane()` replaces every `closest('m-mind')`,
-   `closest('m-mind, m-agent')`, and `closest('m-agent')`; the `..m-mind/…` and
-   `..m-agent/…` refs become `..[provides~="mind"]/…` and `..[provides~="agent"]/…`.
-   Low risk, and it removes the union strings that would otherwise grow with every
-   new kind of membrane.
+   `closest('m-mind, m-agent')`, and `closest('m-agent')`; default refs become
+   `!scope/…` ([amanita-boundary-refs.md](amanita-boundary-refs.md), with
+   `boundary="scope"` reflected on identity roots). Low risk, and it removes the
+   union strings that would otherwise grow with every new kind of membrane.
 3. **The nearest provider credits contact debt** in nested apertures. All-credit
    double counts; outermost-only leaves an inner regulator blind to its own sources.
    This is part of the protocol table above, not a policy knob.

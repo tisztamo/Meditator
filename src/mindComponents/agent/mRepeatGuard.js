@@ -28,7 +28,7 @@ const signature = (call) => `${call?.name}(${stableStringify(call?.args ?? {})})
  *
  * @interface
  * Attributes:
- *   - stepSrc: the agent's step-event ref (default "..m-agent/@step" — the nearest
+ *   - stepSrc: the agent's step-event ref (default "!scope/@step" — the nearest
  *     enclosing agent's `step` boundary event)
  *   - window: how many recent action signatures to keep (default 6)
  *   - nudgeAt: repeats of the same action within the window that trigger a nudge (default 3)
@@ -43,7 +43,7 @@ export class MRepeatGuard extends MBaseComponent {
         // so it is a DOM event, addressed with the "@" form and read from e.detail — NOT a
         // retained topic. Explicit .catch() (never an auto-sub field) so a guard placed
         // outside an <m-agent> fails quietly instead of leaking an unhandled ref rejection.
-        const stepSrc = this.attr("stepSrc") || "..m-agent/@step"
+        const stepSrc = this.attr("stepSrc") || "!scope/@step"
         this.sub(stepSrc, e => this._onStep(e?.detail)).catch(() => {
             log.warn("m-repeat-guard found no <m-agent>/@step to watch — it must sit inside an <m-agent>")
         })

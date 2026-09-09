@@ -14,11 +14,11 @@ beforeAll(async () => {
       <m-commons name="commons" members="calculus history"></m-commons>
       <section name="calculus">
         <m-region name="voice"></m-region>
-        <m-ear from="..m-society/commons/gossip" as="Commons" ignoreSpeaker="calculus" salience="0.7"></m-ear>
+        <m-ear from="!cluster/commons/gossip" as="Commons" ignoreSpeaker="calculus" salience="0.7"></m-ear>
       </section>
       <section name="history">
         <m-region name="voice"></m-region>
-        <m-ear from="..m-society/commons/gossip" as="Commons" ignoreSpeaker="history" salience="0.7"></m-ear>
+        <m-ear from="!cluster/commons/gossip" as="Commons" ignoreSpeaker="history" salience="0.7"></m-ear>
       </section>
     </m-society>
   `;

@@ -14,7 +14,11 @@ not necessarily acted on yet. Each note states its status at the top.
 - [substitution-invariance.md](substitution-invariance.md) — the decoupling
   migration removed method reach-in, but `*Src` auto-discovery still keys off
   implementation tags (`querySelector('m-speech')`); documents the gap, the
-  requirement, and the path through enclosure-by-role phase 1.
+  requirement, and the migration plan via boundary refs.
+- [amanita-boundary-refs.md](amanita-boundary-refs.md) — **task spec for
+  Amanita**: generic `!value` ref step on a `boundary` attribute (Path B);
+  equivalence with `..[boundary="value"]`, tests, and Meditator follow-up after
+  ship.
 - [prediction-mismatch.md](prediction-mismatch.md) — revised design for replaceable
   prediction producers, comparators, attention policies, and search controllers;
   distinguishes sensory change, expectation, causality, and contact, records known

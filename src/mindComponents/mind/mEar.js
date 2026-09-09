@@ -25,7 +25,7 @@ const log = logger("mEar.js")
  *
  * @interface
  * Attributes:
- *   - from: ref to the peer's voice event or relay topic, e.g. "..m-society/prover/voice/@spoken" (voice
+ *   - from: ref to the peer's voice event or relay topic, e.g. "!cluster/prover/voice/@spoken" (voice
  *           is a FIRED @event, so use the `@spoken` event ref, not the plain topic). A
  *           society-relative ref addresses a member by its (unique) MIND name, so members
  *           may reuse component names ("voice"). "off" / empty makes the ear inert.

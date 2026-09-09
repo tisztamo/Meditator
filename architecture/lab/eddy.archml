@@ -39,7 +39,7 @@
                 arousalSensitivity="0.25"></m-interrupts>
 
   <!-- watchdog: keep-alive. It picks the thread back up rather than narrating silence. -->
-  <m-timeout name="watchdog" timeout="120s" reset="..m-mind/stream/chunk" salience="0.9" urgent="true"
+  <m-timeout name="watchdog" timeout="120s" reset="!scope/stream/chunk" salience="0.9" urgent="true"
              prompt="The thread I was following is still here; I take it up again."></m-timeout>
 
   <!-- Afference (lifecycle.md §Phase 5): the SENSES — an outside that is neither the

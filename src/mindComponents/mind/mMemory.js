@@ -40,25 +40,25 @@ const log = logger('mMemory.js');
  *   - persist (default "state"): directory for memory.md; "off" disables
  *   - journal (default "journal"): directory for session journals; "off" disables
  *   - model: compression model (defaults to ancestor utilityModel, then utility default)
- *   - src (default "..m-mind/stream/chunk"), boundarySrc (default "..m-mind/stream/@boundary"):
+ *   - src (default "!scope/stream/chunk"), boundarySrc (default "!scope/stream/@boundary"):
  *     mind-relative so memory binds to its own mind's stream (see m-observer).
- *   - spokenSrc (default: the mind's m-speech `<name>/@spoken` event, auto-discovered;
- *     "off" disables): an aloud utterance is recorded by subscribing here, not by the
- *     voice calling spoke() in — so memory is swappable and several can listen at once.
- *   - filedSrc (default: the mind's m-kb `<name>/filed` topic, auto-discovered; "off"
- *     disables): the scribe's filings, journaled as a backstage note by subscribing
- *     here rather than the scribe calling note() in.
- *   - actedSrc (default: the mind's m-act `<name>/acted` topic, auto-discovered; "off"
- *     disables): a DEED the hands performed (efference.md §5.3), journaled as a
+ *   - spokenSrc (default "!scope/voice/@spoken"; "off" disables): an aloud utterance
+ *     is recorded by subscribing here, not by the voice calling spoke() in — so memory
+ *     is swappable and several can listen at once.
+ *   - filedSrc (default "!scope/scribe/@filed"; "off" disables): the scribe's filings,
+ *     journaled as a backstage note by subscribing here rather than the scribe calling
+ *     note() in.
+ *   - actedSrc (default "!scope/hands/@acted"; "off" disables): a DEED the hands performed
+ *     (efference.md §5.3), journaled as a
  *     backstage (⌁) note — the mind never saw it reach. Its CONSEQUENCE arrives
  *     separately as an External stimulus and is journaled perceived (⟂) via
  *     `attended`. Deed ⌁, consequence ⟂. Exactly mirrors `filedSrc` for the scribe.
- *   - attendedSrc (default "..m-mind/attended"; "off" disables): the stimuli that
+ *   - attendedSrc (default "!scope/attended"; "off" disables): the stimuli that
  *     entered each frame, journaled as perceived (⟂) notes by subscribing here
  *     rather than the mind calling note() in — AND appended to the verbatim tail
  *     as the same `> ⟂ …` block, so perception persists in memory like the mind's
  *     own words instead of living for a single frame.
- *   - bridgeSrc (default "..m-mind/@bridge"; "off" disables): the utility-model
+ *   - bridgeSrc (default "!scope/@bridge"; "off" disables): the utility-model
  *     transition sentence m-mind injects at the head of a redirect burst. It rides
  *     the verbatim tail via the stream `prefix` chunk (the model continues from it),
  *     but is peeled off the journal as a provenance (↪) line rather than recorded as
@@ -114,48 +114,30 @@ export class MMemory extends MBaseComponent {
         this.blockMin = Number(this.attr("blockMin") || 800)
         this.storyEvery = Number(this.attr("storyEvery") || 5)
 
-        this.sub(this.attr("src") || "..m-mind/stream/chunk", this._onChunk)
-        this.sub(this.attr("boundarySrc") || "..m-mind/stream/@boundary", this._onBoundary)
-        const explicitImageSrc = this.attr("imageSrc")
-        const image = this.closest("m-mind")?.querySelector("m-image[name]")
-        const imageSrc = explicitImageSrc || (image ? `..m-mind/${image.getAttribute("name")}/generated` : null)
-        if (imageSrc && imageSrc !== "off") this.sub(imageSrc, image => this.imageGenerated(image))
+        this.sub(this.attr("src") || "!scope/stream/chunk", this._onChunk)
+        this.sub(this.attr("boundarySrc") || "!scope/stream/@boundary", this._onBoundary)
 
-        // The voice's aloud utterances arrive as a transient event, not a method call
-        // into us: we point at whatever speaks (auto-discovered, or an explicit
-        // `spokenSrc`, or "off"). The voice stays ignorant of memory, so memory can be
-        // swapped or run several-at-once just by changing the architecture.
-        const explicitSpokenSrc = this.attr("spokenSrc")
-        const voice = this.closest("m-mind")?.querySelector("m-speech[name]")
-        const spokenSrc = explicitSpokenSrc || (voice ? `..m-mind/${voice.getAttribute("name")}/@spoken` : null)
-        if (spokenSrc && spokenSrc !== "off") this.sub(spokenSrc, this._onSpoken)
-
-        // The scribe's filings arrive as a transient `@filed` event (auto-discovered,
-        // explicit, or "off"); we journal them as a backstage note ourselves rather
-        // than the scribe reaching in to call note().
-        const explicitFiledSrc = this.attr("filedSrc")
-        const scribe = this.closest("m-mind")?.querySelector("m-kb[name]")
-        const filedSrc = explicitFiledSrc || (scribe ? `..m-mind/${scribe.getAttribute("name")}/@filed` : null)
-        if (filedSrc && filedSrc !== "off") this.sub(filedSrc, this._onFiled)
-
-        // The hands' deeds arrive as m-act's transient `@acted` event (auto-discovered,
-        // explicit, or "off"); we journal each as a backstage (⌁) note ourselves —
-        // the mind never perceived the reaching. The CONSEQUENCE comes back the
-        // ordinary way (an External stimulus → `@attended` → a perceived (⟂) note),
-        // so deed and consequence land on opposite sides of the mechanism.
-        const explicitActedSrc = this.attr("actedSrc")
-        const hands = this.closest("m-mind")?.querySelector("m-act[name]")
-        const actedSrc = explicitActedSrc || (hands ? `..m-mind/${hands.getAttribute("name")}/@acted` : null)
-        if (actedSrc && actedSrc !== "off") this.sub(actedSrc, this._onActed)
+        if (this.attr("imageSrc") !== "off") {
+            this.sub(this.attr("imageSrc") || "!scope/image/generated", image => this.imageGenerated(image)).catch(() => {})
+        }
+        if (this.attr("spokenSrc") !== "off") {
+            this.sub(this.attr("spokenSrc") || "!scope/voice/@spoken", this._onSpoken).catch(() => {})
+        }
+        if (this.attr("filedSrc") !== "off") {
+            this.sub(this.attr("filedSrc") || "!scope/scribe/@filed", this._onFiled).catch(() => {})
+        }
+        if (this.attr("actedSrc") !== "off") {
+            this.sub(this.attr("actedSrc") || "!scope/hands/@acted", this._onActed).catch(() => {})
+        }
 
         // The mind fires the stimuli that entered each frame as an `@attended` event;
         // we journal them as perceived (⟂) notes here, rather than the mind reaching
         // in to call note() per stimulus.
         if (this.attr("attendedSrc") !== "off") {
-            this.sub(this.attr("attendedSrc") || "..m-mind/@attended", this._onAttended)
-            this.sub('..m-mind/@percepts-attended', this._onPerceptsAttended)
+            this.sub(this.attr("attendedSrc") || "!scope/@attended", this._onAttended)
+            this.sub('!scope/@percepts-attended', this._onPerceptsAttended)
         }
-        this.sub('..m-mind/@aperture-change', e => {
+        this.sub('!scope/@aperture-change', e => {
             const { from, to, reason } = e.detail || {}
             if (from && to) this.note(`Attention aperture: ${from} → ${to} (${reason}).`, { perceived: false })
         })
@@ -167,7 +149,7 @@ export class MMemory extends MBaseComponent {
         // `_flushJournal` peels it off the front of the next flushed block as a ↪ provenance
         // line (finding 7, C1; ui-journal-honesty.md). Off-able; auto-discovered on the mind.
         if (this.attr("bridgeSrc") !== "off") {
-            this.sub(this.attr("bridgeSrc") || "..m-mind/@bridge", e => { this._pendingBridge = e?.detail?.text || null })
+            this.sub(this.attr("bridgeSrc") || "!scope/@bridge", e => { this._pendingBridge = e?.detail?.text || null })
         }
 
         // A LOOP BREAK arrives as the mind's transient `@clear-tail` event (loop-detection-
@@ -175,7 +157,7 @@ export class MMemory extends MBaseComponent {
         // we reseed it to the breaker's fresh seed here rather than the mind reaching in to
         // set it: the cut then rides our existing `tail` channel to everyone who watches it.
         if (this.attr("clearTailSrc") !== "off") {
-            this.sub(this.attr("clearTailSrc") || "..m-mind/@clear-tail", this._onClearTail)
+            this.sub(this.attr("clearTailSrc") || "!scope/@clear-tail", this._onClearTail)
         }
 
         // A MUFFLING: the arbiter dropped a stimulus a rested mind would have taken, because
@@ -184,7 +166,7 @@ export class MMemory extends MBaseComponent {
         // isolation has a recorded cause it is never told about — it never perceived the
         // stimulus, so there is nothing to feel, only to record (finding 7). Off-able.
         if (this.attr("muffledSrc") !== "off") {
-            this.sub(this.attr("muffledSrc") || "..m-mind/@muffled", this._onMuffled)
+            this.sub(this.attr("muffledSrc") || "!scope/@muffled", this._onMuffled)
         }
 
         const dir = this._persistDir()

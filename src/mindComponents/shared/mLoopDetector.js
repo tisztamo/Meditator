@@ -54,18 +54,14 @@ export class MLoopDetector extends MObserver {
     _arousal = 1
 
     onObserverConnect() {
-        // Read the MEMORY tail, not the observer's own window: the tail is what actually
-        // seeds the prefill, so the loop that matters is the loop in the tail. Auto-discover
-        // the mind's memory (or set tailSrc explicitly, or "off" to use the stream window).
-        const mem = this.closest("m-mind")?.querySelector("m-memory[name]")
-        const memName = mem?.getAttribute("name")
-        const tailSrc = this.attr("tailSrc") || (memName ? `..m-mind/${memName}/tail` : null)
-        if (tailSrc && tailSrc !== "off") this.sub(tailSrc, t => { this._memTail = t || "" }).catch(() => {})
+        if (this.attr("tailSrc") !== "off") {
+            this.sub(this.attr("tailSrc") || "!scope/memory/tail", t => { this._memTail = t || "" }).catch(() => {})
+        }
 
         // Interoception, gated exactly as m-act / m-interrupts do it: with no economy the
         // topic never publishes and arousal stays 1, so a mind without a metabolism is
         // checked freely.
-        this.sub("..m-mind/economy/arousal", v => { if (typeof v === "number") this._arousal = v }).catch(() => {})
+        this.sub("!scope/economy/arousal", v => { if (typeof v === "number") this._arousal = v }).catch(() => {})
     }
 
     onBoundary(boundary) {

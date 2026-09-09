@@ -130,17 +130,17 @@
     <m-interrupts name="attention" threshold="0.45" rateLimit="12s" keep="3"
                   arousalSensitivity="0.25"></m-interrupts>
 
-    <m-timeout name="watchdog" timeout="150s" reset="..m-mind/stream/chunk" salience="0.9" urgent="true"
+    <m-timeout name="watchdog" timeout="150s" reset="!scope/stream/chunk" salience="0.9" urgent="true"
                prompt="The grid I was describing is still here; I take up reading it again."></m-timeout>
 
     <!-- The Reader mostly speaks; it hears only the Checker, at low salience, so it can
          answer a "re-confirm this cell / count" request without being pulled off its reading.
          NOTE the "@spoken": m-speech emits the completed utterance with fire("spoken") — an
          @event — so an ear must sub to the EVENT ref (/voice/@spoken), exactly as m-memory
-         auto-subscribes to "..m-mind/<voice>/@spoken". A plain "/voice/spoken" ref (as the duet
+         auto-subscribes to "!scope/<voice>/@spoken". A plain "/voice/spoken" ref (as the duet
          and multi-mind.md examples still show) binds a behaviour-value that never fires, so no
          peer is ever heard — the first live run of this society proved it silent. -->
-    <m-ear from="..m-society/checker/voice/@spoken" as="Checker" salience="0.4"></m-ear>
+    <m-ear from="!cluster/checker/voice/@spoken" as="Checker" salience="0.4"></m-ear>
 
     <m-region name="drift">
       <m-interrupts gain="0.6" threshold="0.5" rateLimit="60s"></m-interrupts>
@@ -232,14 +232,14 @@
     <m-interrupts name="attention" threshold="0.45" rateLimit="12s" keep="3"
                   arousalSensitivity="0.25"></m-interrupts>
 
-    <m-timeout name="watchdog" timeout="150s" reset="..m-mind/stream/chunk" salience="0.9" urgent="true"
+    <m-timeout name="watchdog" timeout="150s" reset="!scope/stream/chunk" salience="0.9" urgent="true"
                prompt="The rule I was working out is still here; I take it up again."></m-timeout>
 
     <!-- The Reader (the parse) and the Checker (verdicts on my rules) — the only two voices.
          No ear on the Geometer: the two Solvers are not wired peer-to-peer, so they cannot
          phase-lock; whatever the other lens finds reaches me only through the Checker. -->
-    <m-ear from="..m-society/reader/voice/@spoken" as="Reader" salience="0.8"></m-ear>
-    <m-ear from="..m-society/checker/voice/@spoken" as="Checker" salience="0.85"></m-ear>
+    <m-ear from="!cluster/reader/voice/@spoken" as="Reader" salience="0.8"></m-ear>
+    <m-ear from="!cluster/checker/voice/@spoken" as="Checker" salience="0.85"></m-ear>
 
     <m-region name="drift">
       <m-interrupts gain="0.6" threshold="0.5" rateLimit="60s"></m-interrupts>
@@ -330,11 +330,11 @@
     <m-interrupts name="attention" threshold="0.45" rateLimit="12s" keep="3"
                   arousalSensitivity="0.25"></m-interrupts>
 
-    <m-timeout name="watchdog" timeout="150s" reset="..m-mind/stream/chunk" salience="0.9" urgent="true"
+    <m-timeout name="watchdog" timeout="150s" reset="!scope/stream/chunk" salience="0.9" urgent="true"
                prompt="The transformation I was working out is still here; I take it up again."></m-timeout>
 
-    <m-ear from="..m-society/reader/voice/@spoken" as="Reader" salience="0.8"></m-ear>
-    <m-ear from="..m-society/checker/voice/@spoken" as="Checker" salience="0.85"></m-ear>
+    <m-ear from="!cluster/reader/voice/@spoken" as="Reader" salience="0.8"></m-ear>
+    <m-ear from="!cluster/checker/voice/@spoken" as="Checker" salience="0.85"></m-ear>
 
     <m-region name="drift">
       <m-interrupts gain="0.6" threshold="0.5" rateLimit="60s"></m-interrupts>
@@ -432,14 +432,14 @@
     <m-interrupts name="attention" threshold="0.45" rateLimit="12s" keep="3"
                   arousalSensitivity="0.25"></m-interrupts>
 
-    <m-timeout name="watchdog" timeout="180s" reset="..m-mind/stream/chunk" salience="0.9" urgent="true"
+    <m-timeout name="watchdog" timeout="180s" reset="!scope/stream/chunk" salience="0.9" urgent="true"
                prompt="The rule I was checking is still here; I take it up again — or, if there is none yet, I ready myself for the next one."></m-timeout>
 
     <!-- Both Solvers' rules arrive here, and the Reader's parse. The Checker is the hub of the
          negative feedback: it hears every proposal and answers each with a computed verdict. -->
-    <m-ear from="..m-society/builder/voice/@spoken" as="Builder" salience="0.85"></m-ear>
-    <m-ear from="..m-society/geometer/voice/@spoken" as="Geometer" salience="0.85"></m-ear>
-    <m-ear from="..m-society/reader/voice/@spoken" as="Reader" salience="0.7"></m-ear>
+    <m-ear from="!cluster/builder/voice/@spoken" as="Builder" salience="0.85"></m-ear>
+    <m-ear from="!cluster/geometer/voice/@spoken" as="Geometer" salience="0.85"></m-ear>
+    <m-ear from="!cluster/reader/voice/@spoken" as="Reader" salience="0.7"></m-ear>
 
     <m-region name="drift">
       <m-interrupts gain="0.6" threshold="0.5" rateLimit="60s"></m-interrupts>

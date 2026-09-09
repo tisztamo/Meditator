@@ -21,6 +21,13 @@ const IDENTITY_BY_TAG = {
     'm-society': 'society',
 }
 
+/** Amanita `!value` scope roots — opaque to Amanita, convention in Meditator. */
+const BOUNDARY_BY_IDENTITY = {
+    mind: 'scope',
+    agent: 'scope',
+    society: 'cluster',
+}
+
 function tokens(value) {
     return (value || '').split(/\s+/).filter(Boolean)
 }
@@ -66,13 +73,33 @@ export function reflectProvides(el, ctor = classOf(el), onOverwrite) {
     else el.removeAttribute('provides')
 }
 
+/** `boundary` for Amanita `!value` refs — derived from identity roles, never authored. */
+export function boundaryFor(el, ctor = classOf(el)) {
+    for (const role of rolesProvidedBy(el, ctor)) {
+        const boundary = BOUNDARY_BY_IDENTITY[role]
+        if (boundary) return boundary
+    }
+    return null
+}
+
+export function reflectBoundary(el, ctor = classOf(el), onOverwrite) {
+    if (!el || el.nodeType !== 1) return
+    const next = boundaryFor(el, ctor)
+    const had = el.hasAttribute('boundary')
+    const prev = had ? el.getAttribute('boundary') : null
+    if (had && prev !== next) onOverwrite?.(el, prev, next)
+    if (next) el.setAttribute('boundary', next)
+    else el.removeAttribute('boundary')
+}
+
 /** Reflect every element under `root` (a Document or Element). */
-export function reflectTree(root, classForTag, onOverwrite) {
+export function reflectTree(root, classForTag, onOverwrite, onBoundaryOverwrite) {
     if (!root) return
     const visit = el => {
         if (!el || el.nodeType !== 1) return
         const ctor = classForTag ? classForTag(el.localName) : classOf(el)
         reflectProvides(el, ctor, onOverwrite)
+        reflectBoundary(el, ctor, onBoundaryOverwrite)
     }
     if (root.nodeType === 9) {
         const docEl = root.documentElement

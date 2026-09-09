@@ -137,16 +137,21 @@ export class MAgent extends MBaseComponent {
         // returns to idle after each — the deliberate service-mode inversion of a one-shot.
         this.addEventListener("task", e => { e.stopPropagation(); this._enqueueTask(e?.detail?.text ?? e?.detail) })
 
-        // Mirror the OBJECTIVE — the task this agent was set — the decoupled way
-        // (decoupling.md): m-objective publishes its text on `prompt`; we mirror it
-        // from an auto-discovered, overridable ref, never a querySelector reach-in.
-        // The querySelector here only reads m-objective's NAME to build the ref, exactly
-        // as m-mind discovers m-origin. Read once, at wake, by _begin().
-        const objective = this.querySelector("m-objective[name]")
-        const objName = objective?.getAttribute("name")
-        const objectiveSrc = this.attr("objectiveSrc") || (objName ? `..m-agent/${objName}/prompt` : null)
-        this._hasObjective = !!(objectiveSrc && objectiveSrc !== "off")
-        if (this._hasObjective) this.sub(objectiveSrc, o => { this._objectiveText = o || ""; this._objectiveReady = true }).catch(() => {})
+        const objectiveSrc = this.attr("objectiveSrc")
+        if (objectiveSrc === "off") {
+            this._hasObjective = false
+        } else if (objectiveSrc) {
+            this._hasObjective = true
+            this.sub(objectiveSrc, o => { this._objectiveText = o || ""; this._objectiveReady = true }).catch(() => {
+                this._hasObjective = false; this._objectiveReady = true
+            })
+        } else {
+            this._hasObjective = !!this.querySelector('[name="objective"]')
+            if (this._hasObjective) {
+                this.sub("!scope/objective/prompt", o => { this._objectiveText = o || ""; this._objectiveReady = true })
+                    .catch(() => { this._hasObjective = false; this._objectiveReady = true })
+            }
+        }
 
         // m-reason's move for the turn we just published. Subscribed explicitly (not as
         // an auto-sub field) with a .catch(): a bare/misconfigured agent with no

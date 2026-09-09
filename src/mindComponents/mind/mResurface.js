@@ -78,10 +78,9 @@ export class MResurface extends MObserver {
         // cooldown would only drop a fresh loop's bid, so default it off.
         if (this.getAttribute("cooldown") == null) this.setAttribute("cooldown", "0ms")
 
-        const det = this.closest("m-mind")?.querySelector("m-loop-detector[name]")
-        const detName = det?.getAttribute("name")
-        const loopSrc = this.attr("loopSrc") || (detName ? `..m-mind/${detName}/loop` : null)
-        if (loopSrc && loopSrc !== "off") this.sub(loopSrc, loop => this._onLoop(loop)).catch(() => {})
+        if (this.attr("loopSrc") !== "off") {
+            this.sub(this.attr("loopSrc") || "!scope/loop-detector/loop", loop => this._onLoop(loop)).catch(() => {})
+        }
     }
 
     _onLoop(loop) {

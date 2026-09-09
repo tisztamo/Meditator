@@ -28,7 +28,7 @@ const log = logger("mContext.js")
  * THE WIRING CONTRACT (state down as retained topics, intent up — here, a compaction is
  * an intent m-agent applies to the array IT owns, so it flows as a retained topic m-agent
  * subscribes to, exactly as m-agent subscribes reason/reply):
- *   - subscribes  ..m-agent/transcript  (mirror the working set) and ..m-agent/@step
+ *   - subscribes  !scope/transcript  (mirror the working set) and !scope/@step
  *     (the compaction trigger; carries the step index for persistence).
  *   - publishes    restore   {messages, step}  — once, after load (empty if none/off).
  *   - publishes    compacted {summarizeCount, summary} — asks m-agent to replace the
@@ -65,10 +65,10 @@ export class MContext extends MBaseComponent {
         // Mirror the working set and watch the step boundary. Subscribed explicitly with a
         // .catch() (never auto-sub fields) so an <m-context> placed outside an <m-agent>
         // fails quietly instead of leaking an unhandled ref-resolution rejection.
-        this.sub("..m-agent/transcript", messages => this._onTranscript(messages)).catch(() => {
-            log.warn("m-context found no ..m-agent/transcript — it must sit inside an <m-agent>")
+        this.sub("!scope/transcript", messages => this._onTranscript(messages)).catch(() => {
+            log.warn("m-context found no !scope/transcript — it must sit inside an <m-agent>")
         })
-        this.sub("..m-agent/@step", e => this._onStep(e?.detail)).catch(() => {})
+        this.sub("!scope/@step", e => this._onStep(e?.detail)).catch(() => {})
 
         // Load the persisted transcript and publish `restore` so the agent wakes resuming
         // (or, if nothing persisted / persist off, a clean empty restore so it seeds fresh).
@@ -92,7 +92,7 @@ export class MContext extends MBaseComponent {
         // (amanita 0.4: pub's subscriber dispatch is now deferred to a microtask, so
         // this handler can run before _onTranscript sees that same step's transcript).
         // Read the retained value directly so compaction/persist never lag one step.
-        const live = this.el("..m-agent")?.transcript
+        const live = this.el("!scope")?.transcript
         if (Array.isArray(live)) this._messages = live
         this._schedulePersist()
         this._maybeCompact()

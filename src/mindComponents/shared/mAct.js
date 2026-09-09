@@ -122,23 +122,15 @@ export class MAct extends MObserver {
         // economy's arousal exactly as the arbiter does; with no economy the topic
         // never publishes and arousal stays 1, so a mind without a metabolism reaches
         // freely (efference.md §6b).
-        this.sub("..m-mind/economy/arousal", value => { if (typeof value === "number") this._arousal = value }).catch(() => {})
+        this.sub("!scope/economy/arousal", value => { if (typeof value === "number") this._arousal = value }).catch(() => {})
 
-        // Standing working knowledge for the realizer (see GROUNDING THE REALIZER above):
-        // mirror the SAME memory the conscious frame reads, auto-discovered from the
-        // enclosing mind's <m-memory> exactly as m-mind does it. story/recent carry the
-        // consolidated knowledge (where a definition the mind derived or was seeded with
-        // ends up); the tail is the freshest verbatim, and — unlike this observer's own
-        // window — it is restored on wake, so the realizer is grounded from the first
-        // burst. Optional and opt-outable ("off"): a mind without memory just reaches
-        // with the live window alone, as before.
-        const mem = this.closest("m-mind")?.querySelector("m-memory[name]")
-        const memName = mem?.getAttribute("name")
-        const tailSrc = this.attr("tailSrc") || (memName ? `..m-mind/${memName}/tail` : null)
-        const compressedSrc = this.attr("compressedSrc") || (memName ? `..m-mind/${memName}/compressed` : null)
-        if (tailSrc && tailSrc !== "off") this.sub(tailSrc, t => { this._memTail = t || "" }).catch(() => {})
-        if (compressedSrc && compressedSrc !== "off") {
-            this.sub(compressedSrc, c => { if (c) { this._memRecent = c.recent || ""; this._memStory = c.story || "" } }).catch(() => {})
+        if (this.attr("tailSrc") !== "off") {
+            this.sub(this.attr("tailSrc") || "!scope/memory/tail", t => { this._memTail = t || "" }).catch(() => {})
+        }
+        if (this.attr("compressedSrc") !== "off") {
+            this.sub(this.attr("compressedSrc") || "!scope/memory/compressed", c => {
+                if (c) { this._memRecent = c.recent || ""; this._memStory = c.story || "" }
+            }).catch(() => {})
         }
 
         // Each hand announces itself with a bubbling "capability" event; one self-listener
