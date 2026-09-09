@@ -112,6 +112,7 @@ is the mind's identity.
 | `paceSigma` | `pace/4` | normal-distributed jitter on the pause |
 | `tailLength` | `1500` | chars of verbatim tail carried into each frame |
 | `bridge` | `false` | `"true"` inserts a utility-model transition sentence before the landing opener; unused unless set |
+| `landingOpener` | `true` | `"false"` skips the dangling first-person opener after a perceived event; on unless set |
 | `speakingPaceFactor` | `2.5` | pace multiplier while the voice is speaking (slower thinking) |
 | `speakingTokensFactor` | `0.35` | burst-token multiplier while speaking (thinner thoughts, floor 60) |
 | `tailSrc` / `compressedSrc` | the memory's `<name>/tail` and `<name>/compressed` (auto-discovered) | the narrative content mirrored into the frame; `"off"` disables |

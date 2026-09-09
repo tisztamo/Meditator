@@ -88,6 +88,8 @@ one text and the model continues the thought.
 
 `bridge="true"` on `<m-mind>` inserts an extra utility-model transition sentence
 before the opener. It is off by default; shipped architectures leave it off.
+`landingOpener="false"` skips the opener itself (the `> ⟂` block still lands);
+the opener stays on by default.
 
 ## The thinking loop
 

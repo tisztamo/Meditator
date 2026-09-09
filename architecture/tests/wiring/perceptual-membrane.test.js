@@ -171,6 +171,23 @@ test('closed content is never rendered, dispatched, or journaled; reopening samp
     expect(journal).toContain('⌁ Attention aperture: closed → open');
 });
 
+test('landing opener is injected after a perceived event by default', async () => {
+    mind._memTail = 'A thought already underway.';
+    const payload = await frame([new InterruptRecord({ source: 'Internal', type: 'Other', reason: 'A knock.', salience: 1 })]);
+    expect(payload.prefix).toBe('I turn toward it, ');
+    expect(payload.prefill).toContain('> ⟂ A knock.');
+    expect(payload.prefill.endsWith('I turn toward it, ')).toBe(true);
+});
+
+test('landingOpener="false" skips the injected opener after a perceived event', async () => {
+    mind.setAttribute('landingOpener', 'false');
+    mind._memTail = 'A thought already underway.';
+    const payload = await frame([new InterruptRecord({ source: 'Internal', type: 'Other', reason: 'A knock.', salience: 1 })]);
+    expect(payload.prefix).toBeUndefined();
+    expect(payload.prefill).toContain('> ⟂ A knock.');
+    expect(payload.prefill).not.toContain('I turn toward it');
+});
+
 test('tier 1 is refused at source registration', () => {
     const edge = document.createElement('span');
     edge.setAttribute('name', 'grounded');

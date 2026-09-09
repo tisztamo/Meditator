@@ -36,7 +36,8 @@ back here when a word is unclear.
   [Architecture](architecture/index.md#the-attention-frame).
 - **landing opener** — a short first-person fragment the mechanism seeds after a
   perceived event, so the next burst continues the mind's own thought instead of
-  stopping or extending the event's words. See
+  stopping or extending the event's words. On by default; `landingOpener="false"`
+  on `<m-mind>` skips it. See
   [Architecture](architecture/index.md#the-landing-opener).
 - **bridge** — optional. If `bridge="true"` on `<m-mind>`, a utility model writes
   one or two transition sentences before the landing opener. Off by default.

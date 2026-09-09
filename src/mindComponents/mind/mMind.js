@@ -89,6 +89,7 @@ const LANDING_PHRASES = {
  *   - pace: the burst-to-burst tick (default "8s"), paceSigma: jitter (default "2s")
  *   - tailLength: verbatim carryover size in chars (default 1500)
  *   - bridge: "true"|"false" — whether redirects get an LLM-written bridge (default false)
+ *   - landingOpener: "true"|"false" — dangling first-person opener after a perceived event (default true)
  *
  * Topics published:
  *   - "prompt": the assembled attention frame for each burst (consumed by m-stream)
@@ -636,7 +637,8 @@ export class MMind extends MBaseComponent {
         // model call that writes the turn itself — precedes it. Both are emitted into
         // the visible stream (prefix) as real chunks AND appended to the thought in
         // the frame, so the model continues from a pivot it has actually seen and the
-        // durable tail records the same text.
+        // durable tail records the same text. `landingOpener="false"` skips the phrase
+        // (the event block still enters the prefill); the opener stays on by default.
         let prefix
         if (stimuli.length) {
             let entry = ""
@@ -651,9 +653,11 @@ export class MMind extends MBaseComponent {
                 this.fire("bridge", { text: bridge })
                 entry = bridge + " "
             }
-            entry += this._landingOpener()
-            prefix = entry
-            thoughtInProgress = thoughtInProgress + entry
+            if (this.attr("landingOpener") !== "false") entry += this._landingOpener()
+            if (entry) {
+                prefix = entry
+                thoughtInProgress = thoughtInProgress + entry
+            }
         }
 
         const identity = this._identity()

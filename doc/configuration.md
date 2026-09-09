@@ -252,6 +252,8 @@ On `<m-mind>`:
   next burst. Larger = stronger continuity, bigger prompts.
 - `bridge` (default `false`) — set `"true"` to insert a utility-model transition
   sentence before the landing opener. Off unless set.
+- `landingOpener` (default `true`) — set `"false"` to skip the dangling first-person
+  opener after a perceived event. On unless set.
 
 The effective tick is also multiplied by the [economy](#budget-and-economy) pace
 factor, so a tiring mind slows down on its own. The current tick is broadcast as a
