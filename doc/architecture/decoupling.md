@@ -1,10 +1,10 @@
 # Decoupling components — the wiring migration
 
-> **Status: in progress.** An incremental migration to remove direct
-> component-to-component method calls in favour of pub/sub topics wired in the
-> architecture. See [deep-structure.md](deep-structure.md) for the broadcast-bus
-> philosophy this builds on, and [components.md](components.md) for each
-> component's current topics.
+> **Status: complete.** The migration removed direct component-to-component
+> method calls in favour of pub/sub topics wired in the architecture. See
+> [deep-structure.md](deep-structure.md) for the broadcast-bus philosophy this
+> builds on, and [components.md](components.md) for each component's current
+> topics.
 
 ## The principle
 
@@ -17,13 +17,18 @@ action another faculty needs to *perform* becomes a topic that faculty subscribe
 to. The wire then lives in the architecture, not baked into either component.
 
 This is not aesthetic. The reach-in it replaces —
-`closest('m-mind').querySelector('m-memory').spoke(…)` — has three fatal
+`closest('m-mind').querySelector('m-memory').spoke(…)` — has four fatal
 properties: it is **not declared** (invisible in the `.archml`), **not
-overridable**, and `querySelector` returns **exactly one** match. That last point
-is the whole game: it is *why* you cannot replace memory with a different
-implementation, and *why* you cannot run a second memory alongside the first.
-Pub/sub is natively fan-out — one producer, N subscribers — so both fall out for
-free.
+overridable**, **`querySelector` returns exactly one match**, and it **names
+implementation tags** (`m-memory`, `m-mind`), not the slot/role they fill. The
+singleton match is why you cannot run a second memory alongside the first; the tag
+names are why you cannot swap implementations at all — `<my-memory name="memory">`
+is invisible to `querySelector('m-memory')`. Pub/sub is natively fan-out — one
+producer, N subscribers — so the first three fall out for free; reversing the
+reference (`*Src`, topics) fixes who reaches whom, though default refs that step
+through `..m-mind/` still resolve by tag. **Substitution invariance** — any
+provider of a role swappable without rewiring consumers — is the direction in
+[enclosure by role](../improvements/enclosure-by-role.md).
 
 ## The pattern
 
@@ -37,13 +42,25 @@ Every cross-component dependency follows the same shape (mirroring the
   ```js
   const explicit = this.attr("spokenSrc")
   const voice = this.closest("m-mind")?.querySelector("m-speech[name]")
-  const spokenSrc = explicit || (voice ? `..m-mind/${voice.getAttribute("name")}/spoken` : null)
+  const spokenSrc = explicit || (voice ? `..m-mind/${voice.getAttribute("name")}/@spoken` : null)
   if (spokenSrc && spokenSrc !== "off") this.sub(spokenSrc, this._onSpoken, 12)
   ```
 
   The `querySelector` here only *discovers a name to build a ref* — it never calls
   a method. The default is overridable per-mind (`spokenSrc="…"`) and disableable
   (`spokenSrc="off"`).
+
+**Limits of auto-discovery.** The convenience default is still **tag-bound** on
+both hops: `closest('m-mind')` and `querySelector('m-speech[name]')`. A drop-in
+`<my-speech name="voice">` is invisible to that lookup, so auto-discovery silently
+skips the wire unless the author sets `spokenSrc="..m-mind/voice/@spoken"` (that
+ref resolves the faculty step by `name`, not tag). `querySelector` also returns
+**exactly one** match and `sub()` binds **one** target — fan-out is on the producer
+side (many consumers each `sub()` to the same ref), not on discovery finding every
+`m-speech`. **Substitution invariance** — any provider of a role swappable without
+rewiring consumers — is not satisfied by auto-discovery; see
+[substitution-invariance.md](../improvements/substitution-invariance.md) and
+[enclosure by role](../improvements/enclosure-by-role.md).
 
 Three Amanita facts make this robust and are worth keeping in mind:
 
@@ -133,11 +150,10 @@ direct calls, on the same footing as the arbiter's documented `takePending()`:
 
 ## The same principle, in the browser
 
-The [Studio](../studio.md) UI is an Amanita component mesh too, and it is on the
-same migration: its panes read supervisor state by subscribing to topics and now
-issue *commands* as bubbling `studio-command` events the `studio-conn` hub routes —
-the browser mirror of the [`interrupt-request`](interrupts.md) pattern, replacing
-the reach-in this page removes. With the panes' field-reads also gone the hub is
-swappable and mockable, and the stray controls are folded in as their own
-components — the Studio is now a pure mesh, with only an optional transport split
-left. See [Studio wiring](../studio-wiring.md).
+The [Studio](../studio.md) UI is an Amanita component mesh too, and the same
+migration is done there: panes read supervisor state by subscribing to topics and
+issue *commands* as bubbling `studio-command` events the `studio-conn` hub routes
+— the browser mirror of the [`interrupt-request`](interrupts.md) pattern. With the
+panes' field-reads also gone the hub is swappable and mockable, and the stray
+controls are folded in as their own components. Only an optional transport split
+remains. See [Studio wiring](../studio-wiring.md).

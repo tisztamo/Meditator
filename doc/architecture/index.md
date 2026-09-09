@@ -153,10 +153,10 @@ Amanita auto-subscribes class fields whose names are refs (they contain `/` or
 start with `@`), which is why you see handlers like `"stream/boundary"` and
 `"@interrupt"` written as fields on `m-mind`.
 
-Making "components never call each other directly" *literally* true — replacing the
-last reach-in method calls with topics wired in the architecture — is an ongoing
-migration; see [decoupling.md](decoupling.md) for the principle, the pattern, and
-what is intentionally left as an orchestrator/transport contract.
+The last reach-in method calls have been replaced with topics wired in the
+architecture; see [decoupling.md](decoupling.md) for the principle, the pattern,
+what was migrated, and what is intentionally left as an orchestrator/transport
+contract.
 
 ## The component map
 

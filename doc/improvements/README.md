@@ -11,6 +11,10 @@ not necessarily acted on yet. Each note states its status at the top.
   structure (`enclosing`, `membrane`, `part`); three laws of enclosure
   (transparency, delegation, monotone authority); the aperture restated as a
   composable protocol; wrap/substitution fixtures and the tag-name migration table.
+- [substitution-invariance.md](substitution-invariance.md) — the decoupling
+  migration removed method reach-in, but `*Src` auto-discovery still keys off
+  implementation tags (`querySelector('m-speech')`); documents the gap, the
+  requirement, and the path through enclosure-by-role phase 1.
 - [prediction-mismatch.md](prediction-mismatch.md) — revised design for replaceable
   prediction producers, comparators, attention policies, and search controllers;
   distinguishes sensory change, expectation, causality, and contact, records known
