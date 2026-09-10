@@ -820,7 +820,12 @@ been run.
    **Partially implemented (2026-09-09).** 3A — act-bound prediction, comparison,
    and bidding — is in. 3B — `orient` and bounded search — is not.
    ([roadmap](../plans/perceptual-membrane-phase-3.md);
-   [phase 3A implementation plan](../plans/perceptual-membrane-phase-3a.md))
+   [phase 3A implementation plan](../plans/perceptual-membrane-phase-3a.md);
+   [3A review](../plans/perceptual-membrane-phase-3a-review.md);
+   [phase 3B plan](../plans/perceptual-membrane-phase-3b.md) — staged: a live
+   `expect` study, a declared tier-2 comparator, and the first live aperture
+   precede orientation and search, because no shipped mind yet has a `modality`
+   region and the exact comparator cannot read prose)
 4. Describe and later evaluate alternative architectures with the same sources,
    transport, and frame/memory code. The
    [experiment matrix](../improvements/prediction-mismatch.md#proposed-experiments)

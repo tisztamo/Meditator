@@ -22,6 +22,17 @@ prediction, comparison, and bidding. Orientation and search remain the
 phase 3B direction in this roadmap; they are not implemented and do not belong
 on the landed 3A seams.
 
+**Superseded in sequence by the [phase 3B plan](perceptual-membrane-phase-3b.md)
+(2026-09-10), written from the [3A review](perceptual-membrane-phase-3a-review.md).**
+Two facts the roadmap did not state: no shipped or lab architecture has a
+`modality` region, so the membrane path has no live producer and a hand's
+consequence is the only live evidence; and the exact-text comparator answers
+`insufficient` to any prose, so live predictions can only expire. Orientation
+(§2.3, §5) and search (§2.2, §6) therefore wait on a live `expect` study, a
+declared tier-2 comparator, and a first live aperture (3B stages B1–B3), and are
+built as separate series (B4, B5). §2.3, §5, and §6 below stay the specification
+for those two series; the 3B plan lists the deltas.
+
 The constraining companions are
 [prediction, mismatch, and top-down search](../improvements/prediction-mismatch.md)
 (responsibilities, uncertainty, and experiment conditions),
