@@ -90,6 +90,7 @@ export class InterruptRecord {
     episode = null,
     kind = null,
     actId = null,
+    progress = false,
     context = {},
     additionalData = {}
   }) {
@@ -122,6 +123,10 @@ export class InterruptRecord {
     // Association with an act, not proof of causation. Trusted constructors may
     // set it; coerce from a plain object or string never grants it.
     this.actId = (typeof actId === 'string' && actId) ? actId : null;
+    // Outcome vs progress: a prediction is compared against outcome consequences
+    // only. A progress line is not the world answering. Substrate-owned, like
+    // `urgent` — coerce from a plain object never grants it.
+    this.progress = progress === true;
     this.context = {
       lastOutput: context.lastOutput || '',
       streamState: context.streamState || 'unknown'
@@ -171,7 +176,7 @@ export class InterruptRecord {
       return new InterruptRecord({ source: 'External', type: 'Raw', reason: detail, urgent: true, salience: 1 });
     }
     if (detail && typeof detail === 'object') {
-      const { actId: _untrustedActId, ...rest } = detail;
+      const { actId: _untrustedActId, progress: _untrustedProgress, ...rest } = detail;
       return new InterruptRecord(rest);
     }
     return new InterruptRecord({ source: 'Unknown', type: 'Unknown', reason: String(detail) });

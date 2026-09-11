@@ -43,14 +43,29 @@ export function predictionSignalsFromEvaluations(evaluations) {
     return { predictionMatch, predictionMismatch };
 }
 
+/** Target-match from committed Evaluation verdicts of kind `target`. Missing is null. */
+export function targetSignalFromEvaluations(evaluations) {
+    let targetMatch = null;
+    const list = Array.isArray(evaluations) ? evaluations : [];
+    for (const evaluation of list) {
+        if (!(evaluation instanceof Evaluation)) continue;
+        if (evaluation.subject?.kind !== 'target') continue;
+        if (evaluation.verdict !== 'match') continue;
+        targetMatch = finiteUnit(evaluation.confidence) ? evaluation.confidence : 1;
+    }
+    return targetMatch;
+}
+
 export function expectedBidSignals({ evidence, evaluations = [], populatePrediction = false } = {}) {
     const prediction = populatePrediction
         ? predictionSignalsFromEvaluations(evaluations)
         : { predictionMatch: null, predictionMismatch: null };
+    const targetMatch = populatePrediction ? targetSignalFromEvaluations(evaluations) : null;
     return independentSignals({
         changeMagnitude: evidence.salience,
         requested: evidence.requestId != null,
         ...prediction,
+        targetMatch,
     });
 }
 

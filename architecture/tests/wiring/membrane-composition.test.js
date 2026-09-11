@@ -362,6 +362,7 @@ test('W3 outer closed over inner open: no materializer, no bids, no journal, no 
     expect(decisions[0].data).toEqual({
         stage: 'acquisition', source: 'mock', permitted: false, reason: 'closed',
         changeMagnitude: 0.9, apertureState: 'closed',
+        candidateId: expect.any(String), requestId: null,
     });
     const blobs = [blobOf(published), blobOf(publishedMind), blobOf(fired), blobOf(firedMind), blobOf(events)];
     for (const blob of blobs) {

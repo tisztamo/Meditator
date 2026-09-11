@@ -26,6 +26,8 @@ export function evaluationsForEvidence(predictions, view, {
 } = {}) {
     if (timedOut({ now, deadline, signal })) return []
     if (!isEvidenceView(view)) return []
+    // A progress line is not the world answering; do not judge it.
+    if (view.progress === true) return []
     const list = Array.isArray(predictions) ? predictions : []
     const incomplete = !view.archivalText.trim()
     const out = []
@@ -57,6 +59,55 @@ export function evaluationsForEvidence(predictions, view, {
         out.push(new Evaluation({
             producer,
             subject: { kind: 'prediction', id: prediction.id },
+            evidenceIds: [view.id],
+            verdict,
+            basisAt: now,
+        }))
+    }
+    return out
+}
+
+function routeMatchesView(target, view) {
+    const routes = Array.isArray(target?.routes) ? target.routes : []
+    if (!routes.length) return false
+    return routes.some(route => route.source === view.sourceId)
+}
+
+/** Exact-text evaluations of live search targets. Fixture condition; labelled so. */
+export function evaluationsForTargets(targets, view, {
+    now = Date.now(), deadline, signal, producer = 'm-compare',
+} = {}) {
+    if (timedOut({ now, deadline, signal })) return []
+    if (!isEvidenceView(view)) return []
+    if (view.progress === true) return []
+    const list = Array.isArray(targets) ? targets : []
+    const incomplete = !view.archivalText.trim()
+    const out = []
+    for (const target of list) {
+        const t = Date.now()
+        if (timedOut({ now: t, deadline, signal })) return []
+        if (!target || typeof target.template !== 'string' || !target.id) continue
+        if (!routeMatchesView(target, view)) continue
+        const expired = Date.parse(target.deadline) <= now
+        let verdict
+        if (expired || incomplete) {
+            verdict = 'insufficient'
+        } else {
+            const expected = normalizeCompareText(target.template)
+            const actual = normalizeCompareText(view.archivalText)
+            if (expected == null || actual == null || expected === '' || actual === '') {
+                verdict = 'insufficient'
+            } else if (expected === actual) {
+                verdict = 'match'
+            } else if (tokenCount(expected) >= 8 || tokenCount(actual) >= 8) {
+                verdict = 'insufficient'
+            } else {
+                verdict = 'mismatch'
+            }
+        }
+        out.push(new Evaluation({
+            producer,
+            subject: { kind: 'target', id: target.id },
             evidenceIds: [view.id],
             verdict,
             basisAt: now,

@@ -117,6 +117,27 @@ first-person sensation. Two design rules keep hands honest and safe (see
 Read `src/mindComponents/shared/mNote.js` and `mLook.js` — each is a complete
 worked example in under two screens.
 
+## Replacing a comparator or a bidder
+
+`comparator` and `bidder` are **role ports** (see
+[decoupling](architecture/decoupling.md#role-ports)): resolved by role via `part()`,
+not by tag; singleton per owner; a duplicate fails at connect. To replace
+`m-compare` with a declared tier-2 judge, put `mJudge.js` in a `components/` bundle
+or wire the built-in:
+
+```xml
+<m-mind stage="experimental">
+  <m-judge name="judge"></m-judge>
+  <m-act name="hands" prediction="on" compareDeadline="8s">
+    <m-bid name="act-bid" expectedFloor="0.3" mismatchWeight="0.6"></m-bid>
+  </m-act>
+</m-mind>
+```
+
+Do not also wire `m-compare` in the same membrane. Same-batch custom definitions wait
+for `whenDefined`; disconnect invalidates in-flight comparison. A bidder lives under
+its owner (`m-region` or `m-act`), not at the mind.
+
 ## Writing an agent tool
 
 An **agent tool** is the same capability object with the opposite harness: the

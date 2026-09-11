@@ -1,6 +1,6 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
 import { AttentionBid, independentSignals } from '../../infrastructure/attentionBid.js'
-import { predictionSignalsFromEvaluations } from '../../infrastructure/bidderPolicy.js'
+import { predictionSignalsFromEvaluations, targetSignalFromEvaluations } from '../../infrastructure/bidderPolicy.js'
 import { evaluationIdsOf } from '../../infrastructure/compareContinuation.js'
 
 function unitAttr(host, name) {
@@ -37,7 +37,7 @@ export class MBid extends MBaseComponent {
                 novelty: null,
                 predictionMatch,
                 predictionMismatch,
-                targetMatch: null,
+                targetMatch: targetSignalFromEvaluations(evaluations),
                 causalAttribution: null,
                 confidence: null,
             }),

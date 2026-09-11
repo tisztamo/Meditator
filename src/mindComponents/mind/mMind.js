@@ -8,6 +8,7 @@ import { logger } from '../../infrastructure/logger.js';
 import { InterruptRecord, withPerceivedEvents } from '../../infrastructure/interruptRecord.js';
 import { AttentionBid } from '../../infrastructure/attentionBid.js';
 import { PerceptReceipt } from '../../infrastructure/perceptionContracts.js';
+import { MIND_SLEEPING_EVENT } from '../../infrastructure/evidenceCase.js';
 import { randomUUID } from 'node:crypto';
 
 const log = logger('mMind.js');
@@ -360,6 +361,7 @@ export class MMind extends MBaseComponent {
     async sleep() {
         if (this._sleeping) return
         this._sleeping = true
+        this.fire(MIND_SLEEPING_EVENT, { sleeping: true })
         if (this._timer) { clearTimeout(this._timer); this._timer = null }
 
         const memory = this.querySelector('m-memory')

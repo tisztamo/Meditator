@@ -197,7 +197,7 @@ test('10. comparator timeout cannot settle a prediction; late resolution is igno
     compare.evaluate = (view, opts) => new Promise(resolve => {
         finish = () => resolve(orig(view, opts));
     });
-    region._compareDeadlineOverride = 25;
+    region.setAttribute('compareDeadline', '25ms');
     const settlements = [];
     act.addEventListener(PREDICTION_SETTLED_EVENT, e => settlements.push(e.detail));
     const offer = region.registerSource(source);
@@ -279,7 +279,7 @@ test('13. disconnect prevents stale commit', async () => {
     expect(await pending).toBeNull();
 });
 
-test('13b. sleep, moved source, and rebound comparator drop in-flight comparison', async () => {
+test('13b. sleep and a moved source drop in-flight comparison; rebound comparator admits without settlement', async () => {
     const offer = region.registerSource(source);
 
     let releaseSleep;
@@ -301,6 +301,12 @@ test('13b. sleep, moved source, and rebound comparator drop in-flight comparison
     region.appendChild(source);
 
     const offerAgain = region.registerSource(source);
+    const pred = liveExpect(makePrediction());
+    armActId(pred.actId);
+    const settlements = [];
+    act.addEventListener(PREDICTION_SETTLED_EVENT, e => settlements.push(e.detail));
+    const commits = [];
+    mind.addEventListener(EVALUATION_COMMIT_EVENT, e => commits.push(e.detail));
     let releaseBind;
     compare.evaluate = () => new Promise(resolve => { releaseBind = () => resolve([]); });
     const rebound = offerAgain(header('bind'), () => 'bind archival');
@@ -308,7 +314,13 @@ test('13b. sleep, moved source, and rebound comparator drop in-flight comparison
     const old = compare;
     old.onDisconnect();
     releaseBind();
-    expect(await rebound).toBeNull();
+    const bid = await rebound;
+    expect(bid).toBeInstanceOf(AttentionBid);
+    expect(bid.evaluationIds).toEqual([]);
+    expect(commits).toHaveLength(0);
+    await delay(40);
+    expect(settlements.filter(s => s.predictionId === pred.id && (s.status === 'matched' || s.status === 'mismatched')))
+        .toHaveLength(0);
 });
 
 test('18. awareness refusal after comparison produces no bid, receipt, memory line, or content-bearing telemetry', async () => {

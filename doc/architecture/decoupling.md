@@ -88,6 +88,23 @@ Three Amanita facts make this robust and are worth keeping in mind:
   **not** need a retry loop — the misleading "upgrade order is not guaranteed, so retry"
   comment that masked the hands' old `registerCapability` loop was the smell.
 
+## Role ports
+
+A third wiring kind beside pub/sub topics and bubbling events. A **role port** is a
+method called on a component resolved by role via `part()`, not by tag.
+
+Rules:
+
+- resolved by role, not tag
+- singleton per owner
+- duplicate fails at connect
+- port shape is validated before use
+- same-batch custom elements wait for `whenDefined`
+- disconnect invalidates in-flight work
+
+Instances: `regulator`, `aggregator`, `comparator`, `bidder`, `requestOrientation`
+(on aperture providers), `search`.
+
 ## Status
 
 | Slice | Producer → topic | Consumer (via `*Src`) | State |

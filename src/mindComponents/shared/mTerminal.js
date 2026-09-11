@@ -265,12 +265,13 @@ export class MTerminal extends MBaseComponent {
             urgent: false,
             type: `Sense-${this.attr("name") || "terminal"}-start`,
             actId,
+            progress: true,
         }
     }
 
     // Dispatch a consequence directly onto the afferent bus — it bubbles to the mind's
     // arbiter exactly like a push-sense (the deferred-consequence path, terminal.md §2).
-    _dispatch({ experience, salience, urgent, type, actId = null }) {
+    _dispatch({ experience, salience, urgent, type, actId = null, progress = false }) {
         // Build a minimal record the arbiter understands; reuse the same shape m-act does.
         this.fire("interrupt-request", new InterruptRecord({
             source: "External",
@@ -279,6 +280,7 @@ export class MTerminal extends MBaseComponent {
             salience,
             urgent,
             actId,
+            progress: !!progress,
         }))
         log.debug(`deferred consequence dispatched: ${experience.slice(0, 80)}`)
     }

@@ -50,7 +50,7 @@ export class MKb extends MBaseComponent {
         this.windowSize = Number(this.attr("window") || 2000)
         this.sub(this.attr("src") || "!scope/stream/chunk", chunk => {
             this.window = (this.window + chunk).slice(-this.windowSize)
-        })
+        }).catch(() => {})
 
         if (this.attr("compressedSrc") !== "off") {
             this.sub(this.attr("compressedSrc") || "!scope/memory/compressed", c => { if (c) this._recent = c.recent || "" })

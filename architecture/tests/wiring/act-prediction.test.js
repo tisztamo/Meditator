@@ -176,6 +176,8 @@ test("expect never enters execute, acted, journal, or a frame", async () => {
     expect(acted[0].args).toEqual({ q: "sky" });
     expect(acted[0].args).not.toHaveProperty("expect");
     expect(JSON.stringify(acted[0])).not.toContain(EXPECT_PHRASE);
+    expect(acted[0].actId).toMatch(UUID);
+    expect(acted[0].predictionId).toMatch(UUID);
     expect(pubs.every(p => p.topic !== PREDICTION_EVENT && p.topic !== PREDICTION_SETTLED_EVENT)).toBe(true);
     expect(JSON.stringify(pubs)).not.toContain(EXPECT_PHRASE);
 

@@ -321,8 +321,10 @@ Defenses, layered:
   `cooldown` (mirrors `m-speech`).
 - **Per-intent dedup.** `m-act` keeps an in-process ledger keyed on a normalized intent
   (mirrors `m-sense._lastKey` and `m-speech`'s per-voice cooldown): a standing wish ("I
-  wish I knew the weather") fires once, not every cadence, until its consequence has
-  landed or a longer per-intent cooldown passes.
+  wish I knew the weather") fires once, not every cadence. The slot is claimed **at
+  execute**, when a hand actually runs — a reach the realizer declines may re-fire next
+  cadence, bounded by DECIDE and `_feelReachInMotion`. (Claiming at accept burned the
+  slot when a raised `intentThreshold` left no fitting hand.)
 - **A closed, concrete menu.** The decide prompt is shown the *available* hands, so it
   fires on *realizable* reaches and stays quiet on wishes nothing can satisfy.
 
@@ -366,7 +368,9 @@ Partly, and it already has most of it:
 | `every` | `8` | decide cadence, in boundaries |
 | `threshold` | `0.6` | min salience from decide to attempt a realize |
 | `cooldown` | `"3m"` | min time between two acts |
-| `intentCooldown` | `"15m"` | min time before re-acting on the *same* intent |
+| `intentCooldown` | `"15m"` | min time before re-acting on the *same* intent (claimed at execute) |
+| `prediction` | off | `"on"` adds optional `expect` to REALIZE schemas (`template` only on hands with `acceptsTemplate`) |
+| `compareDeadline` | `"2s"` | bound on consequence comparison when a comparator is wired |
 | `model` (`actorModel`) | ancestor `model` (voice) | the tool-calling realizer |
 | `decisionModel` | ancestor `utilityModel` | the cheap decide gate |
 | `window`, `cooldown`, `salience` | from `MObserver` | rolling window + raise defaults |
@@ -376,10 +380,17 @@ Partly, and it already has most of it:
 | Topic | Payload | Consumer |
 |---|---|---|
 | `intent` | `{salience, gist, accepted, reason}` | Studio (observability), like `m-speech`'s `impulse` |
-| `acted` | `{intent, capability, args, ok, experience, data}` | `m-memory` (`actedSrc`) → backstage (⌁) note |
+| `acted` | `{intent, capability, args, ok, experience, data, actId?, predictionId?}` | `m-memory` (`actedSrc`) → backstage (⌁) note. `args` are the stripped hand args; envelope text is never in `acted`. |
 
 The consequence is **not** a topic — it is an `External` `interrupt-request` so it goes
 through the arbiter into the frame and is journaled perceived (⟂) via `attended`.
+A hand may stamp `progress: true` on a trusted consequence (the terminal's started
+line does); comparators skip progress — a prediction is compared against outcome
+consequences only. Execution context includes `actId` when `prediction="on"`.
+
+The [efference redesign](../improvements/efference-redesign.md) (act-writing, grasp,
+manual mode) was **not** adopted in this work. Lanes, `progress`, and the derived
+orient enum are the limit of `m-act` change here.
 
 ### In `eddy.archml` (the integration that unblocks the wake)
 

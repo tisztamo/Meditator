@@ -184,6 +184,7 @@ function freezeIdList(name, ids = []) {
 /** Id-only commit after an evidence owner revalidates. No expectation or archival text. */
 export function evaluationCommitPayload({
     evaluationIds = [], verdicts = [], evidenceId, actId = null, predictionId = null,
+    requestId = null, subjects = [],
 } = {}) {
     const ids = freezeIdList('evaluationIds', evaluationIds);
     const frozenVerdicts = Object.freeze(verdicts.map(verdict => {
@@ -199,6 +200,8 @@ export function evaluationCommitPayload({
         evidenceId: evidenceId == null ? null : requireText('evidenceId', evidenceId),
         actId: actId == null ? null : requireText('actId', actId),
         predictionId: predictionId == null ? null : requireText('predictionId', predictionId),
+        requestId: optionalId('requestId', requestId),
+        subjects: freezeSubjects(subjects),
     });
 }
 
@@ -210,4 +213,156 @@ export function fireEvaluationCommit(host, payload) {
         throw new Error('evaluation-commit uses fire(), not pub()');
     }
     return host.fire(EVALUATION_COMMIT_EVENT, commit);
+}
+
+function freezeSubjects(subjects = []) {
+    if (!Array.isArray(subjects)) throw new Error('subjects is a list');
+    return Object.freeze(subjects.map(subject => {
+        if (!subject || typeof subject !== 'object') throw new Error('subjects entries are {kind, verdict}');
+        const kind = subject.kind;
+        const verdict = subject.verdict;
+        if (kind !== 'prediction' && kind !== 'target') throw new Error(`Unknown subject.kind: ${kind}`);
+        if (!COMMIT_VERDICTS.includes(verdict)) throw new Error(`Unknown evaluation verdict: ${verdict}`);
+        return Object.freeze({ kind, verdict });
+    }));
+}
+
+export const APERTURE_ORIENT_STATES = Object.freeze(['open', 'soft', 'narrow', 'closed']);
+export const SEARCH_OUTCOME_STATUSES = Object.freeze([
+    'found', 'not-detected-in-inspected-area', 'budget-exhausted', 'abandoned',
+]);
+export const SEARCH_TARGET_EVENT = 'search-target';
+export const SEARCH_OUTCOME_EVENT = 'search-outcome';
+export const MAX_SEARCH_LIFETIME_MS = MAX_PREDICTION_LIFETIME_MS;
+
+function freezeRoute(route) {
+    if (!route || typeof route !== 'object') throw new Error('SearchTarget.routes entries are {aperture, source}');
+    const aperture = requireText('route.aperture', route.aperture);
+    const source = requireText('route.source', route.source);
+    return Object.freeze({ aperture, source });
+}
+
+/** Provider control, not source acquisition. Do not overload ControlRequest.kind. */
+export class OrientationRequest {
+    constructor({
+        id, issuedBy, actId = null, aperture, state, source = null, reason, issuedAt, deadline = null,
+    } = {}) {
+        this.id = randomUUID();
+        void id;
+        this.issuedBy = requireText('OrientationRequest.issuedBy', issuedBy);
+        this.actId = optionalId('OrientationRequest.actId', actId);
+        this.aperture = requireText('OrientationRequest.aperture', aperture);
+        if (!APERTURE_ORIENT_STATES.includes(state)) {
+            throw new Error(`Unknown OrientationRequest.state: ${state}`);
+        }
+        this.state = state;
+        this.source = source == null || source === '' ? null : requireText('OrientationRequest.source', source);
+        if (this.state === 'narrow' && !this.source) {
+            throw new Error('Narrow orientation needs a source');
+        }
+        this.reason = requireText('OrientationRequest.reason', reason);
+        void issuedAt;
+        this.issuedAt = nowIso();
+        this.deadline = deadline == null || deadline === '' ? null : toIso(deadline, 'OrientationRequest.deadline');
+        Object.freeze(this);
+    }
+}
+
+/** What a search is looking for. The template does not say the target exists. */
+export class SearchTarget {
+    constructor({
+        id, owner, scopeId, actId = null, template, routes, sampleBudget, deadline, createdAt,
+    } = {}) {
+        void id;
+        void createdAt;
+        this.id = randomUUID();
+        this.owner = requireText('SearchTarget.owner', owner);
+        this.scopeId = requireText('SearchTarget.scopeId', scopeId);
+        this.actId = optionalId('SearchTarget.actId', actId);
+        this.template = requireText('SearchTarget.template', typeof template === 'string' ? template.trim() : template);
+        if (!Array.isArray(routes) || !routes.length) {
+            throw new Error('SearchTarget.routes is a non-empty list of {aperture, source}');
+        }
+        this.routes = Object.freeze(routes.map(freezeRoute));
+        const budget = Number(sampleBudget);
+        if (!Number.isFinite(budget) || budget <= 0) {
+            throw new Error('SearchTarget.sampleBudget must be a positive number');
+        }
+        this.sampleBudget = budget;
+        this.createdAt = nowIso();
+        this.deadline = toIso(deadline, 'SearchTarget.deadline');
+        const span = Date.parse(this.deadline) - Date.parse(this.createdAt);
+        if (!(span > 0) || span > MAX_SEARCH_LIFETIME_MS) {
+            throw new Error(`SearchTarget.deadline must be after createdAt and within ${MAX_SEARCH_LIFETIME_MS}ms`);
+        }
+        Object.freeze(this);
+    }
+}
+
+/** One issued control request in a search. `id` is also the ControlRequest id. */
+export class SearchAttempt {
+    constructor({
+        id, targetId, actId = null, route, ordinal, issuedAt, deadline,
+    } = {}) {
+        this.id = typeof id === 'string' && id ? id : randomUUID();
+        this.targetId = requireText('SearchAttempt.targetId', targetId);
+        this.actId = optionalId('SearchAttempt.actId', actId);
+        this.route = freezeRoute(route);
+        const n = Number(ordinal);
+        if (!Number.isFinite(n) || n < 0) throw new Error('SearchAttempt.ordinal is a non-negative number');
+        this.ordinal = n;
+        void issuedAt;
+        this.issuedAt = nowIso();
+        this.deadline = toIso(deadline, 'SearchAttempt.deadline');
+        Object.freeze(this);
+    }
+}
+
+/** Internally derived. Never a Sense-* percept. */
+export class SearchOutcome {
+    constructor({
+        id, targetId, status, evidenceIds = [], evaluationIds = [], inspectedRoutes = [],
+        attemptedSamples = 0, coverage = 0, settledAt, reason = null,
+    } = {}) {
+        void id;
+        void settledAt;
+        this.id = randomUUID();
+        this.targetId = requireText('SearchOutcome.targetId', targetId);
+        if (!SEARCH_OUTCOME_STATUSES.includes(status)) {
+            throw new Error(`Unknown SearchOutcome.status: ${status}`);
+        }
+        this.status = status;
+        this.evidenceIds = freezeIdList('evidenceIds', evidenceIds);
+        this.evaluationIds = freezeIdList('evaluationIds', evaluationIds);
+        this.inspectedRoutes = Object.freeze((inspectedRoutes || []).map(freezeRoute));
+        const samples = Number(attemptedSamples);
+        if (!Number.isFinite(samples) || samples < 0) {
+            throw new Error('SearchOutcome.attemptedSamples is a non-negative number');
+        }
+        this.attemptedSamples = samples;
+        const cov = Number(coverage);
+        if (!Number.isFinite(cov) || cov < 0 || cov > 1) {
+            throw new Error('SearchOutcome.coverage is a unit');
+        }
+        this.coverage = cov;
+        this.settledAt = nowIso();
+        this.reason = reason == null || reason === '' ? null : requireText('SearchOutcome.reason', reason);
+        Object.freeze(this);
+    }
+}
+
+export function fireSearchTarget(host, target) {
+    if (!(target instanceof SearchTarget)) throw new Error('fireSearchTarget publishes a SearchTarget');
+    if (host == null || typeof host.fire !== 'function') {
+        throw new Error('search-target events use fire(), not pub()');
+    }
+    return host.fire(SEARCH_TARGET_EVENT, target);
+}
+
+export function fireSearchOutcome(host, outcome) {
+    if (!(outcome instanceof SearchOutcome)) throw new Error('fireSearchOutcome publishes a SearchOutcome');
+    if (host == null || typeof host.fire !== 'function') {
+        throw new Error('search-outcome events use fire(), not pub()');
+    }
+    return host.fire(SEARCH_OUTCOME_EVENT, outcome);
 }

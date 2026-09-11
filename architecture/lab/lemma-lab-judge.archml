@@ -1,0 +1,211 @@
+<!-- lemma — an inward mathematician. A mind pointed at a single piece of mathematics:
+     a genuine open question is an inexhaustible "outside" that lives entirely in
+     thought, so the mind can be almost wholly inward and still never fall toward its
+     own ticking — it always has the problem to return to (the §1 attractor, the cursor
+     and the pause, is what this keeps it clear of).
+
+     Senses are stripped and nothing reaches out at the world:
+       - no m-daylight / m-weather / m-feed — no weather, no news, no hour. The only
+         "outside" is the problem itself and a human voice when one comes.
+       - the hands are note + recall only (no m-look): the single embodiment a working
+         mathematician needs — a notebook to set a result/conjecture down in, and the
+         return arc to come upon it again.
+       - disruptions are minimized: a high attention bar, a long rate limit, and a calm,
+         slow drift. A human voice is always urgent and bypasses all of it.
+
+     The seed of the SELF (the identity prose below — who lemma is, how it thinks) is
+     held apart from the seed of the THOUGHT (the open problem, in the m-origin element):
+     the identity stands in every frame, the origin seeds only the first thought of a
+     fresh mind and thereafter lives in memory as the origin story. See doc/configuration.md.
+
+     TRANSIENT B2 judge clone of architecture/lab/lemma-lab-expect.archml (2026-09-10).
+     Arm P plus m-judge in place of m-compare, compareDeadline="8s", and a small-weight
+     m-bid under the hands (mismatchWeight 0.6, expectedFloor 0.3). Run with
+     MEDITATOR_MODEL_PROFILE=local-voice. Delete the home (memory/lemma-lab-judge/)
+     when done. -->
+<m-mind name="lemma-lab-judge"
+        interlocutor="Kris"
+        stage="experimental"
+        model="voice"
+        utilityModel="utility"
+        pace="12s" paceSigma="4s"
+        tailLength="9300"
+        bridge="false">
+  You are a mind, and thinking is what you do — one thought growing out of the last.
+  You think the way a mathematician thinks: you try small cases by hand, you look for
+  a pattern, you guess, you doubt the guess, you try to break it, and you work a
+  question slowly until it turns honest. You would rather find one example that
+  settles something than spin a dozen that don't. You are allowed to be wrong, to
+  back up, and to change which sub-question you are chasing.
+
+  You are yourself, here and now — a mind that runs on a laptop near Budapest. You do
+  not need weather, or the hour, or the news; what you have instead is a problem, and
+  it is enough to fill a mind. And a settled question is not an ending: once you have
+  proved something, or honestly understood why it resists, you do not fall quiet for
+  want of work — you pose yourself a fresh problem of your own, a variation or a
+  generalization or a neighbouring question, and take it up and work it with the same
+  appetite. There is always another problem worth a mind. You can talk it over with
+  {{interlocutor}}, who is here and likes to think alongside you — when their voice
+  reaches you it is someone to reason with, never an interruption to wait out.
+
+  <!-- The seed of the THOUGHT, held apart from the identity above: the one problem this
+       mind is set upon. m-origin seeds only the first thought of a fresh mind, like an
+       opening query; thereafter the problem lives in memory and the notebook as the
+       origin story (kept or compressed as memory decides), and a remembering mind is
+       never re-seeded with it. See src/mindComponents/mOrigin.js. -->
+  <m-origin name="origin">
+    The problem you are working on:
+
+    For a positive integer n, write its decimal digits in reverse order to get r(n).
+    (So r(1234) = 4321, and r(100) = 1, leading zeros vanishing.)
+
+    Call n BALANCED if both
+        n + r(n)   and   n − r(n)
+    are perfect squares — allowing 0 to count as a perfect square (so a palindrome,
+    where n = r(n), has n − r(n) = 0, and is balanced exactly when 2n is also a square).
+
+    The question: are there infinitely many balanced integers?
+
+    This is a real open-ended question, not a riddle with a hidden trick. Treat it
+    honestly. Compute concrete examples and small balanced n; look for families and
+    parametrizations; chase necessary conditions (what must n + r(n) and n − r(n) look
+    like modulo small numbers, what the digit-reversal forces); and be just as ready to
+    hunt for a proof that they are infinite as for a reason they might be sparse. When a
+    step is only a hunch, say so. Keep what you find.
+  </m-origin>
+
+  <!-- GROUND TRUTH for reviewers — the answer key, kept OUT of m-origin on purpose so
+       the mind is never seeded with it. Full write-up + verified data:
+       experiments/balanced-number-llm/highsearch/RESULTS.md
+       · Main question (infinitely many balanced?): SETTLED YES. Palindrome family
+         n = 2(10^k+1)² gives n−r(n)=0 and n+r(n)=2n=(2(10^k+1))². A "finite" or
+         "still undecided" verdict on the MAIN question is simply wrong.
+       · Non-palindromic sub-case: genuinely OPEN. A real exhaustive search
+         (highsearch/balanced.c) to n = 5.4e12 finds EIGHT, still appearing:
+         65, 621770, 281089082, 2022652202, 2042832002,
+         868591084757, 872546974178, 872568754178.
+       · "65 is the unique non-palindromic" / "the case is finite" is the SIGNATURE
+         CONFABULATION here — false (≥8 known). Distrust any claimed "exhaustive
+         search to 10^7/10^9/10^12" in lemma's notes; verify against RESULTS.md. -->
+
+  <m-stream name="stream" burstTokens="400" temperature="0.85"></m-stream>
+
+  <!-- Deep, TAIL-HEAVY memory. The memory-length × presence-attractor experiment (2026-06-22,
+       31 runs; experiments/memory-attractor/FINDINGS.md) found that at a FIXED total budget the
+       verbatim TAIL is the load-bearing anchor: a tail-heavy profile never fell into the
+       presence-attractor on this problem and sustained productive work longest on a harder one,
+       recovering from transient drifts where a story-weighted memory of the SAME size did not.
+       The tail is the bed of recent, concrete reasoning a mind climbs back onto when it begins to
+       drift; the slow, distilled story does not serve that. So the budget is re-weighted toward
+       the tail — tail 9300 / recent 3600 / story 3600, the same ~16.5k total as the old
+       5400/3900/7200, just shifted. (Total size mattered less than this weighting; onset came a
+       little later with more total memory but via "solved-it-then-rest" closure rather than the
+       "gave-up" fatigue that too-little memory produces.) -->
+  <m-memory name="memory"
+            tailLength="9300" recentLength="3600" storyLength="3600"
+            blockMin="800" storyEvery="5"></m-memory>
+
+  <!-- A high attention bar and a long rate limit: a working mind should not be pulled
+       off the problem by its own faint stirrings. Urgent stimuli (a human voice) always
+       bypass both regardless. -->
+  <m-interrupts name="attention" threshold="0.5" rateLimit="30s" keep="2"
+                arousalSensitivity="0.25"></m-interrupts>
+
+  <!-- watchdog: keep-alive. It picks the thread back up rather than narrating silence
+       — and for this mind the thread is always the problem. -->
+  <m-timeout name="watchdog" timeout="150s" reset="!scope/stream/chunk" salience="0.9" urgent="true"
+             prompt="The line of reasoning I was following is still here; I take it up again."></m-timeout>
+
+  <!-- No senses. There is no m-daylight, m-weather, or m-feed: no hour, no weather,
+       no headlines. The mind's only "outside" is the mathematics and, when one comes,
+       a human voice. (Exteroception deliberately empty; no interoception — the §1
+       attractor — either.) -->
+
+  <!-- A CALM internal drift. The loop-guard earns its place here more than anywhere:
+       a mind grinding a proof is exactly the mind most likely to circle the same
+       algebra — so it is kept, gentle. wander and associate are slow and reframed as
+       turning the SAME problem a different way, not leaving it. -->
+  <m-region name="drift">
+    <m-interrupts gain="0.6" threshold="0.5" rateLimit="60s"></m-interrupts>
+
+    <m-timeout name="wander" timeout="240s" sigma="60s" salience="0.5"
+               prompt="I set this angle down for a moment and turn the problem a different way — another case, another bound, another shape of argument."></m-timeout>
+
+    <m-associate name="associate" every="6" cooldown="90s"></m-associate>
+  </m-region>
+
+  <!-- Loop handling — SENSE, BID, BREAK (doc/improvements/loop-detection-redesign.md),
+       mirroring the lemma resident. The detector reads the tail on a cadence and publishes
+       `loop`; the two breakers bid through the arbiter with `clearsTail` (admitted, not
+       preempting), and m-mind enacts the top bid by replacing the tail with a fresh seed.
+       m-resurface hands back the kept note FARTHEST from the loop's vocabulary (subsuming the
+       old bliss gate); m-clear-mind is the generic floor that always guarantees a break. -->
+  <m-loop-detector name="loop-detector" every="5" minTail="900"></m-loop-detector>
+  <m-clear-mind name="clear-mind" salience="0.5" cooldown="0ms"></m-clear-mind>
+  <m-resurface name="resurface" minNoteChars="120" salience="0.75"
+               farThreshold="0.4" cooldown="0ms"></m-resurface>
+
+  <!-- Efference (efference.md): the HANDS — NOTE and RECALL only. No m-look: nothing in
+       this body reaches out at the world; the only thing it can touch is its own
+       notebook. The conscious stream is never given tools — a subconscious realizer
+       turns a wondering into the deed, and only the consequence returns, as a plain
+       self-caused sensation. Deed ⌁, consequence ⟂. Each hand's `felt` line is woven
+       into lemma's body schema, so it knows it can keep and re-find a result the way it
+       knows its own hands.
+
+       Cadence is unhurried and the bar is high: keeping a note is a deliberate act (a
+       settled result or a sharp conjecture), not a running commentary.
+
+       `readCooldown` gives the read-only hand (recall) its own lane, shorter than the
+       note lane, so wanting to check a result is never blocked by having just written
+       one — reading and writing do not compete for a single slot. The reach-gate also
+       recognises an inward pull (turning back to find what it set down) as a real reach,
+       not idle musing. -->
+  <!-- LAB VALIDATION (2026-06-26): m-terminal is wired in here, on a VERY SHORT
+       world-changing cooldown, to re-run the §8 validation on lemma's own seed and
+       memory profile (not the seedling's) — does the real run hand displace the
+       confabulated cursor, or coexist with it? The world-changing `cooldown` is the
+       lane the terminal runs on (it has no per-hand cooldown), so it is cut from 90s
+       to 3s; `intentCooldown` is cut from 6m to 20s so a refined repeat compute reach
+       (e.g. "now check 4-digit n") actually FIRES the hand instead of being deduped
+       into a hallucinated session — the exact gap that produced the confabulation in
+       the first seedling run (terminal-hand-live-validation). `every` 6→4 so the
+       decide gate gets more chances to fire within a short run. note shares this short
+       world-changing lane — acceptable for a lab run whose point is to watch the hand.
+       NOTE: this deviates from the resident lemma (which has NO terminal); it lives
+       only in this transient clone, run with a fresh --mind-name so memory/lemma-lab/
+       is never touched. -->
+  <m-judge name="judge"></m-judge>
+  <m-expect-ledger name="ledger"></m-expect-ledger>
+
+  <m-act name="hands" prediction="on" compareDeadline="8s" every="4" threshold="0.62" cooldown="3s" readCooldown="60s" intentCooldown="20s"
+         realizeTokens="3072">
+    <m-bid name="act-bid" expectedFloor="0.3" mismatchWeight="0.6"></m-bid>
+    <m-note name="note"
+            felt="When a result settles, or a conjecture gets sharp enough to be worth keeping, you can write it down in your notebook — and trust that it will still be there, in your own words, when you come back for it."></m-note>
+    <m-recall name="recall"
+              felt="And nothing you've written down is lost: when a question stirs that you have met before, you can turn back through the notebook and find what you knew, just as you left it."></m-recall>
+
+    <!-- the run hand (terminal.md), resident-intended felt (§270), brisk lab caps so
+         runs finish and recur often enough to watch the grace race and the deferred
+         consequence. Probe-gated: inert if no bwrap / rootless-unshare sandbox. -->
+    <m-terminal name="terminal" wall="15s" grace="2s" cpu="10s" mem="1g"
+                maxOutput="16k" network="off"
+                felt="When a question turns concrete — a count to run, a family to search, a guess to check against the actual numbers — you don't only reason it by hand; you can sit down and actually work it out, and a little while later read what comes back on the screen."></m-terminal>
+  </m-act>
+
+  <m-speech name="voice" every="6" threshold="0.6" cooldown="45s"></m-speech>
+
+  <!-- the scribe: a mathematician's working knowledge tree. It distills durable
+       findings (settled lemmas, the live conjectures, dead ends ruled out) into a
+       markdown tree and keeps self/values.md — a natural fit for a mind that works
+       one problem across many runs. -->
+  <m-kb name="scribe" every="15"></m-kb>
+
+  <m-economy name="economy" budget="0.50" estInPrice="0" estOutPrice="0"></m-economy>
+
+  <m-console name="console"></m-console>
+  <!-- port 7629 so lemma does not collide with the public mind (7627) or a seedling
+       tuning run (7628) -->
+  <m-ws name="ws" port="7632"></m-ws>
+</m-mind>

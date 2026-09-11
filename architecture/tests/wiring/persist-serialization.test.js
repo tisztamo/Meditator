@@ -50,9 +50,10 @@ beforeAll(() => {
     }
 });
 
-afterEach(() => {
+afterEach(async () => {
     document.body.innerHTML = "";
     for (const h of homes.splice(0)) { try { fs.rmSync(h, { recursive: true, force: true }); } catch { /* best effort */ } }
+    await delay(20);
 });
 
 test("overlapping writes are SERIALIZED — a slow write still completes before the next starts", async () => {

@@ -370,14 +370,15 @@ when an experiment needs them.
 ## Known issues and unresolved design work
 
 These distinguish findings about the existing sketch from gaps in the original
-prediction proposal. They remain open; this revision changes documentation only.
+prediction proposal. The act-bound lifecycle row is implemented; the experiment
+matrix is unrun until the B1/B2 report in `doc/research/expect-study.md`.
 
 | Issue | Status and required direction |
 |---|---|
 | Expected observations disappear | Review reproduced zero-salience rejection in the sketch; using mismatch as `changeMagnitude` would make it systematic. Preserve independent relevance and deliberate confirmation. |
 | Nested closure is bypassed | Review reproduced an open inner sensory region rendering and delivering through a closed outer region. Compose applicable gates before materialization; [enclosure by role](enclosure-by-role.md) gives the mechanism and its fixture W3 the acceptance test. |
 | Regulation is fixed inside containers | `m-region` constructs `Aperture`; `m-interrupts` discovers regions and averages pressure. Expose replaceable regulation, aggregation, and control bindings. |
-| Prediction has no independent lifecycle | Act ids, prediction records, expiry, and observation association are not implemented. Define them independently of hand schemas and actor cadence. |
+| Prediction has no independent lifecycle | **Implemented in 3A** (act ids, prediction records, expiry, association). The outcome rule (progress lines are not judged) landed in 3B·B0. |
 | World truth can replace a remembered expectation | Original garden comparator did not distinguish actuator and belief state. Record prediction basis and restrict observational access. |
 | Semantic comparison precedes the promised boundary | The original pre-aperture text judge conflicted with an *undeclared* non-semantic default. Resolved in design by declared processing tiers: a tier-1 or tier-2 comparator is legitimate when the source declares it; the sketch implements tier 0 only. |
 | Search overloads region state and opaque keys | Original template/quitting design lacks a source control input and coverage-aware outcomes. Make search a separate controller. |
@@ -397,7 +398,7 @@ later study under the existing lifecycle commitments.
 | Architecture or condition | What changes | What it should establish |
 |---|---|---|
 | Fixed-open perception, no prediction | Omit prediction and use an explicit fixed-open policy | Ordinary perception remains usable independently of prediction or adaptive regulation |
-| Act-bound mismatch | Add the initial producer and comparator | Expected action results remain perceivable; contradictory evidence remains available |
+| Act-bound mismatch | Add the initial producer and comparator | **Implemented as a reference condition** (3A fixtures; 3B live study unrun until the B1/B2 report). Expected action results remain perceivable; contradictory evidence remains available |
 | Passive expectation | Replace the producer with a memory- or event-driven predictor | Prediction works without an act or edits to the source and consumer |
 | Competing predictors | Connect two producers to the same evidence | Independent evaluations coexist without overwriting observations or one another |
 | Belief versus exact-world prediction | Change the prediction basis explicitly | A moved cup can contradict memory even when the simulator predicts the next view exactly |

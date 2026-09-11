@@ -16,12 +16,11 @@ import {
     MAX_PREDICTION_LIFETIME_MS, predictionSettlement, EVALUATION_COMMIT_EVENT,
     evaluationCommitPayload, fireEvaluationCommit,
 } from '../../infrastructure/predictionContracts.js';
-import { Evaluation } from '../../infrastructure/perceptionContracts.js';
 import { projectEvidenceFromPercept } from '../../infrastructure/evidenceView.js';
 import {
-    CompareBudget, CommitOrder, asEvaluations, compareDeadlineMs, evaluationIdsOf, verdictsOf,
-    awaitUntilAbort, DEFAULT_COMPARE_DEADLINE_MS,
+    CompareBudget, CommitOrder, evaluationIdsOf, verdictsOf,
 } from '../../infrastructure/compareContinuation.js';
+import { runEvidenceCase, MIND_SLEEPING_EVENT } from '../../infrastructure/evidenceCase.js';
 import { part, bidOwnerOf, isCustomElementDefined } from "./enclosure.js";
 import { mindHome } from '../../infrastructure/memoryVault.js';
 import { parseTime } from '../../config/timeParser.js';
@@ -32,6 +31,10 @@ const MAX_LIVE_ACTS = 32
 const EXPECT_FIELD = Object.freeze({
     type: "string",
     description: "the consequence expected from this act",
+})
+const TEMPLATE_FIELD = Object.freeze({
+    type: "string",
+    description: "what this orientation should look for",
 })
 
 const log = logger('mAct.js');
@@ -111,6 +114,10 @@ const log = logger('mAct.js');
  *   - prediction: "on" enables the REALIZE `expect` envelope, publishes a Prediction
  *     before hand execution, and interposes this act's live consequences (default off —
  *     identical to phase 2: no extra schema fields, no actId, no listener)
+ *   - compareDeadline: wall-clock budget for a live comparison (default "2s"; B2's
+ *     judge needs a longer window). A prediction is compared against outcome
+ *     consequences only; a hand may mark `progress: true` on a returned consequence
+ *     (the terminal's started line does) and that line is never judged.
  *   - recallForRealize: "off" to skip the cue-matched note/knowledge lookup (default on)
  *   - recallDir / recallKb: where the kept pool lives (default: follow a co-located
  *     m-recall/m-note's dir/kb, else the vault home; recallKb="off" = notebook only)
@@ -118,8 +125,10 @@ const log = logger('mAct.js');
  *
  * Topics published (for memory + Studio):
  *   - "intent": {salience, gist, accepted, reason} — every decide, for observability
- *   - "acted": {intent, capability, args, ok, experience, data} — a deed, journaled
- *     backstage (⌁) by a memory subscribing via `actedSrc`
+ *   - "acted": {intent, capability, args, ok, experience, data, actId?, predictionId?}
+ *     — a deed, journaled backstage (⌁) by a memory subscribing via `actedSrc`.
+ *     `args` are the stripped hand arguments; envelope text never appears. The two
+ *     ids are additive lineage, not content.
  *   - "embodiment": the assembled BODY SCHEMA — each hand's first-person `felt`
  *     self-description, joined. The mind subscribes (m-mind's `embodimentSrc`) and
  *     weaves it softly into its identity, so it KNOWS, the way you know your own
@@ -130,6 +139,8 @@ const log = logger('mAct.js');
  * through the arbiter into the frame and is journaled perceived (⟂) via `attended`).
  */
 export class MAct extends MObserver {
+    static provides = { hands: true }
+
     _boundaryCount = 0
     _busy = false
     _capabilities = []
@@ -137,6 +148,7 @@ export class MAct extends MObserver {
     _busyToldAt = new Map()  // normalized intent → when the mind was last told this reach is in motion
     _lastActAt = 0        // world-changing lane (and the single shared lane in legacy mode)
     _lastReadAt = 0       // read-only lane — used only when `readCooldown` is set
+    _lanes = new Map()    // name → last claimed at; world/read stay aliased to the two timestamps
     _arousal = 1
     embodiment = ""       // the assembled body schema (see _publishEmbodiment)
     _memTail = ""         // mirrors of memory's content, fed by its topics (grounding the realizer)
@@ -195,8 +207,24 @@ export class MAct extends MObserver {
             execute: spec.execute.bind(spec),
             // Architecture-owned target metadata for a Prediction. Never parsed from expect text.
             predictionTarget: freezePredictionTarget(spec.predictionTarget),
+            lane: typeof spec.lane === "string" && spec.lane ? spec.lane : null,
+            cooldown: spec.cooldown ?? null,
+            intentThreshold: spec.intentThreshold == null ? null : Number(spec.intentThreshold),
+            acceptsTemplate: spec.acceptsTemplate === true,
+            consequenceType: Object.prototype.hasOwnProperty.call(spec, "consequenceType")
+                ? spec.consequenceType
+                : undefined,
         })
         log.info(`hand registered: ${spec.name}${spec.readonly === false ? " (WORLD-CHANGING)" : ""}`)
+        this._publishEmbodiment()
+        return true
+    }
+
+    /** Hands such as m-orient refresh a closed enum after a late aperture connects. */
+    _updateCapability(name, patch) {
+        const cap = this._capabilities.find(c => c.name === name)
+        if (!cap || !patch || typeof patch !== "object") return false
+        Object.assign(cap, patch)
         this._publishEmbodiment()
         return true
     }
@@ -236,7 +264,7 @@ export class MAct extends MObserver {
         // one slot. With no `readCooldown`, all hands share the one lane, as before.
         // Proceed as long as SOME hand's lane is open; the realizer is later offered
         // only the open-lane hands.
-        if (!this._capabilities.some(c => this._laneOpen(c.readonly))) return
+        if (!this._capabilities.some(c => this._laneOpen(c))) return
 
         this._busy = true
         try {
@@ -299,17 +327,15 @@ export class MAct extends MObserver {
 
     /** REALIZE + EXECUTE: a capable model picks a hand; we run it and return the consequence. */
     async _realize(decision) {
-        // Claim the per-intent ledger slot up front (at accept time), so a standing
-        // wish fires once and a reach the realizer then declines does not re-fire on it
-        // next cadence. The cooldown LANE is claimed at execute (below), once we know
-        // which class of hand actually ran — so a recall never closes the note lane.
-        this._ledger.set(normalizeIntent(decision.gist), Date.now())
-        this._pruneLedger()
+        // Intent ledger is claimed at execute, when a hand actually runs. A reach
+        // the realizer declines may re-fire next cadence, bounded by DECIDE's own
+        // gate and `_feelReachInMotion`. Claiming at accept burned the 15-minute
+        // slot when a raised intentThreshold left no fitting hand.
 
         const model = resolveModelRef(this.attr("model") || this.env("model"), "voice")
-        // Offer only hands whose cooldown lane is open, so the realizer cannot pick one
-        // that just fired — and a recent write cannot crowd out a read.
-        const openHands = this._capabilities.filter(c => this._laneOpen(c.readonly))
+        // Offer only hands whose cooldown lane is open and whose per-capability
+        // intent threshold the DECIDE salience clears.
+        const openHands = this._capabilities.filter(c => this._laneOpen(c) && this._clearsIntentThreshold(c, decision))
         if (!openHands.length) {
             log.debug("all hand lanes closed at realize — the reach passes")
             // A formed reach met a busy hand: feel it as in-motion rather than passing in
@@ -400,8 +426,9 @@ export class MAct extends MObserver {
         const predictionOn = this._predictionEnabled()
         let handArgs = args
         let expectText = ""
+        let templateText = ""
         if (predictionOn) {
-            const invalidAugmented = validateAgainstSchema(args, parametersWithExpect(cap.parameters))
+            const invalidAugmented = validateAgainstSchema(args, this._toolParameters(cap))
             if (invalidAugmented) {
                 log.warn(`hand "${name}": args failed schema (${invalidAugmented}) — ignored`)
                 return
@@ -410,6 +437,9 @@ export class MAct extends MObserver {
             const rawExpect = handArgs.expect
             delete handArgs.expect
             expectText = typeof rawExpect === "string" ? rawExpect.trim() : ""
+            const rawTemplate = handArgs.template
+            delete handArgs.template
+            templateText = cap.acceptsTemplate && typeof rawTemplate === "string" ? rawTemplate.trim() : ""
             const invalidHand = validateAgainstSchema(handArgs, cap.parameters)
             if (invalidHand) {
                 log.warn(`hand "${name}": args failed schema (${invalidHand}) — ignored`)
@@ -425,20 +455,31 @@ export class MAct extends MObserver {
         }
 
         // Claim this hand's cooldown lane now (at the point of acting, including a slip),
-        // so the world-changing and read-only lanes advance independently.
-        this._claimLane(cap.readonly)
+        // so the world-changing, read-only, and control lanes advance independently.
+        this._claimLane(cap)
+        // Intent ledger: claim at execute, not at accept.
+        if (decision?.gist) {
+            this._ledger.set(normalizeIntent(decision.gist), Date.now())
+            this._pruneLedger()
+        }
 
         let actId = null
         let predictionId = null
         if (predictionOn) {
             actId = randomUUID()
+            if (expectText && cap.consequenceType === null && !handArgs.source) {
+                // Untargeted orientation may still change a provider, but cannot
+                // publish a one-evidence prediction whichever source answers first.
+                log.debug(`hand "${name}": expect without a declared source — no prediction`)
+                expectText = ""
+            }
             if (expectText) {
                 const published = new Prediction({
                     producer: this._actIdentity(),
                     scopeId: this._actIdentity(),
                     actId,
                     kind: "belief",
-                    target: targetForCapability(cap),
+                    target: targetForCapability(cap, handArgs),
                     representation: { kind: "text", value: expectText },
                     basis: { kind: "realize", text: expectText },
                     validUntil: new Date(Date.now() + this._predictionWindowMs()).toISOString(),
@@ -466,7 +507,12 @@ export class MAct extends MObserver {
         let out = null, ok = false, errMsg = null
         try {
             out = predictionOn
-                ? await cap.execute(handArgs, { intent: decision.gist || null, actId, predictionId })
+                ? await cap.execute(handArgs, {
+                    intent: decision.gist || null,
+                    actId,
+                    predictionId,
+                    template: cap.acceptsTemplate ? (templateText || null) : null,
+                })
                 : await cap.execute(args, { intent: decision.gist || null })
             ok = true
         } catch (error) {
@@ -489,6 +535,8 @@ export class MAct extends MObserver {
             experience: experience || null,
             data: ok && out ? (out.data ?? null) : null,
             error: errMsg,
+            actId: predictionOn ? actId : null,
+            predictionId: predictionOn ? predictionId : null,
         }, { energy: ENERGY.deed })
 
         // The CONSEQUENCE — re-enters as a plain External sensation through the
@@ -511,6 +559,9 @@ export class MAct extends MObserver {
                 // of salience (mInterrupts.js §_onRequest). efference.md §5.2.
                 urgent: !!(out && out.urgent),
                 actId: predictionOn ? actId : null,
+                // Outcome rule: a progress line is not the world answering. Trusted
+                // stamp from the hand's return; a coerced payload cannot set this.
+                progress: !!(out && out.progress),
             })
             log.debug(`consequence of "${name}": ${record}`)
             this.fire("interrupt-request", record)
@@ -523,7 +574,7 @@ export class MAct extends MObserver {
     /** REALIZE tool parameters: the original object when off; a copy with `expect` when on. */
     _toolParameters(cap) {
         if (!this._predictionEnabled()) return cap.parameters
-        return parametersWithExpect(cap.parameters)
+        return parametersWithEnvelope(cap.parameters, { template: cap.acceptsTemplate === true })
     }
 
     _actIdentity() {
@@ -547,6 +598,16 @@ export class MAct extends MObserver {
             this._evaluationCommitListener = this._onEvaluationCommit
             mind.addEventListener(EVALUATION_COMMIT_EVENT, this._evaluationCommitListener)
         }
+        if (mind && !this._mindSleepingListener) {
+            this._mindSleepingListener = this._onMindSleeping
+            mind.addEventListener(MIND_SLEEPING_EVENT, this._mindSleepingListener)
+        }
+    }
+
+    _onMindSleeping = () => {
+        for (const controller of this._compareAborts) {
+            try { controller.abort() } catch { /* cooperative */ }
+        }
     }
 
     _teardownPrediction(reason = "disconnect") {
@@ -562,7 +623,11 @@ export class MAct extends MObserver {
         if (this._commitHost && this._evaluationCommitListener) {
             this._commitHost.removeEventListener(EVALUATION_COMMIT_EVENT, this._evaluationCommitListener)
         }
+        if (this._commitHost && this._mindSleepingListener) {
+            this._commitHost.removeEventListener(MIND_SLEEPING_EVENT, this._mindSleepingListener)
+        }
         this._evaluationCommitListener = null
+        this._mindSleepingListener = null
         this._commitHost = null
         for (const actId of [...this._liveActs.keys()]) this._cancelLiveAct(actId, reason)
     }
@@ -615,6 +680,8 @@ export class MAct extends MObserver {
      * Local claim of this act's live trusted consequences. Synchronous stop + convert.
      * Absent a comparator, redispatch the default bid immediately (A2). With one,
      * compare asynchronously then revalidate and dispatch one finished bid.
+     * Comparator loss or rebinding admits with null prediction slots (like timeout);
+     * it does not silence otherwise admissible evidence. Sleep/disconnect drop the case.
      */
     _onLiveConsequence = event => {
         const detail = event.detail
@@ -629,40 +696,22 @@ export class MAct extends MObserver {
             this._dispatchOwnerBid(percept, [])
             return
         }
-        const reserved = this._compareBudget.tryAcquire()
         const bindGen = this._compareBindGen
         const comparatorGen = comparator._bindGen
-        const ticket = this._orderForAct(actId).enqueue()
-        const controller = new AbortController()
-        this._compareAborts.add(controller)
-        const deadline = Date.now() + this._compareDeadlineMs()
-        const timer = setTimeout(() => controller.abort(), Math.max(0, deadline - Date.now()))
-        Promise.resolve().then(async () => {
-            let releasedBudget = !reserved
-            try {
-                const view = projectEvidenceFromPercept(percept)
-                let evaluations = []
-                if (reserved && typeof comparator.accepts === "function" && comparator.accepts(view)) {
-                    try {
-                        const raw = await awaitUntilAbort(comparator.evaluate(view, {
-                            now: Date.now(), deadline, signal: controller.signal,
-                        }), controller.signal)
-                        if (!controller.signal.aborted && Date.now() < deadline) {
-                            evaluations = asEvaluations(raw, Evaluation)
-                        }
-                    } catch {
-                        evaluations = []
-                    }
-                }
-                if (reserved && !releasedBudget) {
-                    this._compareBudget.release()
-                    releasedBudget = true
-                }
-                await ticket.wait()
-                if (!this.isConnected || this._compareBindGen !== bindGen) return
-                if (this._liveComparator() !== comparator || comparator._bindGen !== comparatorGen) return
-                if (this.membrane()?._sleeping) return
-                if (controller.signal.aborted || Date.now() >= deadline) evaluations = []
+        const view = projectEvidenceFromPercept(percept)
+        runEvidenceCase({
+            owner: this,
+            view,
+            comparator,
+            comparatorGen,
+            liveComparator: () => this._liveComparator(),
+            budget: this._compareBudget,
+            order: this._orderForAct(actId),
+            aborts: this._compareAborts,
+            revalidate: () => this.isConnected
+                && this._compareBindGen === bindGen
+                && !this.membrane()?._sleeping,
+            commit: evaluations => {
                 if (evaluations.length) {
                     const predictionId = evaluations.find(e => e.subject?.kind === "prediction")?.subject?.id
                         ?? this._liveAct(actId)?.prediction?.id ?? null
@@ -672,21 +721,15 @@ export class MAct extends MObserver {
                         evidenceId: percept.id,
                         actId,
                         predictionId,
+                        requestId: percept.requestId,
+                        subjects: evaluations
+                            .filter(e => e?.subject?.kind && e.verdict)
+                            .map(e => ({ kind: e.subject.kind, verdict: e.verdict })),
                     }))
                 }
                 this._dispatchOwnerBid(percept, evaluations)
-            } finally {
-                clearTimeout(timer)
-                this._compareAborts.delete(controller)
-                if (!releasedBudget) this._compareBudget.release()
-                ticket.complete()
-            }
-        }).catch(() => {
-            clearTimeout(timer)
-            this._compareAborts.delete(controller)
-            if (reserved) this._compareBudget.release()
-            ticket.complete()
-        })
+            },
+        }).catch(() => {})
     }
 
     _dispatchOwnerBid(percept, evaluations) {
@@ -708,15 +751,17 @@ export class MAct extends MObserver {
         else if (host) host.dispatchEvent(new CustomEvent("interrupt-request", { detail: bid, bubbles: true }))
     }
 
-    _compareDeadlineMs() {
-        return compareDeadlineMs(this, DEFAULT_COMPARE_DEADLINE_MS)
-    }
-
     _liveComparator() {
         const mind = this.membrane()
         if (!mind) return null
         const found = part(mind, "comparator")
-        if (found.length > 1) throw new Error("a mind may have only one comparator")
+        if (found.length > 1) {
+            if (!this._warnedDuplicateComparator) {
+                this._warnedDuplicateComparator = true
+                log.warn("a mind may have only one comparator; comparison is skipped")
+            }
+            return null
+        }
         const el = found[0]
         if (!el) return null
         if (typeof el.accepts !== "function" || typeof el.evaluate !== "function") return null
@@ -768,18 +813,48 @@ export class MAct extends MObserver {
     /** Whether this mind splits read-only hands onto their own cooldown lane (P2). */
     _hasReadLane() { return this.attr("readCooldown") != null }
 
-    /** Is the cooldown lane for a hand of this class (read-only vs world-changing) open? */
-    _laneOpen(readonly) {
-        if (readonly && this._hasReadLane()) {
-            return Date.now() - this._lastReadAt >= parseTime(this.attr("readCooldown"))
-        }
-        return Date.now() - this._lastActAt >= parseTime(this.attr("cooldown") || "3m")
+    _laneName(cap) {
+        if (cap && typeof cap === "object" && typeof cap.lane === "string" && cap.lane) return cap.lane
+        const readonly = typeof cap === "boolean" ? cap : cap?.readonly
+        if (readonly && this._hasReadLane()) return "read"
+        return "world"
     }
 
-    /** Mark a hand of this class as having just acted, advancing its lane. */
-    _claimLane(readonly) {
-        if (readonly && this._hasReadLane()) this._lastReadAt = Date.now()
-        else this._lastActAt = Date.now()
+    _laneCooldownMs(cap) {
+        if (cap && typeof cap === "object" && cap.lane && cap.cooldown) {
+            const ms = parseTime(cap.cooldown)
+            if (Number.isFinite(ms) && ms >= 0) return ms
+        }
+        if (this._laneName(cap) === "read") return parseTime(this.attr("readCooldown"))
+        return parseTime(this.attr("cooldown") || "3m")
+    }
+
+    _laneLastAt(name) {
+        if (this._lanes.has(name)) return this._lanes.get(name)
+        if (name === "read") return this._lastReadAt
+        if (name === "world") return this._lastActAt
+        return 0
+    }
+
+    /** Is the cooldown lane for this capability open? Boolean `readonly` still works. */
+    _laneOpen(cap) {
+        const name = this._laneName(cap)
+        return Date.now() - this._laneLastAt(name) >= this._laneCooldownMs(cap)
+    }
+
+    /** Mark this capability as having just acted, advancing its lane. */
+    _claimLane(cap) {
+        const name = this._laneName(cap)
+        const now = Date.now()
+        this._lanes.set(name, now)
+        if (name === "read") this._lastReadAt = now
+        else if (name === "world") this._lastActAt = now
+    }
+
+    _clearsIntentThreshold(cap, decision) {
+        const bar = cap?.intentThreshold
+        if (bar == null || !Number.isFinite(bar)) return true
+        return (decision?.salience ?? 0) >= bar
     }
 
     /** Drop ledger entries older than the intent cooldown so it cannot grow without bound. */
@@ -917,11 +992,13 @@ Reply with ONE of:
     }
 }
 
-/** Copy a hand schema and add optional `expect`. Never mutates `cap.parameters`. */
-function parametersWithExpect(parameters) {
+/** Copy a hand schema and add optional `expect` (and `template` when the hand accepts one).
+ * Never mutates `cap.parameters`. */
+function parametersWithEnvelope(parameters, { template = false } = {}) {
     const base = parameters && typeof parameters === "object" ? parameters : { type: "object", properties: {} }
     const properties = { ...(base.properties || {}) }
     properties.expect = { ...EXPECT_FIELD }
+    if (template) properties.template = { ...TEMPLATE_FIELD }
     const copy = { ...base, type: base.type || "object", properties }
     if (Array.isArray(base.required)) copy.required = [...base.required]
     return copy
@@ -936,8 +1013,16 @@ function freezePredictionTarget(raw) {
     return Object.keys(next).length ? Object.freeze(next) : null
 }
 
-function targetForCapability(cap) {
+function targetForCapability(cap, handArgs = {}) {
     if (cap.predictionTarget) return { ...cap.predictionTarget }
+    if (cap.consequenceType === null) {
+        const source = typeof handArgs.source === "string" ? handArgs.source.trim() : ""
+        if (!source) return {}
+        return { sourceId: source, eventType: `Sense-${source}` }
+    }
+    if (typeof cap.consequenceType === "string" && cap.consequenceType) {
+        return { eventType: cap.consequenceType }
+    }
     return { eventType: `Sense-${cap.name}` }
 }
 

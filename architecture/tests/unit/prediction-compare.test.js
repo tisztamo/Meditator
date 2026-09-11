@@ -1,11 +1,11 @@
 import { test, expect, describe } from 'bun:test';
-import { Prediction, evaluationCommitPayload, EVALUATION_COMMIT_EVENT, EVALUATION_COMMIT_DELIVERY, fireEvaluationCommit } from '../../../src/infrastructure/predictionContracts.js';
+import { Prediction, evaluationCommitPayload, EVALUATION_COMMIT_EVENT, EVALUATION_COMMIT_DELIVERY, fireEvaluationCommit, OrientationRequest, SearchTarget, SearchAttempt, SearchOutcome } from '../../../src/infrastructure/predictionContracts.js';
 import { Evaluation } from '../../../src/infrastructure/perceptionContracts.js';
 import { Percept } from '../../../src/infrastructure/percept.js';
 import { InterruptRecord } from '../../../src/infrastructure/interruptRecord.js';
 import { GateVerdict } from '../../../src/infrastructure/perceptionContracts.js';
 import { projectEvidenceView, projectEvidenceFromPercept, normalizeCompareText } from '../../../src/infrastructure/evidenceView.js';
-import { evaluationsForEvidence } from '../../../src/infrastructure/exactTextCompare.js';
+import { evaluationsForEvidence, evaluationsForTargets } from '../../../src/infrastructure/exactTextCompare.js';
 import { AttentionBid } from '../../../src/infrastructure/attentionBid.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -165,6 +165,12 @@ describe('exact-text comparator', () => {
         expect(evaluationsForEvidence([p], view({ eventType: 'Sense-garden' }))).toEqual([]);
         expect(evaluationsForEvidence([p], view({ modality: 'vision' }))).toEqual([]);
     });
+
+    test('progress evidence yields no evaluation', () => {
+        const p = prediction();
+        expect(evaluationsForEvidence([p], view({ progress: true }))).toEqual([]);
+        expect(evaluationsForEvidence([p], view({ progress: false }))).toHaveLength(1);
+    });
 });
 
 describe('evaluation-commit', () => {
@@ -182,8 +188,24 @@ describe('evaluation-commit', () => {
         const blob = JSON.stringify(payload);
         expect(blob).not.toContain(EXPECT_TEXT);
         expect(blob).not.toContain(FIXTURE);
-        expect(payload).not.toHaveProperty('archivalText');
-        expect(payload).not.toHaveProperty('expect');
+        expect(payload.actId).toBe('act1');
+        expect(payload.predictionId).toBe('pred1');
+        expect(payload.requestId).toBeNull();
+        const withRequest = evaluationCommitPayload({
+            evaluationIds: ['e1'],
+            verdicts: ['match'],
+            evidenceId: 'ev1',
+            requestId: 'req-1',
+        });
+        expect(withRequest.requestId).toBe('req-1');
+        const withSubjects = evaluationCommitPayload({
+            evaluationIds: ['e1'],
+            verdicts: ['match'],
+            evidenceId: 'ev1',
+            subjects: [{ kind: 'target', verdict: 'match' }],
+        });
+        expect(withSubjects.subjects).toEqual([{ kind: 'target', verdict: 'match' }]);
+        expect(JSON.stringify(withSubjects)).not.toContain(FIXTURE);
         const fired = [];
         fireEvaluationCommit({ fire(name, detail) { fired.push({ name, detail }); } }, payload);
         expect(fired[0].name).toBe(EVALUATION_COMMIT_EVENT);
@@ -214,5 +236,56 @@ describe('AttentionBid evaluation ids', () => {
         expect(withIds.salience).toBe(plain.salience);
         expect(withIds.evidence).toBe(evidence);
         expect(Object.isFrozen(withIds.evaluationIds)).toBe(true);
+    });
+});
+
+describe('OrientationRequest and search records', () => {
+    test('OrientationRequest freezes identity, state enum, and optional source', () => {
+        const req = new OrientationRequest({
+            issuedBy: 'orient', aperture: 'world', state: 'closed', reason: 'look',
+        });
+        expect(req.id).toMatch(UUID);
+        expect(Object.isFrozen(req)).toBe(true);
+        expect(req.source).toBeNull();
+        expect(() => new OrientationRequest({
+            issuedBy: 'orient', aperture: 'world', state: 'narrow', reason: 'look',
+        })).toThrow(/source/);
+    });
+
+    test('SearchTarget routes, budget, and bounded deadline; attempt id is the control id', () => {
+        const t = new SearchTarget({
+            owner: 'search', scopeId: 'mind', template: 'hello item',
+            routes: [{ aperture: 'world', source: 'earth' }],
+            sampleBudget: 4,
+            deadline: horizon(5_000),
+        });
+        expect(t.id).toMatch(UUID);
+        expect(Object.isFrozen(t.routes[0])).toBe(true);
+        const attempt = new SearchAttempt({
+            targetId: t.id, route: t.routes[0], ordinal: 1, deadline: horizon(2_000),
+        });
+        expect(attempt.id).toMatch(UUID);
+        const outcome = new SearchOutcome({
+            targetId: t.id, status: 'found', coverage: 1, attemptedSamples: 1,
+            inspectedRoutes: [...t.routes],
+        });
+        expect(outcome.status).toBe('found');
+        expect(() => new SearchOutcome({ targetId: t.id, status: 'absent' })).toThrow();
+    });
+
+    test('evaluationsForTargets match the template on the declared route only', () => {
+        const t = new SearchTarget({
+            owner: 'search', scopeId: 'mind', template: 'hello item',
+            routes: [{ aperture: 'world', source: 'earth' }],
+            sampleBudget: 2,
+            deadline: horizon(5_000),
+        });
+        const hit = view({ sourceId: 'earth', archivalText: 'hello item', actId: null });
+        const miss = view({ sourceId: 'earth', archivalText: 'other', actId: null });
+        const other = view({ sourceId: 'sky', archivalText: 'hello item', actId: null });
+        expect(evaluationsForTargets([t], hit)[0].verdict).toBe('match');
+        expect(evaluationsForTargets([t], hit)[0].subject.kind).toBe('target');
+        expect(evaluationsForTargets([t], miss)[0].verdict).toBe('mismatch');
+        expect(evaluationsForTargets([t], other)).toEqual([]);
     });
 });

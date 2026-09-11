@@ -32,8 +32,8 @@ export class MObserver extends MBaseComponent {
         this.sub(this.attr("src") || "!scope/stream/chunk", chunk => {
             this.window = (this.window + chunk).slice(-this.windowSize)
             this.onStreamChunk(chunk)
-        })
-        this.sub(this.attr("boundarySrc") || "!scope/stream/@boundary", e => this.onBoundary(e.detail))
+        }).catch(() => {})
+        this.sub(this.attr("boundarySrc") || "!scope/stream/@boundary", e => this.onBoundary(e.detail)).catch(() => {})
         this.onObserverConnect()
     }
 

@@ -67,24 +67,38 @@ test("an impostor's wake into a resident's home is refused, and the self is unto
     // define) or is swallowed by jsdom's innerHTML upgrade (already defined, leaving the
     // mind half-initialized). Either way it fired BEFORE _load() and _snapshotArchitecture,
     // so the resident is untouched — the observable we assert, robust to test order.
+    const onError = event => {
+        event.preventDefault?.()
+        event.stopImmediatePropagation?.()
+    }
+    const onReject = event => {
+        event.preventDefault?.()
+    }
+    window.addEventListener("error", onError)
+    window.addEventListener("unhandledrejection", onReject)
     try {
-        // A mind that is NOT this resident, aimed at its home via persist=.
-        document.body.innerHTML = `
+        try {
+            // A mind that is NOT this resident, aimed at its home via persist=.
+            document.body.innerHTML = `
           <m-mind name="impostor">
             <m-stream name="stream"></m-stream>
             <m-memory name="memory" journal="off" persist="${HOME}"></m-memory>
           </m-mind>`;
-        await loadMindComponents(document);
-    } catch { /* the propagated-refusal path; the swallowed path leaves no error to catch */ }
-    await delay(300);   // long enough that, absent the guard, the async _load() would populate
+            await loadMindComponents(document);
+        } catch { /* the propagated-refusal path; the swallowed path leaves no error to catch */ }
+        await delay(300);   // long enough that, absent the guard, the async _load() would populate
 
-    // The guard fired before _load(): the resident's self was NOT inherited. Without the
-    // guard, _load would have read the sentinel — getTail() would be "resident tail.".
-    const memory = document.querySelector('[name="memory"]');
-    expect(memory.loaded).toBeFalsy();
-    expect(memory.getTail()).toBe("");
-    expect(memory.getStory()).toBe("");
+        // The guard fired before _load(): the resident's self was NOT inherited. Without the
+        // guard, _load would have read the sentinel — getTail() would be "resident tail.".
+        const memory = document.querySelector('[name="memory"]');
+        expect(memory.loaded).toBeFalsy();
+        expect(memory.getTail()).toBe("");
+        expect(memory.getStory()).toBe("");
 
-    // And its memory.md is byte-for-byte what it was — never clobbered.
-    expect(fs.readFileSync(path.join(HOME, "memory.md"), "utf8")).toBe(SENTINEL);
+        // And its memory.md is byte-for-byte what it was — never clobbered.
+        expect(fs.readFileSync(path.join(HOME, "memory.md"), "utf8")).toBe(SENTINEL);
+    } finally {
+        window.removeEventListener("error", onError)
+        window.removeEventListener("unhandledrejection", onReject)
+    }
 });

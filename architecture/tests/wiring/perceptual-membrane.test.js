@@ -43,6 +43,7 @@ beforeEach(async () => {
 afterEach(async () => {
     await memory?._journalQueue;
     document.body.replaceChildren();
+    await delay(20);
     fs.rmSync(journalDir, { recursive: true, force: true });
 });
 
@@ -279,10 +280,12 @@ test('a second offer while the first still materializes is refused as busy, and 
     expect(acquisitions[0]).toEqual({
         stage: 'acquisition', source: 'mock', permitted: true, reason: 'open',
         changeMagnitude: 0.9, apertureState: 'open',
+        candidateId: expect.any(String), requestId: null,
     });
     expect(acquisitions[1]).toEqual({
         stage: 'acquisition', source: 'mock', permitted: false, reason: 'busy',
         changeMagnitude: 0.9, apertureState: 'open',
+        candidateId: expect.any(String), requestId: null,
     });
     finish('Late render.');
     expect(await first).toBeInstanceOf(AttentionBid);
@@ -367,10 +370,12 @@ test('awareness verdict is recorded at tier 0 even when it mirrors acquisition',
     expect(decisions[0]).toEqual({
         stage: 'acquisition', source: 'mock', permitted: true, reason: 'open',
         changeMagnitude: 0.9, apertureState: 'open',
+        candidateId: expect.any(String), requestId: null,
     });
     expect(decisions[1]).toEqual({
         stage: 'awareness', source: 'mock', permitted: true, reason: 'tier-0-mirror',
         changeMagnitude: 0.9, apertureState: 'open',
+        candidateId: expect.any(String), requestId: null,
     });
     assertTextAbsent(published, text, preimage);
     expect(global.takePending()).toEqual([percept]);
@@ -462,6 +467,7 @@ test('closed aperture publishes a non-semantic acquisition denial and never the 
     expect(decisions[0].data).toEqual({
         stage: 'acquisition', source: 'mock', permitted: false, reason: 'closed',
         changeMagnitude: 0.9, apertureState: 'closed',
+        candidateId: expect.any(String), requestId: null,
     });
     expect(published.some(p => p.topic === 'materializationFailure')).toBe(false);
     assertTextAbsent(published, withheld, preimage, 'secret');

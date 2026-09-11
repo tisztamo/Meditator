@@ -105,6 +105,10 @@ File tools default to the agent's own workspace (`memory/<agent>/workspace`).
 Point them at a real project with `root="…"` on each tool —
 [Agents → Tools](agents.md#tools).
 
+**Wiring tests fail with `'!scope' is not a valid selector` (hundreds of tests).**
+Amanita 0.5 is required. A stale `node_modules` that still has 0.4 will fail
+about 115 wiring tests. Run `bun install`.
+
 ## Cost
 
 **What does a run cost?**

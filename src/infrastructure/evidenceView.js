@@ -26,6 +26,7 @@ export function normalizeCompareText(text) {
 export function projectEvidenceView({
     id, sourceId, modality, provenance, tier = null,
     requestId = null, actId = null, occurredAt, archivalText, eventType = null,
+    progress = false,
 } = {}) {
     const view = {
         id: requireId('evidenceView.id', id),
@@ -38,6 +39,9 @@ export function projectEvidenceView({
         occurredAt: occurredAt ?? null,
         eventType: typeof eventType === 'string' && eventType ? eventType : null,
         archivalText: typeof archivalText === 'string' ? archivalText : '',
+        // Substrate-owned: a progress line is not the world answering. Comparators
+        // return no evaluation for it. Never granted from a coerced payload.
+        progress: progress === true,
     }
     Object.defineProperty(view, 'toJSON', {
         value() {
@@ -52,6 +56,7 @@ export function projectEvidenceView({
                 occurredAt: this.occurredAt,
                 eventType: this.eventType,
                 archivalText: this.archivalText,
+                progress: this.progress,
             }
         },
     })
@@ -76,6 +81,7 @@ export function projectEvidenceFromPercept(percept) {
             ? percept.renderForFrame()
             : String(percept.reason ?? ''),
         eventType: percept.type ?? null,
+        progress: percept.progress === true,
     })
 }
 

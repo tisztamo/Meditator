@@ -1,5 +1,5 @@
 // Mind-relative stream refs and economy bus wiring.
-import { test, expect, beforeAll } from "bun:test";
+import { test, expect, beforeAll, afterAll } from "bun:test";
 import A from "amanita";
 import { delay } from "./setup.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
@@ -30,6 +30,11 @@ beforeAll(async () => {
     economy = mind.querySelector("m-economy");
     arousalSeen = null;
     await mind.sub("economy/arousal", v => { arousalSeen = v; });
+});
+
+afterAll(async () => {
+    document.body.replaceChildren();
+    await delay(20);
 });
 
 test("m-memory and m-loop-guard bind to the mind stream", async () => {

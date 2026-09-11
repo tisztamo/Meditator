@@ -21,6 +21,18 @@ const IDENTITY_BY_TAG = {
     'm-society': 'society',
 }
 
+// Built-in hands tag, used only when the constructor has no `static provides`
+// (a wiring test may stub `<m-act>` as a bare Amanita element). A real MAct is
+// reflected from the class, never from this table. Production lookups of an
+// upgraded act go through `provides`.
+const HANDS_BY_TAG = {
+    'm-act': 'hands',
+}
+
+function roleByTag(localName) {
+    return IDENTITY_BY_TAG[localName] || HANDS_BY_TAG[localName] || null
+}
+
 /** Amanita `!value` scope roots — opaque to Amanita, convention in Meditator. */
 const BOUNDARY_BY_IDENTITY = {
     mind: 'scope',
@@ -53,7 +65,7 @@ export function rolesProvidedBy(el, ctor = classOf(el)) {
         }
         return roles
     }
-    const tagged = IDENTITY_BY_TAG[el?.localName]
+    const tagged = roleByTag(el?.localName)
     return tagged ? [tagged] : []
 }
 
@@ -123,7 +135,7 @@ export function providesOf(el, role) {
         const pred = spec[role]
         return typeof pred === 'function' ? !!pred(el) : !!pred
     }
-    return IDENTITY_BY_TAG[el.localName] === role
+    return roleByTag(el.localName) === role
 }
 
 export function isMembrane(el) {
@@ -194,12 +206,14 @@ export function part(root, role) {
 }
 
 /**
- * Nearest issuing owner for an owner-local bidder: a sensory aperture, or an
- * `m-act`. Nested region/act interiors do not bind for an ancestor.
+ * Nearest issuing owner for an owner-local bidder: a sensory aperture, or the
+ * hands. Nested region/act interiors do not bind for an ancestor. Looked up by
+ * role, never by tag — a `components/` substitute that `provides` `hands` owns
+ * its interior bidder the same way.
  */
 export function bidOwnerOf(el) {
     for (let cur = el?.parentElement; cur && cur.nodeType === 1; cur = cur.parentElement) {
-        if (providesOf(cur, 'aperture') || cur.localName === 'm-act') return cur
+        if (providesOf(cur, 'aperture') || providesOf(cur, 'hands')) return cur
         if (isMembrane(cur)) break
     }
     return null

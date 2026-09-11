@@ -52,7 +52,7 @@ export class MFeed extends MSense {
         if (this._seen.size > 200) this._seen = new Set([...this._seen].slice(-100))  // bound memory
 
         // No key: every item is a plain ambient reading, not a state change.
-        this.feel(`A scrap of the outside world drifts past — “${fresh}”.`)
+        this.perceive(`A scrap of the outside world drifts past — “${fresh}”.`, { changeKey: fresh })
     }
 }
 

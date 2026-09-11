@@ -1,5 +1,7 @@
 /** Owner-local comparison capacity and commit order. Not a public queue component. */
 
+import { parseTime } from '../config/timeParser.js'
+
 export const MAX_COMPARE_IN_FLIGHT = 32
 export const DEFAULT_COMPARE_DEADLINE_MS = 2000
 
@@ -50,8 +52,14 @@ export function asEvaluations(result, Evaluation) {
 }
 
 export function compareDeadlineMs(host, fallback = DEFAULT_COMPARE_DEADLINE_MS) {
-    if (Number.isFinite(host?._compareDeadlineOverride) && host._compareDeadlineOverride > 0) {
-        return host._compareDeadlineOverride
+    const raw = typeof host?.attr === 'function'
+        ? host.attr('compareDeadline')
+        : host?.getAttribute?.('compareDeadline')
+    if (raw != null && raw !== '') {
+        try {
+            const ms = parseTime(raw)
+            if (Number.isFinite(ms) && ms > 0) return ms
+        } catch { /* invalid attribute falls through to the default */ }
     }
     return fallback
 }

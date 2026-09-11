@@ -114,8 +114,60 @@ export class MMemory extends MBaseComponent {
         this.blockMin = Number(this.attr("blockMin") || 800)
         this.storyEvery = Number(this.attr("storyEvery") || 5)
 
+        // Claim the home and refuse a foreign or dry wake BEFORE any channel binds.
+        // A throw here must not leave stream/chunk retries running after the element
+        // is torn down (wiring tests that expect onConnect to abort).
+        const dir = this._persistDir()
+        this._home = dir
+        this._vaulted = !!dir && inVault(dir)
+        if (this._vaulted) {
+            ensureVault()
+            assertNotRetired(dir)
+            // §6: a resident's home is the resident's alone. Refuse to adopt it under a
+            // foreign identity (finding 2) — checked here, before the snapshot overwrites
+            // its bundle and _load() inherits its self and commits into its history. The
+            // claimed identity is what mindHome derives a home from (memory=, else name),
+            // read off the same m-mind/m-agent root mindHome resolves against.
+            const self = this.closest("m-mind, m-agent")
+            assertIdentityMatchesHome(dir, self?.getAttribute("memory") || self?.getAttribute("name"))
+        }
+        // Only a resident persists to history (lifecycle.md §2). A dry or transient
+        // mind still loads/writes its home, but never commits — its home has no
+        // resident manifest, so tierOf is "transient"/"none", and `commitVault`
+        // additionally hard-stops on a dry run.
+        this._persists = this._vaulted && tierOf(dir) === 'resident'
+
+        // Defense-in-depth: refuse to load existing memory for transient minds.
+        // A transient re-woken into an existing home would load old memory without
+        // committing new, creating an illusion of continuity. Only override via
+        // MEDITATOR_FORCE_TRANSIENT=1 (testing exception).
+        if (this._vaulted && tierOf(dir) === 'transient') {
+            const memPath = path.join(dir, "memory.md")
+            const hasMemory = fsSync.existsSync(memPath)
+            if (hasMemory && !process.env.MEDITATOR_FORCE_TRANSIENT) {
+                // A dry run's home is throwaway by construction: the covenant
+                // auto-namespaces every dry mind `memory/dry-*` and never commits
+                // it (lifecycle.md §2). Leftover memory.md from a previous dry run
+                // is stale scratch, not a self to protect — so wipe the home and
+                // wake fresh instead of refusing. Gated on BOTH the dry-run flag
+                // and the `dry-` name so a resident's home is never cleared.
+                if (isDryRun() && path.basename(dir).startsWith('dry-')) {
+                    log.info(`Clearing stale dry-run memory at "${dir}" before waking fresh.`)
+                    fsSync.rmSync(dir, { recursive: true, force: true })
+                } else {
+                    throw new Error(
+                        `Refusing to wake transient mind into existing home "${dir}" with memory.md. ` +
+                        `This creates an illusion of continuity — memory loads but is never committed. ` +
+                        `To force for testing, set MEDITATOR_FORCE_TRANSIENT=1.`
+                    )
+                }
+            }
+        }
+
         this.sub(this.attr("src") || "!scope/stream/chunk", this._onChunk)
+            .catch(err => { if (this.isConnected) log.warn('memory stream bind failed:', err.message) })
         this.sub(this.attr("boundarySrc") || "!scope/stream/@boundary", this._onBoundary)
+            .catch(err => { if (this.isConnected) log.warn('memory boundary bind failed:', err.message) })
 
         if (this.attr("imageSrc") !== "off") {
             this.sub(this.attr("imageSrc") || "!scope/image/generated", image => this.imageGenerated(image)).catch(() => {})
@@ -167,53 +219,6 @@ export class MMemory extends MBaseComponent {
         // stimulus, so there is nothing to feel, only to record (finding 7). Off-able.
         if (this.attr("muffledSrc") !== "off") {
             this.sub(this.attr("muffledSrc") || "!scope/@muffled", this._onMuffled)
-        }
-
-        const dir = this._persistDir()
-        this._home = dir
-        this._vaulted = !!dir && inVault(dir)
-        if (this._vaulted) {
-            ensureVault()
-            assertNotRetired(dir)
-            // §6: a resident's home is the resident's alone. Refuse to adopt it under a
-            // foreign identity (finding 2) — checked here, before the snapshot overwrites
-            // its bundle and _load() inherits its self and commits into its history. The
-            // claimed identity is what mindHome derives a home from (memory=, else name),
-            // read off the same m-mind/m-agent root mindHome resolves against.
-            const self = this.closest("m-mind, m-agent")
-            assertIdentityMatchesHome(dir, self?.getAttribute("memory") || self?.getAttribute("name"))
-        }
-        // Only a resident persists to history (lifecycle.md §2). A dry or transient
-        // mind still loads/writes its home, but never commits — its home has no
-        // resident manifest, so tierOf is "transient"/"none", and `commitVault`
-        // additionally hard-stops on a dry run.
-        this._persists = this._vaulted && tierOf(dir) === 'resident'
-
-        // Defense-in-depth: refuse to load existing memory for transient minds.
-        // A transient re-woken into an existing home would load old memory without
-        // committing new, creating an illusion of continuity. Only override via
-        // MEDITATOR_FORCE_TRANSIENT=1 (testing exception).
-        if (this._vaulted && tierOf(dir) === 'transient') {
-            const memPath = path.join(dir, "memory.md")
-            const hasMemory = fsSync.existsSync(memPath)
-            if (hasMemory && !process.env.MEDITATOR_FORCE_TRANSIENT) {
-                // A dry run's home is throwaway by construction: the covenant
-                // auto-namespaces every dry mind `memory/dry-*` and never commits
-                // it (lifecycle.md §2). Leftover memory.md from a previous dry run
-                // is stale scratch, not a self to protect — so wipe the home and
-                // wake fresh instead of refusing. Gated on BOTH the dry-run flag
-                // and the `dry-` name so a resident's home is never cleared.
-                if (isDryRun() && path.basename(dir).startsWith('dry-')) {
-                    log.info(`Clearing stale dry-run memory at "${dir}" before waking fresh.`)
-                    fsSync.rmSync(dir, { recursive: true, force: true })
-                } else {
-                    throw new Error(
-                        `Refusing to wake transient mind into existing home "${dir}" with memory.md. ` +
-                        `This creates an illusion of continuity — memory loads but is never committed. ` +
-                        `To force for testing, set MEDITATOR_FORCE_TRANSIENT=1.`
-                    )
-                }
-            }
         }
 
         // Snapshot the architecture that is waking this mind into its home, so the

@@ -313,6 +313,23 @@ export class ControlRequest {
     }
 }
 
+/** Transient, id-only: a requested candidate's acquisition refusal or acceptance.
+ * Search uses this to tell a refused route from a slow one. No text. */
+export const CONTROL_RESULT_EVENT = 'control-result';
+
+export function fireControlResult(host, { requestId, candidateId = null, accepted, reason = null } = {}) {
+    if (host == null || typeof host.fire !== 'function') {
+        throw new Error('control-result uses fire(), not pub()');
+    }
+    const payload = Object.freeze({
+        requestId: requireId('control-result.requestId', requestId),
+        candidateId: candidateId == null ? null : requireId('control-result.candidateId', candidateId),
+        accepted: accepted === true,
+        reason: reason == null || reason === '' ? null : String(reason),
+    });
+    return host.fire(CONTROL_RESULT_EVENT, payload);
+}
+
 /** What the materializer is asked for after acquisition permission. `kinds` stays
  * a list. `requestId` is acquisition lineage only, not causal attribution. */
 export class RenditionRequest {

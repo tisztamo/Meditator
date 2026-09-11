@@ -39,8 +39,9 @@ const log = logger('mSense.js');
  *     text is produced only after aperture admission.
  *     If a control request is in flight, its id rides the candidate as requestId —
  *     acquisition lineage, not causal attribution. Existing feel() sources remain
- *     the eager compatibility path. Sources declare `tier` on the element (default 0;
- *     1 and 2 are refused by the region).
+ *     the eager compatibility path. Migrated senses call perceive() instead: lazy
+ *     under an enclosing aperture, eager feel() otherwise. Sources declare `tier`
+ *     on the element (default 0; 1 and 2 are refused by the region).
  *
  * Errors in `onSense()` (e.g. a network blip) are swallowed and logged — a sense
  * going quiet must never crash the mind.
@@ -129,13 +130,7 @@ export class MSense extends MBaseComponent {
      * @returns {InterruptRecord}
      */
     feel(reason, { key = null, salience = null, type = null } = {}) {
-        let sal = salience
-        if (sal == null) {
-            const base = Number(this.attr("salience") || 0.4)
-            const shift = Number(this.attr("salienceShift") || 0.6)
-            const shifted = key != null && key !== this._lastKey
-            sal = shifted ? shift : base + (Math.random() * 2 - 1) * 0.08
-        }
+        const sal = this._salienceFor(key, salience)
         if (key != null) this._lastKey = key
 
         const record = new InterruptRecord({
@@ -148,5 +143,34 @@ export class MSense extends MBaseComponent {
         log.debug(`[${this.attr("name") || this.localName}]${key != null ? ` ${key}` : ""}: ${record}`)
         this.fire("interrupt-request", record)
         return record
+    }
+
+    /**
+     * The same first-person line `feel()` would fire, under aperture control when
+     * enclosed and eagerly otherwise. Salience is `feel()`'s computation exactly,
+     * including the jitter, so an open gate at gain 1 with explicit salience
+     * matches the eager record.
+     */
+    perceive(reason, { key = null, salience = null, type = null, changeKey = null } = {}) {
+        if (!this.enclosing('aperture')) return this.feel(reason, { key, salience, type })
+        const sal = this._salienceFor(key, salience)
+        if (key != null) this._lastKey = key
+        return this.candidate(
+            {
+                changeMagnitude: sal,
+                changeKey: changeKey ?? key ?? reason,
+                occurredAt: Date.now(),
+            },
+            () => reason,
+        )
+    }
+
+    /** `feel()`'s salience computation, factored so `perceive()` agrees. */
+    _salienceFor(key, salience) {
+        if (salience != null) return salience
+        const base = Number(this.attr("salience") || 0.4)
+        const shift = Number(this.attr("salienceShift") || 0.6)
+        const shifted = key != null && key !== this._lastKey
+        return shifted ? shift : base + (Math.random() * 2 - 1) * 0.08
     }
 }

@@ -22,6 +22,14 @@ affects how the catalog presents them, not how they run.
 - **`lemma-lab.archml`** — the transient lab clone of the resident mathematician
   (`architecture/lemma.archml`): an inward mind grinding an open problem. Many of
   the memory and grounding findings came from its runs.
+- **`lemma-lab-expect.archml`** — lemma-lab plus `prediction="on"`, `m-compare`,
+  `m-expect-ledger` (B1 expect study; ws 7631). Harness: `expect-study/`.
+- **`lemma-lab-judge.archml`** — the same with `m-judge` and small `m-bid` weights
+  (B2 live judge; ws 7632).
+- **`eddy-world.archml`** — eddy with the world region under `modality="text"` so
+  `m-feed` is lazy (B3 first live aperture; ws 7633).
+- **`eddy-world-orient.archml`** — eddy-world plus `m-orient`, `m-search`, `m-judge`,
+  and a region bidder (B4/B5; ws 7634). Harness: `orient-study/`.
 - **`researcher.archml`** — a thinking mind that owns a small *agent* as one of its
   hands ([agents](../../doc/agents.md#an-agent-as-a-minds-hand)): the two shapes
   composed.
@@ -35,3 +43,31 @@ affects how the catalog presents them, not how they run.
 
 If you are looking for a mind to talk to, prefer a curated architecture from the
 catalog root once one exists, or copy `seedling.archml` and give it your own seed.
+
+## Phase 3B GPU runs (prepared; not run in this workspace)
+
+Needs `MEDITATOR_MODEL_PROFILE=local-voice` and a local GPU. Offline tests do not
+cover these.
+
+```bash
+# B1 — three runs per arm, ≥2h each
+architecture/lab/expect-study/bin/run.sh P 7200
+architecture/lab/expect-study/bin/run.sh C 7200
+bun architecture/lab/expect-study/analysis/summarize.mjs memory/lemma-lab-expect-p-<stamp> memory/lemma-lab-expect-c-<stamp>
+
+# B2 offline after B1 ledgers
+bun architecture/lab/expect-study/analysis/judge-offline.mjs memory/lemma-lab-expect-p-<stamp>
+
+# B2 live
+MEDITATOR_MODEL_PROFILE=local-voice bun meditator.js -a architecture/lab/lemma-lab-judge.archml --mind-name lemma-lab-judge-1
+
+# B3
+MEDITATOR_MODEL_PROFILE=local-voice bun meditator.js -a architecture/lab/eddy-world.archml --mind-name eddy-world-1
+
+# B4 / B5
+MEDITATOR_MODEL_PROFILE=local-voice bun meditator.js -a architecture/lab/eddy-world-orient.archml --mind-name eddy-world-orient-1
+bun architecture/lab/orient-study/analysis/summarize.mjs memory/eddy-world-orient-1
+```
+
+Reports: `doc/research/expect-study.md`, `doc/research/first-live-aperture.md`.
+Use `--mind-name` so checked-in homes stay untouched.

@@ -139,23 +139,25 @@ declaration and typed-regulator-input half of the processing-tier row, and gave
 source control a door. Phase 2 ([plan](../plans/perceptual-membrane-phase-2.md))
 closed rows 1, 3, and 4, moved row 2 as far as the membrane can move it, and
 closed the nesting half of row 5. Phase 3A filled row 2's match/mismatch *slots*
-with zero default weights and an opt-in producer; it did not retune residents
-or add orientation/search. Rows 5 (controller) and 6 stay open. The terminal
+with zero default weights and an opt-in producer; 3B added the outcome rule
+(progress lines are not judged) and the first live aperture (`m-feed` under
+`modality="text"`). It did not retune residents. Rows 5 (cadence control; orient
+and search now exist as lab components) and 6 stay open. The terminal
 trust correction (deferred `InterruptRecord`) is the sole deliberate baseline
 bug fix. This design revision does not run the experiments they describe.
 
 | Issue | Consequence and intended direction |
 |---|---|
 | Only the nearest sensory aperture participates | **Closed (phase 2).** Every aperture on the path answers `percept-candidate`; permission is the conjunction, fail-closed if a gate is missing. An inner `open` no longer delivers through an outer `closed` (W3). |
-| Sensory change directly sets salience | The bid is separate and derives salience from independent signals through a replaceable policy. Phase 3A stores `predictionMatch` / `predictionMismatch` (and unused `targetMatch`, `causalAttribution`, `novelty`, `confidence` as null). **Default `expectedFloor` and `mismatchWeight` are 0**, so absent or disabled prediction leaves phase-2 salience unchanged. Mismatch must not replace `changeMagnitude`. No resident architecture acquires this policy unless an author adds `prediction="on"`, `m-compare`, and `m-bid`. [Prediction and search](../improvements/prediction-mismatch.md). |
+| Sensory change directly sets salience | The bid is separate and derives salience from independent signals through a replaceable policy. Phase 3A stores `predictionMatch` / `predictionMismatch` (and unused `causalAttribution`, `novelty`, `confidence` as null). `targetMatch` is filled when a bidder sees a `target` evaluation. **Default `expectedFloor` and `mismatchWeight` are 0**, so absent or disabled prediction leaves phase-2 salience unchanged. Mismatch must not replace `changeMagnitude`. No resident architecture acquires this policy unless an author adds `prediction="on"`, a comparator, and `m-bid`. Outcome rule: progress consequences are not judged. [Prediction and search](../improvements/prediction-mismatch.md). |
 | Policy is constructed or discovered inside consumers | **Closed (phase 2).** `regulator` and `aggregator` are replaceable interior roles; the aperture provider is replaceable (C1/S1). `Aperture` is the reference contact policy, not the provider. |
 | Evidence and bid state share mutable records | **Closed (phase 2).** `AttentionBid` is the mutable competition record; `Percept` is frozen at issue. Nested gain is a trail entry. `assembleFrame` uses `evidenceOf`. |
-| Source control has a door, not a controller | `requestControl` now forwards through nested providers; a named target is delivered once by the nearest owner. **There is still no search controller, no `orient` hand, no cadence control beyond the sense timer, and no grounding query on the reserved `template` field.** `focus` is accepted and changes no policy. |
+| Source control has a door, not a controller | `requestControl` forwards through nested providers; `requestOrientation` is the role port for looking. **`m-orient` and `m-search` exist as lab components** (3B·B4/B5). Cadence control beyond the sense timer, and grounding queries on the reserved `template` field, stay open. `focus` is accepted and changes no policy. `ControlRequest.template` stays null on every request this phase issues. |
 | Processing tier is declared, not implemented above 0 | Sources declare `tier` (default 0); 1 and 2 throw at registration. Provenance and journal carry the field. The regulator accepts only a `PerceptCandidate`; `EdgeEvidence` is a typed refusal and nothing produces it. Acquisition and awareness are distinct stages (`tier-0-mirror` at lean). What remains: no tier-1 or tier-2 *implementations*, no scores into the deficit, no grounding query. The lean-versus-edge-grounded experiment is still unrun. |
 
-Existing eager senses remain outside aperture control, and native media,
-search, the `orient` hand, and tiers 1 and 2 are still deferred. With prediction
-absent or disabled, REALIZE, hands, evidence, salience, frames, journal, and
+Existing eager senses: `m-feed` is under aperture control via `perceive()`;
+`m-weather` and `m-daylight` still `feel()`. Native media and tiers 1 and 2 are
+still deferred. With prediction absent or disabled, REALIZE, hands, evidence, salience, frames, journal, and
 contact credit are unchanged. The constraints below are the target contract, not
 a claim that these remaining limits have already been removed.
 

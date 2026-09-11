@@ -54,6 +54,13 @@ Digital Consciousness Model — reconstructed and verified in
   structural-alignment ordering at every prior tested — including the
   uncomfortable rung where an efficiency-only agent passes the chicken.
 
+## Membrane studies (phase 3B)
+
+- **[Expect study](expect-study.md)** — B1 live `expect` / B2 judge. Harness prepared;
+  GPU runs not yet done.
+- **[First live aperture](first-live-aperture.md)** — B3: `m-feed` under `modality="text"`
+  in `eddy-world`. Prepared, not yet run.
+
 ## Reference cases and isolation studies
 
 - **[The chicken on the framework (SAS-1)](chicken-sas1-scoring.md)** (2026-07-14,

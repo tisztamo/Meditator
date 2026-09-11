@@ -311,10 +311,53 @@ Registered source elements (never payload fields) declare:
 | `bypassAperture` / `bypassAdmission` / `preempt` | `false` | three independent powers |
 
 - **Interior roles:** `regulator` — contact dynamics (debt, habituation, reflex), resolved with `part('regulator')`; zero → constructed `Aperture` (the reference policy, not the provider). `aggregator` lives on the mind, not here; this provider publishes `fold(own, children)` (default `max`).
-- **API:** `registerSource(element, sample)` → `offer(header, lazyText)`; `orient(state, source)`; `requestControl(ControlRequest)` is the one door for `sample` / `detail` / `focus` (`focus` is accepted and changes no policy). Untargeted requests fan out to child providers; a named `target` is delivered once by the nearest owner. A named target reaches its source even while the aperture refuses it — that is the controller's decision, and the acquisition gate still decides disclosure; an untargeted broadcast skips sources the aperture already refuses.
-- **Publishes:** `contactPressure` (the fold), `apertureState` (retained); `perceptDecision` (non-semantic gate verdicts — no text).
-- **Events:** `aperture-change` (backstage); `percept-candidate` (cancelable, bubbling, twice — acquisition then awareness — conjunction of every aperture on the path, stopped at the membrane); `aperture-register` (bubbling, nearest aperture stops it). Providers form a tree, not a graph. Credits `percepts-attended` **by percept id**. The offer path issues an `AttentionBid` wrapping a frozen `Percept`.
-- Only registered lazy sources pass this aperture; eager `feel()` and legacy interrupts do not.
+- **API:** `registerSource(element, sample)` → `offer(header, lazyText)`; `orient(state, source)`; `requestOrientation(OrientationRequest) → boolean` (role port — match `name`, else forward to child providers); `requestControl(ControlRequest)` is the one door for `sample` / `detail` / `focus` (`focus` is accepted and changes no policy). Untargeted requests fan out to child providers; a named `target` is delivered once by the nearest owner. A named target reaches its source even while the aperture refuses it — that is the controller's decision, and the acquisition gate still decides disclosure; an untargeted broadcast skips sources the aperture already refuses.
+- **Publishes:** `contactPressure` (the fold), `apertureState` (retained); `perceptDecision` (non-semantic gate verdicts — no text; includes `candidateId` and `requestId`); `bidRefusal` when a bound bidder's output is rejected.
+- **Events:** `aperture-change` (backstage); `percept-candidate` (cancelable, bubbling, twice — acquisition then awareness — conjunction of every aperture on the path, stopped at the membrane); `aperture-register` (bubbling, nearest aperture stops it); `control-result` (transient, id-only: a requested candidate's acquisition refusal or acceptance). Providers form a tree, not a graph. Credits `percepts-attended` **by percept id**. The offer path issues an `AttentionBid` wrapping a frozen `Percept`.
+- **Attributes (membrane):** `compareDeadline` (default `2s`) bounds comparison after materialization.
+- Only registered lazy sources pass this aperture; eager `feel()` and legacy interrupts do not. Migrated senses call `perceive()` (lazy under an enclosing aperture, eager `feel()` otherwise). Currently `m-feed` is migrated; `m-weather` and `m-daylight` still `feel()`.
+
+## `m-compare` / `m-judge` / `m-bid` / `m-search` / `m-expect-ledger`
+
+Membrane-phase extras. Omitting them leaves phase-2 behaviour intact.
+
+### `m-compare`
+
+Mind-level **comparator** (`provides comparator`). Exact-text equality after
+normalization. Indexes live `prediction` and `search-target` events. Duplicate
+comparator in one membrane fails at connect. Ordinary prose (≥ 8 tokens) is
+`insufficient`, not mismatch. Progress evidence (`progress: true`) is not judged.
+
+### `m-judge`
+
+Declared **tier-2** comparator behind the same port. Sends expectation (or search
+template) and evidence text to the ancestor `utilityModel` (`complete()`, 60 tokens,
+temperature 0). An architecture that has not wired it makes no such call. Under a
+cloud profile those texts leave the box; under `local-voice` they stay local.
+`promptDebug` dumps the prompt when debugging is on. Attributes: `model`, `maxTokens`,
+`temperature`.
+
+### `m-bid`
+
+Owner-local **bidder** (`provides bidder`), mounted under `m-region` or `m-act`.
+`expectedFloor` and `mismatchWeight` default to 0. Fills `predictionMatch` /
+`predictionMismatch` / `targetMatch` from committed evaluations. Invalid output
+is refused (`bidRefusal`); the owner does not substitute a default bid.
+
+### `m-search`
+
+Mind-level **search** controller (`provides search`). One active `SearchTarget`.
+ArchML: `sampleBudget`, `deadline`, `attemptTimeout`. Routes are
+`{aperture, source}` pairs passed at `start()`. Listens for `control-result` and
+`evaluation-commit`. Outcomes: `found` | `not-detected-in-inspected-area` |
+`budget-exhausted` | `abandoned`. Coverage is distinct completed routes / declared
+routes. `ControlRequest.template` stays null.
+
+### `m-expect-ledger`
+
+Lab-gated private JSONL ledger. `onConnect` throws unless the mind is
+`stage="experimental"`. Writes only to `mindHome(this, 'predictions')/ledger.jsonl`.
+Never memory, frame, Studio, or the process log.
 
 ## `m-timeout`
 
@@ -344,7 +387,11 @@ tokens, latency, the process) — that mechanistic interoception is the §1 attr
 
 `m-sense` is the shared base (abstract — not used as a tag directly): subclasses override
 `onSense(request)` (`request` is an optional `ControlRequest` from the region's sample
-door; existing subclasses may ignore it) and call `this.feel(reason, {key?, salience?})`.
+door; existing subclasses may ignore it) and call `this.feel(reason, {key?, salience?})`
+or, to honour an enclosing aperture, `this.perceive(reason, {key?, salience?, changeKey?})`.
+`perceive()` reuses `feel()`'s salience (including jitter): under an aperture it offers
+a lazy candidate; outside one it is `feel()` byte-for-byte. `m-feed` is migrated;
+`m-weather` and `m-daylight` still call `feel()`.
 With a `key` (a part of the day, a kind of sky), a **change** of key is scored at
 `salienceShift` and an unchanged reading at the ambient `salience` (jittered ±0.08,
 so it is peripheral — sometimes under the arbiter's bar). A sense that is unconfigured
@@ -437,21 +484,25 @@ exactly like `m-speech`: a cheap **decide** gate keeps the expensive tool-callin
 | `threshold` | `0.6` | minimum salience from decide to attempt a realize |
 | `cooldown` | `3m` | minimum gap between two acts (the world-changing lane) |
 | `readCooldown` | — | when set, read-only hands (look, recall) run on their own cooldown lane of this length, so a recent write never blocks a read; absent, all hands share `cooldown` |
-| `intentCooldown` | `15m` | minimum gap before re-acting on the *same* intent |
+| `intentCooldown` | `15m` | minimum gap before re-acting on the *same* intent (claimed at execute, when a hand actually runs) |
 | `minArousal` | `0.15` | stand down entirely when the economy's arousal falls below this |
 | `model` | inherits `model` | the tool-calling realizer (the "actor"); low temperature (0.2) |
 | `decisionModel` | inherits `utilityModel` | the cheap decide gate |
 | `realizeTokens` | `512` | max tokens for the realize call |
+| `prediction` | — | `"on"` adds an optional `expect` field to REALIZE schemas (and `template` on hands that `acceptsTemplate`). Absent or any other value is phase-2 behaviour. |
+| `compareDeadline` | `2s` | bound on comparison of a hand consequence when a comparator is wired |
 
 Plus all `m-observer` attributes.
 
 - **Capabilities register, the menu is closed:** each child capability calls
-  `registerCapability({name, description, parameters, felt?, readonly?, execute})` on
+  `registerCapability({name, description, parameters, felt?, readonly?, execute, lane?, cooldown?, intentThreshold?, acceptsTemplate?, consequenceType?, predictionTarget?})` on
   connect. `description`/`parameters` are *machine-facing* (the realizer's tool schema);
   `felt` is *world-facing* — a first-person, no-mechanism sense of the affordance, in
-  the mind's own voice. The realizer can only ever call a *registered* hand with
-  *schema-validated* args — it cannot invent one. A mind has exactly the hands its
-  `.archml` wires in, the way a body plan does; the blast radius is auditable by reading the file.
+  the mind's own voice. Optional `lane: 'control'` plus a declared `cooldown` is a third
+  cooldown lane (used by `m-orient`); `intentThreshold` filters the REALIZE menu after
+  DECIDE. A hand may return `{ progress: true }` on a trusted consequence — comparators
+  do not judge progress lines (the outcome rule). `acted` carries `actId` / `predictionId`
+  and stripped `handArgs` only.
 - **The body schema (embodiment):** m-act joins every hand's `felt` line into an
   `embodiment` it publishes; the mind weaves it softly into its identity
   ([`m-mind`](#m-mind)'s `embodimentSrc`). So the mind *knows what it can reach the way
@@ -470,6 +521,17 @@ Plus all `m-observer` attributes.
   is *never* a topic.
 - **Subscribes:** the stream window (`m-observer`), and `..m-mind/economy/arousal`
   (interoception — a tired or near-broke mind does not reach).
+
+### `m-orient` — voluntary looking (control lane)
+
+An ordinary capability under `m-act`. Closed `aperture` / `source` enums are derived
+from live aperture providers (and refresh when one connects later). `lane: 'control'`,
+default `cooldown="30s"`, `intentThreshold="0.75"`, `acceptsTemplate: true`,
+`consequenceType: null` — orienting is not a sensation and returns no `experience`.
+A `template` on the REALIZE envelope asks the wired `m-search` to start. The `felt`
+line names world-facing affordances and never exposes modality ids, aperture states,
+or thresholds. The reflex will reverse a voluntary `closed` after deficit passes 0.65;
+there is no grace period in this phase.
 
 ### `m-look` — the first hand (read-only, on-demand exteroception)
 

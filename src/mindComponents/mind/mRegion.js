@@ -3,12 +3,17 @@ import { enclosingOf, enclosingAllOf, isMembrane, providesOf, isCustomElementDef
 import { Aperture } from '../../infrastructure/aperture.js'
 import { Percept, PerceptCandidate } from '../../infrastructure/percept.js'
 import { issueOwnerBid } from '../../infrastructure/bidderPolicy.js'
-import { SourceContract, AnnotatedCandidate, decideGate, GateVerdict, ControlRequest, RenditionRequest, PerceptReceipt, Evaluation, pushGainTrail } from '../../infrastructure/perceptionContracts.js'
+import { SourceContract, AnnotatedCandidate, decideGate, GateVerdict, ControlRequest, RenditionRequest, PerceptReceipt, pushGainTrail, fireControlResult } from '../../infrastructure/perceptionContracts.js'
 import { InterruptRecord } from '../../infrastructure/interruptRecord.js'
 import { parseTime } from '../../config/timeParser.js'
 import { projectEvidenceView } from '../../infrastructure/evidenceView.js'
-import { CompareBudget, CommitOrder, asEvaluations, compareDeadlineMs, evaluationIdsOf, verdictsOf, awaitUntilAbort, DEFAULT_COMPARE_DEADLINE_MS } from '../../infrastructure/compareContinuation.js'
+import { CompareBudget, CommitOrder, evaluationIdsOf, verdictsOf } from '../../infrastructure/compareContinuation.js'
+import { runEvidenceCase, MIND_SLEEPING_EVENT } from '../../infrastructure/evidenceCase.js'
 import { evaluationCommitPayload, fireEvaluationCommit } from '../../infrastructure/predictionContracts.js'
+import { OrientationRequest } from '../../infrastructure/predictionContracts.js'
+import { logger } from '../../infrastructure/logger.js'
+
+const log = logger('mRegion.js')
 
 /** Stable id for a gate: `name` attribute, else the tag. Unique among apertures in a membrane. */
 export function gateIdOf(el) {
@@ -50,6 +55,7 @@ export function gateIdOf(el) {
  *     route exists; the default preserves today's numbers. This is not a chosen
  *     confirmation policy. The issuing (nearest) provider owns the floor; nested
  *     apertures do not fold or max it.
+ *   - compareDeadline: wall-clock budget for a live comparison (default "2s")
  * Interior role: `regulator` — contact dynamics (debt, habituation, reflex).
  *   Resolved at connect via part('regulator'), then kept only if
  *   enclosingOf(el, 'aperture') === this, so a nested aperture's regulator is
@@ -123,8 +129,12 @@ export class MRegion extends MBaseComponent {
         this._arousal = 1
         const mind = this._mind()
         mind?.addEventListener('percepts-attended', this._onPerceptsAttended)
+        mind?.addEventListener(MIND_SLEEPING_EVENT, this._onMindSleeping)
         // closest() is empty after removal; remember the connect-time host for unlisten.
-        this._unlistenPercepts = () => mind?.removeEventListener('percepts-attended', this._onPerceptsAttended)
+        this._unlistenPercepts = () => {
+            mind?.removeEventListener('percepts-attended', this._onPerceptsAttended)
+            mind?.removeEventListener(MIND_SLEEPING_EVENT, this._onMindSleeping)
+        }
         if (mind?.querySelector('m-stream')) {
             this.sub('!scope/stream/@boundary', () => this.onBoundary()).catch(() => {})
         }
@@ -223,24 +233,30 @@ export class MRegion extends MBaseComponent {
                     stage: 'acquisition', permitted: false, reason: 'busy',
                     bypass: acquisition.bypass, apertureState: acquisition.apertureState, gate: acquisition.gate,
                 }), annotated)
+                if (candidate.requestId) {
+                    fireControlResult(this, {
+                        requestId: candidate.requestId,
+                        candidateId: candidate.id,
+                        accepted: false,
+                        reason: 'busy',
+                    })
+                }
                 return null
             }
             this._publishDecision(acquisition, annotated)
+            if (candidate.requestId) {
+                fireControlResult(this, {
+                    requestId: candidate.requestId,
+                    candidateId: candidate.id,
+                    accepted: acquisition.permitted,
+                    reason: acquisition.permitted ? 'accepted' : acquisition.reason,
+                })
+            }
             if (!acquisition.permitted) return null
 
             const regionGen = this._bindGen
             const comparator = this._liveComparator()
             const comparatorGen = comparator?._bindGen
-            const comparing = comparator != null
-            const reserved = comparing ? this._compareBudget.tryAcquire() : false
-            const ticket = comparing ? this._orderFor(contract.name).enqueue() : null
-            const controller = new AbortController()
-            if (comparing) this._compareAborts.add(controller)
-            const deadline = Date.now() + this._compareDeadlineMs()
-            const timer = comparing
-                ? setTimeout(() => controller.abort(), Math.max(0, deadline - Date.now()))
-                : null
-            let releasedBudget = !reserved
 
             entry.busy = true
             let text
@@ -259,112 +275,94 @@ export class MRegion extends MBaseComponent {
                 }
             } finally { entry.busy = false }
 
-            try {
-                if (failed) return null
-                if (!attached() || this._mind()?._sleeping
-                    || !this._versionsHold(annotated)) return null
+            if (failed) return null
+            if (!attached() || this._mind()?._sleeping
+                || !this._versionsHold(annotated)) return null
 
-                const occurredAt = new Date(Math.min(now, candidate.occurredAt)).toISOString()
-                const view = projectEvidenceView({
-                    id: candidate.id,
-                    sourceId: contract.name,
-                    modality: contract.modality,
-                    provenance: contract.provenance,
-                    tier: contract.tier,
-                    requestId: candidate.requestId,
-                    actId: candidate.actId,
-                    occurredAt,
-                    archivalText: text,
-                    eventType: `Sense-${contract.name}`,
+            const occurredAt = new Date(Math.min(now, candidate.occurredAt)).toISOString()
+            const view = projectEvidenceView({
+                id: candidate.id,
+                sourceId: contract.name,
+                modality: contract.modality,
+                provenance: contract.provenance,
+                tier: contract.tier,
+                requestId: candidate.requestId,
+                actId: candidate.actId,
+                occurredAt,
+                archivalText: text,
+                eventType: `Sense-${contract.name}`,
+            })
+
+            let evaluations = []
+            if (comparator) {
+                const outcome = await runEvidenceCase({
+                    owner: this,
+                    view,
+                    comparator,
+                    comparatorGen,
+                    liveComparator: () => this._liveComparator(),
+                    budget: this._compareBudget,
+                    order: this._orderFor(contract.name),
+                    aborts: this._compareAborts,
+                    revalidate: () => attached() && !this._mind()?._sleeping
+                        && this._bindGen === regionGen && this._versionsHold(annotated),
                 })
-
-                let evaluations = []
-                if (reserved && comparator && typeof comparator.accepts === 'function'
-                    && comparator.accepts(view)) {
-                    try {
-                        const raw = await awaitUntilAbort(comparator.evaluate(view, {
-                            now: Date.now(), deadline, signal: controller.signal,
-                        }), controller.signal)
-                        if (!controller.signal.aborted && Date.now() < deadline) {
-                            evaluations = asEvaluations(raw, Evaluation)
-                        }
-                    } catch {
-                        evaluations = []
-                    }
-                }
-                if (reserved && !releasedBudget) {
-                    this._compareBudget.release()
-                    releasedBudget = true
-                }
-
-                if (ticket) await ticket.wait()
-
-                const liveCmp = this._liveComparator()
-                if (!attached() || this._mind()?._sleeping) return null
-                if (this._bindGen !== regionGen) return null
-                if (comparing && (liveCmp !== comparator || liveCmp?._bindGen !== comparatorGen)) return null
-                if (!this._versionsHold(annotated)) return null
-                // Timeout/abort cannot settle; still admit without match/mismatch.
-                if (controller.signal.aborted || Date.now() >= deadline) evaluations = []
-
-                // Awareness is the second pass of the same event, after materialization
-                // and the version re-check, before interrupt-request. bypassAperture is
-                // an acquisition privilege; tier 0 awareness mirrors decideGate's permitted
-                // bit, including that bypass. Fresh verdicts; do not rewrite acquisition
-                // versions or push the gain trail again.
-                const awarenessDetail = {
-                    stage: 'awareness',
-                    header: candidate,
-                    origin: element,
-                    contract,
-                    verdicts: [],
-                }
-                const awarenessEvent = new CustomEvent('percept-candidate', {
-                    bubbles: true, cancelable: true, detail: awarenessDetail,
-                })
-                element.dispatchEvent(awarenessEvent)
-                const awareness = this._composedGate(awarenessEvent, expectedGates)
-                if (awareness.permitted && (!attached() || this._mind()?._sleeping
-                    || !this._versionsHold(annotated))) {
-                    this._publishDecision(this._gateMissingVerdict(awarenessDetail), annotated)
-                    return null
-                }
-                const percept = new Percept({
-                    id: candidate.id, sourceId: contract.name, modality: contract.modality,
-                    provenance: contract.provenance, tier: contract.tier, policy: contract.powers,
-                    requestId: candidate.requestId,
-                    actId: candidate.actId,
-                    occurredAt,
-                    record: new InterruptRecord({ source: 'External', type: `Sense-${contract.name}`, reason: text,
-                        // Raw change magnitude. The requested floor is applied inside
-                        // decideBid, not merged into evidence salience here.
-                        salience: candidate.changeMagnitude, actId: candidate.actId }),
-                    gateTrail: [acquisition, awareness],
-                })
-                this._publishDecision(awareness, annotated)
-                if (!awareness.permitted) return null
-                if (evaluations.length) this._commitEvaluations(evaluations, percept)
-                const bid = issueOwnerBid({
-                    bidder: this._liveBidder(),
-                    evidence: percept,
-                    evaluations,
-                    gainTrail: detail.gainTrail,
-                    requestedFloor: this._requestedFloor(),
-                })
-                if (!bid) {
-                    this.pub('bidRefusal', { evidenceId: percept.id, reason: 'invalid-bidder' })
-                    return null
-                }
-                const issuedAt = Date.parse(percept.dateTime)
-                this._recordIssued(percept.id, Number.isFinite(issuedAt) ? issuedAt : Date.now())
-                element.dispatchEvent(new CustomEvent('interrupt-request', { bubbles: true, detail: bid }))
-                return bid
-            } finally {
-                if (timer) clearTimeout(timer)
-                this._compareAborts.delete(controller)
-                if (!releasedBudget) this._compareBudget.release()
-                ticket?.complete()
+                if (outcome == null) return null
+                evaluations = outcome
             }
+
+            // Awareness is the second pass of the same event, after materialization
+            // and the version re-check, before interrupt-request. bypassAperture is
+            // an acquisition privilege; tier 0 awareness mirrors decideGate's permitted
+            // bit, including that bypass. Fresh verdicts; do not rewrite acquisition
+            // versions or push the gain trail again.
+            const awarenessDetail = {
+                stage: 'awareness',
+                header: candidate,
+                origin: element,
+                contract,
+                verdicts: [],
+            }
+            const awarenessEvent = new CustomEvent('percept-candidate', {
+                bubbles: true, cancelable: true, detail: awarenessDetail,
+            })
+            element.dispatchEvent(awarenessEvent)
+            const awareness = this._composedGate(awarenessEvent, expectedGates)
+            if (awareness.permitted && (!attached() || this._mind()?._sleeping
+                || !this._versionsHold(annotated))) {
+                this._publishDecision(this._gateMissingVerdict(awarenessDetail), annotated)
+                return null
+            }
+            const percept = new Percept({
+                id: candidate.id, sourceId: contract.name, modality: contract.modality,
+                provenance: contract.provenance, tier: contract.tier, policy: contract.powers,
+                requestId: candidate.requestId,
+                actId: candidate.actId,
+                occurredAt,
+                record: new InterruptRecord({ source: 'External', type: `Sense-${contract.name}`, reason: text,
+                    // Raw change magnitude. The requested floor is applied inside
+                    // decideBid, not merged into evidence salience here.
+                    salience: candidate.changeMagnitude, actId: candidate.actId }),
+                gateTrail: [acquisition, awareness],
+            })
+            this._publishDecision(awareness, annotated)
+            if (!awareness.permitted) return null
+            if (evaluations.length) this._commitEvaluations(evaluations, percept)
+            const bid = issueOwnerBid({
+                bidder: this._liveBidder(),
+                evidence: percept,
+                evaluations,
+                gainTrail: detail.gainTrail,
+                requestedFloor: this._requestedFloor(),
+            })
+            if (!bid) {
+                this.pub('bidRefusal', { evidenceId: percept.id, reason: 'invalid-bidder' })
+                return null
+            }
+            const issuedAt = Date.parse(percept.dateTime)
+            this._recordIssued(percept.id, Number.isFinite(issuedAt) ? issuedAt : Date.now())
+            element.dispatchEvent(new CustomEvent('interrupt-request', { bubbles: true, detail: bid }))
+            return bid
         }
         this._sources.set(element, entry)
         return entry.offer
@@ -522,15 +520,23 @@ export class MRegion extends MBaseComponent {
         return n
     }
 
-    _compareDeadlineMs() {
-        return compareDeadlineMs(this, DEFAULT_COMPARE_DEADLINE_MS)
+    _onMindSleeping = () => {
+        for (const controller of this._compareAborts || []) {
+            try { controller.abort() } catch { /* cooperative */ }
+        }
     }
 
     _liveComparator() {
         const mind = this._mind()
         if (!mind) return null
         const found = part(mind, 'comparator')
-        if (found.length > 1) throw new Error('a mind may have only one comparator')
+        if (found.length > 1) {
+            if (!this._warnedDuplicateComparator) {
+                this._warnedDuplicateComparator = true
+                log.warn('a mind may have only one comparator; comparison is skipped')
+            }
+            return null
+        }
         const el = found[0]
         if (!el) return null
         if (isCustomElementDefined(el)) customElements.upgrade(el)
@@ -561,13 +567,27 @@ export class MRegion extends MBaseComponent {
 
     _commitEvaluations(evaluations, percept) {
         const predictionId = evaluations.find(e => e.subject?.kind === 'prediction')?.subject?.id ?? null
+        const subjects = evaluations
+            .filter(e => e?.subject?.kind && e.verdict)
+            .map(e => ({ kind: e.subject.kind, verdict: e.verdict }))
         fireEvaluationCommit(this, evaluationCommitPayload({
             evaluationIds: evaluationIdsOf(evaluations),
             verdicts: verdictsOf(evaluations),
             evidenceId: percept.id,
             actId: percept.actId,
             predictionId,
+            requestId: percept.requestId,
+            subjects,
         }))
+        const mind = this._mind()
+        const search = mind ? part(mind, 'search')[0] : null
+        if (search && typeof search.observe === 'function' && percept.requestId) {
+            search.observe({
+                requestId: percept.requestId,
+                evidenceId: percept.id,
+                evaluations,
+            })
+        }
     }
 
     /** Every aperture on the path answers. Nobody but the membrane stops this event. */
@@ -662,12 +682,35 @@ export class MRegion extends MBaseComponent {
         })
     }
 
-    orient(state, source = null, now = Date.now()) {
+    sourceNames() {
+        if (!this._sources) return []
+        return [...this._sources.values()].map(s => s.source)
+    }
+
+    requestOrientation(request) {
+        if (!(request instanceof OrientationRequest)) {
+            throw new Error('requestOrientation requires an OrientationRequest')
+        }
+        const name = this.attr('name') || this.localName
+        if (request.aperture === name) {
+            if (!this.aperture) return false
+            return this.orient(request.state, request.source ?? null, Date.now(), { actId: request.actId })
+        }
+        for (const child of this._childProviders()) {
+            if (!child.isConnected) continue
+            customElements.upgrade(child)
+            if (typeof child.requestOrientation !== 'function') continue
+            if (child.requestOrientation(request)) return true
+        }
+        return false
+    }
+
+    orient(state, source = null, now = Date.now(), extra = {}) {
         if (!this.aperture) return false
         if (state === 'narrow' && ![...this._sources.values()].some(s => s.source === source)) return false
         const before = this.aperture.state
         if (!this.aperture.orient(state, { source, now })) return false
-        this._transition(before, 'orientation')
+        this._transition(before, 'orientation', extra?.actId ?? null)
         return true
     }
 
@@ -748,14 +791,17 @@ export class MRegion extends MBaseComponent {
         }).catch(() => {})
     }
 
-    _transition(from, reason) {
+    _transition(from, reason, actId = null) {
         this._publishAperture()
-        this.fire('aperture-change', { from, to: this.aperture.state, reason })
+        this.fire('aperture-change', { from, to: this.aperture.state, reason, actId: actId ?? null })
         // Ask the sources for the present. No candidate or suppressed content is queued.
+        // ControlRequest.template stays null — a semantic template must not enter the detector.
         this.requestControl(new ControlRequest({
             kind: 'sample',
             issuedBy: this.attr('name') || this.localName,
             reason: reason === 'orientation' ? 'orientation' : 'reopening',
+            actId: actId ?? null,
+            template: null,
         }))
     }
 
@@ -827,6 +873,8 @@ export class MRegion extends MBaseComponent {
             reason: verdict.reason,
             changeMagnitude: annotated.candidate.changeMagnitude,
             apertureState: verdict.apertureState,
+            candidateId: annotated.candidate.id,
+            requestId: annotated.candidate.requestId ?? null,
         })
     }
 }
