@@ -1,9 +1,9 @@
 # Expect study (Phase 3B · B1 / B2)
 
-The experiments git submodule is not checked out in this workspace, so the
-harness lives next to the lab architectures it runs
-([`architecture/lab/`](../)). Copy into `experiments/expect-study/` if that
-repository is available.
+This harness lives next to the lab architectures it runs
+([`architecture/lab/`](../)) rather than in the `experiments` submodule, so it
+stays usable whether or not that submodule is checked out. Copy into
+`experiments/expect-study/` if you would rather keep it there.
 
 ## Question
 

@@ -1,8 +1,9 @@
 # Orient study (Phase 3B · B4 / B5)
 
-The experiments git submodule is not checked out in this workspace, so the
-harness lives next to the lab architectures it runs. Copy into
-`experiments/orient-study/` if that repository is available.
+This harness lives next to the lab architectures it runs rather than in the
+`experiments` submodule, so it stays usable whether or not that submodule is
+checked out. Copy into `experiments/orient-study/` if you would rather keep it
+there.
 
 ## Question (B4)
 
