@@ -392,6 +392,16 @@ The [efference redesign](../improvements/efference-redesign.md) (act-writing, gr
 manual mode) was **not** adopted in this work. Lanes, `progress`, and the derived
 orient enum are the limit of `m-act` change here.
 
+**A hand-choice shift that did not replicate (B1, 2026-09-12 — see
+[the expect study](../research/expect-study.md) §1.4):** a first P/C pair
+showed `prediction="on"` shifting hand share from `terminal` toward `note`
+(+12 points) versus the identical mind with prediction off, and read at first
+like a real cost of the `expect` envelope. A second pair, run in reverse order,
+showed the same-sized shift in the *opposite* direction. Across two pairs there
+is no consistent effect — this looks like ordinary run-to-run variation in
+which sub-problem the mind is working on, not something caused by offering
+`expect`. Retracted as a finding; recorded here so it isn't rediscovered as new.
+
 ### In `eddy.archml` (the integration that unblocks the wake)
 
 ```xml

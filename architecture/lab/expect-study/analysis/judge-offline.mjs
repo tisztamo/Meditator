@@ -5,8 +5,10 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { complete } from '../../../../src/modelAccess/llm.js'
-import { resolveModelRef } from '../../../../src/modelAccess/modelConfig.js'
-import { judgePrompt, parseJudgeReply } from '../../../../src/infrastructure/judgeCompare.js'
+import { loadModelConfig, resolveModelRef } from '../../../../src/modelAccess/modelConfig.js'
+import { judgePrompt, parseJudgeReply, JUDGE_MAX_TOKENS } from '../../../../src/infrastructure/judgeCompare.js'
+
+await loadModelConfig()
 
 const home = process.argv[2]
 if (!home) {
@@ -41,7 +43,7 @@ for (const p of predictions) {
     try {
         const result = await complete({
             model,
-            maxTokens: 60,
+            maxTokens: JUDGE_MAX_TOKENS,
             temperature: 0,
             prompt,
             debugTag: 'judge-offline',

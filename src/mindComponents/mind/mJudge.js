@@ -6,7 +6,7 @@ import {
 import { isEvidenceView } from '../../infrastructure/evidenceView.js'
 import { createLivePredictionIndex } from '../../infrastructure/livePredictionIndex.js'
 import { createLiveSearchIndex } from '../../infrastructure/liveSearchIndex.js'
-import { judgePrompt, parseJudgeReply } from '../../infrastructure/judgeCompare.js'
+import { judgePrompt, parseJudgeReply, JUDGE_MAX_TOKENS } from '../../infrastructure/judgeCompare.js'
 import { complete } from '../../modelAccess/llm.js'
 import { resolveModelRef } from '../../modelAccess/modelConfig.js'
 import { part } from "../shared/enclosure.js"
@@ -16,7 +16,7 @@ import { part } from "../shared/enclosure.js"
  * An architecture that has not wired it makes no such call. Duplicate comparator
  * in one membrane fails at connect.
  *
- * Attributes: model (default ancestor utilityModel), maxTokens (60), temperature (0).
+ * Attributes: model (default ancestor utilityModel), maxTokens (JUDGE_MAX_TOKENS), temperature (0).
  */
 export class MJudge extends MBaseComponent {
     static provides = { comparator: true }
@@ -133,12 +133,12 @@ export class MJudge extends MBaseComponent {
 
     async _judge(expectText, evidenceText, { deadline, signal } = {}) {
         const model = resolveModelRef(this.attr('model') || this.env('utilityModel'), 'utility')
-        const maxTokens = Number(this.attr('maxTokens') || 60)
+        const maxTokens = Number(this.attr('maxTokens') || JUDGE_MAX_TOKENS)
         const temperature = Number(this.attr('temperature') ?? 0)
         try {
             const result = await this._complete({
                 model,
-                maxTokens: Number.isFinite(maxTokens) && maxTokens > 0 ? maxTokens : 60,
+                maxTokens: Number.isFinite(maxTokens) && maxTokens > 0 ? maxTokens : JUDGE_MAX_TOKENS,
                 temperature: Number.isFinite(temperature) ? temperature : 0,
                 prompt: judgePrompt({ expectText, evidenceText }),
                 debugTag: 'judge-compare',
