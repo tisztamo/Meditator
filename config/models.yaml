@@ -19,6 +19,12 @@ roles:
   utility:
     provider: openrouter
     model: deepseek/deepseek-v4-flash
+  # The tier-2 comparator (m-judge). Separate from utility because it grades the
+  # mind's own evidence: see doc/research/expect-study.md §2.6, where the local
+  # model scored the same as this one on the B1 ledger.
+  judge:
+    provider: openrouter
+    model: deepseek/deepseek-v4-flash
 
 presets:
   gpu-local:
@@ -33,10 +39,12 @@ profiles:
     roles:
       voice: voice
       utility: utility
+      judge: judge
   local-dev:
     roles:
       voice: gpu-local
       utility: gpu-local
+      judge: gpu-local
   # Conscious stream on the local model (ardincoder-1), background/utility work
   # (memory distillation, scribe, loop-detector, interrupt scoring) on the cheap
   # cloud model. Tests whether the deepseek drift/identity-collapse seen in the
@@ -46,3 +54,7 @@ profiles:
     roles:
       voice: gpu-local
       utility: utility
+      # The judge goes local even though utility does not: the local model matched
+      # the cloud one pair-for-pair on the B2 gate (0.900 blind agreement each),
+      # and the mind's evidence never leaves the box to be graded.
+      judge: gpu-local

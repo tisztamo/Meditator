@@ -175,7 +175,11 @@
        NOTE: this deviates from the resident lemma (which has NO terminal); it lives
        only in this transient clone, run with a fresh --mind-name so memory/lemma-lab/
        is never touched. -->
-  <m-judge name="judge"></m-judge>
+  <!-- model="judge" is the role, not a model: config/models.yaml maps it per profile
+       (under local-voice it is the local ardincoder-1, while utility stays cloud).
+       The judge is chosen apart from utilityModel on purpose — see
+       doc/research/expect-study.md §2.6. -->
+  <m-judge name="judge" model="judge"></m-judge>
   <m-expect-ledger name="ledger"></m-expect-ledger>
 
   <m-act name="hands" prediction="on" compareDeadline="8s" every="4" threshold="0.62" cooldown="3s" readCooldown="60s" intentCooldown="20s"

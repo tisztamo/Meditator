@@ -16,7 +16,13 @@ import { part } from "../shared/enclosure.js"
  * An architecture that has not wired it makes no such call. Duplicate comparator
  * in one membrane fails at connect.
  *
- * Attributes: model (default ancestor utilityModel), maxTokens (JUDGE_MAX_TOKENS), temperature (0).
+ * Attributes: model, maxTokens (JUDGE_MAX_TOKENS), temperature (0).
+ *
+ * The model resolves: this element's `model`, else a `judgeModel` on any
+ * ancestor (usually `<m-mind>`), else the `judge` role under the active profile.
+ * It deliberately does NOT follow the ancestor `utilityModel` — a comparator
+ * that grades the mind's own evidence is worth choosing on its own, and under
+ * `local-voice` the judge runs local while utility stays cloud.
  */
 export class MJudge extends MBaseComponent {
     static provides = { comparator: true }
@@ -132,7 +138,7 @@ export class MJudge extends MBaseComponent {
     }
 
     async _judge(expectText, evidenceText, { deadline, signal } = {}) {
-        const model = resolveModelRef(this.attr('model') || this.env('utilityModel'), 'utility')
+        const model = resolveModelRef(this.attr('model') || this.env('judgeModel'), 'judge')
         const maxTokens = Number(this.attr('maxTokens') || JUDGE_MAX_TOKENS)
         const temperature = Number(this.attr('temperature') ?? 0)
         try {

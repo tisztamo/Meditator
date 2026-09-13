@@ -273,3 +273,10 @@ independent reader" — than either model's headline agreement number is.
 
 Ledger: `predictions/judge-offline-local.jsonl` (the cloud run stays at
 `judge-offline.jsonl`).
+
+**Acted on:** the judge is now its own model role. `config/models.yaml` gains a
+`judge` role; `local-voice` maps it to `gpu-local` while `utility` stays cloud;
+`m-judge` resolves its own `model` attribute, then an ancestor `judgeModel`,
+then the role — it no longer follows `utilityModel`, so a mind whose background
+work is cloud can still be graded locally. `lemma-lab-judge.archml` says
+`model="judge"`. See [configuration](../configuration.md#models).

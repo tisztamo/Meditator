@@ -104,22 +104,32 @@ no-op (the file's default stands); a mind with no `<m-origin>` is untouched.
 ## Models
 
 Models are chosen by **role** in the archml, and mapped to real provider + model
-pairs in [`config/models.yaml`](../config/models.yaml). Two tiers:
+pairs in [`config/models.yaml`](../config/models.yaml). Three tiers:
 
 | Role | Attribute | Default ref | Used for |
 |------|-----------|-------------|----------|
 | Voice | `model` on `<m-mind>` or `<m-stream>` | `voice` | the stream of thought itself |
 | Utility | `utilityModel` on `<m-mind>` | `utility` | memory compression, observers, the scribe |
+| Judge | `judgeModel` on `<m-mind>`, or `model` on `<m-judge>` | `judge` | the tier-2 comparator: grading what was expected against what was perceived |
 
 Children inherit `model`/`utilityModel` from the `<m-mind>` ancestor, so you
 usually set them once at the top. Individual components can override with their
 own `model` attribute.
 
+`<m-judge>` is the exception that does **not** inherit `utilityModel`: it reads
+the mind's own evidence and its verdicts feed prediction error, so which model
+holds it is worth deciding on its own. It resolves its own `model` attribute
+first, then a `judgeModel` on any ancestor, then the `judge` role. Under the
+`local-voice` profile the judge runs on the local GPU while utility stays
+cloud — the local model matched the cloud one on the B2 gate
+([expect study §2.6](research/expect-study.md)), and the evidence never leaves
+the box to be graded.
+
 ### Model registry (`config/models.yaml`)
 
 The YAML file defines **providers**, **roles**, **presets**, and **profiles**:
 
-- **roles** — default provider + model for `voice` and `utility`
+- **roles** — default provider + model for `voice`, `utility` and `judge`
 - **presets** — named bundles (e.g. `gpu-local` → local vLLM + `ardincoder-1`)
 - **profiles** — which preset or role each tier uses (e.g. `cloud` vs `local-dev`)
 
@@ -127,7 +137,7 @@ Archml attribute values can be:
 
 | Value | Meaning |
 |-------|---------|
-| `voice` / `utility` | Resolve via the active profile → roles |
+| `voice` / `utility` / `judge` | Resolve via the active profile → roles |
 | `gpu-local` (preset name) | Look up `presets.gpu-local` |
 | `local/foo` or `qwen/bar` | Legacy escape hatch — raw id, no config lookup |
 
@@ -158,6 +168,7 @@ Or point at a preset directly in archml:
 | `MEDITATOR_MODEL_PROFILE` | active profile name (default from YAML) |
 | `MEDITATOR_VOICE_MODEL` | override voice tier (preset, role, or raw id) |
 | `MEDITATOR_UTILITY_MODEL` | override utility tier |
+| `MEDITATOR_JUDGE_MODEL` | override judge tier (also read by `expect-study/analysis/judge-offline.mjs`) |
 | `OPENROUTER_API_KEY` | required for OpenRouter (the default cloud provider) |
 | `OPENAI_API_KEY` | required for real image generation via `<m-image>`, and for the Studio's [Voice Mode](studio.md#voice-mode) (TTS/STT) |
 | `OPENAI_IMAGE_MODEL` | default image model for `<m-image>` (default `gpt-image-1`) |

@@ -5,15 +5,21 @@ import { logger } from "../infrastructure/logger.js";
 
 const log = logger("modelConfig.js");
 
-const ROLES = ["voice", "utility"];
+// "judge" is a third role rather than a flavour of utility: it reads the mind's
+// own evidence and its verdicts feed prediction error, so which model holds it
+// is a research variable, not a cost decision. Profiles that do not name it fall
+// through to the role's own default below.
+const ROLES = ["voice", "utility", "judge"];
 const ROLE_ENV = {
   voice: "MEDITATOR_VOICE_MODEL",
   utility: "MEDITATOR_UTILITY_MODEL",
+  judge: "MEDITATOR_JUDGE_MODEL",
 };
 
 const HARDCODED_FALLBACKS = {
   voice: { provider: "openrouter", model: "qwen/qwen3.6-35b-a3b" },
   utility: { provider: "openrouter", model: "qwen/qwen3.5-9b" },
+  judge: { provider: "openrouter", model: "qwen/qwen3.5-9b" },
 };
 
 let config = null;
@@ -191,7 +197,7 @@ export async function loadModelConfig() {
 /**
  * Resolve a model reference (role name, preset, legacy id, or omitted) to a provider spec.
  * @param {string|null|undefined} ref - archml attr value or env override
- * @param {"voice"|"utility"} [role] - tier hint when ref is omitted
+ * @param {"voice"|"utility"|"judge"} [role] - tier hint when ref is omitted
  * @returns {{ provider: string, model: string, baseURL?: string, apiKey?: string, thinking?: boolean }}
  */
 export function resolveModelRef(ref, role) {
