@@ -1,10 +1,17 @@
-# First live orientation (Phase 3B · B4)
+# First live orientation (Phase 3B · B4/B5)
 
-**Status: run 2026-09-13.** Code: `m-orient`, `MRegion.orient()`/`Aperture`,
+**Status: B4 met 2026-09-13; B5 not yet triggered after two runs.** Code:
+`m-orient`, `MRegion.orient()`/`Aperture`, `m-search`, `m-judge`,
 [`architecture/lab/eddy-world-orient.archml`](../../architecture/lab/eddy-world-orient.archml).
-Stop condition (`doc/plans/perceptual-membrane-phase-3b.md` §6): "one `eddy-world`
+B4 stop condition (`doc/plans/perceptual-membrane-phase-3b.md` §6): "one `eddy-world`
 run in which the mind closes or narrows the world channel at least once by its own
-hand, the reflex reopens it, and no `bypassAperture` source was withheld." **Met.**
+hand, the reflex reopens it, and no `bypassAperture` source was withheld." **Met**
+(run 1). B5 stop condition (§7): "one live `eddy-world` run with a search that ends
+`found` on a real feed item and one that ends `not-detected-in-inspected-area` or
+`budget-exhausted`." **Not met** — `m-search` never started in either run (see
+[B5](#b5--search-two-runs-no-organic-trigger) below); tests 25–33 are green
+(`architecture/tests/wiring/phase-3b-b5.test.js`, 10 pass) but that is the
+mechanism proven in isolation, not a live search.
 
 ## What ran
 
@@ -91,13 +98,46 @@ short deficit-freeze or reduced accrual rate immediately after a *voluntary*
 narrowing is meant to buy the mind real, held focus rather than a token gesture
 before being overridden.
 
+## B5 — search: two runs, no organic trigger
+
+A second run, `eddy-world-orient-2`, ran 2026-09-13 10:57:53Z–15:56:16Z (4h 58m,
+same architecture and profile, fresh `--mind-name` so B4's already-analyzed home
+stayed untouched). Stopped cleanly by SIGTERM for an unrelated reason (the GPU was
+needed elsewhere), not for an error or degeneration policy. One transient
+`Burst error: Connection error` at 14:18:52 self-recovered with no lasting effect;
+otherwise no errors. Budget: $0.095 of $3, 384k output tokens, 3328 calls.
+
+**`orient` never fired at all in this run — zero aperture-change events.** The
+only hand that fired was `note` (11 times), all self-directed ("setting this down
+so I don't lose it"). Two reaches were formed and throttled as "already busy"
+(`Sense-reach`, the generic `_feelReachInMotion` line), so the DECIDE gate
+occasionally wanted *something* beyond note, but it never resolved into
+`orient`/`recall`/`look`. Since a search only starts when an `orient` call
+carries a `template` argument (the realizer describing what to look for), and
+`orient` itself never fired, `m-search` never ran.
+
+Percept mix repeats run 1's skew, slightly more internal: of 265 percepts, 219
+(83%) were internal (`Association` 125, `Time-wander` 74, `LoopGuard` 18), 33
+(12%) world-origin (`earth` 5, `sky` 2, `ideas` 3, `daylight` 19, `weather` 4),
+10 (4%) hand consequences (`note`).
+
+The content attractor persists with a different surface phrase: not "I am
+enough" (2 occurrences this run) but "that is enough" / "the X is just X" chains
+(the conch shell, the salt flat, "the finger is the moon"), each time the mind
+narrating a deliberate stop ("Stopping the circle... I stop the repetition...")
+before drifting into a new image that collapses into the same shape again.
+
+**Combined across both runs (~8.5h, 469 percepts): 3 orientations, 0 searches.**
+This is not a bug to fix — B5's precondition (the mind wanting to look for
+something specific in the world, not just recover its own notes) is rare to the
+point of not occurring twice in a row. It reinforces the B4 verdict below rather
+than complicating it: the membrane's orientation/search machinery is implemented
+and tested correctly, but this world gives the mind almost nothing it wants to
+orient *toward*.
+
 ## What it does not show
 
-- **B5 (search) is untouched.** `m-search`/`m-judge` are wired but the mind
-  never invoked a search; all three orientations targeted its own notebook, not
-  a feed target. B5's stop condition (one live `found`, one honest
-  `not-detected`/`budget-exhausted`) has no data yet.
-- **No larger sample.** Three orientation events in 3h35m is enough to satisfy
+- **No larger sample for B4.** Three orientation events in 3h35m is enough to satisfy
   the stop condition (the reflex reverses a voluntary closure, live), but not
   enough to characterize a distribution of re-close latencies or to say
   anything about `dwell`/`contactHorizon` tuning beyond the mechanism above.
@@ -116,13 +156,19 @@ before being overridden.
 **B4's mechanical claim holds**: `m-orient` can close or narrow `world`, the
 mind used it three times unprompted, and the contact-deficit reflex reopened it
 every time with no bypass source withheld. The tests and the roadmap's B4 stop
-condition are satisfied. But the run also reproduces, quantitatively, the exact
-failure mode `a-world-to-meet.md` warned the membrane work would not by itself
-fix: a mostly-idle mind with only a thin, passive world feed spends nearly four
-out of five thoughts talking to itself, and orientation/search machinery working
-correctly does not change that, because the mind never wants to orient *toward*
-the feed content in the first place — only away from its own noticed looping.
-This is not a reason to distrust B4; it is the first live evidence that the next
-useful investment is not more membrane tuning on this world, but a richer,
-exploishable world for the mind to orient *into* (see the companion proposal
-below).
+condition are satisfied. **B5's does not**: two runs, ~8.5h combined, and
+`m-search` never started once — not because it is broken (tests 25–33 are
+green), but because the mind never forms the specific outward want a search
+needs.
+
+Both runs reproduce, quantitatively, the exact failure mode `a-world-to-meet.md`
+warned the membrane work would not by itself fix: a mostly-idle mind with only a
+thin, passive world feed spends four out of five thoughts talking to itself, and
+orientation/search machinery working correctly does not change that, because the
+mind never wants to orient *toward* the feed content in the first place — only
+away from its own noticed looping, and back into its own notebook. This is not a
+reason to distrust B4 or B5's implementation; it is live evidence, now from two
+independent runs, that the next useful investment is not more membrane tuning or
+more B5 attempts on this world, but a richer, explorable world for the mind to
+orient *into* — see [`a-world-to-meet.md`](../architecture/a-world-to-meet.md)'s
+proposed garden-room text world as the concrete next step.

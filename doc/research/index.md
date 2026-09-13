@@ -61,9 +61,11 @@ Digital Consciousness Model — reconstructed and verified in
 - **[First live aperture](first-live-aperture.md)** — B3: `m-feed` under `modality="text"`
   in `eddy-world`, run 2026-09-12. The lazy path works with no visible change to
   perception; also the first sighting of the internal-attractor finding B4 confirms.
-- **[First live orientation](first-live-orientation.md)** — B4: `m-orient` in
-  `eddy-world-orient`, run 2026-09-13. The mind narrowed `world` three times by its
-  own hand; a contact-deficit reflex reopened it every time. B5 (search) untouched.
+- **[First live orientation](first-live-orientation.md)** — B4/B5: `m-orient` and
+  `m-search` in `eddy-world-orient`, two runs, 2026-09-13. B4 met: the mind
+  narrowed `world` three times by its own hand; a contact-deficit reflex reopened
+  it every time. B5 not met in ~8.5h combined: `m-search` never started once —
+  tested and correct, but the mind never forms the outward want it needs.
   Diagnoses why reopening looks near-immediate (deficit isn't reset by voluntary
   orientation) and quantifies the endogenous-dominance pattern
   [`a-world-to-meet.md`](../architecture/a-world-to-meet.md) predicted.
