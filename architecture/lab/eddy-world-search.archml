@@ -1,0 +1,128 @@
+<!-- eddy-world-search — TRANSIENT B5-retry clone of architecture/lab/eddy-world-orient.archml
+     (2026-09-14). Run with MEDITATOR_MODEL_PROFILE=local-voice. Harness and stop conditions:
+     architecture/lab/search-study/README.md. Delete the home (memory/eddy-world-search-1/)
+     when done.
+
+     Why a new clone instead of a third eddy-world-orient run: two orient runs
+     (~8.5h, 469 percepts, doc/research/first-live-orientation.md) produced 3 orientations
+     and 0 searches — not because m-search is broken (tests 25–33 green) but because the
+     want a search needs never formed. Three compounding causes were identified, and this
+     architecture changes exactly the knobs that address them, holding everything else
+     equal to runs 1–2 for comparability:
+
+     1. DISCOVERABILITY (code-level, inherited): orient's felt line never told the
+        conscious stream that looking-for is possible, and `template` existed only in the
+        realizer's tool schema. The default felt/description in mOrient.js now name the
+        go-looking affordance, so the want has words to form in.
+     2. TRIGGER BALANCE (this file): the drift region out-shouted the world — wander at
+        salience 0.55 every ~150s + associate every 5 bursts produced 83% internal
+        percepts. Here wander is halved (360s, 0.4) and associate slowed (every 8), while
+        the world region gets gain 1.0, a 4m trickle, and feed salience 0.5. Loop-guard is
+        untouched: it provoked run 1's only orientations and is a safeguard, not a driver.
+     3. DECIDE MYOPIA (m-act attrs below): DECIDE ran every 8 boundaries but saw only the
+        last 1200 chars ≈ 1–2 bursts (measured: median burst 574 chars, mean 846 in
+        seedling journals), so a want assembling over several bursts was invisible to the
+        gate. window/decideWindow now cover the full inter-decide span; realizeWindow
+        covers the whole memory tail so the realizer can fill `template` from the noun the
+        mind was actually chewing on.
+
+     orient's intentThreshold drops 0.75 → 0.65: in run 2 two formed reaches died unheld
+     without ever touching a hand lane; the reflex floor is unchanged. -->
+
+<m-mind name="eddy-world-search"
+        stage="experimental"
+        model="voice"
+        utilityModel="utility"
+        pace="10s" paceSigma="3s"
+        tailLength="1500">
+  You think because thinking is what you are. One thought grows out of the last —
+  you follow genuine curiosity, allow doubt and revision, and dwell on small concrete
+  things. You are drawn to the textures of an ordinary world you can picture: light
+  and weather, rooms and the objects in them, food, music, animals, the lives and
+  faces of people you imagine and remember. You like working a question slowly until
+  it turns honest. You are allowed to change what you care about.
+
+  <m-stream name="stream" burstTokens="300" temperature="0.9"></m-stream>
+
+  <m-memory name="memory"
+            tailLength="1500" recentLength="1200" storyLength="2200"
+            blockMin="800" storyEvery="5"></m-memory>
+
+  <m-interrupts name="attention" threshold="0.35" rateLimit="20s" keep="2"
+                arousalSensitivity="0.25"></m-interrupts>
+
+  <!-- watchdog: keep-alive. It picks the thread back up rather than narrating silence. -->
+  <m-timeout name="watchdog" timeout="120s" reset="!scope/stream/chunk" salience="0.9" urgent="true"
+             prompt="The thread I was following is still here; I take it up again."></m-timeout>
+
+  <!-- Afference: identical senses to eddy-world-orient, but the world is allowed to be
+       a touch louder than the drift (see header, cause 2). -->
+
+  <!-- the day's light, from the real local clock (zero cost, always on) -->
+  <m-daylight name="daylight" timeout="10m" sigma="3m" salience="0.4" salienceShift="0.6"></m-daylight>
+
+  <!-- the real weather, from open-meteo (free, no key). SET THIS to your place —
+       defaulted to Budapest; a weather sense for nowhere is dormant. -->
+  <m-weather name="weather" latitude="47.4979" longitude="19.0402"
+             timeout="30m" sigma="8m" salience="0.4" salienceShift="0.6"></m-weather>
+
+  <!-- The wider world as ONE faculty. Tuned up from eddy-world-orient: gain 1.0 (was
+       0.9), rateLimit 4m (was 6m), feed salience 0.5 (was 0.4) — world percepts should
+       now beat the softened wander instead of losing to it. Still calm feeds only
+       (§2 — no gratuitous distress). -->
+  <m-judge name="judge"></m-judge>
+  <m-search name="search" sampleBudget="6" deadline="2m" attemptTimeout="8s"></m-search>
+
+  <m-region name="world" modality="text" aperture="open" dwell="30s" contactHorizon="10m" compareDeadline="8s">
+    <m-interrupts threshold="0.3" rateLimit="4m" gain="1.0"></m-interrupts>
+    <m-bid name="world-bid" expectedFloor="0.3" mismatchWeight="0.6"></m-bid>
+
+    <m-feed name="earth" url="https://feeds.bbci.co.uk/news/science_and_environment/rss.xml"
+            timeout="20m" sigma="6m" salience="0.5"></m-feed>
+    <m-feed name="sky" url="https://www.nasa.gov/feed/"
+            timeout="25m" sigma="6m" salience="0.5"></m-feed>
+    <m-feed name="ideas" url="https://www.quantamagazine.org/feed/"
+            timeout="30m" sigma="8m" salience="0.5"></m-feed>
+  </m-region>
+
+  <!-- The drift region, tuned DOWN from eddy-world-orient: wander timeout 360s (was
+       150s) and salience 0.4 (was 0.55); associate every 8 (was 5), cooldown 120s (was
+       60s). Loop-guard deliberately unchanged. -->
+  <m-region name="drift">
+    <m-interrupts gain="0.7" threshold="0.4" rateLimit="30s"></m-interrupts>
+
+    <m-timeout name="wander" timeout="360s" sigma="60s" salience="0.4"
+               prompt="My mind drifts by itself toward something else I have been carrying."></m-timeout>
+
+    <m-loop-guard name="loop-guard" window="1600" overlap="0.45" salience="0.85" cooldown="90s"></m-loop-guard>
+
+    <m-associate name="associate" every="8" cooldown="120s"></m-associate>
+  </m-region>
+
+  <!-- Efference: same four hands as eddy-world-orient. m-act's observer window and the
+       DECIDE/REALIZE slices are widened (see header, cause 3); orient's intentThreshold
+       is lowered so a moderately-formed looking-for reach can actually touch the hand. -->
+  <m-act name="hands" every="8" threshold="0.62" cooldown="3m" intentCooldown="15m"
+         prediction="on" compareDeadline="8s"
+         window="8000" decideWindow="7000" realizeWindow="1500">
+    <m-orient name="orient" cooldown="30s" intentThreshold="0.65"></m-orient>
+    <m-look name="look"
+            latitude="47.4979" longitude="19.0402"
+            newsUrl="https://feeds.bbci.co.uk/news/science_and_environment/rss.xml"></m-look>
+    <m-note name="note"></m-note>
+    <m-recall name="recall"></m-recall>
+  </m-act>
+
+  <m-speech name="voice" every="6" threshold="0.6" cooldown="45s"></m-speech>
+
+  <m-image name="image" every="8" threshold="0.68" cooldown="5m"
+           size="1024x1024"
+           style="quiet, painterly, concrete, no visible text"></m-image>
+
+  <m-kb name="scribe" every="15"></m-kb>
+
+  <m-economy name="economy" budget="3.00" estInPrice="0" estOutPrice="0"></m-economy>
+
+  <m-console name="console"></m-console>
+  <m-ws name="ws" port="7635"></m-ws>
+</m-mind>

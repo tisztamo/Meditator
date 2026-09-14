@@ -8,7 +8,7 @@ import { logger } from '../../infrastructure/logger.js'
 
 const log = logger('mOrient.js')
 
-const FELT = "When the world grows loud or far, you can let a channel recede, turn toward it, or follow one voice in it."
+const FELT = "When the world grows loud or far, you can let a channel recede, turn toward it, or follow one voice in it. And when something out there snags you — a name, a question, something half-seen — you can go looking for it there and keep looking until you find it, or know it is not in what you inspected."
 
 /**
  * Ordinary capability under m-act: voluntary orientation of a named aperture.
@@ -48,7 +48,10 @@ export class MOrient extends MBaseComponent {
         const intentThreshold = Number(this.attr('intentThreshold') || 0.75)
         const spec = {
             name,
-            description: "Change how open a named channel of the outside is, or follow one voice in it.",
+            description: "Change how open a named channel of the outside is, or follow one voice in it. "
+                + "When the reach is a looking-for — the mind wants to find something specific out there — "
+                + "follow the voice it would live in and set `template` to what to look for: a search then "
+                + "keeps sampling that voice until it finds a match or honestly reports none.",
             felt: this.attr('felt') || FELT,
             parameters: this._schema(),
             readonly: false,

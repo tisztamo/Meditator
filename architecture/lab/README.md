@@ -30,6 +30,9 @@ affects how the catalog presents them, not how they run.
   `m-feed` is lazy (B3 first live aperture; ws 7633).
 - **`eddy-world-orient.archml`** — eddy-world plus `m-orient`, `m-search`, `m-judge`,
   and a region bidder (B4/B5; ws 7634). Harness: `orient-study/`.
+- **`eddy-world-search.archml`** — the B5 retry: same mind as eddy-world-orient with
+  the three no-trigger causes repaired (search discoverability in the body schema,
+  drift/world trigger balance, DECIDE window; ws 7635). Harness: `search-study/`.
 - **`researcher.archml`** — a thinking mind that owns a small *agent* as one of its
   hands ([agents](../../doc/agents.md#an-agent-as-a-minds-hand)): the two shapes
   composed.
@@ -67,6 +70,9 @@ MEDITATOR_MODEL_PROFILE=local-voice bun meditator.js -a architecture/lab/eddy-wo
 # B4 / B5
 MEDITATOR_MODEL_PROFILE=local-voice bun meditator.js -a architecture/lab/eddy-world-orient.archml --mind-name eddy-world-orient-1
 bun architecture/lab/orient-study/analysis/summarize.mjs memory/eddy-world-orient-1
+
+# B5 retry (tuned) — see search-study/README.md for stop conditions and metrics
+MEDITATOR_MODEL_PROFILE=local-voice bun meditator.js -a architecture/lab/eddy-world-search.archml --mind-name eddy-world-search-1 --debug=mSearch,mOrient,mAct
 ```
 
 Reports: `doc/research/expect-study.md`, `doc/research/first-live-aperture.md`.
