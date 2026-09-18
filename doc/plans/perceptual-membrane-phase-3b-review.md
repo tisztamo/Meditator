@@ -127,7 +127,14 @@ Compatible, with three tensions to keep in view.
   that breaks that, `local-voice-jev` (the System-One comparator), sends the mind's
   expectation and the perception it is graded against to a third-party endpoint —
   a knowing trade a human makes per run, named in `config/models.yaml` and
-  `components.md`, never a component default. Orientation and
+  `components.md`, never a component default. The same §3/§9 line now covers the two
+  other roles a decision model can hold: a **tier-1 source** discloses its own
+  candidates and the search template to whatever provider its `decider` names (a
+  per-source declaration in the architecture, never on a source whose candidates are
+  the mind's own state), and a **decision-model loop sense** would send the mind's
+  verbatim inner monologue off the box, which is why it is refused under
+  `local-voice` — see the residency call in
+  [`doc/research/jev-decisions.md`](../research/jev-decisions.md). Orientation and
   reflex transitions are journaled as backstage (⌁) notes, never passed off as the
   mind's own thought.
 - *Flourishing and the given world (§7, §8) in code.* The mind gains the power to

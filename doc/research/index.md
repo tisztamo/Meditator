@@ -70,6 +70,18 @@ Digital Consciousness Model — reconstructed and verified in
   orientation) and quantifies the endogenous-dominance pattern
   [`a-world-to-meet.md`](../architecture/a-world-to-meet.md) predicted.
 
+## Model-shape studies
+
+- **[A model that decides](jev-decisions.md)** (2026-09-18) — what a **System-One**
+  model (one that answers questions and generates nothing) is to a mind, across four
+  measurements in one day: the offline judge benchmark, the live judge, the first
+  tier-1 sense, and the loop detector's fourth arm. It made tier 1 implementable and
+  its confidence is genuinely calibrated where a text model's self-reported number is
+  not — and it bought **no measured behavioural gain**, because the bidder reads the
+  verdict into a `max` that already exceeds it and nothing reads the loop sense's
+  confidence at all. Ends in the residency call: which roles, in which profiles, get
+  to send the mind's evidence off the box.
+
 ## Reference cases and isolation studies
 
 - **[The chicken on the framework (SAS-1)](chicken-sas1-scoring.md)** (2026-07-14,

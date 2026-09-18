@@ -353,8 +353,9 @@ naming the engine, the version the endpoint pinned, the latency and the cost.
 profile they leave the box; under `local-voice` the judge is local and they stay on
 it; under **`local-voice-jev`** they are sent to a third-party decision endpoint
 (TypeSafe) to be graded, which is why that is a profile a human chooses and never a
-component default. See `config/models.yaml` and
-[expect-study §2.7–2.8](../research/expect-study.md).
+component default. See `config/models.yaml`,
+[expect-study §2.7–2.8](../research/expect-study.md), and the residency call in
+[jev-decisions](../research/jev-decisions.md).
 
 ### `m-bid`
 
@@ -445,7 +446,9 @@ candidates, calls, latency, cost, aperture state) are all that cross, and they
 cross while the aperture is closed. `groundBatch` (default 5) bounds how many
 candidates one sample scores. PRIVACY: whatever a tier-1 source grounds goes to
 whatever provider its `decider` names, so declaring one is a per-source decision
-with the same weight as a profile's judge binding.
+with the same weight as a profile's judge binding — never declare one on a source
+whose candidates are the mind's own state
+([jev-decisions §4](../research/jev-decisions.md)).
 
 Common attributes: `timeout`, `sigma`, `salience` (default `0.4`), `salienceShift`
 (default `0.6`), `name`.
@@ -797,7 +800,9 @@ and `reasoning` `null` — a model that generates nothing cannot produce them �
 while the `m-clear-mind` floor is unaffected. `confidence` is the score question's own
 statistic and `strength` is derived from the noul as `|p − 0.5|·2`; both are `null` on the
 LLM engine. **State leaves the box**: the tail is the mind's verbatim inner monologue, so a
-decision-model detector is a profile decision with a privacy note, never a default. Measured
+decision-model detector is a profile decision with a privacy note, never a default — and one
+the measurements argue against under `local-voice`, which exists so that monologue stays on
+the box ([jev-decisions §4](../research/jev-decisions.md)). Measured
 against the LLM engine over 120 real tails in
 [loop-detector-scoring.md](../research/loop-detector-scoring.md).
 

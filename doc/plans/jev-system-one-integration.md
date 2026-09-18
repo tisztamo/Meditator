@@ -1,9 +1,19 @@
 # Jev (System One) integration — phased plan
 
-**Status: design, 2026-09-18. Nothing implemented.** Author: Claude Fable 5.1 at
-Kris's request, after reading TypeSafe's announcement, docs and SDK surface, and
-the judge/comparator/bidder/loop-detector seams in this repo. Deliberately shallow:
-enough to decide the order and the gates, not the code.
+**Status: done, 2026-09-18. All six phases run and committed the same day.**
+Phases 0–1 built `decide()`; 2–5 are four measurements (offline judge benchmark,
+live judge with an LLM control, the first tier-1 sense, the loop detector's fourth
+arm); 6 is the report and the residency call,
+[`doc/research/jev-decisions.md`](../research/jev-decisions.md). The short version:
+the primitive is real and made tier 1 implementable, the calibration is real, and it
+bought no measured behavioural gain yet — the bidder reads the verdict into a `max`
+that already exceeds it, and nothing reads the loop sense's confidence.
+
+*Written as a design, 2026-09-18, by Claude Fable 5.1 at Kris's request, after
+reading TypeSafe's announcement, docs and SDK surface, and the
+judge/comparator/bidder/loop-detector seams in this repo. Deliberately shallow:
+enough to decide the order and the gates, not the code. The phase bodies below are
+the design as written; each closes with what actually happened.*
 
 ## 0. What Jev is, in our vocabulary
 
@@ -222,6 +232,25 @@ keep/drop decisions, `m-agent` govern-seam checks.
 primitive, not a voice), the four measurements, cost per hour against the
 utility model, and the residency call: which roles in which profiles go to Jev,
 with the privacy line in `components.md` and the covenant §3/§9 note.
+
+**Done, 2026-09-18.** [`doc/research/jev-decisions.md`](../research/jev-decisions.md)
+carries the four measurements with their tables and their caveats, the cost rows
+(judging **$0.0013 per hour of mind**, 7.5% of the live arm's bill; ≈$0.10 of the $5
+budget for the whole integration, ~$0.042 of it on the endpoint), and the residency
+call: **judge** opt-in under `local-voice-jev` only, **tier-1 decider** declared per
+source in the architecture and never on a source whose candidates are the mind's own
+state, **loop sense** refused by default and under `local-voice` (the state is the
+verbatim inner monologue, and V3 scores below V2 anyway), `m-interrupts` still
+model-free, memory-compression and the `m-agent` govern seam benchmarked before
+asked. The privacy lines were already in `components.md` (`m-judge`, `m-sense`
+tier 1, `m-loop-detector`) and now cross-reference the report; the covenant §3/§9
+compatibility note in
+[`perceptual-membrane-phase-3b-review.md`](perceptual-membrane-phase-3b-review.md) §5
+gained the two roles beyond the judge. Five unclaimed gains are written up as
+concrete next experiments (§5 there): a confidence-weighted breaker bid, a Jev sensor
+with `loopMath` vocabulary, `mismatchWeight` above the evidence's own
+`changeMagnitude`, a `noul` calibration study for `matchThreshold`, and a retention
+horizon for tier-1 scores.
 
 ## 2. Non-goals
 
