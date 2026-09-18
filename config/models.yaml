@@ -11,6 +11,16 @@ providers:
   openrouter:
     baseURL: "https://openrouter.ai/api/v1"
     apiKey: "${OPENROUTER_API_KEY}"
+  # A System-One provider: it answers questions (noul/choice/score) and generates
+  # no text, so it speaks a different wire protocol from the chat providers above.
+  # `kind: decision` is what routes it to decide() instead of complete(); every
+  # provider without a kind is implicitly `kind: completion`.
+  # See doc/plans/jev-system-one-integration.md. State leaves the box: binding a
+  # role to this provider is a profile decision with a privacy note, never a default.
+  typesafe:
+    kind: decision
+    baseURL: "https://api.typesafe.ai/v1"
+    apiKey: "${TYPESAFE_API_KEY}"
 
 roles:
   voice:
@@ -33,6 +43,9 @@ presets:
   gpu-qwen:
     provider: local
     model: qwen3.6-35b-a3b
+  jev:
+    provider: typesafe
+    model: jev-latest
 
 profiles:
   cloud:

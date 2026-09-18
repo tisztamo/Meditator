@@ -34,10 +34,25 @@ export function defaultModel(role) {
 }
 
 function asSpec(model, role) {
-  if (!model) return modelForRole(role);
-  if (typeof model === 'object' && model.provider) return model;
-  if (typeof model === 'string') return resolveModelRef(model, role);
-  return modelForRole(role);
+  if (!model) return requireCompletion(modelForRole(role));
+  if (typeof model === 'object' && model.provider) return requireCompletion(model);
+  if (typeof model === 'string') return requireCompletion(resolveModelRef(model, role));
+  return requireCompletion(modelForRole(role));
+}
+
+// Every transport in this file is a chat completion. A decision provider (Jev)
+// generates no text and does not speak the OpenAI shape, so routing one here is
+// a config bug, not a soft failure: throw with the name of the door it wanted.
+// The symmetric refusal lives in decide.js. Normally loadModelConfig's role/kind
+// pre-flight catches this first; this is the backstop for an explicit model ref.
+function requireCompletion(spec) {
+  if (spec?.kind === 'decision') {
+    throw new Error(
+      `Model "${spec.model}" is on decision provider "${spec.provider}" (kind: decision), `
+      + `which generates no text. Use decide() from src/modelAccess/decide.js, not complete()/chatStream().`
+    );
+  }
+  return spec;
 }
 
 const totals = {
@@ -50,6 +65,15 @@ const totals = {
 
 export function getUsageTotals() {
   return { ...totals };
+}
+
+/**
+ * Record usage from a transport that is not a chat completion (decide()), so
+ * every call the mind makes lands in one economy. Same accumulator, same shape:
+ * { prompt_tokens, completion_tokens, cost }.
+ */
+export function recordUsage(usage) {
+  addUsage(usage);
 }
 
 function addUsage(usage) {

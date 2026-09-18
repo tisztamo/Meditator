@@ -129,9 +129,23 @@ the box to be graded.
 
 The YAML file defines **providers**, **roles**, **presets**, and **profiles**:
 
+- **providers** — endpoint, key, and optionally `kind` (see below)
 - **roles** — default provider + model for `voice`, `utility` and `judge`
 - **presets** — named bundles (e.g. `gpu-local` → local vLLM + `ardincoder-1`)
 - **profiles** — which preset or role each tier uses (e.g. `cloud` vs `local-dev`)
+
+**Provider kinds.** A provider is implicitly `kind: completion` — it generates
+text, and the mind reaches it through `complete()` / `chatStream()`. A provider
+declared `kind: decision` (the `typesafe` provider, TypeSafe's Jev) generates
+nothing: it answers a named map of `noul` / `choice` / `score` questions about a
+state, and is reached through `decide()` in
+[`src/modelAccess/decide.js`](../src/modelAccess/decide.js). The two speak
+different protocols, so each transport refuses the other's provider and
+`loadModelConfig` fails at pre-flight if a role is bound to the wrong kind. Only
+the `judge` role may hold a decision provider; `voice` and `utility` need text.
+Note that a decision provider is cloud-only and the state is the mind's own
+evidence, so binding the judge to it is a profile decision with a privacy note,
+never a default. See [the Jev plan](plans/jev-system-one-integration.md).
 
 Archml attribute values can be:
 

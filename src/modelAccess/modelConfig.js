@@ -10,6 +10,23 @@ const log = logger("modelConfig.js");
 // is a research variable, not a cost decision. Profiles that do not name it fall
 // through to the role's own default below.
 const ROLES = ["voice", "utility", "judge"];
+
+// A provider either generates text ("completion", the implicit default for every
+// provider that does not say otherwise) or answers questions without generating
+// ("decision" — TypeSafe's Jev, see doc/plans/jev-system-one-integration.md §0).
+// The two speak different wire protocols, so a role bound to the wrong kind is a
+// config bug, not a runtime surprise: it fails at pre-flight below.
+export const PROVIDER_KINDS = ["completion", "decision"];
+const DEFAULT_PROVIDER_KIND = "completion";
+// Which kinds each role may hold. The voice thinks and speaks, so it can only be
+// a completion model; utility calls read text back. The judge is the one role a
+// decision model can take today (plan §3) — it returns a verdict, not prose.
+const ROLE_KINDS = {
+  voice: ["completion"],
+  utility: ["completion"],
+  judge: ["completion", "decision"],
+};
+
 const ROLE_ENV = {
   voice: "MEDITATOR_VOICE_MODEL",
   utility: "MEDITATOR_UTILITY_MODEL",
@@ -122,6 +139,7 @@ function mergeProviderOptions(spec) {
   const thinking = providerCfg.thinking;
   return {
     ...spec,
+    kind: providerCfg.kind || DEFAULT_PROVIDER_KIND,
     baseURL: providerCfg.baseURL,
     apiKey: providerCfg.apiKey,
     thinking: thinking === "1" || thinking === "true" || thinking === true,
@@ -168,6 +186,31 @@ export async function loadModelConfig() {
   for (const role of ROLES) {
     try {
       const spec = resolveModelSpec(null, role, activeProfile);
+      if (!PROVIDER_KINDS.includes(spec.kind)) {
+        throw new Error(
+          `Provider "${spec.provider}" declares kind "${spec.kind}" in ${path}, ` +
+          `which is not one of: ${PROVIDER_KINDS.join(", ")}.`
+        );
+      }
+      // A decision provider cannot be streamed or completed and a completion
+      // provider cannot answer questions; catching it here beats a wire error
+      // inside the first burst (same spirit as the LOCAL_LLM_BASE_URL check).
+      const allowed = ROLE_KINDS[role] || [DEFAULT_PROVIDER_KIND];
+      if (!allowed.includes(spec.kind)) {
+        throw new Error(
+          `Profile "${activeProfile}" binds role "${role}" to provider "${spec.provider}" ` +
+          `(model "${spec.model}"), whose kind is "${spec.kind}", but role "${role}" ` +
+          `accepts only: ${allowed.join(", ")}. ` +
+          `A decision provider answers questions and generates no text, so it cannot hold ` +
+          `a role that needs a completion. Fix the role binding in ${path}.`
+        );
+      }
+      if (spec.kind === 'decision' && !spec.apiKey) {
+        log.warn(
+          `Profile "${activeProfile}" uses the decision provider "${spec.provider}" for role "${role}", ` +
+          `but its API key is not set — requests will fail with 401.`
+        );
+      }
       if (spec.provider === 'local' && !spec.baseURL) {
         throw new Error(
           `Profile "${activeProfile}" uses the local provider for role "${role}", ` +
@@ -198,7 +241,7 @@ export async function loadModelConfig() {
  * Resolve a model reference (role name, preset, legacy id, or omitted) to a provider spec.
  * @param {string|null|undefined} ref - archml attr value or env override
  * @param {"voice"|"utility"|"judge"} [role] - tier hint when ref is omitted
- * @returns {{ provider: string, model: string, baseURL?: string, apiKey?: string, thinking?: boolean }}
+ * @returns {{ provider: string, model: string, kind: "completion"|"decision", baseURL?: string, apiKey?: string, thinking?: boolean }}
  */
 export function resolveModelRef(ref, role) {
   return resolveModelSpec(ref, role, activeProfile);
