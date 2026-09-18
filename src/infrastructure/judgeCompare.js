@@ -19,14 +19,20 @@ export const JUDGE_MAX_TOKENS = 400
  * something would come out is met by a clear answer either way (MATCH, however
  * unwelcome the answer). They say what the verdicts mean, not what to conclude
  * about any particular kind of evidence. See doc/research/expect-study.md §2. */
+export const VERDICT_GLOSSES = {
+    match: 'the perception is what the expectation said would be there. An expectation that was only to see which way something would come out is met by a clear result either way, and news that is unwelcome is still a match.',
+    mismatch: 'the perception shows a result that conflicts with what the expectation said would be there.',
+    insufficient: 'the perception carries no result to compare against — an error, a crash, an empty output.',
+}
+
 export function judgePrompt({ expectText, evidenceText }) {
     const expected = typeof expectText === 'string' ? expectText : ''
     const perceived = typeof evidenceText === 'string' ? evidenceText : ''
     return [
         'Given what was expected and what was then perceived, does the perception confirm the expectation, contradict it, or leave it undecided?',
-        'MATCH: the perception is what the expectation said would be there. An expectation that was only to see which way something would come out is met by a clear result either way, and news that is unwelcome is still a match.',
-        'MISMATCH: the perception shows a result that conflicts with what the expectation said would be there.',
-        'INSUFFICIENT: the perception carries no result to compare against — an error, a crash, an empty output.',
+        `MATCH: ${VERDICT_GLOSSES.match}`,
+        `MISMATCH: ${VERDICT_GLOSSES.mismatch}`,
+        `INSUFFICIENT: ${VERDICT_GLOSSES.insufficient}`,
         'Think it through in at most three sentences, then end with a final line of exactly:',
         'VERDICT: <MATCH|MISMATCH|INSUFFICIENT> CONFIDENCE: <0-1>',
         '',
