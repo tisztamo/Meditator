@@ -120,6 +120,15 @@ since the glosses go into `criteria`.
 
 - **Stop when** the table is filled and `doc/research/expect-study.md` gains §2.7.
 
+**Done, 2026-09-18.** Every gate passes on `jev-1.13.0`: 0.940 blind agreement
+on the 50, no `match` the reader did not call `match`, no `mismatch` on an
+`insufficient`, and calibration monotone with the >0.9 bucket at 1.000 over 74
+of 123 pairs. Confidence tracks correctness, so Phase 5 keeps its point.
+Winning question set: `verdict` (the `choice`) alone, over the narrated
+`{expected, perceived}` — the raw-payload arm scored one pair worse, closing
+§2.5's open point. p95 419 ms, so `compareDeadline: 2s` is comfortable.
+$0.032 for 738 calls. See [expect-study §2.7](../research/expect-study.md).
+
 ### Phase 3 — live judge (one 2 h run, then a second if clean)
 
 `m-judge` gains an engine switch derived from the resolved provider's `kind`: if

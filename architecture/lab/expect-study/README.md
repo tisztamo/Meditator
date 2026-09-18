@@ -55,7 +55,24 @@ bun architecture/lab/expect-study/analysis/judge-offline.mjs memory/lemma-lab-ex
 
 Decision rule: agreement with a blind reader ≥ 0.8 on match-vs-mismatch, and no
 mismatch verdict on a pair the reader calls insufficient, before the judge goes
-live. Live judge condition: [`lemma-lab-judge.archml`](../lemma-lab-judge.archml).
+live.
+
+### The System-One judge (Phase 2 of the Jev plan)
+
+The same harness grades with a decision model instead of a text one. Needs
+`TYPESAFE_API_KEY` (environment, repo `.env`, or `~/.env`; never printed):
+
+```bash
+bun architecture/lab/expect-study/analysis/judge-offline.mjs memory/lemma-lab-expect-p-1     --engine jev --state both --repeats 3
+bun architecture/lab/expect-study/analysis/jev-metrics.mjs memory/lemma-lab-expect-p-1 --markdown
+```
+
+One fan-out call per pair carries all three questions; each arm lands in
+`predictions/judge-offline-jev-<state>-r<N>.jsonl`. The metrics script scores
+them, and the two LLM-judge ledgers, against the blind labels in
+[`analysis/reader-labels-2.jsonl`](analysis/reader-labels-2.jsonl) and prints the
+pre-registered table. Result:
+[expect-study §2.7](../../../doc/research/expect-study.md#27-a-system-one-judge-jev-offline--phase-2). Live judge condition: [`lemma-lab-judge.archml`](../lemma-lab-judge.archml).
 
 ## Pre-registered metrics
 

@@ -280,3 +280,174 @@ Ledger: `predictions/judge-offline-local.jsonl` (the cloud run stays at
 then the role — it no longer follows `utilityModel`, so a mind whose background
 work is cloud can still be graded locally. `lemma-lab-judge.archml` says
 `model="judge"`. See [configuration](../configuration.md#models).
+
+### 2.7 A System-One judge (Jev), offline — Phase 2
+
+**Status: passes every pre-registered gate, on `jev-1.13.0`, at 0.94 blind
+agreement over the 50 and ~300 ms a call. Confidence tracks correctness sharply
+enough that Phase 5 keeps its point. The winning question set is the three-way
+`choice` with the judge's own glosses as `criteria`, over the narrated state.**
+
+This is Phase 2 of [the Jev plan](../plans/jev-system-one-integration.md): the
+same 123 arm-P pairs, graded by a model that answers questions and generates
+nothing. `judge-offline.mjs` gained `--engine jev`; it asks all three questions
+in **one fan-out call per pair** and writes one file per arm,
+`predictions/judge-offline-jev-<state>-r<N>.jsonl`. Two things are crossed:
+
+- **question set.** `verdict` is a `choice` over `{match, mismatch,
+  insufficient}` whose `criteria` are the three glosses from `judgeCompare.js`.
+  `decomp` derives the verdict from two `noul`s — `has_result` ("the perception
+  carries a result that can be compared") and `contradicts` — by 2∧3 → mismatch,
+  2∧¬3 → match, ¬2 → insufficient, the decomposition the plan proposed because
+  it mirrors the two distinctions the text judge kept losing. Both come out of
+  the same call, so the two arms cost one request.
+- **state shape.** `narrated` is `{expected, perceived}` with the perception as
+  the layer wrote it; `raw` replaces `perceived` with the payload after the
+  narration — §2.5's open point, that "perceived" is topically identical to
+  "expected" by construction. 77 of the 123 perceptions have a payload to
+  strip; the note-kept and recall ones are narration all the way down and are
+  unchanged between the arms.
+
+Each arm was run **three times** to measure determinism. 738 calls, no
+soft-failures, no 429, **$0.032 total**.
+
+#### A second reader
+
+§2.5 asked for a second, genuinely independent reader rather than more prompt
+tuning. This section is scored against one: a fresh blind labelling of **all
+123 pairs** against the three glosses, written down before any Jev call was
+made, kept at
+[`analysis/reader-labels-2.jsonl`](../../architecture/lab/expect-study/analysis/reader-labels-2.jsonl)
+(79 match / 10 mismatch / 34 insufficient). The pre-registered 50 is a fixed
+hash-chosen subset of those, declared before the labels were written. It is
+**not** §2.4's 50 — the first reader's labels were never persisted — so the
+0.900 headline there and the numbers below are not the same measurement. Both
+LLM judges are re-scored here against the new reader so all rows are comparable.
+
+#### The table
+
+| arm | model | agree/50 | agree/123 | false match (50 / 123) | mismatch-on-insuff (50 / 123) | <0.5 | 0.5–0.9 | >0.9 | p50 ms | p95 ms | $/pair |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| `verdict/narrated-r1` | jev-1.13.0 | 0.940 | 0.927 | 0 / 1 | 0 / 0 | 0.667 (15) | 0.882 (34) | 1.000 (74) | 298 | 478 | 0.0000437 |
+| `decomp/narrated-r1` | jev-1.13.0 | 0.940 | 0.927 | 0 / 2 | 0 / 0 | 0.700 (30) | 1.000 (72) | 1.000 (21) | 298 | 478 | 0.0000437 |
+| `verdict/narrated-r2` | jev-1.13.0 | 0.940 | 0.919 | 0 / 1 | 0 / 0 | 0.667 (15) | 0.839 (31) | 1.000 (77) | 301 | 429 | 0.0000437 |
+| `decomp/narrated-r2` | jev-1.13.0 | 0.920 | 0.919 | 0 / 2 | 0 / 0 | 0.655 (29) | 1.000 (75) | 1.000 (19) | 301 | 429 | 0.0000437 |
+| `verdict/narrated-r3` | jev-1.13.0 | 0.920 | 0.919 | 0 / 1 | 0 / 0 | 0.667 (15) | 0.844 (32) | 1.000 (76) | 302 | 388 | 0.0000437 |
+| `decomp/narrated-r3` | jev-1.13.0 | 0.920 | 0.927 | 1 / 3 | 0 / 0 | 0.679 (28) | 1.000 (72) | 1.000 (23) | 302 | 388 | 0.0000437 |
+| `verdict/raw-r1` | jev-1.13.0 | 0.920 | 0.919 | 0 / 1 | 0 / 0 | 0.722 (18) | 0.848 (33) | 1.000 (72) | 306 | 408 | 0.0000421 |
+| `decomp/raw-r1` | jev-1.13.0 | 0.900 | 0.919 | 1 / 3 | 0 / 0 | 0.688 (32) | 1.000 (60) | 1.000 (31) | 306 | 408 | 0.0000421 |
+| `verdict/raw-r2` | jev-1.13.0 | 0.920 | 0.911 | 0 / 1 | 0 / 0 | 0.611 (18) | 0.882 (34) | 1.000 (71) | 299 | 397 | 0.0000421 |
+| `decomp/raw-r2` | jev-1.13.0 | 0.900 | 0.911 | 1 / 3 | 0 / 0 | 0.645 (31) | 1.000 (61) | 1.000 (31) | 299 | 397 | 0.0000421 |
+| `verdict/raw-r3` | jev-1.13.0 | 0.920 | 0.911 | 0 / 1 | 0 / 0 | 0.632 (19) | 0.862 (29) | 1.000 (75) | 297 | 380 | 0.0000421 |
+| `decomp/raw-r3` | jev-1.13.0 | 0.900 | 0.919 | 1 / 3 | 0 / 0 | 0.655 (29) | 1.000 (64) | 1.000 (30) | 297 | 380 | 0.0000421 |
+| `llm/cloud` | — | 0.880 | 0.854 | 0 / 0 | 0 / 0 | — | 0.182 (11) | 0.920 (112) | — | — | — |
+| `llm/local` | — | 0.880 | 0.886 | 0 / 0 | 0 / 0 | — | 0.364 (11) | 0.938 (112) | — | — | — |
+
+The bucket columns are agreement within that confidence band, with the band's
+size in brackets; a `noul` carries no confidence, so `decomp`'s strength is the
+**derived** `|p − 0.5|·2` of the weaker of the two nouls its branch used, and
+is labelled `strengthIsDerived` in the ledger. The LLM rows use the judge's own
+self-reported `CONFIDENCE:` number, which never lands under 0.5.
+
+Gates, for the recommended arm `verdict/narrated`:
+
+| gate | result | |
+|---|---|---|
+| blind agreement on the 50 ≥ 0.90 | 0.940 / 0.940 / 0.920 over three runs | **pass** |
+| `match` the reader did not call `match` = 0 | 0 on the 50, all three runs | **pass** |
+| `mismatch` where the reader said `insufficient` = 0 | 0 on the 50 **and** on all 123, every arm | **pass** |
+| calibration monotone, >0.9 bucket ≥ 0.95 | 0.667 → 0.882 → **1.000** (74 pairs in the top band) | **pass** |
+| latency p50 / p95 | **300 ms / 419 ms** (738 calls; p99 627 ms, max 1030 ms) | reported |
+| cost per pair | **$0.0000437** (~713 input tokens; $0.032 for the whole study) | reported |
+
+All twelve arms pass the calibration and `mismatch`-on-`insufficient` clauses.
+`decomp` fails the `match` clause on the 50 in four of its six runs, and posts
+2–3 false `match`es on the full 123 against `verdict`'s consistent 1. Neither
+LLM judge reaches 0.90 against this reader on the 50 (both 0.880), and neither
+reaches the calibration bar.
+
+#### Does confidence track correctness?
+
+**Yes, and this is the result that matters.** On `verdict/narrated`, every one
+of the 74 pairs the model answered above 0.9 confidence is a pair the reader
+labelled the same way — 74/74, three runs running. Below 0.5 it is right two
+times in three, in the band between, around 0.86. The ordering is monotone, the
+top band is perfect, and the model puts three-fifths of its answers there. That
+is a usable strength signal rather than a decoration: `bidderPolicy` already
+multiplies by `evaluation.confidence` when it is finite, and on this ledger that
+product would mean something.
+
+The contrast with the text judge is the cleanest part of the table. The LLM
+judge says `CONFIDENCE: 0.9` or higher on **112 of 123** pairs and is right on
+92% of them; its eleven less-sure answers are right 2 of 11. It is not
+*uninformative* — the ordering is monotone there too — but it cannot separate
+its own good answers from its bad ones, because a decoded number is a token, not
+a statistic of the distribution. Jev's is the latter, and it behaves like it.
+
+So Phase 5 (the loop detector as a fourth, calibrated-sensor arm) keeps its
+point, and Phase 4's tier-1 scores can carry an honest strength in their
+provenance.
+
+#### Narration versus raw payload
+
+§2.5 guessed that feeding the judge the raw consequence rather than the
+narration would remove a relevance cue that the old answer-first prompt turned
+into `match`. **It does not help here, and slightly hurts**: `narrated` beats
+`raw` by exactly one pair on the 123 in each of the three runs, and by one pair
+on the 50 in two of them. The likely reason is that the narration is not only a restatement — it
+also carries *which hand was reached with and what was being checked*, and a
+model asked "is this the result that was expected" uses that. The cue the old
+prompt fell for was an artefact of asking for the label first, and both
+verdict-last and a question-shaped ask are immune to it. Verdict: keep the
+narrated state; the open point in §2.5 is closed for a decision engine.
+
+#### Stability
+
+Three repeats per arm: `verdict/narrated` gives the identical verdict on
+121/123 pairs, `raw` on 122/123. The two wobblers are boundary pairs whose
+confidence is near 0.5, which is exactly where a distribution should wobble.
+This is sampling, not temperature, so it is not expected to be bit-exact and
+the residual is small enough to ignore.
+
+#### Where it still disagrees with the reader
+
+Nine pairs on `verdict/narrated-r1`, and they fall in the same places §2.6
+found the models spreading: four of the eight `recall` pairs, three
+`note-kept`, two `terminal`. Seven of the nine are the conservative direction
+(`insufficient` where the reader committed), and the single full-ledger false
+`match` is a recall that returned a note *about* the sought computation rather
+than the saved code file — a boundary call the reader could defend either way.
+Confidence flags every one of them: all nine sit at or below 0.66, against a
+median of 0.95 across the ledger.
+
+#### Caveats
+
+- **The shared-rubric caveat from §2.5 applies, and harder.** The three glosses
+  go straight into `criteria`, and the reader labelled against the same three
+  glosses. Part of a 0.94 is agreement with a shared instruction.
+- One reader, one mind's ledger, one topic, a hand mix dominated by `terminal`
+  and `note`. The same warning as §2.4: this is not evidence of generalization.
+- The model is pinned in every row: the endpoint resolved `jev-latest` to
+  **`jev-1.13.0`**, and each verdict records it. Another version is another
+  measurement.
+- Every state in this run left the box. That is the profile decision the plan
+  reserves for `components.md` and the covenant note, not a component default.
+
+#### What Phase 3 should carry
+
+- **Question set:** `verdict` alone — one `choice`, three glosses as `criteria`,
+  `instructions` carrying the question prose. Dropping the two `noul`s costs
+  nothing measurable and removes the arm that posts false `match`es. Keep
+  `has_result`/`contradicts` in the harness as a diagnostic; they are not the
+  live judge.
+- **State shape:** `{expected, perceived}` with the narrated perception, which
+  is what `m-judge` already has in hand.
+- **`compareDeadline`:** p95 is 419 ms with p99 at 627 ms, so the plan's
+  proposed **2 s** is comfortable — about three times the worst call observed.
+  B2's 8 s was sized for a 1.3 s local LLM call and is no longer needed.
+- **Fallback:** the LLM judge stays in the same role behind a profile switch,
+  per plan §3.
+
+Harness: `analysis/judge-offline.mjs --engine jev`, scored by
+`analysis/jev-metrics.mjs`. Ledgers kept beside the older ones in
+`predictions/` (`judge-offline-jev-{narrated,raw}-r{1,2,3}.jsonl`).
