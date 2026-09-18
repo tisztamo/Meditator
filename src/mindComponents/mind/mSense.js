@@ -1,5 +1,7 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
 import { InterruptRecord } from '../../infrastructure/interruptRecord.js';
+import { ControlRequest, EdgeEvidence, fireEdgeEvidence } from '../../infrastructure/perceptionContracts.js';
+import { decide } from '../../modelAccess/decide.js';
 import { logger } from '../../infrastructure/logger.js';
 import { parseTime } from '../../config/timeParser.js';
 
@@ -41,7 +43,8 @@ const log = logger('mSense.js');
  *     acquisition lineage, not causal attribution. Existing feel() sources remain
  *     the eager compatibility path. Migrated senses call perceive() instead: lazy
  *     under an enclosing aperture, eager feel() otherwise. Sources declare `tier`
- *     on the element (default 0; 1 and 2 are refused by the region).
+ *     on the element (default 0; tier 1 needs a `decider` model and grounds
+ *     candidates with ground(); tier 2 is still refused by the region).
  *
  * Errors in `onSense()` (e.g. a network blip) are swallowed and logged — a sense
  * going quiet must never crash the mind.
@@ -53,7 +56,10 @@ const log = logger('mSense.js');
  *   - salience: centre salience of an ambient reading (jittered ±0.08)
  *   - salienceShift: salience when a keyed sense changes state
  *   - name, provenance, tier (default 0), bypassAperture / bypassAdmission / preempt:
- *     architecture-owned source contract when inside an aperture; 1 and 2 throw
+ *     architecture-owned source contract when inside an aperture; tier 2 throws,
+ *     and so does tier 1 without a decider
+ *   - decider: the decision model (a ref like `jev`) a tier-1 source grounds with
+ *   - groundBatch: how many candidates one grounding call set may score (default 5)
  *
  * Events dispatched (bubbling): "interrupt-request" with an InterruptRecord
  * (source "External", never urgent). Lazy candidate() lineage is requestId on the
@@ -165,6 +171,127 @@ export class MSense extends MBaseComponent {
         )
     }
 
+    // -----------------------------------------------------------------------
+    // Tier 1 — edge grounding
+    // -----------------------------------------------------------------------
+
+    /** True when this source is declared edge-grounded: `tier="1"` and a
+     * `decider` model to ground it with. Both, or neither: the region refuses a
+     * tier-1 source with no decider at registration. */
+    grounds() {
+        return this.attr('tier') === '1' && !!(this.attr('decider') || '').trim()
+    }
+
+    /** Seam for tests: the decision transport, stubbed exactly as m-judge stubs
+     * `_complete`. */
+    async _decide(opts) { return decide(opts) }
+
+    /**
+     * TIER 1: score private candidate text against the control request's
+     * template and let only the number out.
+     *
+     * One `noul` per candidate ("this candidate is the thing being looked for"),
+     * a real probability in [0,1] from a System-One model, and one EdgeEvidence
+     * carrying the best of them to whoever issued the request. The candidate
+     * text never leaves this method: it goes into the decision call's state and
+     * into nothing else — not the event, not the provenance, not the log. The
+     * aperture may be closed throughout; grounding is a processing permission,
+     * not an awareness one (perceptual-membrane.md#processing-tiers).
+     *
+     * `noul` carries no confidence of its own, so the reported strength is the
+     * derived `|p − 0.5| · 2`, and `provenance.strengthFrom` says so.
+     *
+     * @param {ControlRequest} request - must carry a `template`; anything else is a no-op
+     * @param {string|string[]} candidates - private text, one entry per candidate
+     * @returns {Promise<EdgeEvidence|null>}
+     */
+    async ground(request, candidates) {
+        if (!(request instanceof ControlRequest)) return null
+        const template = typeof request.template === 'string' ? request.template.trim() : ''
+        if (!template) return null
+        if (!this.grounds()) return null
+        const texts = (Array.isArray(candidates) ? candidates : [candidates])
+            .filter(text => typeof text === 'string' && text.trim())
+        if (!texts.length) return null
+        const limit = Math.max(1, Number(this.attr('groundBatch') || 5))
+        const batch = texts.slice(0, limit)
+
+        // The ref goes to decide() as written: it resolves the profile and
+        // refuses a provider that generates text rather than answering
+        // questions. That refusal is a config bug and throws, so it is caught
+        // here and reported once — a sense must never crash the mind.
+        const deciderRef = (this.attr('decider') || '').trim()
+        const deadline = Number.isFinite(request.deadline) ? request.deadline : null
+
+        let best = 0
+        let latencyMs = 0
+        let promptTokens = 0
+        let cost = 0
+        let calls = 0
+        let version = null
+        for (const text of batch) {
+            if (deadline != null && Date.now() >= deadline) break
+            let answer
+            try {
+                answer = await this._decide({
+                    model: deciderRef,
+                    state: { target: template, candidate: text },
+                    questions: { targetMatch: targetMatchQuestion() },
+                    deadline,
+                    debugTag: 'tier1-target-match',
+                    debugEl: this,
+                })
+            } catch (error) {
+                log.warn(`[${this._name()}] tier-1 decider "${deciderRef}" is not usable: ${error?.message || error}`)
+                return null
+            }
+            if (!answer) continue
+            calls += 1
+            latencyMs += Number(answer.latencyMs) || 0
+            promptTokens += Number(answer.usage?.prompt_tokens) || 0
+            cost += Number(answer.usage?.cost) || 0
+            version = answer.model || version
+            const p = Number(answer.answers?.targetMatch?.noul)
+            if (Number.isFinite(p)) best = Math.max(best, Math.max(0, Math.min(1, p)))
+        }
+        if (!calls) return null
+
+        const evidence = new EdgeEvidence({
+            targetId: request.targetId || request.id,
+            score: best,
+            sourceName: this._name(),
+            tier: 1,
+            requestId: request.id,
+            provenance: {
+                tier: 1,
+                engine: 'decide',
+                decider: deciderRef,
+                model: version,
+                questions: ['targetMatch'],
+                strength: Math.abs(best - 0.5) * 2,
+                strengthFrom: '|p-0.5|*2 (noul carries no confidence)',
+                candidates: batch.length,
+                calls,
+                latencyMs,
+                promptTokens,
+                cost,
+                apertureState: this._apertureState(),
+            },
+        })
+        fireEdgeEvidence(this, evidence)
+        log.debug(`[${this._name()}] tier-1 score ${best.toFixed(3)} over ${batch.length} candidate(s) in ${latencyMs}ms`)
+        return evidence
+    }
+
+    _name() { return this.attr('name') || this.localName }
+
+    /** For the record only: which gate this score was made behind. */
+    _apertureState() {
+        const region = this._modalityRegion()
+        const state = region?.aperture?.state
+        return typeof state === 'string' ? state : null
+    }
+
     /** `feel()`'s salience computation, factored so `perceive()` agrees. */
     _salienceFor(key, salience) {
         if (salience != null) return salience
@@ -172,5 +299,24 @@ export class MSense extends MBaseComponent {
         const shift = Number(this.attr("salienceShift") || 0.6)
         const shifted = key != null && key !== this._lastKey
         return shifted ? shift : base + (Math.random() * 2 - 1) * 0.08
+    }
+}
+
+/**
+ * The tier-1 grounding question: one `noul` over a target/candidate pair.
+ *
+ * Pure and exported so a study can ask the endpoint the same thing the mind
+ * asks. Prose goes in `instructions` (a question with neither `criteria` nor
+ * `instructions` is rejected by the endpoint), and the two `criteria` glosses
+ * say what yes and no mean, the way the judge's verdict glosses do.
+ */
+export function targetMatchQuestion() {
+    return {
+        type: 'noul',
+        instructions: 'The candidate observation is the thing described by the target: it is about the same subject and would satisfy someone looking for the target.',
+        criteria: {
+            true: 'the candidate is about the target subject — someone looking for the target would stop here',
+            false: 'the candidate is about something else, or is too unrelated to satisfy the target',
+        },
     }
 }

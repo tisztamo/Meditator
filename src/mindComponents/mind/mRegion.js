@@ -78,8 +78,11 @@ export function gateIdOf(el) {
  *   real verdict with reason 'tier-0-mirror'.
  * A source may declare name, provenance, tier (default 0), and the three independent
  * bypass powers on the element. It may never assert those from a payload; the frozen
- * SourceContract is the only policy the offer path reads. tier 1 and 2 are refused
- * at registration.
+ * SourceContract is the only policy the offer path reads. Tier 2 is refused at
+ * registration, and so is tier 1 without a `decider` model; a tier-1 source with
+ * one is registered and grounds its own candidates (see MSense.ground). Its
+ * scores never enter this provider: they are not candidates and never become
+ * change headers.
  * Topics: contactPressure, apertureState (retained); perceptDecision (non-semantic
  *   gate verdicts); events: aperture-change (backstage); percept-candidate (cancelable,
  *   bubbling, twice — acquisition then awareness — conjunction of every aperture on
@@ -685,6 +688,17 @@ export class MRegion extends MBaseComponent {
     sourceNames() {
         if (!this._sources) return []
         return [...this._sources.values()].map(s => s.source)
+    }
+
+    /** The frozen SourceContract of a registered source, by name. The one way a
+     * controller may read a source's declared tier and decider without touching
+     * the element: policy comes from the contract, never from the DOM. */
+    contractFor(name) {
+        if (!this._sources || !name) return null
+        for (const entry of this._sources.values()) {
+            if (entry.source === name) return entry.contract
+        }
+        return null
     }
 
     requestOrientation(request) {

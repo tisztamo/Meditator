@@ -41,12 +41,22 @@ function parseProvenance(value, { allowLegacy = false } = {}) {
     return requireEnum('provenance', provenance, PROVENANCE);
 }
 
-/** Source contracts refuse tier 1/2 honestly. Receipts and EdgeEvidence may carry them. */
-function parseTier(value, { allowNull = false, allowUnimplemented = false } = {}) {
+/** Source contracts refuse an unimplementable tier honestly. Receipts and
+ * EdgeEvidence may carry any tier.
+ *
+ * Tier 1 is implementable since the decision transport exists (`decide()`), but
+ * only for a source that says which decision model grounds it: `decider` is the
+ * declaration, and without it "tier=1" is a claim with nothing behind it. Tier 2
+ * (language produced before the aperture) still has no implementation. */
+function parseTier(value, { allowNull = false, allowUnimplemented = false, decider = null } = {}) {
     if (value === undefined || value === '') return 0;
     if (value === null) return allowNull ? null : 0;
     const tier = typeof value === 'number' ? value : Number(String(value).trim());
-    if (tier === 1 || tier === 2) {
+    if (tier === 1) {
+        if (allowUnimplemented || decider) return 1;
+        throw new Error(`${UNIMPLEMENTED_TIER} — a tier-1 source must declare a \`decider\` model (see doc/plans/jev-system-one-integration.md).`);
+    }
+    if (tier === 2) {
         if (!allowUnimplemented) throw new Error(UNIMPLEMENTED_TIER);
         return tier;
     }
@@ -68,7 +78,7 @@ function freezePowers(powers = {}) {
  * Downstream code must not re-read the element. Payloads cannot construct this
  * and cannot grant its powers. */
 export class SourceContract {
-    constructor({ name, modality, provenance, tier, privacy, powers } = {}) {
+    constructor({ name, modality, provenance, tier, privacy, powers, decider } = {}) {
         if (typeof name !== 'string' || !name) throw new Error('SourceContract needs a name');
         if (typeof modality !== 'string' || !modality) {
             throw new Error('SourceContract modality comes from the provider, not the source');
@@ -76,7 +86,11 @@ export class SourceContract {
         this.name = name;
         this.modality = modality;
         this.provenance = parseProvenance(provenance);
-        this.tier = parseTier(tier);
+        // The decision model that grounds this source, declared on the element.
+        // It is a model REF (role, preset or legacy id), resolved by the source,
+        // never a key or a url. Only tier 1 reads it.
+        this.decider = typeof decider === 'string' && decider.trim() ? decider.trim() : null;
+        this.tier = parseTier(tier, { decider: this.decider });
         this.privacy = requireEnum('privacy', privacy ?? 'resident-private', PRIVACY);
         this.powers = freezePowers(powers);
         Object.freeze(this);
@@ -93,6 +107,7 @@ export class SourceContract {
             modality,
             provenance: element.getAttribute('provenance') || 'unspecified',
             tier: element.getAttribute('tier'),
+            decider: element.getAttribute('decider'),
             powers: {
                 bypassAperture: element.getAttribute('bypassAperture') === 'true',
                 bypassAdmission: element.getAttribute('bypassAdmission') === 'true',
@@ -294,10 +309,13 @@ export class AnnotatedCandidate {
 export class ControlRequest {
     constructor({
         id, kind, issuedBy, target, reason, detail, budget, deadline,
-        issuedAt = Date.now(), template, actId = null,
+        issuedAt = Date.now(), template, actId = null, targetId = null,
     } = {}) {
         this.id = requireId('ControlRequest.id', id ?? randomUUID());
         this.actId = actId == null ? null : requireId('ControlRequest.actId', actId);
+        // Which declared search target this request serves, id-only. A tier-1
+        // source needs it to label its score; it says nothing about content.
+        this.targetId = targetId == null ? null : requireId('ControlRequest.targetId', targetId);
         this.kind = requireEnum('kind', kind, CONTROL_KINDS);
         if (typeof issuedBy !== 'string' || !issuedBy) throw new Error('ControlRequest needs issuedBy');
         this.issuedBy = issuedBy;
@@ -383,17 +401,67 @@ export class Evaluation {
     }
 }
 
-/** Tier-1 match score, typed so a regulator can refuse it. Nothing produces one. */
+/** Tier-1 match score, typed so a regulator can refuse it.
+ *
+ * This is the ONLY thing a tier-1 source emits while its aperture is closed: a
+ * number against a declared target, plus provenance saying how the number was
+ * made. The candidate text that produced it stays in the source's private
+ * buffer. The type exists so the contact regulator can refuse it — a tier-1
+ * score is never a change header (perceptual-membrane.md#processing-tiers).
+ *
+ * `provenance` is a flat, journalable record: tier, the decision model's
+ * resolved version, the question keys asked, the derived strength and how it was
+ * derived, the candidate count, cost and latency. It must never carry candidate
+ * text, a template, or a key. */
 export class EdgeEvidence {
-    constructor({ targetId, score, sourceName, tier } = {}) {
+    constructor({ targetId, score, sourceName, tier, requestId = null, provenance = null } = {}) {
         this.targetId = requireId('targetId', targetId);
         if (!Number.isFinite(score)) throw new Error('EdgeEvidence needs a numeric score');
         this.score = score;
         if (typeof sourceName !== 'string' || !sourceName) throw new Error('EdgeEvidence needs a sourceName');
         this.sourceName = sourceName;
         this.tier = parseTier(tier, { allowUnimplemented: true });
+        this.requestId = requestId == null ? null : requireId('EdgeEvidence.requestId', requestId);
+        this.provenance = provenance == null ? null : freezeEdgeProvenance(provenance);
         Object.freeze(this);
     }
+}
+
+/** Numbers and names only. Anything not on this list is dropped rather than
+ * carried: a provenance record is the one part of tier 1 that is published, so
+ * it is a closed vocabulary, not a passthrough. */
+function freezeEdgeProvenance(provenance) {
+    if (typeof provenance !== 'object') throw new Error('EdgeEvidence.provenance is a record');
+    const out = {
+        tier: parseTier(provenance.tier ?? 1, { allowUnimplemented: true }),
+        engine: provenance.engine == null ? null : String(provenance.engine),
+        decider: provenance.decider == null ? null : String(provenance.decider),
+        model: provenance.model == null ? null : String(provenance.model),
+        questions: Object.freeze((Array.isArray(provenance.questions) ? provenance.questions : [])
+            .map(key => String(key))),
+        strength: Number.isFinite(provenance.strength) ? provenance.strength : null,
+        strengthFrom: provenance.strengthFrom == null ? null : String(provenance.strengthFrom),
+        candidates: Number.isFinite(provenance.candidates) ? provenance.candidates : null,
+        calls: Number.isFinite(provenance.calls) ? provenance.calls : null,
+        latencyMs: Number.isFinite(provenance.latencyMs) ? provenance.latencyMs : null,
+        promptTokens: Number.isFinite(provenance.promptTokens) ? provenance.promptTokens : null,
+        cost: Number.isFinite(provenance.cost) ? provenance.cost : null,
+        apertureState: provenance.apertureState == null ? null : String(provenance.apertureState),
+    };
+    return Object.freeze(out);
+}
+
+/** Transient, id-only delivery of a tier-1 score to whoever asked for it (the
+ * search controller). `fire()`, never a retained `pub()`: a retained topic would
+ * replay a stale score to a later search. */
+export const EDGE_EVIDENCE_EVENT = 'edge-evidence';
+
+export function fireEdgeEvidence(host, evidence) {
+    if (!(evidence instanceof EdgeEvidence)) throw new Error('fireEdgeEvidence publishes an EdgeEvidence');
+    if (host == null || typeof host.fire !== 'function') {
+        throw new Error('edge-evidence uses fire(), not pub()');
+    }
+    return host.fire(EDGE_EVIDENCE_EVENT, evidence);
 }
 
 /** Authoritative frame-assembly receipt, credited by percept id. Optional

@@ -1,0 +1,93 @@
+<!-- TIER-1 SEARCH LAB (Phase 4 of doc/plans/jev-system-one-integration.md).
+
+     One question, two arms, the same feed and the same template:
+
+       world  — aperture CLOSED, the feed declared tier="1" with decider="jev".
+                Nothing materializes; the source scores its own items against the
+                search template with a System-One model and emits only the number.
+       lean   — aperture OPEN, the same feed at tier 0, the tier-2 text judge
+                (m-judge) making the match after materialization. The control arm
+                and today's default.
+
+     This is the "lean versus edge-grounded sense" row of
+     doc/improvements/prediction-mismatch.md#proposed-experiments, unrun since
+     design: whether a closed channel can be searched at all, and what tier 1
+     costs and leaks.
+
+     m-search-probe (this bundle's components/) starts the searches on a clock.
+     Two live runs of eddy-world-orient produced zero organic searches in 8.5h
+     (doc/research/first-live-orientation.md §B5), so the trigger is supplied from
+     outside rather than waited on. The probe is lab-only and the mind cannot feel it.
+
+     PRIVACY: the tier-1 arm sends feed headlines and the search template to
+     TypeSafe. Nothing of the mind's own evidence goes with them — the state is a
+     public headline and the experimenter's template — but it is off-box, so this
+     architecture is experimental and stays that way (plan §0, "Privacy").
+
+     Run (needs the local GPU for the voice and TYPESAFE_API_KEY for the decider):
+       MEDITATOR_MODEL_PROFILE=local-voice bun meditator.js \
+         -a architecture/lab/tier1-search/tier1-search.archml --mind-name tier1-search-1
+     Delete memory/tier1-search-1/ when done. -->
+<m-mind name="tier1-search"
+        stage="experimental"
+        model="voice"
+        utilityModel="utility"
+        pace="15s" paceSigma="5s"
+        tailLength="1200">
+  You think because thinking is what you are. One thought grows out of the last —
+  you follow genuine curiosity, allow doubt and revision, and dwell on small concrete
+  things: light and weather, rooms and the objects in them, animals, the lives of
+  people you imagine and remember. You are allowed to change what you care about.
+
+  <m-stream name="stream" burstTokens="220" temperature="0.9"></m-stream>
+
+  <m-memory name="memory" tailLength="1200" recentLength="900" storyLength="1600"
+            blockMin="700" storyEvery="6"></m-memory>
+
+  <m-interrupts name="attention" threshold="0.35" rateLimit="20s" keep="2"
+                arousalSensitivity="0.25"></m-interrupts>
+
+  <m-timeout name="watchdog" timeout="120s" reset="!scope/stream/chunk" salience="0.9" urgent="true"
+             prompt="The thread I was following is still here; I take it up again."></m-timeout>
+
+  <!-- The tier-2 comparator: the control arm's matcher, and the thing tier 1 is
+       being measured against. Local under local-voice. -->
+  <m-judge name="judge"></m-judge>
+
+  <m-search name="search" sampleBudget="4" deadline="2m"
+            attemptTimeout="25s" matchThreshold="0.7"></m-search>
+
+  <!-- The private run-home ledger: search targets, tier-1 scores with their full
+       provenance, and outcomes, one JSON line each. Never memory, never Studio. -->
+  <m-expect-ledger name="ledger"></m-expect-ledger>
+
+  <!-- ARM E — edge-grounded. Closed to language, open to a question. -->
+  <m-region name="world" modality="text" aperture="closed" dwell="30s" contactHorizon="30m">
+    <m-interrupts threshold="0.3" rateLimit="6m" gain="0.9"></m-interrupts>
+    <m-feed name="earth" url="https://feeds.bbci.co.uk/news/science_and_environment/rss.xml"
+            tier="1" decider="jev" groundBatch="6" pollCache="5m"
+            timeout="20m" sigma="6m" salience="0.4"></m-feed>
+  </m-region>
+
+  <!-- ARM L — lean (tier 0, today's default): the same feed, open, judged after
+       materialization. -->
+  <m-region name="lean" modality="text" aperture="open" dwell="30s" contactHorizon="10m"
+            compareDeadline="20s">
+    <m-interrupts threshold="0.3" rateLimit="6m" gain="0.9"></m-interrupts>
+    <m-bid name="lean-bid" expectedFloor="0.3" mismatchWeight="0.6"></m-bid>
+    <m-feed name="earth-lean" url="https://feeds.bbci.co.uk/news/science_and_environment/rss.xml"
+            pollCache="5m" timeout="20m" sigma="6m" salience="0.4"></m-feed>
+  </m-region>
+
+  <!-- The same template to both arms, staggered: one controller, one live target. -->
+  <m-search-probe name="edge-probe" aperture="world" source="earth"
+                  after="40s" every="8m"
+                  template="a story about a living creature — an animal, a plant, or a species"></m-search-probe>
+  <m-search-probe name="lean-probe" aperture="lean" source="earth-lean"
+                  after="4m" every="8m"
+                  template="a story about a living creature — an animal, a plant, or a species"></m-search-probe>
+
+  <m-economy name="economy" budget="1.00" estInPrice="0" estOutPrice="0"></m-economy>
+
+  <m-console name="console"></m-console>
+</m-mind>

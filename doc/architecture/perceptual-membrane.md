@@ -63,9 +63,12 @@ which returns the same `(header, lazyText)` offer function. Source identity (`na
 `bypassAdmission`, and `preempt` attributes are read from architecture configuration
 when registering, never from candidate payloads. Provenance defaults to `unspecified`;
 examples should explicitly use `simulated`, `physical`, `other-mind`, `generated`,
-or `internal` as appropriate. `tier="1"` or `tier="2"` throws at registration with a
-pointer to [processing tiers](#processing-tiers). Provenance records and journal
-lines carry `tier`. This is an in-process adapter boundary, not a sandbox for
+or `internal` as appropriate. `tier="2"` throws at registration with a pointer to
+[processing tiers](#processing-tiers), and so does `tier="1"` without a `decider`
+model; a source that declares both is edge-grounded and grounds its own
+candidates through `decide()` (Phase 4 of
+[the Jev plan](../plans/jev-system-one-integration.md)). Provenance records and
+journal lines carry `tier`. This is an in-process adapter boundary, not a sandbox for
 untrusted component code.
 
 `region.orient('closed')`, `region.orient('open')`, or
@@ -152,8 +155,8 @@ bug fix. This design revision does not run the experiments they describe.
 | Sensory change directly sets salience | The bid is separate and derives salience from independent signals through a replaceable policy. Phase 3A stores `predictionMatch` / `predictionMismatch` (and unused `causalAttribution`, `novelty`, `confidence` as null). `targetMatch` is filled when a bidder sees a `target` evaluation. **Default `expectedFloor` and `mismatchWeight` are 0**, so absent or disabled prediction leaves phase-2 salience unchanged. Mismatch must not replace `changeMagnitude`. No resident architecture acquires this policy unless an author adds `prediction="on"`, a comparator, and `m-bid`. Outcome rule: progress consequences are not judged. [Prediction and search](../improvements/prediction-mismatch.md). |
 | Policy is constructed or discovered inside consumers | **Closed (phase 2).** `regulator` and `aggregator` are replaceable interior roles; the aperture provider is replaceable (C1/S1). `Aperture` is the reference contact policy, not the provider. |
 | Evidence and bid state share mutable records | **Closed (phase 2).** `AttentionBid` is the mutable competition record; `Percept` is frozen at issue. Nested gain is a trail entry. `assembleFrame` uses `evidenceOf`. |
-| Source control has a door, not a controller | `requestControl` forwards through nested providers; `requestOrientation` is the role port for looking. **`m-orient` and `m-search` exist as lab components** (3B·B4/B5). Cadence control beyond the sense timer, and grounding queries on the reserved `template` field, stay open. `focus` is accepted and changes no policy. `ControlRequest.template` stays null on every request this phase issues. |
-| Processing tier is declared, not implemented above 0 | Sources declare `tier` (default 0); 1 and 2 throw at registration. Provenance and journal carry the field. The regulator accepts only a `PerceptCandidate`; `EdgeEvidence` is a typed refusal and nothing produces it. Acquisition and awareness are distinct stages (`tier-0-mirror` at lean). What remains: no tier-1 or tier-2 *implementations*, no scores into the deficit, no grounding query. The lean-versus-edge-grounded experiment is still unrun. |
+| Source control has a door, not a controller | `requestControl` forwards through nested providers; `requestOrientation` is the role port for looking. **`m-orient` and `m-search` exist as lab components** (3B·B4/B5). Cadence control beyond the sense timer stays open. `focus` is accepted and changes no policy. `ControlRequest.template` is null to every tier-0 source — the reserved field is now filled for edge-grounded routes only, where it is the grounding query, and `targetId` rides with it so the score can be labelled. |
+| Processing tier is declared; tier 1 is implemented, tier 2 is not | Sources declare `tier` (default 0). Tier 2 still throws at registration; tier 1 is accepted when the source also declares a `decider` (a `decision` provider reached through `decide()`), and then grounds its own candidates with one `noul` per candidate and emits an `EdgeEvidence` score — the first thing that produces one. The candidate text stays in the source; only the score and a closed-vocabulary provenance record cross, and they cross while the aperture is closed. The regulator still accepts only a `PerceptCandidate`: no score reaches the deficit. Acquisition and awareness remain distinct stages (`tier-0-mirror` at lean). Live: one closed-aperture search reported `found` on a tier-1 score (`doc/improvements/prediction-mismatch.md`, "First edge-grounded search"). What remains: tier 2, non-text modalities, and a budget/horizon policy for retained scores. |
 
 Existing eager senses: `m-feed` is under aperture control via `perceive()`;
 `m-weather` and `m-daylight` still `feel()`. Native media and tiers 1 and 2 are
@@ -380,7 +383,7 @@ provenance, and never inferred from a payload.
 | Tier | Edge computation | Crosses to the regulator and search controller while closed | Retention and disclosure |
 |---|---|---|---|
 | **0, lean** (default; the sketch) | Non-semantic detector: scene delta, motion energy, luminance change, voice activity | The private header only: time, opaque change key, magnitude | Nothing content-bearing exists before acquisition permission |
-| **1, edge-grounded** | Query-conditioned perception model producing structured, non-linguistic evidence: match scores against declared targets, boxes, embeddings, speaker or keyword hits | The header plus match scores for the controller's declared targets; scores are typed as tier-1 evidence, never as a raw change magnitude | Scores and boxes may be retained by the controller within a declared budget and horizon; embeddings and crops are discarded unless acquisition is permitted; nothing reaches attention, memory, or telemetry through a side path |
+| **1, edge-grounded** (implemented for text: `tier="1" decider="…"`) | Query-conditioned perception model producing structured, non-linguistic evidence: match scores against declared targets, boxes, embeddings, speaker or keyword hits | The header plus match scores for the controller's declared targets; scores are typed as tier-1 evidence, never as a raw change magnitude | Scores and boxes may be retained by the controller within a declared budget and horizon; embeddings and crops are discarded unless acquisition is permitted; nothing reaches attention, memory, or telemetry through a side path |
 | **2, edge-described** | A captioner, transcriber, or VLM produces language before the aperture | The header, or tier-1-style scores derived from the text; the text itself never crosses while closed | A declared private buffer with explicit retention; the text becomes a rendition only after acquisition permission, and provenance records that description preceded permission |
 
 Invariants across tiers: the awareness gate is separate from the processing

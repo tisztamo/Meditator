@@ -389,6 +389,124 @@ The membrane also retains eager legacy senses and text-only model input. These
 are declared migration limits, not claims that the proposed native-media path
 already works.
 
+## First edge-grounded search (tier 1, live)
+
+**Status: run 2026-09-18.** This is the *lean versus edge-grounded sense* row of
+the matrix below, unrun since design and now run once, in the smallest form that
+answers it: the same feed at tier 0 and tier 1, the same template, the same
+budget. Code and architecture:
+[`architecture/lab/tier1-search/`](../../architecture/lab/tier1-search/README.md),
+Phase 4 of [the Jev plan](../plans/jev-system-one-integration.md). Run:
+`local-voice` (voice on the local `ardincoder-1`, judge local), decider
+`jev-1.13.0` through `decide()`, mind `tier1-search-1`.
+
+Tier 1 became implementable because a System-One model exists: a call that takes
+a state and a named map of questions and generates nothing. A `noul` per
+candidate ("this candidate is the thing described by the target") is exactly the
+"structured, non-linguistic evidence" the tier-1 row of the
+[membrane's tier table](../architecture/perceptual-membrane.md#processing-tiers)
+specifies, and it is the first thing that produces an `EdgeEvidence`.
+
+### The two arms
+
+| | arm E — edge-grounded | arm L — lean (control) |
+|---|---|---|
+| region / aperture | `world`, **closed** | `lean`, open |
+| source | `m-feed`, `tier="1" decider="jev"` | the same feed, tier 0 |
+| matcher | the source itself, one `noul` per headline | `m-judge` after materialization |
+| outcome | **`found`**, `reason: edge-match`, coverage 1.00, 1 sample (both rounds) | `not-detected-in-inspected-area`, coverage 1.00, 1 sample (both rounds) |
+| score | 0.86 and 0.87 (threshold 0.7); derived strength 0.72 / 0.74 | verdict `mismatch` from the text judge |
+| what the controller saw | a number and its provenance | an ordinary percept, then a verdict |
+| cost | $0.000096 per search: 6 calls, 2 286 input tokens | one local LLM call |
+| latency | 2 140 / 2 094 ms for 6 candidates (≈ 350 ms each) | 1 279 / 1 355 ms for one candidate |
+
+Each probe ran twice, eight minutes apart, over a 12-minute run; both arms
+repeated their result. Whole-run spend: **$0.0010** on the cloud utility model
+(70 calls) and **$0.00019** on the decision model (12 `noul` calls); the voice was
+local.
+
+**The stop condition is met**: a search over a *closed* aperture reported `found`
+on a decision-model score, twice.
+Nothing materialized, no percept was offered, no text reached the region, and the
+mind's stream never saw the item — the controller's answer was a number made
+behind the gate.
+
+### What tier 1 cost
+
+$0.000096 for the whole search: six headlines scored, 2 286 input tokens at
+$0.042/M, output free. That is about a third of a millicent, against ~1.3 s of
+local GPU for the single judge call the lean arm spent. Wall clock was 2.1 s for
+six candidates issued serially; the endpoint answered each in 270–690 ms from
+this box, so a bounded search of one poll's worth of items fits inside a 25 s
+attempt timeout with room to spare. At this cadence a resident grounding six
+items every eight minutes would spend about $0.0007 an hour — the decision model
+is not the cost of a mind, the voice is.
+
+### What leaked
+
+The candidate text did not cross, by construction and by test:
+
+- `EdgeEvidence` carries `targetId`, `requestId`, `sourceName`, `tier`, the
+  score, and a **closed-vocabulary** provenance record (engine, decider ref,
+  model version, question keys, derived strength and its formula, candidate
+  count, calls, latency, tokens, cost, aperture state). Anything else handed to
+  it is dropped at construction, not carried.
+- The journal line in the run home is that record and nothing else. The ledger
+  reader can see *that* something scored 0.86 and what made the number; it cannot
+  see what the number was about. (For this report the author re-scored the same
+  feed from outside the mind: the 0.86 was "New wild cat species discovered — with
+  only one known living member", 0.87 on a fresh call. That reconstruction came
+  from the public feed, not from anything the mind emitted.)
+- The **template** did leak, in the only direction the design allows: to the
+  tier-1 source, which is the whole point of a grounding query, and from there to
+  TypeSafe along with six public headlines. The tier-0 route in the same search
+  was told nothing (`template: null`, `targetId: null`) and the B5 no-leak test
+  still holds for it.
+- Off-box is the real disclosure: a tier-1 source sends its private candidates to
+  whatever its `decider` names. Here that was six BBC headlines and the
+  experimenter's template — public text, not the mind's own evidence — but a
+  tier-1 source over an *interoceptive* or personal channel would be sending
+  something else entirely. That is why `decider` is declared per source, in the
+  architecture, next to the tier.
+- Into the mind: nothing. No percept, no bid, no frame line, no memory. The score
+  never reached the contact regulator as a change header (the regulator still
+  accepts only a `PerceptCandidate`), so a closed channel that is being searched
+  does not thereby feel more contact.
+
+### What it does not show
+
+- **One run, one template, two matches of the same item.** No calibration curve, no threshold study;
+  `matchThreshold="0.7"` was chosen from four offline probes (0.87 / 0.81 for
+  creature stories, 0.01 / 0.14 against) and is not a measured operating point.
+- **The arms are not equal in reach**, and that is a finding about tier 0 rather
+  than a flaw in the comparison. One sample of a tier-1 source scores a whole
+  poll's worth of candidates inside the source (`groundBatch="6"`); one sample of
+  a tier-0 source offers exactly one item, and the route counts as inspected as
+  soon as the comparator returns a verdict on it. The lean arm therefore ended
+  after judging the feed's *first* headline ("Michael Sheen's 'constructive'
+  meeting…", which the decision model scores 0.01 against the same template) and
+  never reached the wild-cat item that arm E found. Tier 0 did not fail to
+  recognise the target; it never got to look at it, because a closed-aperture
+  route cannot be re-inspected and an open one is inspected one materialization at
+  a time.
+- **No cost comparison at equal coverage.** Six judge calls would have been ~8 s
+  of local GPU against 2.1 s and $0.0001; that is an estimate, not a measurement.
+- **The search was not the mind's own.** `m-search-probe` starts it on a clock,
+  because two live `eddy-world-orient` runs produced zero organic searches in 8.5
+  hours (`doc/research/first-live-orientation.md` §B5). Nothing here says a mind
+  would want to look.
+- **Text only.** The tier-1 row was written for vision and audio; what is
+  implemented is a text sense asking a text model a yes/no question.
+
+### Open problems this leaves
+
+Retention and horizon for scores (the tier table promises "a declared budget and
+horizon"; today a score lives as long as the attempt). A calibration study of
+`noul` against a reader, the way the judge was benchmarked. Whether a below-
+threshold score should count as coverage at all, or as "looked and did not
+recognise", which are different claims about absence. And tier 2, which still
+throws.
+
 ## Proposed experiments
 
 High level only. The following are future comparisons. This design update does not run them.
@@ -406,7 +524,7 @@ later study under the existing lifecycle commitments.
 | Alternative contact dynamics | Replace the regulator or pressure aggregator | Contact policy can change through wiring while transport and receipts remain stable |
 | Nested sensory regions | Change region nesting and local aperture settings | All applicable closure and authority rules compose before acquisition and disclosure |
 | Missing, delayed, or cancelled evidence | Vary delivery and coverage | No replayed contact, stale search hit, or unjustified absence conclusion |
-| Lean versus edge-grounded sense | The same source at tier 0 and at tier 1, same targets and budgets | Whether search over a closed or soft channel needs query-conditioned edge processing, and what tier 1 costs and leaks |
+| Lean versus edge-grounded sense | The same source at tier 0 and at tier 1, same targets and budgets | Whether search over a closed or soft channel needs query-conditioned edge processing, and what tier 1 costs and leaks. **Run once, 2026-09-18** — see [First edge-grounded search](#first-edge-grounded-search-tier-1-live) |
 | Expected confirmation bids | A deliberate sample of an unchanged scene under the bidding policy | A zero-change observation can still be attended and credit contact (the acceptance test for the zero-salience rejection) |
 
 For the extensibility comparison, hold source implementations, percept transport,

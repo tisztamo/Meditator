@@ -1,6 +1,8 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
 import { part } from "../shared/enclosure.js"
-import { ControlRequest, CONTROL_RESULT_EVENT } from '../../infrastructure/perceptionContracts.js'
+import {
+    ControlRequest, CONTROL_RESULT_EVENT, EdgeEvidence, EDGE_EVIDENCE_EVENT,
+} from '../../infrastructure/perceptionContracts.js'
 import {
     SearchTarget, SearchAttempt, SearchOutcome,
     fireSearchTarget, fireSearchOutcome,
@@ -16,7 +18,24 @@ const log = logger('mSearch.js')
 /**
  * First search controller: one active target, declared routes, id-only handoff.
  * Coverage is distinct completed routes / declared routes. Outcomes are internally
- * derived, never a Sense-* percept. ControlRequest.template stays null.
+ * derived, never a Sense-* percept.
+ *
+ * Two matchers, chosen per route by the source's declared tier, never by this
+ * component's own policy:
+ *
+ *  - **tier 0** (the default and the control arm): `ControlRequest.template`
+ *    stays null, nothing about what is sought reaches the source, and the match
+ *    is made after materialization by the comparator — so a closed aperture
+ *    cannot be searched through at all.
+ *  - **tier 1**: a source that declares `tier="1"` and a `decider` gets the
+ *    template on its request and answers with an `EdgeEvidence` score. A score
+ *    at or above `matchThreshold` completes the route as a match; below it, as a
+ *    comparable non-match. The candidate text stays inside the source; only the
+ *    number and its provenance cross, and they cross while the aperture is
+ *    closed. The score is never fed to the contact regulator as a change header
+ *    (perceptual-membrane.md#processing-tiers).
+ *
+ * Attributes: sampleBudget, deadline, attemptTimeout, matchThreshold (0.7).
  */
 export class MSearch extends MBaseComponent {
     static provides = { search: true }
@@ -36,6 +55,7 @@ export class MSearch extends MBaseComponent {
         if (others.length) throw new Error('a mind may have only one search controller')
         mind.addEventListener(CONTROL_RESULT_EVENT, this._onControlResult)
         mind.addEventListener(EVALUATION_COMMIT_EVENT, this._onCommit)
+        mind.addEventListener(EDGE_EVIDENCE_EVENT, this._onEdgeEvidence)
         mind.addEventListener(MIND_SLEEPING_EVENT, this._onSleeping)
     }
 
@@ -46,6 +66,7 @@ export class MSearch extends MBaseComponent {
         if (this._host) {
             this._host.removeEventListener(CONTROL_RESULT_EVENT, this._onControlResult)
             this._host.removeEventListener(EVALUATION_COMMIT_EVENT, this._onCommit)
+            this._host.removeEventListener(EDGE_EVIDENCE_EVENT, this._onEdgeEvidence)
             this._host.removeEventListener(MIND_SLEEPING_EVENT, this._onSleeping)
         }
         this._host = null
@@ -109,6 +130,11 @@ export class MSearch extends MBaseComponent {
             ordinal: live.attemptedSamples,
             deadline: new Date(attemptDeadlineMs).toISOString(),
         })
+        const aperture = this._apertureNamed(route.aperture)
+        // The template travels only to a source that declared it can ground it.
+        // A tier-0 source is told nothing about what is sought — that is the
+        // control arm and the no-leak guarantee both.
+        const grounded = this._groundedRoute(aperture, route.source)
         const request = new ControlRequest({
             id: attempt.id,
             kind: 'focus',
@@ -116,15 +142,17 @@ export class MSearch extends MBaseComponent {
             target: route.source,
             reason: 'search',
             actId: live.target.actId,
+            targetId: grounded ? live.target.id : null,
             deadline: attemptDeadlineMs,
-            template: null,
+            template: grounded ? live.target.template : null,
         })
         this._attempt = {
             record: attempt,
             state: 'issued',
             evidenceTaken: false,
+            grounded,
+            edge: null,
         }
-        const aperture = this._apertureNamed(route.aperture)
         const delivered = aperture && typeof aperture.requestControl === 'function'
             ? aperture.requestControl(request)
             : false
@@ -143,6 +171,35 @@ export class MSearch extends MBaseComponent {
         }, wait)
     }
 
+    /** A route is edge-grounded when its source's own contract says so: tier 1
+     * plus a decider. Read from the frozen SourceContract through the aperture,
+     * never from the element. */
+    _groundedRoute(aperture, source) {
+        const contract = typeof aperture?.contractFor === 'function' ? aperture.contractFor(source) : null
+        return contract?.tier === 1 && !!contract.decider
+    }
+
+    _matchThreshold() {
+        const raw = Number(this.attr('matchThreshold'))
+        return Number.isFinite(raw) && raw >= 0 && raw <= 1 ? raw : 0.7
+    }
+
+    /** A tier-1 score for the live attempt. The number decides the route; the
+     * source's text never arrives and is never asked for. */
+    _onEdgeEvidence = event => {
+        const evidence = event.detail
+        const live = this._live
+        const attempt = this._attempt
+        if (!(evidence instanceof EdgeEvidence) || !live || !attempt) return
+        if (attempt.state !== 'issued') return
+        if (evidence.requestId !== attempt.record.id) return
+        if (evidence.sourceName !== attempt.record.route.source) return
+        attempt.edge = evidence
+        this._completeAttempt(evidence.score >= this._matchThreshold()
+            ? 'comparable-match'
+            : 'comparable-nonmatch')
+    }
+
     _completeAttempt(state) {
         const live = this._live
         const attempt = this._attempt
@@ -152,7 +209,7 @@ export class MSearch extends MBaseComponent {
         const routeKey = `${attempt.record.route.aperture}:${attempt.record.route.source}`
         if (state === 'comparable-match') {
             live.inspected.add(routeKey)
-            this._settle('found', 'match')
+            this._settle('found', attempt.edge ? 'edge-match' : 'match')
             return
         }
         if (state === 'comparable-nonmatch') {
@@ -201,6 +258,10 @@ export class MSearch extends MBaseComponent {
         if (!attempt || !detail || detail.requestId !== attempt.record.id) return
         if (attempt.state !== 'issued') return
         if (detail.accepted === true) return
+        // On a grounded route the refusal is the expected case, not the answer:
+        // the aperture is closed to the text while the tier-1 score is still
+        // being made behind it. Wait for the score (or the attempt timeout).
+        if (attempt.grounded) return
         this._completeAttempt('refused')
     }
 

@@ -7,7 +7,10 @@ import { Prediction } from '../../infrastructure/predictionContracts.js'
 import {
     PREDICTION_EVENT, PREDICTION_SETTLED_EVENT, EVALUATION_COMMIT_EVENT,
 } from '../../infrastructure/predictionContracts.js'
-import { PerceptReceipt } from '../../infrastructure/perceptionContracts.js'
+import {
+    SEARCH_TARGET_EVENT, SEARCH_OUTCOME_EVENT, SearchTarget, SearchOutcome,
+} from '../../infrastructure/predictionContracts.js'
+import { PerceptReceipt, EdgeEvidence, EDGE_EVIDENCE_EVENT } from '../../infrastructure/perceptionContracts.js'
 import { mindHome } from '../../infrastructure/memoryVault.js'
 
 /**
@@ -34,6 +37,9 @@ export class MExpectLedger extends MBaseComponent {
         mind.addEventListener(PREDICTION_EVENT, this._onPrediction)
         mind.addEventListener(PREDICTION_SETTLED_EVENT, this._onSettled)
         mind.addEventListener(EVALUATION_COMMIT_EVENT, this._onCommit)
+        mind.addEventListener(SEARCH_TARGET_EVENT, this._onSearchTarget)
+        mind.addEventListener(SEARCH_OUTCOME_EVENT, this._onSearchOutcome)
+        mind.addEventListener(EDGE_EVIDENCE_EVENT, this._onEdgeEvidence)
         mind.addEventListener('acted', this._onActed)
         mind.addEventListener('interrupt-request', this._onInterrupt)
         mind.addEventListener('percepts-attended', this._onAttended)
@@ -45,6 +51,9 @@ export class MExpectLedger extends MBaseComponent {
             this._host.removeEventListener(PREDICTION_EVENT, this._onPrediction)
             this._host.removeEventListener(PREDICTION_SETTLED_EVENT, this._onSettled)
             this._host.removeEventListener(EVALUATION_COMMIT_EVENT, this._onCommit)
+            this._host.removeEventListener(SEARCH_TARGET_EVENT, this._onSearchTarget)
+            this._host.removeEventListener(SEARCH_OUTCOME_EVENT, this._onSearchOutcome)
+            this._host.removeEventListener(EDGE_EVIDENCE_EVENT, this._onEdgeEvidence)
             this._host.removeEventListener('acted', this._onActed)
             this._host.removeEventListener('interrupt-request', this._onInterrupt)
             this._host.removeEventListener('percepts-attended', this._onAttended)
@@ -95,6 +104,54 @@ export class MExpectLedger extends MBaseComponent {
             actId: c.actId ?? null,
             predictionId: c.predictionId ?? null,
             verdicts: Array.isArray(c.verdicts) ? c.verdicts : [],
+        })
+    }
+
+    /** Search and tier-1 rows, written the same way the expect rows are: one
+     * JSON line each, in the run home, nowhere else. A tier-1 score is journaled
+     * with its full provenance (model version, question keys, derived strength,
+     * cost) and without the candidate text it was made from — the ledger sees
+     * exactly what crossed the closed aperture, which is the point of recording it. */
+    _onSearchTarget = event => {
+        const target = event.detail
+        if (!(target instanceof SearchTarget)) return
+        this._append({
+            kind: 'search-target',
+            targetId: target.id,
+            owner: target.owner,
+            actId: target.actId,
+            template: target.template,
+            routes: target.routes.map(r => `${r.aperture}:${r.source}`),
+            sampleBudget: target.sampleBudget,
+            deadline: target.deadline,
+        })
+    }
+
+    _onSearchOutcome = event => {
+        const outcome = event.detail
+        if (!(outcome instanceof SearchOutcome)) return
+        this._append({
+            kind: 'search-outcome',
+            targetId: outcome.targetId,
+            status: outcome.status,
+            reason: outcome.reason,
+            coverage: outcome.coverage,
+            attemptedSamples: outcome.attemptedSamples,
+            inspectedRoutes: outcome.inspectedRoutes.map(r => `${r.aperture}:${r.source}`),
+        })
+    }
+
+    _onEdgeEvidence = event => {
+        const evidence = event.detail
+        if (!(evidence instanceof EdgeEvidence)) return
+        this._append({
+            kind: 'edge-score',
+            targetId: evidence.targetId,
+            requestId: evidence.requestId,
+            source: evidence.sourceName,
+            tier: evidence.tier,
+            score: evidence.score,
+            provenance: evidence.provenance,
         })
     }
 

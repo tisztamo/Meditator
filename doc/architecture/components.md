@@ -307,7 +307,8 @@ Registered source elements (never payload fields) declare:
 |-----------|---------|---------|
 | `name` | localName | unique within the region |
 | `provenance` | `unspecified` | `physical` / `simulated` / `other-mind` / `generated` / `internal` / `unspecified` |
-| `tier` | `0` | `1` and `2` throw at registration |
+| `tier` | `0` | `2` throws at registration; `1` throws unless a `decider` is declared too |
+| `decider` | — | the decision model a tier-1 source grounds candidates with (a ref like `jev`, resolved through `decide()`) |
 | `bypassAperture` / `bypassAdmission` / `preempt` | `false` | three independent powers |
 
 - **Interior roles:** `regulator` — contact dynamics (debt, habituation, reflex), resolved with `part('regulator')`; zero → constructed `Aperture` (the reference policy, not the provider). `aggregator` lives on the mind, not here; this provider publishes `fold(own, children)` (default `max`).
@@ -355,7 +356,6 @@ it; under **`local-voice-jev`** they are sent to a third-party decision endpoint
 component default. See `config/models.yaml` and
 [expect-study §2.7–2.8](../research/expect-study.md).
 
-
 ### `m-bid`
 
 Owner-local **bidder** (`provides bidder`), mounted under `m-region` or `m-act`.
@@ -366,17 +366,29 @@ is refused (`bidRefusal`); the owner does not substitute a default bid.
 ### `m-search`
 
 Mind-level **search** controller (`provides search`). One active `SearchTarget`.
-ArchML: `sampleBudget`, `deadline`, `attemptTimeout`. Routes are
-`{aperture, source}` pairs passed at `start()`. Listens for `control-result` and
-`evaluation-commit`. Outcomes: `found` | `not-detected-in-inspected-area` |
-`budget-exhausted` | `abandoned`. Coverage is distinct completed routes / declared
-routes. `ControlRequest.template` stays null.
+ArchML: `sampleBudget`, `deadline`, `attemptTimeout`, `matchThreshold` (`0.7`).
+Routes are `{aperture, source}` pairs passed at `start()`. Listens for
+`control-result`, `evaluation-commit`, and `edge-evidence`. Outcomes: `found` |
+`not-detected-in-inspected-area` | `budget-exhausted` | `abandoned`. Coverage is
+distinct completed routes / declared routes.
+
+The matcher is chosen per route by the source's own contract, never by this
+component: a **tier-0** route is told nothing (`ControlRequest.template` stays
+null) and is matched by the comparator after materialization; a **tier-1** route
+(`tier="1"` + `decider`) gets the template and `targetId` on its request and
+answers with an `EdgeEvidence` score — at or above `matchThreshold` the route is
+a match (`reason: edge-match`), below it a comparable non-match. A grounded
+route's acquisition refusal is not an answer: a closed aperture is expected
+there, and the attempt waits for the score or its timeout.
 
 ### `m-expect-ledger`
 
 Lab-gated private JSONL ledger. `onConnect` throws unless the mind is
 `stage="experimental"`. Writes only to `mindHome(this, 'predictions')/ledger.jsonl`.
-Never memory, frame, Studio, or the process log.
+Never memory, frame, Studio, or the process log. Rows: `prediction`, `settled`,
+`commit`, `acted`, `consequence`, `attended`, `intent`, plus `search-target`,
+`search-outcome`, and `edge-score` (a tier-1 score with its provenance and
+without the candidate text it was made from).
 
 ## `m-timeout`
 
@@ -420,7 +432,20 @@ Lazy sources inside a modality region call `candidate(header, () => archivalText
 instead: the header is non-semantic, text is produced only after admission, and an
 in-flight control request's id rides the candidate as `requestId` (acquisition
 lineage, not causation). Eager `feel()` remains the compatibility path. A source
-declares `tier` on the element (default 0; the region refuses 1 and 2).
+declares `tier` on the element (default 0; the region refuses 2, and refuses 1
+unless the source also names a `decider`).
+
+**Tier 1 (edge-grounded).** A source with `tier="1" decider="<model ref>"` may
+answer a control request that carries a `template` by calling
+`ground(request, candidates)`: one `noul` per candidate through `decide()`, and
+one `EdgeEvidence` with the best score fired to the controller. The candidate
+text stays inside the source — the score and a closed-vocabulary provenance
+record (tier, model version, question keys, derived strength `|p−0.5|·2`,
+candidates, calls, latency, cost, aperture state) are all that cross, and they
+cross while the aperture is closed. `groundBatch` (default 5) bounds how many
+candidates one sample scores. PRIVACY: whatever a tier-1 source grounds goes to
+whatever provider its `decider` names, so declaring one is a per-source decision
+with the same weight as a profile's judge binding.
 
 Common attributes: `timeout`, `sigma`, `salience` (default `0.4`), `salienceShift`
 (default `0.6`), `name`.
@@ -755,12 +780,26 @@ lexicon (the LLM's `kind`/`vocabulary` subsume it).
 | `minScore` | `0.5` | score at/above which a "yes" counts as an active loop |
 | `minArousal` | `0.1` | stand down below this arousal (a near-exhausted mind is not checked) |
 | `tailSrc` | mind's `m-memory/<name>/tail` | the tail topic to read (`"off"` → the stream window) |
-| `model` | inherits `utilityModel` | the detection model |
+| `model` | inherits `utilityModel` | the detection model; a `kind: decision` provider (e.g. the `jev` preset) switches the engine — see below |
 
-Publishes the `loop` topic `{active, score, kind, vocabulary[], reasoning, at}` — standing
-state, like `economy/arousal`: one published state, N independent reactions. The `reasoning`
-is the model's judgement *about* the mind (for the dashboard/logs), never first-person and
-never journaled. The dashboard reads `loop` for observability.
+Publishes the `loop` topic `{active, score, kind, vocabulary[], reasoning, at, engine, model,
+confidence, strength}` — standing state, like `economy/arousal`: one published state, N
+independent reactions. The `reasoning` is the model's judgement *about* the mind (for the
+dashboard/logs), never first-person and never journaled. The dashboard reads `loop` for
+observability.
+
+**Two engines, chosen by the model's kind.** If `model` resolves to a provider whose kind is
+`decision` (a System-One model that answers questions and generates nothing), the detector
+asks three questions through `decide()` instead of running the format prompt: `looping` as a
+`noul`, `score` as a 5-level `score`, `kind` as a `choice`. `vocabulary` then comes back `[]`
+and `reasoning` `null` — a model that generates nothing cannot produce them — so
+`m-resurface` loses the words to steer *away* from and falls back to the newest kept note,
+while the `m-clear-mind` floor is unaffected. `confidence` is the score question's own
+statistic and `strength` is derived from the noul as `|p − 0.5|·2`; both are `null` on the
+LLM engine. **State leaves the box**: the tail is the mind's verbatim inner monologue, so a
+decision-model detector is a profile decision with a privacy note, never a default. Measured
+against the LLM engine over 120 real tails in
+[loop-detector-scoring.md](../research/loop-detector-scoring.md).
 
 ## `m-clear-mind`
 

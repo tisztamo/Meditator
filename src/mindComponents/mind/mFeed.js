@@ -1,5 +1,6 @@
 import A from "amanita"
 import { MSense } from "./mSense.js"
+import { parseTime } from '../../config/timeParser.js';
 import { logger } from '../../infrastructure/logger.js';
 
 const log = logger('mFeed.js');
@@ -22,9 +23,15 @@ const log = logger('mFeed.js');
  * @interface  (plus MSense's timeout/sigma/salience)
  *   - url: the RSS/Atom feed to read (required; dormant if absent)
  *   - name: labels the bid type as Sense-<name> (default "feed")
+ *   - pollCache: how long one poll's items are reused (default 60s)
+ *   - tier="1" + decider: score the items against a search template inside the
+ *     source and emit only the score (see MSense.ground)
  */
 export class MFeed extends MSense {
     _seen = new Set()
+    _cached = null
+    _cachedAt = 0
+    _cursor = 0
 
     get defaultTimeout() { return "20m" }
     get defaultSigma() { return "6m" }
@@ -38,13 +45,29 @@ export class MFeed extends MSense {
         return true
     }
 
-    async onSense() {
-        const res = await fetch(this.url, {
-            signal: AbortSignal.timeout(8000),
-            headers: { 'user-agent': 'Meditator/0 (+afferent feed sense)' },
-        })
-        if (!res.ok) throw new Error(`feed ${res.status}`)
-        const titles = parseFeedTitles(await res.text())
+    async onSense(request) {
+        const titles = await this._titles()
+
+        // TIER 1, when this source declares it: the control request carries the
+        // search template, and the items are scored against it here, inside the
+        // source. The answer to a grounded sample IS the score — the titles stay
+        // in this method and are never offered, so a closed aperture is searched
+        // without any of the feed's language reaching it (MSense.ground).
+        if (request && this.grounds()) {
+            await this.ground(request, titles)
+            return
+        }
+
+        // A deliberate sample (a search or an orient hand asked) offers the next
+        // item in the feed whether or not it has drifted past before: being asked
+        // to look is not the same as noticing something new, and a source that
+        // answers "nothing fresh" to a sample cannot be searched at all.
+        if (request) {
+            const item = titles[this._cursor++ % (titles.length || 1)]
+            if (!item) return
+            this._seen.add(item)
+            return this.perceive(`A scrap of the outside world drifts past — “${item}”.`, { changeKey: item })
+        }
 
         const fresh = titles.find(t => !this._seen.has(t))
         if (!fresh) return                          // nothing new drifting by — stay quiet
@@ -53,6 +76,23 @@ export class MFeed extends MSense {
 
         // No key: every item is a plain ambient reading, not a state change.
         this.perceive(`A scrap of the outside world drifts past — “${fresh}”.`, { changeKey: fresh })
+    }
+
+    /** One poll, briefly cached: a bounded search issues several sample requests
+     * in a row, and re-fetching the same feed for each of them would be rude to
+     * the far end and would tell us nothing new. `pollCache` (default 60s). */
+    async _titles() {
+        const ttl = parseTime(this.attr('pollCache') || '60s')
+        const window = Number.isFinite(ttl) && ttl > 0 ? ttl : 60000
+        if (this._cached && Date.now() - this._cachedAt < window) return this._cached
+        const res = await fetch(this.url, {
+            signal: AbortSignal.timeout(8000),
+            headers: { 'user-agent': 'Meditator/0 (+afferent feed sense)' },
+        })
+        if (!res.ok) throw new Error(`feed ${res.status}`)
+        this._cached = parseFeedTitles(await res.text())
+        this._cachedAt = Date.now()
+        return this._cached
     }
 }
 

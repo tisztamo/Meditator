@@ -147,6 +147,16 @@ port: the comparator seam was built for exactly this replacement.
 
 ### Phase 4 — first live tier-1 sense (the prize; a week, gated)
 
+**Status: done 2026-09-18** (search `targetMatch`, the first candidate). Tier 1 is
+implemented for text and the stop condition is met: one closed-aperture search
+reported `found` on a Jev score of 0.86, 6 `noul` calls, 2.1 s, $0.000096, with
+`m-feed` declared `tier="1" decider="jev"`. Code: `MSense.ground()` /
+`targetMatchQuestion()`, `EdgeEvidence` + `edge-evidence`, `SourceContract.decider`,
+`ControlRequest.targetId`, `m-search`'s per-route matcher, `m-expect-ledger`'s
+`edge-score` rows. Lab: `architecture/lab/tier1-search/`. Report:
+`doc/improvements/prediction-mismatch.md`, "First edge-grounded search". Tier 2
+still throws; the Stereotic candidate below is untouched.
+
 Today tiers 1 and 2 **throw at registration**; no live source declares either. Jev
 makes tier 1 implementable without leaking language across a closed aperture: the
 score is structured, the text stays in the source's private buffer.
