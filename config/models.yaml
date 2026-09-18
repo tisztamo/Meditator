@@ -71,3 +71,20 @@ profiles:
       # the cloud one pair-for-pair on the B2 gate (0.900 blind agreement each),
       # and the mind's evidence never leaves the box to be graded.
       judge: gpu-local
+  # local-voice with the comparator on a System-One model instead of an LLM.
+  # Voice stays on the local box; utility stays on the cheap cloud model; the
+  # judge becomes TypeSafe's Jev (a `decision` provider), which m-judge reaches
+  # through decide() rather than complete() — a `kind` switch, not a new port.
+  #
+  # PRIVACY — the reason this is a profile and never a default: the judge's state
+  # is the mind's own expectation and the perception it is graded against, and
+  # under this profile that text LEAVES THE BOX, to a third-party endpoint. Under
+  # `local-voice` the judge was deliberately kept local so the mind's evidence is
+  # never graded off-box; choosing this profile knowingly gives that up in
+  # exchange for a calibrated, ~300 ms verdict. See doc/architecture/components.md
+  # (m-judge) and doc/research/expect-study.md §2.7–2.8.
+  local-voice-jev:
+    roles:
+      voice: gpu-local
+      utility: utility
+      judge: jev

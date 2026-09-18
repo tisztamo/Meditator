@@ -1,6 +1,9 @@
 /** Pure prompt/parse for the declared tier-2 text judge. No world state, no third text. */
 
-const VERDICTS = new Set(['match', 'mismatch', 'insufficient'])
+/** The three verdicts, shared by both judge engines: the text prompt parses
+ * them out of a reply, the decision engine reads them back as a `choice`. */
+export const JUDGE_VERDICTS = new Set(['match', 'mismatch', 'insufficient'])
+const VERDICTS = JUDGE_VERDICTS
 
 /** Default reply budget. Large enough that the reasoning and the final verdict
  * line both fit — a truncated reply has no verdict token and reads as

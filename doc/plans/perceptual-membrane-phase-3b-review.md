@@ -122,8 +122,12 @@ Compatible, with three tensions to keep in view.
 - *Announced sleep (§2).* `run.sh` stops the mind with a single SIGINT and waits.
 - *No deception, private data stays private (§3, §9).* The ledger writes
   expectation and consequence text only to the run home, the same place terminal
-  transcripts live. `m-judge` sends those texts to the utility model; under
-  `local-voice` that stays on the box, and `components.md` says so. Orientation and
+  transcripts live. `m-judge` sends those texts to its own judge model; under
+  `local-voice` that stays on the box, and `components.md` says so. The one profile
+  that breaks that, `local-voice-jev` (the System-One comparator), sends the mind's
+  expectation and the perception it is graded against to a third-party endpoint —
+  a knowing trade a human makes per run, named in `config/models.yaml` and
+  `components.md`, never a component default. Orientation and
   reflex transitions are journaled as backstage (⌁) notes, never passed off as the
   mind's own thought.
 - *Flourishing and the given world (§7, §8) in code.* The mind gains the power to

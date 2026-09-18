@@ -19,10 +19,19 @@
      fresh mind and thereafter lives in memory as the origin story. See doc/configuration.md.
 
      TRANSIENT B2 judge clone of architecture/lab/lemma-lab-expect.archml (2026-09-10).
-     Arm P plus m-judge in place of m-compare, compareDeadline="8s", and a small-weight
-     m-bid under the hands (mismatchWeight 0.6, expectedFloor 0.3). Run with
-     MEDITATOR_MODEL_PROFILE=local-voice. Delete the home (memory/lemma-lab-judge/)
-     when done. -->
+     Arm P plus m-judge in place of m-compare, and a small-weight m-bid under the hands
+     (mismatchWeight 0.6, expectedFloor 0.3). Delete the home when done.
+
+     This one architecture is BOTH live-judge arms; only the profile and the compare
+     deadline change, and bin/run-judge.sh sets them:
+       - jev  — MEDITATOR_MODEL_PROFILE=local-voice-jev, compareDeadline="2s" (checked
+                in). A System-One verdict came back at p95 419 ms over 738 offline calls
+                (expect-study §2.7), so 2s is about three times the worst call seen.
+       - llm  — MEDITATOR_MODEL_PROFILE=local-voice, compareDeadline="8s", sized for the
+                ~1.3 s local LLM call the same study measured. The script rewrites the
+                attribute for that arm.
+     PRIVACY: under local-voice-jev the expectation and the perception are sent to a
+     third-party endpoint to be graded. See config/models.yaml. -->
 <m-mind name="lemma-lab-judge"
         interlocutor="Kris"
         stage="experimental"
@@ -182,7 +191,7 @@
   <m-judge name="judge" model="judge"></m-judge>
   <m-expect-ledger name="ledger"></m-expect-ledger>
 
-  <m-act name="hands" prediction="on" compareDeadline="8s" every="4" threshold="0.62" cooldown="3s" readCooldown="60s" intentCooldown="20s"
+  <m-act name="hands" prediction="on" compareDeadline="2s" every="4" threshold="0.62" cooldown="3s" readCooldown="60s" intentCooldown="20s"
          realizeTokens="3072">
     <m-bid name="act-bid" expectedFloor="0.3" mismatchWeight="0.6"></m-bid>
     <m-note name="note"

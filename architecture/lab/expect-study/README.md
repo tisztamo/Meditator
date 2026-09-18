@@ -74,6 +74,36 @@ them, and the two LLM-judge ledgers, against the blind labels in
 pre-registered table. Result:
 [expect-study §2.7](../../../doc/research/expect-study.md#27-a-system-one-judge-jev-offline--phase-2). Live judge condition: [`lemma-lab-judge.archml`](../lemma-lab-judge.archml).
 
+## The live judge (Phase 3 of the Jev plan)
+
+`lemma-lab-judge.archml` is arm P with `m-judge` behind the comparator port and a
+small-weight `m-bid` under the hands. One architecture, two arms — only the profile
+and the compare deadline differ, and the script sets both:
+
+```bash
+architecture/lab/expect-study/bin/run-judge.sh jev 7200   # System-One comparator
+architecture/lab/expect-study/bin/run-judge.sh llm 7200   # text comparator, control
+```
+
+`jev` runs under `local-voice-jev` at `compareDeadline="2s"` (Phase-2 p95 was 419 ms)
+and **sends the mind's expectation and the perception it is graded against to a
+third-party endpoint**; `llm` runs under `local-voice` at `8s`, everything on the box.
+Homes land in `memory/lemma-lab-judge-{jev,llm}-<stamp>/`, with the process log beside
+the ledger — `m-judge` writes one provenance line per decision judgement there, and
+the `jev` arm runs `--debug=decide.js` so a 429/529 backoff is visible as itself.
+
+After the runs:
+
+```bash
+bun architecture/lab/expect-study/analysis/summarize.mjs  memory/<jev-home> memory/<llm-home>
+bun architecture/lab/expect-study/analysis/judge-live.mjs memory/<jev-home> memory/<llm-home>
+```
+
+`summarize.mjs` gives M1–M7; `judge-live.mjs` adds the judgement trace (verdicts,
+confidence bands, latency, cost, soft failures, the 429 path) and the bid trace
+(salience and attended fraction per verdict). Result:
+[expect-study §2.8](../../../doc/research/expect-study.md).
+
 ## Pre-registered metrics
 
 See the [phase 3B plan](../../../doc/plans/perceptual-membrane-phase-3b.md) §3.3.

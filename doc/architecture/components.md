@@ -331,11 +331,30 @@ comparator in one membrane fails at connect. Ordinary prose (≥ 8 tokens) is
 ### `m-judge`
 
 Declared **tier-2** comparator behind the same port. Sends expectation (or search
-template) and evidence text to the ancestor `utilityModel` (`complete()`, 60 tokens,
-temperature 0). An architecture that has not wired it makes no such call. Under a
-cloud profile those texts leave the box; under `local-voice` they stay local.
-`promptDebug` dumps the prompt when debugging is on. Attributes: `model`, `maxTokens`,
-`temperature`.
+template) and evidence text to a model. An architecture that has not wired it makes
+no such call. The model is its own role — `model` on this element, else `judgeModel`
+on an ancestor, else the `judge` role; it does **not** follow `utilityModel`.
+`promptDebug` dumps the prompt when debugging is on. Attributes: `model`, `maxTokens`
+(`JUDGE_MAX_TOKENS`, 400), `temperature` (0).
+
+**Which engine answers follows from that model's provider `kind`, and nothing else.**
+A completion provider is asked in prose and the reply parsed (`complete()`); a
+provider whose kind is `decision` is asked the same question as a question — one
+`choice` over the three verdict glosses, over a state of `{expected, perceived}` —
+through `decide()`. Both return `{verdict, confidence}`, so the comparator port, the
+bidder and the ledger cannot tell them apart. On the decision path `confidence` is a
+statistic of the answer's distribution rather than a decoded token, and is passed
+through unchanged to `bidderPolicy`; a soft failure reads `insufficient` at zero
+confidence. Each decision judgement writes a provenance line to the process log
+naming the engine, the version the endpoint pinned, the latency and the cost.
+
+**Privacy, by profile.** These texts are the mind's own evidence. Under a cloud
+profile they leave the box; under `local-voice` the judge is local and they stay on
+it; under **`local-voice-jev`** they are sent to a third-party decision endpoint
+(TypeSafe) to be graded, which is why that is a profile a human chooses and never a
+component default. See `config/models.yaml` and
+[expect-study §2.7–2.8](../research/expect-study.md).
+
 
 ### `m-bid`
 
