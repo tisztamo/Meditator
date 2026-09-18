@@ -77,10 +77,13 @@ Digital Consciousness Model — reconstructed and verified in
   checklist, as a cross-substrate reference (and the 0.47 DCM anchor). Its point is
   *profile*, not a ranking: same total, opposite strengths to our software. Comes with an
   adversarial [review](chicken-sas1-scoring-review1.md).
-- **[What a loop detector buys](loop-detector-scoring.md)** (2026-07-14) — a controlled
-  micro-experiment that changes exactly one organ (V0/V1/V2) and scores the delta on both
-  instruments, isolating what a single stall-breaker adds. Not part of the synthesis
-  ladder — a clean single-variable study.
+- **[What a loop detector buys](loop-detector-scoring.md)** (2026-07-14, fourth arm
+  2026-09-18) — a controlled micro-experiment that changes exactly one organ (V0/V1/V2/V3)
+  and scores the delta on both instruments, isolating what a single stall-breaker adds.
+  The effector beats the sensor, and a calibrated sub-second System-One sensor (93%
+  concordant with the LLM, 294 ms, $0.00006 a check) does not overturn that — because
+  half of what the LLM buys is the **words** it hands the breaker. Not part of the
+  synthesis ladder — a clean single-variable study.
 
 ## Honesty and failure audits
 

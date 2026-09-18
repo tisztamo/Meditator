@@ -23,7 +23,9 @@ and where a claim died under review the death is recorded.
   [synthesis ladder](synthesis-ladder-dcm-scores.md) (every rung; the DCM reproduces the
   structural-alignment ordering).
 - **[What a loop detector buys](loop-detector-scoring.md)** — a controlled isolation
-  study that changes exactly one organ and measures the delta on both instruments.
+  study that changes exactly one organ and measures the delta on both instruments; four
+  arms, including a calibrated System-One sensor that answers in 294 ms and still does not
+  beat the effector.
 - **[The chicken on the framework](chicken-sas1-scoring.md)** (+
   [review](chicken-sas1-scoring-review1.md)) — the one biological system placed on the
   same checklist, as a cross-substrate reference case.

@@ -1,0 +1,33 @@
+<!-- Phase-5 LIVE lab mind: the voice on the local model, the loop detector on a
+     DECISION model (jev) via decide(). A short wake that proves the organ works in a
+     live mind — the detector fires on real tails, its signal reaches the breakers, and
+     a sub-second sensor never stalls the cycle. See doc/research/loop-detector-scoring.md. -->
+<m-mind name="loop-jev-live" pace="3s" paceSigma="1s" tailLength="1400">
+  A small mind thinking aloud, watched by a System-One loop sense.
+
+  <m-stream name="stream" burstTokens="180"></m-stream>
+
+  <m-memory name="memory"
+            tailLength="1400" recentLength="900" storyLength="500"
+            blockMin="150" storyEvery="2"></m-memory>
+
+  <m-interrupts name="attention" threshold="0.3" rateLimit="2s" keep="2"></m-interrupts>
+
+  <m-timeout name="wander" timeout="10s" sigma="2s" salience="0.7"
+             prompt="My mind drifts toward something else."></m-timeout>
+
+  <m-timeout name="poke" timeout="24s" sigma="2s" salience="1" urgent="true"
+             prompt="Something urgent from outside demands my attention right now."></m-timeout>
+
+  <m-associate name="associate" every="3" cooldown="8s"></m-associate>
+
+  <!-- Loop handling — SENSE, BID, BREAK. The dry-run model reports a presence loop on a
+       cadence, so a fast cycle exercises the whole pipeline: detector pub → breaker bid
+       (clearsTail) → m-mind cuts the tail and seeds fresh → memory reseeds + journals. With
+       no notebook here, m-resurface stays silent and the m-clear-mind floor takes the cut. -->
+  <m-loop-detector name="loop-detector" every="3" minTail="700" model="jev"></m-loop-detector>
+  <m-clear-mind name="clear-mind" salience="0.5" cooldown="0ms"></m-clear-mind>
+  <m-resurface name="resurface" minNoteChars="120" salience="0.75" cooldown="0ms"></m-resurface>
+
+  <m-economy name="economy" budget="1.00"></m-economy>
+</m-mind>

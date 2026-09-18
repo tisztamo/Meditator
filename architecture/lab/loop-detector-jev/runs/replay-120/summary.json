@@ -1,0 +1,78 @@
+{
+  "at": "2026-09-18T15:05:30.860Z",
+  "n": 120,
+  "engines": [
+    "jev",
+    "llm"
+  ],
+  "minScore": 0.5,
+  "perEngine": {
+    "jev": {
+      "answered": 120,
+      "softFailed": 0,
+      "loopRate": 0.26666666666666666,
+      "meanScore": 0.3760416666666667,
+      "latencyP50": 294,
+      "latencyP95": 380,
+      "kinds": {
+        "content": 64,
+        "other": 36,
+        "presence": 7,
+        "anxiety": 11,
+        "spam": 2
+      },
+      "model": "jev-1.13.0"
+    },
+    "llm": {
+      "answered": 120,
+      "softFailed": 0,
+      "loopRate": 0.31666666666666665,
+      "meanScore": 0.36500000000000055,
+      "latencyP50": 1128,
+      "latencyP95": 1514,
+      "kinds": {
+        "content": 108,
+        "presence": 4,
+        "anxiety": 4,
+        "spam": 4
+      },
+      "model": "gpu-local"
+    }
+  },
+  "crossEngine": {
+    "compared": 120,
+    "binaryAgreement": 0.9333333333333333,
+    "jevOnly": 1,
+    "llmOnly": 7,
+    "kindAgreementWhenBothActive": 0.6774193548387096,
+    "meanAbsScoreDiff": 0.13979166666666668,
+    "calibration": {
+      "<0.5": {
+        "n": 35,
+        "agreement": 0.8
+      },
+      "0.5–0.9": {
+        "n": 81,
+        "agreement": 0.9876543209876543
+      },
+      ">0.9": {
+        "n": 4,
+        "agreement": 1
+      }
+    },
+    "byStrength": {
+      "weak <0.5": {
+        "n": 41,
+        "agreement": 0.8048780487804879
+      },
+      "firm ≥0.5": {
+        "n": 79,
+        "agreement": 1
+      }
+    }
+  },
+  "spend": {
+    "promptTokens": 277581,
+    "costUsd": 0.007158144
+  }
+}

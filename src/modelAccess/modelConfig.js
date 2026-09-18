@@ -21,6 +21,13 @@ const DEFAULT_PROVIDER_KIND = "completion";
 // Which kinds each role may hold. The voice thinks and speaks, so it can only be
 // a completion model; utility calls read text back. The judge is the one role a
 // decision model can take today (plan §3) — it returns a verdict, not prose.
+//
+// "utility" deliberately stays completion-only even though m-loop-detector (Phase 5)
+// can run on a decision model: the utility role is also the scribe, the memory
+// distiller and the associator, all of which call complete() and would throw. A
+// component that CAN use a decision model names one on its own `model` attribute
+// (`model="jev"`, resolved as a preset) — a per-organ choice rather than a role-wide
+// one; only a kind every caller of the role can honour belongs in this table.
 const ROLE_KINDS = {
   voice: ["completion"],
   utility: ["completion"],

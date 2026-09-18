@@ -71,3 +71,23 @@ bun architecture/lab/orient-study/analysis/summarize.mjs memory/eddy-world-orien
 
 Reports: `doc/research/expect-study.md`, `doc/research/first-live-aperture.md`.
 Use `--mind-name` so checked-in homes stay untouched.
+
+## Phase 5 — the loop detector on a System-One model (`loop-detector-jev/`)
+
+The fourth arm of `doc/research/loop-detector-scoring.md`. Needs `TYPESAFE_API_KEY`
+(env or `~/.env`); the replay also wants a local model for the LLM arm.
+
+```bash
+# offline replay: real loop-detector tails through BOTH engines, cost ≈ $0.007 for 120
+bun architecture/lab/loop-detector-jev/replay.mjs --n 120 --engines jev,llm
+bun architecture/lab/loop-detector-jev/replay.mjs --n 20 --engines jev      # jev only
+
+# a dry wake that exercises decide() inside a real mind (no network)
+MEDITATOR_DRY_RUN=1 bun meditator.js -a architecture/lab/loop-detector-jev/dry-fast-jev.archml
+
+# a live wake: voice on the local model, loop sense on jev
+bun meditator.js -a architecture/lab/loop-detector-jev/live-jev.archml \
+    --model-profile local-dev --mind-name loop-jev-live-1
+```
+
+`runs/replay-120/` is the run the research note's numbers come from.

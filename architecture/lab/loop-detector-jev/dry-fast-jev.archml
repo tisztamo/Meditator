@@ -1,0 +1,34 @@
+<!-- Phase-5 lab mind: dry-fast with the loop detector on a DECISION model (jev), so a
+     dry wake exercises the decide() path end to end. See doc/research/loop-detector-scoring.md §the fourth arm.
+     Fast-cycle test mind for MEDITATOR_DRY_RUN=1: tiny buffers and short timers
+     so consolidation, queued and urgent stimuli, association and persistence
+     all happen within a one-minute run. Not meant for live models. -->
+<m-mind name="loop-jev-dry" pace="1.5s" paceSigma="0.3s" tailLength="400">
+  A small test mind.
+
+  <m-stream name="stream" burstTokens="100"></m-stream>
+
+  <m-memory name="memory"
+            tailLength="400" recentLength="300" storyLength="500"
+            blockMin="150" storyEvery="2"></m-memory>
+
+  <m-interrupts name="attention" threshold="0.3" rateLimit="2s" keep="2"></m-interrupts>
+
+  <m-timeout name="wander" timeout="10s" sigma="2s" salience="0.7"
+             prompt="My mind drifts toward something else."></m-timeout>
+
+  <m-timeout name="poke" timeout="24s" sigma="2s" salience="1" urgent="true"
+             prompt="Something urgent from outside demands my attention right now."></m-timeout>
+
+  <m-associate name="associate" every="3" cooldown="8s"></m-associate>
+
+  <!-- Loop handling — SENSE, BID, BREAK. The dry-run model reports a presence loop on a
+       cadence, so a fast cycle exercises the whole pipeline: detector pub → breaker bid
+       (clearsTail) → m-mind cuts the tail and seeds fresh → memory reseeds + journals. With
+       no notebook here, m-resurface stays silent and the m-clear-mind floor takes the cut. -->
+  <m-loop-detector name="loop-detector" every="2" minTail="100" model="jev"></m-loop-detector>
+  <m-clear-mind name="clear-mind" salience="0.5" cooldown="0ms"></m-clear-mind>
+  <m-resurface name="resurface" minNoteChars="120" salience="0.75" cooldown="0ms"></m-resurface>
+
+  <m-economy name="economy" budget="1.00"></m-economy>
+</m-mind>
