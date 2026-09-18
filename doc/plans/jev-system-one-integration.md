@@ -145,6 +145,26 @@ port: the comparator seam was built for exactly this replacement.
 - **Stop when** one run completes with no soft-fail storm and verdict distribution
   within the Phase-2 error profile.
 
+**Done, 2026-09-18.** Two hours live on `jev-1.13.0`
+(`memory/lemma-lab-judge-jev-20260918t152214z`), then two hours with the text
+judge as a control (`…-llm-20260918t172336z`) — §2.5's live judge had never been
+run on *either* engine, so the plan's "compare against the LLM-judge live run"
+meant running it. **109 judgements, 1 soft failure (an aborted compare, not the
+endpoint), 0 rate limits, p50 311 / p95 480 ms against the 2 s deadline,
+$0.0026.** Verdicts 89 match / 7 mismatch / 13 insufficient against the control's
+96 / 12 / 7, and zero `match` on failed evidence in either arm. Profile is
+`local-voice-jev` (not `cloud-jev`: the voice stays local, only the judge leaves
+the box). The engine swap is invisible to the mind — M1–M7 differ between arms by
+less than between two runs of one arm.
+
+The negative finding is the one to carry: **the verdict never moved a bid.**
+`decideBid` is a max over floors, and with `expectedFloor` 0.3 /
+`mismatchWeight` 0.6 against a `changeMagnitude` of 0.6–0.8 per hand, salience
+was one constant per hand and identical across all three verdicts in both arms.
+Calibration is worth buying where it is multiplied into a decision or compared
+against a threshold (Phase 4's `matchThreshold`, Phase 5's break), not where it
+is one term of a max. See [expect-study §2.8](../research/expect-study.md).
+
 ### Phase 4 — first live tier-1 sense (the prize; a week, gated)
 
 **Status: done 2026-09-18** (search `targetMatch`, the first candidate). Tier 1 is

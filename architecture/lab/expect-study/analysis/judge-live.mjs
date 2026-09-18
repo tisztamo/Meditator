@@ -76,8 +76,17 @@ function mean(list) {
     return list.length ? list.reduce((a, b) => a + b, 0) / list.length : null
 }
 
-/** Join the ledger into one row per judged act: verdict, the salience the
- * evidence carried once the bidder had seen it, and whether it was attended. */
+/** Join the ledger into one row per judged act: verdict, the hand that was
+ * reached with, the salience the evidence carried once the bidder had seen the
+ * verdict, and whether it was attended.
+ *
+ * Read the hand column before the verdict column. Base salience is a property of
+ * the hand, and the hand mix moves a long way between runs, so a salience
+ * difference BETWEEN verdicts is a hand-mix artefact until the per-hand rows say
+ * otherwise. `decideBid` is a max() over floors, not a multiplier: the verdict
+ * moves salience only where `predictionMatch·expectedFloor` or
+ * `predictionMismatch·mismatchWeight` rises above the evidence's own
+ * changeMagnitude. */
 function bidTrace(rows) {
     const verdictByAct = new Map()
     for (const r of rows) {
@@ -86,6 +95,7 @@ function bidTrace(rows) {
         if (v && !verdictByAct.has(r.actId)) verdictByAct.set(r.actId, v)
     }
     const attended = new Set(rows.filter(r => r.kind === 'attended').map(r => r.perceptId))
+    const handByAct = new Map(rows.filter(r => r.kind === 'acted' && r.actId).map(r => [r.actId, r.capability || '?']))
     const trace = []
     const seen = new Set()
     for (const r of rows) {
@@ -96,6 +106,7 @@ function bidTrace(rows) {
         if (!verdict) continue
         trace.push({
             verdict,
+            hand: handByAct.get(r.actId) || '?',
             salience: typeof r.salience === 'number' ? r.salience : null,
             attended: attended.has(r.perceptId),
         })
@@ -123,13 +134,20 @@ for (const home of homes) {
     const latencies = judgements.map(j => j.latencyMs).filter(Number.isFinite).sort((a, b) => a - b)
     const dist = Object.fromEntries(VERDICTS.map(v => [v, judgements.filter(j => j.verdict === v).length]))
     const trace = bidTrace(rows)
+    const summarise = group => ({
+        n: group.length,
+        meanSalience: mean(group.map(t => t.salience).filter(Number.isFinite)),
+        salienceValues: [...new Set(group.map(t => t.salience))].sort(),
+        attendedFraction: group.length ? group.filter(t => t.attended).length / group.length : null,
+    })
     const byVerdict = {}
-    for (const v of VERDICTS) {
-        const group = trace.filter(t => t.verdict === v)
-        byVerdict[v] = {
-            n: group.length,
-            meanSalience: mean(group.map(t => t.salience).filter(Number.isFinite)),
-            attendedFraction: group.length ? group.filter(t => t.attended).length / group.length : null,
+    for (const v of VERDICTS) byVerdict[v] = summarise(trace.filter(t => t.verdict === v))
+    const byHand = {}
+    for (const hand of [...new Set(trace.map(t => t.hand))].sort()) {
+        byHand[hand] = { all: summarise(trace.filter(t => t.hand === hand)) }
+        for (const v of VERDICTS) {
+            const group = trace.filter(t => t.hand === hand && t.verdict === v)
+            if (group.length) byHand[hand][v] = summarise(group)
         }
     }
 
@@ -159,6 +177,7 @@ for (const home of homes) {
             v, rows.filter(r => r.kind === 'commit').flatMap(r => r.verdicts || []).filter(x => x === v).length,
         ])),
         bidTrace: byVerdict,
+        bidTraceByHand: byHand,
     }
 }
 

@@ -166,6 +166,7 @@ export class MJudge extends MBaseComponent {
         }
         const maxTokens = Number(this.attr('maxTokens') || JUDGE_MAX_TOKENS)
         const temperature = Number(this.attr('temperature') ?? 0)
+        const startedAt = Date.now()
         try {
             const result = await this._complete({
                 model,
@@ -177,7 +178,10 @@ export class MJudge extends MBaseComponent {
                 signal,
             })
             const judged = parseJudgeReply(result?.text || '')
-            this._noteJudgement({ engine: 'completion', model: model?.model ?? null, ...judged })
+            this._noteJudgement({
+                engine: 'completion', model: model?.model ?? null,
+                latencyMs: Date.now() - startedAt, ...judged,
+            })
             return judged
         } catch {
             return { verdict: 'insufficient', confidence: 0 }
@@ -240,9 +244,11 @@ export class MJudge extends MBaseComponent {
         }
     }
 
+    /** One line per judgement, whichever engine answered: the live-judge analysis
+     * reads the trace back out of the process log, and an arm is only comparable
+     * with the other if both wrote it. */
     _noteJudgement(note) {
         this.lastJudgement = note
-        if (note.engine !== 'decision') return
         log.info(`judge[${note.engine}] model=${note.model} verdict=${note.verdict} `
             + `confidence=${Number(note.confidence).toFixed(3)} latencyMs=${note.latencyMs ?? 'n/a'}`
             + `${note.cost != null ? ` cost=${note.cost.toFixed(8)}` : ''}${note.softFail ? ' softFail=1' : ''}`)

@@ -451,3 +451,224 @@ median of 0.95 across the ledger.
 Harness: `analysis/judge-offline.mjs --engine jev`, scored by
 `analysis/jev-metrics.mjs`. Ledgers kept beside the older ones in
 `predictions/` (`judge-offline-jev-{narrated,raw}-r{1,2,3}.jsonl`).
+
+### 2.8 The judge, live — Phase 3
+
+**Status: the first live judge run in this study, on either engine. Two hours
+with the System-One comparator, then two hours with the text comparator as a
+control. 109 System-One judgements, one soft failure, no 429, p95 480 ms
+against a 2 s deadline, $0.0026 of judging. The engine swap is invisible to
+the rest of the mind — and so, it turns out, is the calibrated confidence,
+because at these bidder weights the verdict never moved a single bid.**
+
+This is Phase 3 of [the Jev plan](../plans/jev-system-one-integration.md).
+`m-judge` gained an engine switch derived from the resolved provider's `kind`
+and nothing else: a completion provider is asked in prose, a `decision`
+provider is asked the same question as a question — the Phase-2 winning set,
+one `choice` over the three glosses, over the narrated `{expected, perceived}`
+— and both return `{verdict, confidence}`. No new component, no new port.
+
+#### What was run
+
+§2.5 said the live judge had not been run. It still had not, on **either**
+engine, so this section is two arms rather than a comparison against an
+existing baseline:
+
+| | `jev` arm | `llm` arm (control) |
+|---|---|---|
+| home | `memory/lemma-lab-judge-jev-20260918t152214z` | `memory/lemma-lab-judge-llm-20260918t172336z` |
+| window (UTC) | 15:22:14 → 17:22:14 | 17:23:36 → 19:23:36 |
+| profile | `local-voice-jev` | `local-voice` |
+| judge | `jev-latest` → **`jev-1.13.0`** | `gpu-local` (ardincoder-1) |
+| `compareDeadline` | **2 s** | 8 s |
+
+Same architecture (`lemma-lab-judge.archml`), same origin, same voice model,
+back to back, both clean SIGINT shutdowns. Two other studies were running
+minds on the same local server throughout (the tier-1 search lab and the
+loop-detector arm), so voice latency was worse than a quiet box would give;
+that shows up as pace, not as judge behaviour, and it applies to both arms.
+`bin/run-judge.sh` sets the profile and the deadline per arm.
+
+The deadlines differ on purpose — 2 s is three times the worst offline
+System-One call, 8 s was sized for a ~1.3 s local LLM call — so this is two
+engines each given the deadline it needs, not one deadline given to two
+engines. Neither arm ever hit it.
+
+#### M1–M7, against the B1 arm-P pair
+
+| | B1 P-1 | B1 P-2 | **jev** | **llm** |
+|---|---|---|---|---|
+| comparator | `m-compare` | `m-compare` | `m-judge`/Jev | `m-judge`/LLM |
+| M1 fill rate | 0.969 | 0.919 | **1.000** (110/110) | 0.991 (116/117) |
+| M2 mean expect tokens | 20.3 | 18.8 | 22.3 | 23.8 |
+| M3 settle inside horizon | 1.000 | 1.000 | 0.991 | 0.991 |
+| M3 mean outcome latency | 315 ms | 492 ms | 36 ms | 17 ms |
+| M4 hands (term/note/recall) | 76/43/8 | 82/32/9 | 25/74/11 | 35/78/4 |
+| M5 verdicts (m/mm/ins) | 0/0/123 | 0/0/113 | **89/7/12** | **96/12/7** |
+| M6 acts/hour | 63.51 | 61.51 | 55.00 | 58.51 |
+| M7 attended fraction | 0.858 | 0.870 | 0.743 | 0.767 |
+
+**M5 is the headline and it is the obvious one**: a real comparator produces
+real verdicts. `exactTextCompare` called all 236 B1 pairs `insufficient`
+because it cannot read prose; both judges spread across the three verdicts,
+and they spread similarly (Jev 82/6/11 %, the LLM 83/10/6 %).
+
+**M3's latency collapse is a workload effect, not a judge effect.** Both live
+runs are note-dominated (74 and 78 notes against 25 and 35 terminal reaches,
+against B1's 76 and 82 terminal), and a kept note comes back in milliseconds
+where a terminal run takes seconds. The same swing explains M4 entirely; §1.4
+already retracted hand mix as a finding for exactly this reason, and two more
+runs pointing the other way confirm it. It also explains why `match`
+dominates both live distributions: a note-kept pair is a narration of an
+intention fulfilled, which is what `match` means.
+
+**M6 and M7 are down ~10% against B1 in both arms, equally.** A judged
+comparator costs a little cadence and a little attention next to a tier-0
+string compare — the same amount whether the judgement is a 480 ms question
+or a local LLM call, so it is the comparator seam, not the engine.
+
+#### The judgement trace
+
+From the process log, which `m-judge` writes one provenance line to per
+judgement (engine, the version the endpoint pinned, verdict, confidence,
+latency, cost):
+
+| | jev arm |
+|---|---|
+| judgements | 109 (54.5/h) |
+| model, every line | `jev-1.13.0` |
+| verdicts | 89 match / 7 mismatch / 13 insufficient |
+| **soft failures** | **1** (0.9%) |
+| **429 / 529** | **0** |
+| backoffs entered | 0 |
+| client errors (401/422) | 0 |
+| latency p50 / p95 / p99 / max | **311 / 480 / 845 / 978 ms** |
+| confidence bands (<0.5 / 0.5–0.9 / >0.9) | 16 / 32 / **61** |
+| cost | **$0.002577** ($0.0000236 per judgement) |
+
+(The ledger records 12 `insufficient` against the log's 13: the soft-failed
+judgement's commit never landed, which is the one place the two tallies can
+come apart.)
+
+Live latency sits just above the offline figures (p50 300, p95 419) — a
+busier box, the same model — and the 2 s deadline was never close. **The one
+soft failure was not the endpoint**: no `decide.js` line precedes it, which
+means the call was abandoned on an aborted signal before it was sent, not
+refused or timed out. Over 109 calls the rate-limit path was never taken,
+which is what 1,200 req/min against a ~55/h cadence predicts.
+
+The confidence distribution reproduces the offline shape closely: 56% of live
+answers land above 0.9 against 60% offline, 15% below 0.5 against 12%. There
+is no reader labelling this run, so calibration cannot be re-measured live;
+what can be said is that the model is no less sure of itself in the wild than
+it was on the ledger, which is the failure mode that would have shown.
+
+**The control arm has no such table.** `m-judge` logged the provenance line
+only on the decision path when these runs were made; that is now fixed (both
+engines write it), but the fix came after the LLM arm had finished, so the
+text judge's per-call latency and self-reported confidence were not captured
+here. Only its ledger verdicts are comparable. That is the one thing a repeat
+of the control arm would add.
+
+#### Where the two engines can be checked against something
+
+Neither live run has blind labels, so §2.7's agreement numbers have no live
+counterpart. One sub-population is externally checkable without a reader: a
+terminal reach whose output is a traceback, a missing module or an empty
+result carries no result to compare, so it is `insufficient` by the gloss.
+
+| | real failures | called `insufficient` | called `match` |
+|---|---|---|---|
+| jev | 8 | **8** | 0 |
+| llm | 3 | **3** | 0 |
+
+**Zero `match` on failed evidence in either arm** — the error that started
+B2 (§2.2, 30 of 34 error pairs called `match`) does not reappear live on
+either engine. Going the other way, the LLM judge called **2 of its 31 clean
+terminal outputs `insufficient`**; Jev called none of its 17. Both are small
+numbers and the arms saw different workloads; the direction matches §2.7's
+finding that the LLM judge is the more conservative of the two, and it is
+worth one line in Phase 6, not a claim.
+
+#### The bid trace: a calibrated confidence bought nothing
+
+This is the finding worth carrying forward, and it is negative.
+
+`m-bid` is mounted with `expectedFloor="0.3"` and `mismatchWeight="0.6"`, and
+Phase 2 justified passing Jev's confidence through on the grounds that
+`bidderPolicy` multiplies by it. It does. But `decideBid` is a **max over
+floors**, not a multiplier over the base:
+
+```
+salience = clamp(max(changeMagnitude, requested·requestedFloor,
+                     predictionMatch·expectedFloor,
+                     predictionMismatch·mismatchWeight))
+```
+
+so a verdict can only raise salience above what the evidence already carried.
+In these runs the evidence carried, per hand, exactly:
+
+| hand | salience, jev arm | salience, llm arm |
+|---|---|---|
+| `note` | 0.6 (n=73) | 0.6 (n=77) |
+| `terminal` | 0.7 (n=25) | 0.7 (n=34) |
+| `recall` | 0.8 (n=10) | 0.8 (n=4) |
+
+One value per hand, **identical across all three verdicts, in both arms**. The
+match term tops out at 1·0.3 = 0.3 and the mismatch term at 1·0.6 = 0.6, and
+every hand's own `changeMagnitude` is 0.6 or more. The floors never bound. The
+verdict — and therefore the confidence, and therefore everything Phase 2
+measured about calibration — **did not move a single bid in four hours of
+mind**.
+
+The apparent differences in the by-verdict rows (`match` mean salience 0.630
+against `insufficient` 0.700 in the jev arm) are pure hand-mix artefact:
+`match` is where the notes are and notes are the quietest hand.
+`judge-live.mjs` now prints the per-hand breakdown next to the per-verdict one
+so that cannot be misread again.
+
+Attention shows the same shape. Within a hand the attended fraction is 1.000
+for `terminal` and `recall` in both arms regardless of verdict; only `note`
+(salience 0.6, against the 0.5 attention bar and a 30 s rate limit) is ever
+dropped, at 0.603 for `match` against 1.000 for the five non-`match` notes in
+the jev arm and 0.649 / 0.667 in the llm arm. n = 5 and n = 3. Nothing to
+conclude.
+
+**What this means for Phase 5 and the residency call.** It is not evidence
+against calibration; it is evidence that this architecture's bidder weights
+are below the floor where any verdict matters. A confidence signal is worth
+buying where it is *multiplied into* a decision or compared against a
+threshold — `m-search`'s `matchThreshold`, a loop-detector's break decision —
+not where it is one term of a max against a base that already exceeds it. If a
+future run wants to see the expect envelope change behaviour through the
+bidder, `mismatchWeight` has to exceed the evidence's own `changeMagnitude`,
+which here means above 0.6–0.8. That is a lab decision about weights, and it
+should be made deliberately rather than discovered again.
+
+#### Cost
+
+$0.002577 of System-One judging over two hours, on top of the run's other
+spend: the jev arm reported ≈$0.0342 total against its $0.50 budget, the llm
+arm ≈$0.0460 (more utility calls; the local judge is free but the arms are not
+cost-comparable because their hand and thought mixes differ). Judging is
+**7.5% of the jev arm's bill** and buys a sub-second, versioned, calibrated
+verdict. At this cadence a mind graded by Jev costs about **$0.0013 an hour**
+to grade.
+
+#### What Phase 6 should carry
+
+- The engine switch works and is invisible: same shape, same port, same
+  ledger, and the mind's M1–M7 differ between arms by less than they differ
+  between two runs of the same arm.
+- Reliability at this cadence is a non-issue: 1 soft failure in 109, and that
+  one was ours (an aborted compare), not the vendor's. 2 s is the right
+  deadline; 8 s was only ever the LLM's.
+- The privacy line is the real cost. Every one of those 109 states was the
+  mind's own expectation and its own perception, and under `local-voice-jev`
+  they left the box. The control arm did the same work for free, on the box,
+  and its verdicts were not obviously worse.
+- The bidder finding above: buy calibration for a threshold, not for a floor.
+
+Harness: `bin/run-judge.sh jev|llm`, scored by `analysis/summarize.mjs` and
+`analysis/judge-live.mjs`. Both homes keep `run.log` beside
+`predictions/ledger.jsonl`.
