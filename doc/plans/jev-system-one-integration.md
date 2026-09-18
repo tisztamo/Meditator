@@ -252,6 +252,16 @@ with `loopMath` vocabulary, `mismatchWeight` above the evidence's own
 `changeMagnitude`, a `noul` calibration study for `matchThreshold`, and a retention
 horizon for tier-1 scores.
 
+The one measurement Phase 6 added rather than summarised is a **third live arm**: the
+text-judge control rerun for two hours on the fixed provenance line, to fill the
+latency/confidence row Phase 3 could not capture (expect-study §2.8, "The control
+arm, repeated"). 113 judgements, 0 soft failures, p50/p95/p99 **1346 / 1941 /
+2316 ms** against the decision model's 311 / 480 / 845, and confidence bands
+**0 / 2 / 111** above 0.9 against 16 / 32 / 61 — the offline calibration contrast,
+reproduced live. It also hands the control its best result: 25 of 25 failed terminal
+runs called `insufficient` and 0 of 72 clean ones, the cleanest verdict table in the
+study. And the bidder finding reproduces a third time, on an inverted hand mix.
+
 ## 2. Non-goals
 
 Not a voice, not a realizer, not a memory writer. No images (Jev is text only).

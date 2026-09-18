@@ -454,9 +454,10 @@ Harness: `analysis/judge-offline.mjs --engine jev`, scored by
 
 ### 2.8 The judge, live — Phase 3
 
-**Status: the first live judge run in this study, on either engine. Two hours
+**Status: the first live judge runs in this study, on either engine. Two hours
 with the System-One comparator, then two hours with the text comparator as a
-control. 109 System-One judgements, one soft failure, no 429, p95 480 ms
+control, then two more with the text comparator once the harness could log its
+per-call trace. 109 System-One judgements, one soft failure, no 429, p95 480 ms
 against a 2 s deadline, $0.0026 of judging. The engine swap is invisible to
 the rest of the mind — and so, it turns out, is the calibrated confidence,
 because at these bidder weights the verdict never moved a single bid.**
@@ -563,12 +564,12 @@ is no reader labelling this run, so calibration cannot be re-measured live;
 what can be said is that the model is no less sure of itself in the wild than
 it was on the ledger, which is the failure mode that would have shown.
 
-**The control arm has no such table.** `m-judge` logged the provenance line
-only on the decision path when these runs were made; that is now fixed (both
+**The control arm had no such table.** `m-judge` logged the provenance line
+only on the decision path when these runs were made; that was fixed (both
 engines write it), but the fix came after the LLM arm had finished, so the
 text judge's per-call latency and self-reported confidence were not captured
-here. Only its ledger verdicts are comparable. That is the one thing a repeat
-of the control arm would add.
+there. Only its ledger verdicts were comparable. The repeat below was run for
+exactly that row.
 
 #### Where the two engines can be checked against something
 
@@ -645,6 +646,63 @@ bidder, `mismatchWeight` has to exceed the evidence's own `changeMagnitude`,
 which here means above 0.6–0.8. That is a lab decision about weights, and it
 should be made deliberately rather than discovered again.
 
+#### The control arm, repeated — the row that was missing
+
+`bin/run-judge.sh llm 7200` again, **19:36:59 → 21:37:01 UTC** the same day, on the
+now-fixed provenance line, into `memory/lemma-lab-judge-llm-20260918t193658z`. Same
+architecture, same profile (`local-voice`), same 8 s deadline, same local voice,
+clean SIGINT. The box was quiet this time — no other lab minds — where the first
+three arms shared the local server.
+
+| | jev (15:22) | llm-1 (17:23) | **llm-2, the repeat (19:37)** |
+|---|---|---|---|
+| judge | `jev-1.13.0` | `gpu-local` | `gpu-local` |
+| judgements | 109 (54.5/h) | not logged | **113 (56.5/h)** |
+| verdicts (m/mm/ins) | 89 / 7 / 13 | 96 / 12 / 7 | **78 / 8 / 27** |
+| soft failures | 1 (ours) | — | **0** |
+| latency p50 / p95 / p99 / max | 311 / 480 / 845 / 978 ms | — | **1346 / 1941 / 2316 / 3497 ms** |
+| confidence <0.5 / 0.5–0.9 / >0.9 | 16 / 32 / 61 | — | **0 / 2 / 111** (mean 0.994) |
+| cost | $0.002577 | free | free |
+
+Three things this buys that the first pair could not say.
+
+**The latency gap is 4×, and it is the deadline.** The text judge's p50 of 1346 ms
+is 4.3× the decision model's 311 ms, its p95 of 1941 ms is 4.0× the 480 ms, and its
+p99 of 2316 ms is *past the 2 s deadline the jev arm ran under*. The 8 s deadline was
+not conservatism; the text judge needs it. This also confirms the offline ~1.3 s/call
+figure (§2.6) holds inside a live mind.
+
+**The self-reported confidence is uninformative live, exactly as it was offline.**
+111 of 113 answers are above 0.9 and the mean is 0.994 — against the offline
+112-of-123 — while the decision model spreads 16 / 32 / 61 across the same bands in
+the same role. A decoded number does not separate a judge's good answers from its
+bad ones in the wild any more than it did on the ledger. That is the calibration
+contrast of §2.7, reproduced live, on a run with no reader.
+
+**The failed-evidence check gets a real sample size, and the text judge is perfect
+on it.** This arm is terminal-dominated (97 terminal / 27 note / 1 recall, against
+the first two arms' 25 and 35 terminal), so the externally-checkable sub-population
+is 25 pairs rather than 8 and 3:
+
+| | failed evidence (traceback or a run that never settles) | clean terminal output |
+|---|---|---|
+| llm-2 | 25 pairs → **25 `insufficient`, 0 `match`** | 72 pairs → 66 `match`, 6 `mismatch`, **0 `insufficient`** |
+
+Perfect separation in both directions at n = 97. B2's founding error stays dead, and
+the "2 of 31 clean terminals called `insufficient`" wobble of llm-1 does not
+reproduce — at four times the sample, the conservative direction is not there
+either. The verdict distribution difference against the other arms (69% `match`
+against 82–83%) is the hand mix again: `insufficient` is where the failed terminal
+runs are, and this arm ran four times as many terminal reaches.
+
+**And the bid finding reproduces a third time, on a different hand mix.** Salience
+was again exactly one value per hand — `note` 0.6 (n=15), `terminal` 0.7 (n=97),
+`recall` 0.8 (n=1) — identical across all three verdicts. A run dominated by
+terminal reaches rather than notes bids the same way: the floors never bound,
+whatever the mind happens to be doing. M1–M7 are in family with the other arms
+(fill 0.904, settle 1.000, 62.5 acts/h, attended 0.888; the mean outcome latency of
+2486 ms is the terminal mix, not the judge).
+
 #### Cost
 
 $0.002577 of System-One judging over two hours, on top of the run's other
@@ -666,9 +724,14 @@ to grade.
 - The privacy line is the real cost. Every one of those 109 states was the
   mind's own expectation and its own perception, and under `local-voice-jev`
   they left the box. The control arm did the same work for free, on the box,
-  and its verdicts were not obviously worse.
+  and its verdicts were not obviously worse — the repeat's 25-for-25 on failed
+  evidence is the cleanest verdict table in this section.
+- What the repeat does show the decision model winning on is **latency** (4×)
+  and **an honest confidence** (bands 16/32/61 against 0/2/111). Neither has yet
+  been wired to anything that reads it — see the residency call in
+  [jev-decisions](jev-decisions.md).
 - The bidder finding above: buy calibration for a threshold, not for a floor.
 
 Harness: `bin/run-judge.sh jev|llm`, scored by `analysis/summarize.mjs` and
-`analysis/judge-live.mjs`. Both homes keep `run.log` beside
+`analysis/judge-live.mjs`. All three homes keep `run.log` beside
 `predictions/ledger.jsonl`.

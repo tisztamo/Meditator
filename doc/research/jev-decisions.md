@@ -1,6 +1,7 @@
 # A model that decides — what a System-One primitive buys a mind
 
-**Status: four measurements, one day, 2026-09-18.** This is Phase 6 of
+**Status: four measurements in one day, 2026-09-18, plus a control repeat that
+evening (§2.2a).** This is Phase 6 of
 [the Jev plan](../plans/jev-system-one-integration.md): the report and the
 residency call. Everything below was run on `jev-1.13.0` (the version the
 endpoint pinned `jev-latest` to in every call of every run) through
@@ -110,7 +111,7 @@ on either engine, so this is two arms, not a comparison against a baseline.
 | | jev arm | llm arm (control) |
 |---|---|---|
 | judge | `jev-1.13.0`, `compareDeadline` 2 s | `gpu-local` (ardincoder-1), 8 s |
-| judgements | 109 (54.5/h) | — (provenance not logged; see below) |
+| judgements | 109 (54.5/h) | — (provenance not logged; see §2.2a) |
 | verdicts (m/mm/ins) | 89 / 7 / 13 | 96 / 12 / 7 |
 | soft failures | **1** (ours: an aborted compare) | — |
 | 429 / 529 | **0** | — |
@@ -146,7 +147,35 @@ Two caveats on this pair of runs: the arms are not cost-comparable (different
 hand and thought mixes), and the LLM arm's per-call latency and self-reported
 confidence were **not captured**, because `m-judge` logged its provenance line
 only on the decision path when the runs were made. That is fixed (both engines
-write it); the repeat below closes the row.
+write it), and the repeat below closes the row.
+
+#### 2.2a The control arm, repeated (19:37–21:37 UTC, same day)
+
+A third two-hour arm, `local-voice` again on the fixed provenance line and a quiet
+box, purely to fill the missing row —
+[expect-study §2.8](expect-study.md#the-control-arm-repeated--the-row-that-was-missing).
+113 judgements, 0 soft failures, 78 / 8 / 27 verdicts.
+
+| | jev | **llm repeat** |
+|---|---|---|
+| latency p50 / p95 / p99 | 311 / 480 / 845 ms | **1346 / 1941 / 2316 ms** |
+| confidence <0.5 / 0.5–0.9 / >0.9 | 16 / 32 / 61 | **0 / 2 / 111** (mean 0.994) |
+| failed evidence → `insufficient` | 8 of 8 | **25 of 25** |
+| clean terminal → `insufficient` | 0 of 17 | **0 of 72** |
+| salience per hand | note 0.6 / term 0.7 / recall 0.8 | **identical**, across all three verdicts |
+
+It sharpens the comparison in both directions and changes the residency call in
+neither. **For the decision model:** the latency gap is 4× and real, its p99 of
+845 ms sits inside a 2 s deadline the text judge's 2316 ms p99 would breach, and the
+calibration contrast of §2.7 reproduces live on a run with no reader — the text
+judge answers above 0.9 confidence on 111 of 113 and cannot tell its good answers
+from its bad ones. **Against it:** this arm is the cleanest verdict table in the
+whole study. Terminal-dominated, so the externally checkable sub-population is 25
+pairs rather than 8, and the local text judge separates them perfectly in both
+directions — 25 of 25 failed runs called `insufficient`, 0 of 72 clean ones. The
+free, on-box control is not worse. And the bidder finding reproduces a **third**
+time on a hand mix inverted from the first two arms: one salience per hand,
+identical across verdicts, floors never binding.
 
 ### 2.3 Tier-1 search (Phase 4) — [prediction-mismatch, "First edge-grounded search"](../improvements/prediction-mismatch.md#first-edge-grounded-search-tier-1-live)
 
@@ -273,7 +302,7 @@ compatibility note — and never a component default.
 
 | role | residency | why |
 |---|---|---|
-| **judge** (`m-judge`) | **Opt-in only**, under `local-voice-jev`; not in `local-voice`, not in `local-dev`, and not a default anywhere. Keep the text judge in the same role behind the profile switch. | It works (0.94, 300 ms, one soft failure in 109, that one ours) and the calibration is real. But the local control scored the same offline and behaved comparably live, for free and on the box, and at current bidder weights the calibration changed nothing. Choose it when you want a versioned, sub-second, calibrated verdict and have decided the disclosure is acceptable for that run. |
+| **judge** (`m-judge`) | **Opt-in only**, under `local-voice-jev`; not in `local-voice`, not in `local-dev`, and not a default anywhere. Keep the text judge in the same role behind the profile switch. | It works (0.94, 300 ms, one soft failure in 109, that one ours) and the calibration is real. But the local control scored the same offline and behaved comparably live, for free and on the box, and at current bidder weights the calibration changed nothing. The repeat (§2.2a) sharpens both sides without moving the call: 4× the latency and a useless self-reported confidence on the control, against the control's perfect 25-of-25 on failed evidence. Choose Jev when you want a versioned, sub-second, calibrated verdict and have decided the disclosure is acceptable for that run. |
 | **tier-1 search decider** (`m-sense`/`m-feed` `decider=`) | **Per source, in the architecture** — the only place in the design where naming a decision model is *required* rather than optional, because a tier-1 source with no decider is refused at registration. | It is the only way we have to search behind a closed aperture without materializing text into the region. The disclosure is the *source's* candidates plus the template, which is why `decider` is declared per source next to `tier`: a public feed and an interoceptive channel are not the same decision. Never declare one on a source whose candidates are the mind's own state. |
 | **loop sense** (`m-loop-detector`) | **No — not by default and not under `local-voice`.** Available on any profile that names a decision preset, with the privacy note. | The state is the mind's **verbatim inner monologue**; sending it off-box undoes the reason `local-voice` exists. And the measurement does not pay for it: V3 sits below V2 (34.4% vs 35.5% SAS-1, 0.245 vs 0.257 DCM) because the engine cannot hand the breaker any vocabulary. Reasonable to choose on a cloud profile where the monologue already leaves the box, for the 4× latency win and the confidence — but only once something reads the confidence. |
 | **m-interrupts urgency** (plan §5, later) | **No.** Keep it model-free. | Phase 4 did not show that salience needs semantics. The plan's own condition for revisiting has not been met. |
