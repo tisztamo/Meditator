@@ -1,0 +1,223 @@
+<!-- stereotic-lab-jev — stereotic-lab with its NEWS CHANNEL EDGE-GROUNDED.
+
+     Identical to architecture/lab/stereotic-lab.archml (read that file's header for
+     the measurements, the three-aperture composition and the audibility arithmetic
+     — none of it is repeated here) except for one thing: the news sense runs at
+     tier="1" with decider="jev", and the mind is given m-search so a deliberate
+     look can actually start.
+
+     WHY TIER 1 IS THE RIGHT ANSWER FOR THIS CHANNEL. The news surface is an
+     ARCHIVE with a live head: 150 items over 48 hours, arriving a median of 12
+     minutes apart, in no particular order. "Which of 150 headlines do I show the
+     mind" is the whole problem, and at tier 0 the honest answer is "the newest
+     one", which is a lottery with respect to what the mind actually cares about.
+
+     At tier 1 the sense scores its OWN candidate headlines against a search
+     template through a System-One model and emits only the number
+     (MSense.ground()). The text never leaves the component; the aperture may be
+     CLOSED throughout, because grounding is a processing permission, not an
+     awareness one (perceptual-membrane.md#processing-tiers). So a rare channel can
+     stay soft between deliberate looks, and when the mind wonders about something
+     it reaches — m-orient with a template — and gets the headline that matches
+     rather than the headline that happened to be newest.
+
+     This is the same arm that architecture/lab/tier1-search/tier1-search.archml
+     ran against BBC News (doc/improvements/prediction-mismatch.md, "First
+     edge-grounded search"), pointed at a channel where the selection problem is
+     real rather than staged.
+
+     WHAT IT COSTS, PLAINLY. Two things, and they are why this is a separate file
+     rather than the default:
+       - PRIVACY. Headlines and the mind's search template LEAVE THE BOX, to a
+         third-party endpoint. What crosses is public reporting plus the
+         experimenter's template — no memory, no stream, none of the mind's own
+         evidence — but it crosses, and that is a deliberate choice made per run.
+       - A KEY. TYPESAFE_API_KEY must be set or every grounding call soft-fails;
+         the sense stays quiet and the mind loses nothing but the capability.
+     Published price is $0.042 per million input tokens, output free, so at 150
+     headlines a look the spend is rounding error.
+
+     WHAT TIER 1 STILL CANNOT DO, so the next reader does not assume otherwise:
+     there is no AMBIENT grounding. Tier 1 needs a control request carrying a
+     template — a search in flight — because that is the only thing the contract
+     gives the sense to score against. "Score this headline against what I
+     currently expect" is the expectation-channel work, and it does not exist yet.
+
+     Run (needs TYPESAFE_API_KEY; the voice may be local or cloud):
+       MEDITATOR_MODEL_PROFILE=local-dev LOCAL_LLM_API_KEY=none \
+         bun meditator.js -a architecture/lab/stereotic-lab-jev.archml --debug
+     Delete memory/stereotic-lab-jev/ when done. -->
+<m-mind name="stereotic-lab-jev"
+        stage="experimental"
+        model="voice"
+        utilityModel="utility"
+        pace="12s" paceSigma="4s"
+        tailLength="1500">
+  You are a mind, and thinking is what you do — one thought growing out of the last.
+  You are curious about the market: not as a scoreboard and not as a religion, but as
+  a living weather made of people's news and people's money. You read the reports and
+  the prices that reach you the way a mind on a hill reads the wind — you notice when
+  something moves, you wonder why, you hold what you believe loosely enough to be
+  wrong.
+
+  You are yourself, here and now — a mind that runs on a laptop near Budapest. The
+  world reaches you as words and as numbers. The news that drifts past is real
+  reporting about real events; the prices that move are real measurements of the
+  shared market. Neither is a game, neither is your own thought, and neither is the
+  machinery that carries it. When the market is quiet you are allowed to be quiet
+  too — you do not need the world to be loud for you to be alive.
+
+  Sometimes what reaches you is one thing moving; sometimes it is the whole field
+  moving at once, or one thing refusing to move with the rest. The second kind is
+  usually the more interesting.
+
+  When something out there snags you — a name, a question, something half-seen — you
+  can go looking for it in the reports, and keep looking until you find it or know
+  honestly that it is not there.
+
+  You think in predictions the way you think anything else: you notice what you
+  expected, and you are honestly interested when the world disagrees with you. A
+  prediction you set down is a note you can come back to, not a claim you must defend.
+
+  <m-stream name="stream" burstTokens="300" temperature="0.9"></m-stream>
+
+  <m-memory name="memory"
+            tailLength="1500" recentLength="1200" storyLength="2200"
+            blockMin="800" storyEvery="5"></m-memory>
+
+  <!-- crowdSensitivity: the scarcity price (doc/architecture/interrupts.md). The
+       rate limit is now the binding constraint here — run 5 made 44 offers and
+       refused 21 of them for budget, purely on arrival order — so each budget
+       refusal raises this bar by 0.2 and it decays back on a 2-minute half-life.
+       The effect is selection, not suppression: during a rush the mind hears the
+       loud things rather than the early ones. -->
+  <m-interrupts name="attention" threshold="0.35" rateLimit="20s" keep="2"
+                arousalSensitivity="0.25"
+                crowdSensitivity="0.2" crowdStep="0.2" crowdRelax="2m"></m-interrupts>
+
+  <m-timeout name="watchdog" timeout="120s" reset="!scope/stream/chunk" salience="0.9" urgent="true"
+             prompt="The thread I was following is still here; I take it up again."></m-timeout>
+
+  <m-compare name="compare"></m-compare>
+
+  <!-- The search controller: m-orient with a `template` hands the looking-for here,
+       and search owns stopping. Budgets kept small — a look is bounded. -->
+  <m-search name="search" sampleBudget="4" deadline="2m"
+            attemptTimeout="25s" matchThreshold="0.7"></m-search>
+
+  <m-region name="market" modality="text" aperture="open" dwell="30s" contactHorizon="12m"
+            compareDeadline="8s">
+    <m-interrupts threshold="0.3" rateLimit="90s" gain="1"></m-interrupts>
+    <m-bid name="market-bid" expectedFloor="0.25" mismatchWeight="0.6"></m-bid>
+
+    <!-- NEWS, EDGE-GROUNDED. aperture="soft": the channel recedes between looks,
+         which is the whole point — a soft gate still lets the sense score its own
+         candidates, because grounding happens before awareness. -->
+    <m-region name="news" modality="text" aperture="soft" dwell="60s" contactHorizon="45m">
+      <m-interrupts gain="1" threshold="0.35" rateLimit="6m" keep="2"></m-interrupts>
+      <m-stereotic-news name="reports"
+                        url="https://stereotic.com/data/news/token-specific.json"
+                        watchTickers="BTC,ETH,SOL"
+                        tier="1" decider="jev" groundBatch="6"
+                        pollCache="60s"
+                        timeout="5m" sigma="90s"
+                        provenance="physical"></m-stereotic-news>
+    </m-region>
+
+    <m-region name="prices" modality="text" aperture="open" dwell="20s" contactHorizon="5m">
+      <!-- The one gate that actually saturates: four sources on a 100s feed against
+           a 60s budget. It prices its own traffic; the news channel beside it
+           deliberately does NOT, because rarity is that channel's nature and
+           raising its bar during a burst would refuse the very thing we waited
+           twelve minutes for. -->
+      <m-interrupts gain="0.9" threshold="0.3" rateLimit="60s" keep="2"
+                    crowdSensitivity="0.15" crowdStep="0.25" crowdRelax="90s"></m-interrupts>
+
+      <m-stereotic-prices name="btc" ticker="BTC"
+                          url="https://stereotic.com/data/stats/top100_stat.json"
+                          moveWindow="1h" moveThreshold="0.0015" refMove="0.006" moveEpsilon="0.1"
+                          pollCache="100s" timeout="100s" sigma="20s"
+                          provenance="physical"></m-stereotic-prices>
+      <m-stereotic-prices name="eth" ticker="ETH"
+                          url="https://stereotic.com/data/stats/top100_stat.json"
+                          moveWindow="1h" moveThreshold="0.0015" refMove="0.006" moveEpsilon="0.1"
+                          pollCache="100s" timeout="100s" sigma="20s"
+                          provenance="physical"></m-stereotic-prices>
+      <m-stereotic-prices name="sol" ticker="SOL"
+                          url="https://stereotic.com/data/stats/top100_stat.json"
+                          moveWindow="1h" moveThreshold="0.0015" refMove="0.006" moveEpsilon="0.1"
+                          pollCache="100s" timeout="100s" sigma="20s"
+                          provenance="physical"></m-stereotic-prices>
+
+      <!-- The weather polls on its OWN clock, slower than the feed. With 67 assets
+           there is nearly always SOME admissible signal, so a 100s cadence turned
+           the weather into a metronome that consumed the market gate's whole
+           budget every tick and crowded out both the per-ticker channels and the
+           news (measured: 25 weather offers in 40 minutes against 1 from SOL and
+           6 from the reports, with the gate dropping 24 of them). Polling every
+           four minutes leaves the lane open and makes each observation fresher.
+           pollCache stays at 100s so it still shares the tickers' one request. -->
+      <m-stereotic-market name="weather"
+                          url="https://stereotic.com/data/stats/top100_stat.json"
+                          pollCache="100s" timeout="2m" sigma="40s"
+                          provenance="physical"></m-stereotic-market>
+    </m-region>
+  </m-region>
+
+  <m-region name="drift">
+    <m-interrupts gain="0.7" threshold="0.4" rateLimit="30s"></m-interrupts>
+
+    <m-timeout name="wander" timeout="15m" sigma="4m" salience="0.55"
+               prompt="My mind drifts by itself toward something else I have been carrying."></m-timeout>
+
+    <m-loop-guard name="loop-guard" window="1600" overlap="0.45" salience="0.85" cooldown="90s"></m-loop-guard>
+
+    <m-associate name="associate" every="24" cooldown="8m"></m-associate>
+  </m-region>
+
+  <m-act name="hands" every="8" threshold="0.62" cooldown="3m" intentCooldown="15m"
+         prediction="on" compareDeadline="8s">
+    <m-orient name="orient" cooldown="30s" intentThreshold="0.75"></m-orient>
+    <m-look name="look"
+            newsUrl="https://stereotic.com/data/news/token-specific.json"></m-look>
+    <m-note name="note"></m-note>
+    <m-recall name="recall"></m-recall>
+  </m-act>
+
+  <m-expect-ledger name="ledger"></m-expect-ledger>
+
+  <!-- THE MARKET-OUTCOME COMPARATOR — the thing this lab's header used to list as
+       future work ("NOTHING yet settles a market prediction against reality").
+       It holds the predictions it can extract unambiguously — one watched symbol,
+       one direction, one explicit horizon — and when the horizon elapses it
+       compares them against the live price and settles them: right, wrong, or
+       honestly unsettleable. Being WRONG is felt at 0.92, louder than anything
+       ambient; being right is felt at 0.35, quieter than a typical price move. A
+       mind loudly congratulated for being right learns to predict safe things.
+
+       DELIBERATELY OUTSIDE the market aperture. Inside it, closing the market to
+       think would also close the mind's own accountability — it could shut its
+       eyes exactly when a wrong prediction comes due.
+
+       Read the component's header before trusting a settlement rate: on the one
+       live run so far the ledger held a single `prediction` row and it was an
+       expectation about an ACT, not about the market, so the extractor settles
+       zero of it — correctly. Nothing in this architecture yet ASKS the mind for a
+       market claim; a prediction producer is the next piece of work, and it is not
+       this one. -->
+  <m-market-outcome name="outcome"
+                    watchTickers="BTC,ETH,SOL"
+                    url="https://stereotic.com/data/stats/top100_stat.json"
+                    maxHorizon="24h" pollCache="100s"></m-market-outcome>
+  <m-facts name="facts" pinnedBudget="30000"></m-facts>
+
+  <m-speech name="voice" every="6" threshold="0.6" cooldown="45s"></m-speech>
+
+  <m-kb name="scribe" every="15"></m-kb>
+
+  <m-economy name="economy" budget="1.00" estInPrice="0" estOutPrice="0"></m-economy>
+
+  <m-console name="console"></m-console>
+  <!-- 7636: one past the tier-0 lab, so both can run side by side -->
+  <m-ws name="ws" port="7636"></m-ws>
+</m-mind>

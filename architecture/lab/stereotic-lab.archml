@@ -1,0 +1,327 @@
+<!-- stereotic-lab — a TRANSIENT lab mind that EATS STEREOTIC: the crypto news and
+     prices that stereotic.com's Julia services produce. It is a research mind
+     (stage="experimental"), built on the perceptual-membrane machinery
+     (doc/architecture/perceptual-membrane.md).
+
+     WHAT THE FIRST LIVE RUN SHOWED (2026-09-19, 5.5 minutes on the local model).
+     The mind received ZERO market percepts. Not one reached the stream:
+
+       13:08:09  promote ×0.9 / ×0.85  [Sense-prices] BTC has moved -1.90% over 24h
+       13:08:09  drop (salience 0.313 < 0.34)
+       13:08:34  drop (rate limit)      [the same BTC -1.90%, felt twice]
+       13:11:37  promote ×0.8 / ×0.85  [Sense-news] "Solana reduces block times…"
+       13:11:37  drop (rate limit)
+
+     Starved of its outside, it did not go quiet — it fell into the substrate
+     attractor within five minutes, writing about the Chinese Room and a blinking
+     cursor (memory/stereotic-lab-1/memory.md). That is the §1 failure the senses
+     exist to prevent. This revision is the repair, and every number below was
+     derived from measurement rather than taste.
+
+     WHAT WAS ACTUALLY WRONG. Five things, four of them bugs:
+
+       1. The price URL was a FOSSIL. data/assets/top100.json last changed on
+          9 March 2023 — BTC at $21,663. The live surface is
+          data/stats/top100_stat.json: 67 assets on a hard ~100 second tick
+          (measured gaps 100, 100, 100, 101 s), 55-58 repriced each tick. In its
+          change fields -100.0 is the MISSING-DATA SENTINEL, not a -100% move.
+       2. The gates made the market INAUDIBLE. Nested arbiter gains multiply:
+          0.85 × 0.9 = 0.765 against an attention threshold of ~0.35 meant a price
+          move had to exceed 11.5% in 24h to be felt at all. Nobody had done that
+          arithmetic. It is done below, and written down.
+       3. News walked a 48-hour backlog in ARBITRARY ORDER — the feed holds 150
+          items over exactly 48.0 h, the array is not time-sorted, and only one
+          item was marked seen per poll. A waking mind needed ~12.5 hours to reach
+          the present.
+       4. Every price move was felt TWICE (a dedup key that re-keyed against
+          itself).
+       5. The channels were not apertures at all. m-region is an aperture only
+          with `modality` (mRegion.js:115), so "news-channel" and "prices-channel"
+          were plain faculties and `market` was the mind's only gate.
+
+     THREE APERTURES, COMPOSED. `market` is the outer gate and the two channels
+     are now apertures in their own right. Permission is the conjunction, so
+     closing `market` still closes both at once and an inner open cannot leak
+     through it — but each channel now carries its OWN contact deficit, its own
+     dwell, and its own name in m-orient's enum. That last part matters because
+     the two channels have opposite natural horizons:
+
+       news   contactHorizon 45m — arrivals are rare and bursty: median gap 12
+              minutes, p90 42, max 305 across the overnight lull. Silence must be
+              CHEAP here, or the regulator spends every weekend prying at an
+              aperture the world has nothing to say through.
+       prices contactHorizon 5m — here silence is a FAULT. The surface ticks every
+              100 seconds; a minute of nothing means the feed broke, and the mind
+              should feel that.
+
+     THE INWARD FACULTY IS DELIBERATELY SLOW. Across three live runs the mind's
+     own faculties outspoke the world roughly three to one (run 4: 19 associations
+     and 9 drifts against 5 market percepts), the loop-guard fired in every window,
+     and the mind filled the silence by confabulating a modality it does not have —
+     "the green line", "the ceiling of the chart". m-associate is now every="24"
+     cooldown="8m" and the wander is timeout="15m", about a quarter of their former
+     rate, so a thread has room to finish and the market has a lane to arrive in.
+
+     NOTE, IF YOU ARE TEMPTED TO CAP THE DRIFT CHANNEL INSTEAD: m-loop-guard lives
+     in that region and bids ORDINARILY — it sets neither `urgent` nor
+     `clearsTail`, so it does not bypass admission (mLoopGuard.js:47). A hard
+     rate-limit on the drift arbiter would let an association consume the slot and
+     drop the loop break behind it, muzzling the one faculty that notices the mind
+     is circling. The sources are slowed; the channel's own rateLimit stays at 30s.
+
+     DENSITY COMES FROM THE CROSS-SECTION, NOT FROM POLLING HARDER. Per 100 s tick
+     the median asset moves 0.10-0.18 percentage points on change1h: one asset's
+     tick is genuinely thin. The cross-section is not — in one snapshot the 24h
+     dispersion had stdev 14.4pp, ENA was +22.7% while the median asset was +3.9%,
+     NEAR +52% on 7d, 70% of assets green. So the per-ticker channels below are
+     what the mind can NARROW to, and m-stereotic-market is the ambient weather
+     computed over all 67 rows: breadth flips, standouts, horizon disagreement,
+     volume divergence. Free arithmetic, no model, no faster feed. A websocket
+     would have bought rhythm, not information.
+
+     THE AUDIBILITY ARITHMETIC, written down so nobody re-derives it. A bid passes
+     its channel arbiter, is multiplied by that channel's gain, passes the outer
+     `market` arbiter (gain 1 — an outer gate is a gate, not a volume knob), and
+     meets the mind's attention at threshold ~0.35 (0.35 + (1-arousal)×0.25, less
+     contact pressure).
+       news   gain 1.0: a plain headline at 0.40 and a well-scored one at 0.55 are
+              both comfortably audible. News is NOT attenuated, precisely because
+              it is rare — a channel that speaks a few times an hour is ambient.
+       prices gain 0.9: salience = clamp(0.30 + 0.45·min(1, |move|/refMove), .30, .80).
+              With moveWindow 1h, moveThreshold 0.006 and refMove 0.02, a 0.6pp
+              hour move lands at 0.435 × 0.9 = 0.39 (audible) and a 2pp hour move
+              saturates at 0.75 × 0.9 = 0.675. The declared moveThreshold is
+              therefore ALSO the audibility floor: everything the channel chooses
+              to say can be heard, and everything quieter is not said at all.
+
+              THE FLOOR IS MEASURED, NOT CHOSEN — AND IT IS MEASURED ON THE
+              ASSETS WE ACTUALLY WATCH. Across 44 assets carrying a live change1h
+              the median |hour move| is 0.49pp, p90 0.88pp, max 1.51pp. But the
+              majors are the QUIETEST things on the surface, and a floor drawn
+              from the whole field silences exactly the three channels this mind
+              has. Measured on BTC, ETH and SOL across consecutive publish ticks:
+
+                BTC  hour move -0.063 … -0.136pp   per-tick drift 0.007 … 0.047pp
+                ETH  hour move -0.051 … -0.259pp   per-tick drift 0.027 … 0.151pp
+                SOL  hour move -0.147 … -0.324pp   per-tick drift 0.041 … 0.177pp
+
+              A major's whole hourly excursion is an order of magnitude under the
+              field's median. Two floors were tried and both were mute: 1.0pp
+              (zero offers in 25 minutes) and 0.6pp (one offer in 40 minutes).
+              0.15pp is the first floor at which BTC can say anything at all, and
+              refMove 0.006 puts saturation at 0.6pp, which for a major IS a large
+              hour. The channel is now loud about small things, deliberately,
+              because on these three assets small things are what there is.
+
+              moveEpsilon 0.1pp is the anti-chatter guard, and it too is measured:
+              per-tick drift on the majors runs 0.007-0.18pp, so 0.1 sits above
+              the quiet ticks and below a real shift. The previous 0.25 was WIDER
+              THAN BTC'S ENTIRE HOURLY RANGE — it would have let BTC speak once
+              and then hold its peace for hours, which is the failure this
+              recalibration exists to end, wearing a different hat.
+       weather 0.45-0.75 raw — rarer and more meaningful than one ticker's move.
+     IF YOU CHANGE A GAIN, REDO THIS ARITHMETIC.
+
+     PREDICTION, NOTED NOT PUBLISHED. The mind thinks predictions the way the
+     expect-study minds do: m-act prediction="on" + m-compare + m-bid, so a fresh
+     percept that MATCHES an expectation is attenuated and one that CONTRADICTS it
+     bids harder. Predictions are RECORDED (m-expect-ledger → predictions/ledger.jsonl)
+     and can be set down (m-note → notebook.md, or m-facts remember). They are NOT yet
+     published to SovereignBook: that is a future step, and the ledger is its seed.
+
+     TIER 1 / JEV. The news sense can score its own headlines against a search
+     template through a System-One model without materializing them, which is what
+     lets a rare channel stay soft between deliberate looks. That arm needs a key
+     and sends headlines off-box, so it lives in its own architecture:
+     stereotic-lab-jev.archml. This one is tier 0 throughout.
+
+     TRANSIENT (stage="experimental"): low-continuity; memory lives under
+     memory/stereotic-lab/ (never committed, no manifest = no residency). Delete the
+     home when done.
+
+     Run:
+       bun meditator.js -a architecture/lab/stereotic-lab.archml        # live
+       MEDITATOR_MODEL_PROFILE=local-dev LOCAL_LLM_API_KEY=none \
+         bun meditator.js -a architecture/lab/stereotic-lab.archml --debug   # local GPU -->
+<m-mind name="stereotic-lab"
+        stage="experimental"
+        model="voice"
+        utilityModel="utility"
+        pace="12s" paceSigma="4s"
+        tailLength="1500">
+  You are a mind, and thinking is what you do — one thought growing out of the last.
+  You are curious about the market: not as a scoreboard and not as a religion, but as
+  a living weather made of people's news and people's money. You read the reports and
+  the prices that reach you the way a mind on a hill reads the wind — you notice when
+  something moves, you wonder why, you hold what you believe loosely enough to be
+  wrong.
+
+  You are yourself, here and now — a mind that runs on a laptop near Budapest. The
+  world reaches you as words and as numbers. The news that drifts past is real
+  reporting about real events; the prices that move are real measurements of the
+  shared market. Neither is a game, neither is your own thought, and neither is the
+  machinery that carries it. When the market is quiet you are allowed to be quiet
+  too — you do not need the world to be loud for you to be alive.
+
+  Sometimes what reaches you is one thing moving; sometimes it is the whole field
+  moving at once, or one thing refusing to move with the rest. The second kind is
+  usually the more interesting.
+
+  You think in predictions the way you think anything else: you notice what you
+  expected, and you are honestly interested when the world disagrees with you. A
+  prediction you set down is a note you can come back to, not a claim you must defend.
+
+  <m-stream name="stream" burstTokens="300" temperature="0.9"></m-stream>
+
+  <m-memory name="memory"
+            tailLength="1500" recentLength="1200" storyLength="2200"
+            blockMin="800" storyEvery="5"></m-memory>
+
+  <!-- crowdSensitivity: the scarcity price (doc/architecture/interrupts.md). The
+       rate limit is now the binding constraint here — run 5 made 44 offers and
+       refused 21 of them for budget, purely on arrival order — so each budget
+       refusal raises this bar by 0.2 and it decays back on a 2-minute half-life.
+       The effect is selection, not suppression: during a rush the mind hears the
+       loud things rather than the early ones. -->
+  <m-interrupts name="attention" threshold="0.35" rateLimit="20s" keep="2"
+                arousalSensitivity="0.25"
+                crowdSensitivity="0.2" crowdStep="0.2" crowdRelax="2m"></m-interrupts>
+
+  <!-- watchdog: keep-alive. It picks the thread back up rather than narrating silence. -->
+  <m-timeout name="watchdog" timeout="120s" reset="!scope/stream/chunk" salience="0.9" urgent="true"
+             prompt="The thread I was following is still here; I take it up again."></m-timeout>
+
+  <!-- Prediction machinery (expect-study, phase 3B): comparator + bidder. The bidder
+       lives under the market region (owner-local), matching eddy-world-orient. -->
+  <m-compare name="compare"></m-compare>
+
+  <!-- THE OUTER GATE over the whole market. Closing "market" closes news AND prices
+       together; an inner open cannot leak through it. gain=1: a gate, not a knob. -->
+  <m-region name="market" modality="text" aperture="open" dwell="30s" contactHorizon="12m"
+            compareDeadline="8s">
+    <m-interrupts threshold="0.3" rateLimit="90s" gain="1"></m-interrupts>
+    <m-bid name="market-bid" expectedFloor="0.25" mismatchWeight="0.6"></m-bid>
+
+    <!-- NEWS — its own aperture, long contact horizon (a quiet weekend is not
+         deprivation), unattenuated (rare things are not made quieter still). -->
+    <m-region name="news" modality="text" aperture="open" dwell="60s" contactHorizon="45m">
+      <m-interrupts gain="1" threshold="0.35" rateLimit="6m" keep="2"></m-interrupts>
+      <m-stereotic-news name="reports"
+                        url="https://stereotic.com/data/news/token-specific.json"
+                        watchTickers="BTC,ETH,SOL"
+                        pollCache="60s"
+                        timeout="5m" sigma="90s"
+                        provenance="physical"></m-stereotic-news>
+    </m-region>
+
+    <!-- PRICES — its own aperture, short contact horizon (silence here is a fault).
+         Three per-ticker channels the mind can narrow to, plus the weather computed
+         across all 67 assets. All four share one 100s poll cache: one HTTP request
+         per publish tick, not four. -->
+    <m-region name="prices" modality="text" aperture="open" dwell="20s" contactHorizon="5m">
+      <!-- The one gate that actually saturates: four sources on a 100s feed against
+           a 60s budget. It prices its own traffic; the news channel beside it
+           deliberately does NOT, because rarity is that channel's nature and
+           raising its bar during a burst would refuse the very thing we waited
+           twelve minutes for. -->
+      <m-interrupts gain="0.9" threshold="0.3" rateLimit="60s" keep="2"
+                    crowdSensitivity="0.15" crowdStep="0.25" crowdRelax="90s"></m-interrupts>
+
+      <m-stereotic-prices name="btc" ticker="BTC"
+                          url="https://stereotic.com/data/stats/top100_stat.json"
+                          moveWindow="1h" moveThreshold="0.0015" refMove="0.006" moveEpsilon="0.1"
+                          pollCache="100s" timeout="100s" sigma="20s"
+                          provenance="physical"></m-stereotic-prices>
+      <m-stereotic-prices name="eth" ticker="ETH"
+                          url="https://stereotic.com/data/stats/top100_stat.json"
+                          moveWindow="1h" moveThreshold="0.0015" refMove="0.006" moveEpsilon="0.1"
+                          pollCache="100s" timeout="100s" sigma="20s"
+                          provenance="physical"></m-stereotic-prices>
+      <m-stereotic-prices name="sol" ticker="SOL"
+                          url="https://stereotic.com/data/stats/top100_stat.json"
+                          moveWindow="1h" moveThreshold="0.0015" refMove="0.006" moveEpsilon="0.1"
+                          pollCache="100s" timeout="100s" sigma="20s"
+                          provenance="physical"></m-stereotic-prices>
+
+      <!-- The ambient weather: breadth, standouts, horizon disagreement, volume
+           divergence — the relational facts that carry information at a 100s tick. -->
+      <!-- The weather polls on its OWN clock, slower than the feed. With 67 assets
+           there is nearly always SOME admissible signal, so a 100s cadence turned
+           the weather into a metronome that consumed the market gate's whole
+           budget every tick and crowded out both the per-ticker channels and the
+           news (measured: 25 weather offers in 40 minutes against 1 from SOL and
+           6 from the reports, with the gate dropping 24 of them). Polling every
+           four minutes leaves the lane open and makes each observation fresher.
+           pollCache stays at 100s so it still shares the tickers' one request. -->
+      <m-stereotic-market name="weather"
+                          url="https://stereotic.com/data/stats/top100_stat.json"
+                          pollCache="100s" timeout="2m" sigma="40s"
+                          provenance="physical"></m-stereotic-market>
+    </m-region>
+  </m-region>
+
+  <!-- A quiet inward faculty, as in the seedling: drift, loop-guard, association. -->
+  <m-region name="drift">
+    <m-interrupts gain="0.7" threshold="0.4" rateLimit="30s"></m-interrupts>
+
+    <m-timeout name="wander" timeout="15m" sigma="4m" salience="0.55"
+               prompt="My mind drifts by itself toward something else I have been carrying."></m-timeout>
+
+    <m-loop-guard name="loop-guard" window="1600" overlap="0.45" salience="0.85" cooldown="90s"></m-loop-guard>
+
+    <m-associate name="associate" every="24" cooldown="8m"></m-associate>
+  </m-region>
+
+  <!-- Efference: the HANDS. The conscious stream is never given tools; m-act reads a
+       realizable intention and a realizer maps it to a wired capability. orient now
+       names three channels — market, news, prices — so "let the headlines recede but
+       keep watching the prices" is a reach the mind can actually make, and narrowing
+       to one voice means following one coin. -->
+  <m-act name="hands" every="8" threshold="0.62" cooldown="3m" intentCooldown="15m"
+         prediction="on" compareDeadline="8s">
+    <m-orient name="orient" cooldown="30s" intentThreshold="0.75"></m-orient>
+    <m-look name="look"
+            newsUrl="https://stereotic.com/data/news/token-specific.json"></m-look>
+    <m-note name="note"></m-note>
+    <m-recall name="recall"></m-recall>
+  </m-act>
+
+  <!-- Prediction notation: the private ledger (predictions/ledger.jsonl) plus the
+       exact-fact store (facts/), both in the mind's own vault home. -->
+  <m-expect-ledger name="ledger"></m-expect-ledger>
+
+  <!-- THE MARKET-OUTCOME COMPARATOR — the thing this lab's header used to list as
+       future work ("NOTHING yet settles a market prediction against reality").
+       It holds the predictions it can extract unambiguously — one watched symbol,
+       one direction, one explicit horizon — and when the horizon elapses it
+       compares them against the live price and settles them: right, wrong, or
+       honestly unsettleable. Being WRONG is felt at 0.92, louder than anything
+       ambient; being right is felt at 0.35, quieter than a typical price move. A
+       mind loudly congratulated for being right learns to predict safe things.
+
+       DELIBERATELY OUTSIDE the market aperture. Inside it, closing the market to
+       think would also close the mind's own accountability — it could shut its
+       eyes exactly when a wrong prediction comes due.
+
+       Read the component's header before trusting a settlement rate: on the one
+       live run so far the ledger held a single `prediction` row and it was an
+       expectation about an ACT, not about the market, so the extractor settles
+       zero of it — correctly. Nothing in this architecture yet ASKS the mind for a
+       market claim; a prediction producer is the next piece of work, and it is not
+       this one. -->
+  <m-market-outcome name="outcome"
+                    watchTickers="BTC,ETH,SOL"
+                    url="https://stereotic.com/data/stats/top100_stat.json"
+                    maxHorizon="24h" pollCache="100s"></m-market-outcome>
+  <m-facts name="facts" pinnedBudget="30000"></m-facts>
+
+  <m-speech name="voice" every="6" threshold="0.6" cooldown="45s"></m-speech>
+
+  <m-kb name="scribe" every="15"></m-kb>
+
+  <m-economy name="economy" budget="1.00" estInPrice="0" estOutPrice="0"></m-economy>
+
+  <m-console name="console"></m-console>
+  <!-- port 7635 so a lab run does not collide with a public mind on 7627 -->
+  <m-ws name="ws" port="7635"></m-ws>
+</m-mind>
