@@ -33,6 +33,11 @@ Because the tail is always carried forward verbatim, the thought survives every 
 
 ## Sites
 
+[Other Bodies](docs/worlds/README.md) — six interactive Three.js sketches of
+possible worlds for embodied minds, from a robot garden to the inside of a
+leviathan. Run `npm run worlds` and open **http://localhost:7610**. All behaviors
+are local animations; no mind or API is connected.
+
 [meditator site](https://tisztamo.github.io/Meditator/) — or open [`docs/index.html`](docs/index.html) locally. The default, engineering-first view: Meditator as a harness for long-running LLM processes. A single self-contained page (no build, no dependencies).
 
 [research site](https://tisztamo.github.io/Meditator/research/) — or open [`docs/research/index.html`](docs/research/index.html) locally. The research-first story: the minds, the covenant, the findings. Its hero window replays an unedited first-session transcript; if a Meditator is running locally, the window connects to `ws://localhost:7627` and becomes the live mind, input box included.

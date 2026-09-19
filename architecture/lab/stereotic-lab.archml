@@ -185,7 +185,7 @@
        loud things rather than the early ones. -->
   <m-interrupts name="attention" threshold="0.35" rateLimit="20s" keep="2"
                 arousalSensitivity="0.25"
-                crowdSensitivity="0.2" crowdStep="0.2" crowdRelax="5m"></m-interrupts>
+                crowdSensitivity="0.2" crowdStep="0.4" crowdRelax="5m"></m-interrupts>
 
   <!-- watchdog: keep-alive. It picks the thread back up rather than narrating silence. -->
   <m-timeout name="watchdog" timeout="120s" reset="!scope/stream/chunk" salience="0.9" urgent="true"
@@ -205,7 +205,7 @@
          prices channel had already judged worth promoting, refused here on
          timing alone. -->
     <m-interrupts threshold="0.3" rateLimit="90s" gain="1"
-                  crowdSensitivity="0.15" crowdStep="0.25" crowdRelax="5m"></m-interrupts>
+                  crowdSensitivity="0.15" crowdStep="0.4" crowdRelax="5m"></m-interrupts>
     <m-bid name="market-bid" expectedFloor="0.25" mismatchWeight="0.6"></m-bid>
 
     <!-- NEWS — its own aperture, long contact horizon (a quiet weekend is not
@@ -241,7 +241,7 @@
            raising its bar during a burst would refuse the very thing we waited
            twelve minutes for. -->
       <m-interrupts gain="0.9" threshold="0.3" rateLimit="60s" keep="2"
-                    crowdSensitivity="0.15" crowdStep="0.25" crowdRelax="5m"></m-interrupts>
+                    crowdSensitivity="0.15" crowdStep="0.4" crowdRelax="5m"></m-interrupts>
 
       <m-stereotic-prices name="btc" ticker="BTC"
                           url="https://stereotic.com/data/stats/top100_stat.json"

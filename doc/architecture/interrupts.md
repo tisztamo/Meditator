@@ -137,6 +137,20 @@ interval between refusals at that gate, not from how long a rush feels.** If
 refusals are bursty, a short half-life is right; if they are a steady drip, the
 price has to remember across the gaps or it never accumulates at all.
 
+The step has a matching rule: **`crowdStep` ≈ 1 / the typical burst length**, so
+that one burst saturates the price rather than nudging it. Measure the bursts
+before choosing. In the run above they were two or three refusals inside ninety
+seconds, several minutes apart — against `crowdStep="0.2"` a whole burst moved the
+bar by four hundredths and nothing was ever refused against it. The two numbers
+answer different questions: the step decides whether a burst matters, the
+half-life decides whether consecutive bursts add up.
+
+Both defaults are deliberately mild, because a gate that prices its traffic too
+eagerly stops being a gate and becomes a mood. If in doubt, leave
+`crowdSensitivity` at `0` and watch the refusal mix in the log first: a gate whose
+refusals are overwhelmingly `rate-limited` rather than `salience` is one that is
+throwing away merit it never looked at, and that is the gate to price.
+
 **Price every gate on the path, or price none of it.** Refusals happen at
 whichever gate runs out of budget first, and that is usually not the one you
 expect. In the same run the busiest refuser was the *middle* gate — an outer

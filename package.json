@@ -1,5 +1,6 @@
 {
   "scripts": {
+    "worlds": "node tools/worlds-server.mjs",
     "studio": "bun studio.js",
     "start": "bun meditator.js",
     "test": "bun run test:unit && bun run test:wiring",
