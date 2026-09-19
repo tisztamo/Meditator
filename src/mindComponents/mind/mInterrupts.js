@@ -56,6 +56,48 @@ const log = logger('mInterrupts.js');
  *     contact regulator. Absent one, the built-in mean is today's numbers for
  *     flat minds. Nested arbiters read the region's retained (folded) pressure.
  *     Topic: contactPressure.
+ *   - crowdSensitivity: threshold INCREASE at full crowding pressure (default 0, off).
+ *     The dual of contactSensitivity: see below. Works at any depth.
+ *   - crowdStep: how much one scarcity refusal adds to the pressure (default 0.25,
+ *     so four in quick succession saturate it).
+ *   - crowdRelax: half-life of that pressure (default "90s"). Decay is lazy —
+ *     computed from elapsed time when the pressure is next read — so a channel
+ *     that goes quiet relaxes on its own with no timer.
+ *     Topic: crowdPressure.
+ *
+ * CROWDING — a local scarcity price, and the dual of contact pressure.
+ *
+ * `rateLimit` is a blind scarcity mechanism: whoever bids FIRST inside the window
+ * wins and everything behind it is refused, however loud. Live runs showed the
+ * cost plainly — a genuine price move was dropped because an ambient observation
+ * had spoken eleven seconds earlier, and a repeating one consumed the budget of a
+ * whole channel for half an hour. The refusal carried no consequence: the gate
+ * learned nothing from having had to make it.
+ *
+ * So each refusal made FOR LACK OF BUDGET (a rate-limit drop, never a salience
+ * drop) raises this arbiter's own bar by `crowdStep`, and the raise decays with a
+ * half-life. The bar is a price: when a channel is busier than it can pass, only
+ * better bids are worth admitting; when it goes quiet, the price falls back to
+ * base by itself. Two things follow, and both are the point:
+ *
+ *   - Selection replaces arrival order. Under load the survivors of a window are
+ *     the LOUD ones rather than the early ones — the blind rate limit starts to
+ *     approximate best-of-window without a queue, a sort, or a second pass.
+ *   - The loop is self-limiting, structurally. Threshold is checked BEFORE the
+ *     rate limit, so as the bar rises, more bids are refused for salience and
+ *     fewer ever reach the budget gate; the pressure stops being fed and decays.
+ *     It cannot run away, and it needs no cap beyond `crowdSensitivity`.
+ *
+ * This is exactly contact pressure with the sign reversed, and the pair completes
+ * one axis rather than adding a knob: contact pressure says THE WORLD IS NOT
+ * REACHING ME and lowers the bar; crowding says MORE IS REACHING ME THAN I CAN
+ * PASS and raises it. A gate that is both starved and crowded is not a state that
+ * exists — the two terms describe the same scarcity from opposite ends, and they
+ * are summed, so whichever is real dominates.
+ *
+ * `urgent` and `clearsTail` bypass admission entirely, so crowding can never
+ * muzzle a human voice or a confirmed loop break — the faculties that must be
+ * heard precisely when the mind is busiest.
  *
  * DOM events:
  *   - listens (on its region or the mind): "interrupt-request"
@@ -73,6 +115,9 @@ export class MInterrupts extends MBaseComponent {
     _lastMuffledAt = 0
     _pressureAt = Date.now()
     contactPressure = 0
+    _crowd = 0
+    _crowdAt = Date.now()
+    crowdPressure = 0
     _aggregator = null
 
     onConnect() {
@@ -159,6 +204,14 @@ export class MInterrupts extends MBaseComponent {
         this._updateContactPressure(now)
         threshold = Math.max(0, threshold - this.contactPressure * Number(this.attr('contactSensitivity') ?? 0.25))
 
+        // The scarcity price. Read (and therefore decayed) on every bid, so a gate
+        // that has gone quiet is already back at base by the time the next one
+        // arrives — no timer, no wake-up, nothing to keep alive.
+        const crowdSensitivity = Number(this.attr('crowdSensitivity') || 0)
+        if (crowdSensitivity > 0) {
+            threshold = Math.min(0.99, threshold + this._crowdPressureAt(now) * crowdSensitivity)
+        }
+
         // `urgent` and `clearsTail` both bypass the threshold + rate-limit gate — they are
         // ADMITTED unconditionally. The difference is downstream: only `urgent` additionally
         // PREEMPTS (fires "interrupt"). A confirmed loop break (`clearsTail`) is important
@@ -173,11 +226,20 @@ export class MInterrupts extends MBaseComponent {
                 // isolated with no felt or recorded cause. The mind is told nothing (it never
                 // perceived the stimulus); only the record gains the reason. Throttled below.
                 if (sensitivity > 0 && bid.salience >= baseThreshold) this._noteMuffled(bid)
-                log.debug(`drop (salience ${bid.salience} < ${threshold.toFixed(2)}): ${bid}`)
-                this._publishDecision(bid, false, `salience ${bid.salience.toFixed(2)} < ${threshold.toFixed(2)}`)
+                // Say WHY the bar was where it was. A bid refused against a raised
+                // bar reads as an ordinary miss in the record otherwise, and the
+                // crowding that caused it is invisible exactly when it matters.
+                const priced = crowdSensitivity > 0 && this._crowd > 0
+                    ? `, crowded +${(this._crowd * crowdSensitivity).toFixed(2)}` : ''
+                log.debug(`drop (salience ${bid.salience} < ${threshold.toFixed(2)}${priced}): ${bid}`)
+                this._publishDecision(bid, false, `salience ${bid.salience.toFixed(2)} < ${threshold.toFixed(2)}${priced}`)
                 return
             }
             if (now - this.lastAcceptedAt < rateLimitMs) {
+                // A refusal for lack of budget, not for lack of merit: this is the
+                // one thing that raises the price. A salience drop must NOT feed it
+                // — that would be the bar raising itself for having been high.
+                if (crowdSensitivity > 0) this._noteCrowding(now)
                 log.debug(`drop (rate limit): ${bid}`)
                 this._publishDecision(bid, false, "rate-limited")
                 return
@@ -292,6 +354,30 @@ export class MInterrupts extends MBaseComponent {
             this.pub('contactPressure', next)
         }
         this._pressureAt = now
+    }
+
+    /**
+     * The crowding pressure, decayed to `now` and remembered there. Lazy: elapsed
+     * time is the only clock, so an arbiter that is never bid at costs nothing and
+     * is nonetheless correct the moment it is read again.
+     */
+    _crowdPressureAt(now) {
+        const halfLife = parseTime(this.attr('crowdRelax') || '90s')
+        const life = Number.isFinite(halfLife) && halfLife > 0 ? halfLife : 90000
+        const elapsed = Math.max(0, now - this._crowdAt)
+        this._crowd = this._clampPressure(this._crowd * Math.pow(0.5, elapsed / life))
+        this._crowdAt = now
+        this.crowdPressure = this._crowd
+        return this._crowd
+    }
+
+    /** One refusal made for lack of budget raises the price by `crowdStep`. */
+    _noteCrowding(now) {
+        const step = Number(this.attr('crowdStep') ?? 0.25)
+        const bump = Number.isFinite(step) && step > 0 ? step : 0.25
+        this._crowd = this._clampPressure(Math.min(1, this._crowdPressureAt(now) + bump))
+        this.crowdPressure = this._crowd
+        this.pub('crowdPressure', this._crowd)
     }
 
     /** Invalid aggregator output must not NaN the threshold (salience < NaN is

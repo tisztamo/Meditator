@@ -73,6 +73,53 @@ What happens next depends on urgency:
   is always urgent — you don't wait your turn, and there is no reply turn; you
   hear the mind think about what you said.
 
+### The threshold is not a constant
+
+`threshold` is the base of a bar that moves. Three terms adjust it, and each one
+is a different thing the gate knows about its own situation:
+
+```
+threshold = base
+          + (1 − arousal) · arousalSensitivity     a tired mind is harder to reach
+          − contactPressure · contactSensitivity   a starved one is easier
+          + crowdPressure · crowdSensitivity       a busy one is harder again
+```
+
+The last two are one axis, not two knobs. **Contact pressure** says *the world is
+not reaching me* and lowers the bar; **crowd pressure** says *more is reaching me
+than I can pass* and raises it. A gate cannot be both starved and crowded, so the
+sum is always dominated by whichever is real.
+
+Crowding exists because `rateLimit` is otherwise blind. It refuses by arrival
+order: the first bid inside the window wins and everything behind it is dropped,
+however loud. In live runs that cost real percepts — a genuine price move refused
+because an ambient observation had spoken eleven seconds earlier — and the gate
+learned nothing from the refusal.
+
+So a refusal made **for lack of budget** (a rate-limit drop, never a salience
+drop) raises that arbiter's own bar by `crowdStep`, and the raise decays with a
+half-life of `crowdRelax`. The bar becomes a price: while a channel is busier than
+it can pass, only better bids are worth admitting; when it quietens, the price
+falls back to base on its own. Decay is computed from elapsed time when the
+pressure is next read, so an idle gate costs nothing and is still correct.
+
+Two properties make it safe to leave on:
+
+- **It selects rather than suppresses.** Under load the survivors of a window are
+  the loud ones rather than the early ones — a blind rate limit starts to
+  approximate best-of-window with no queue and no second pass.
+- **It cannot run away.** Threshold is checked *before* the rate limit, so as the
+  bar rises more bids are refused on merit and fewer ever reach the budget gate;
+  the pressure stops being fed and decays. The feedback is negative by
+  construction.
+
+`urgent` and `clearsTail` bypass admission, so crowding never muzzles a human
+voice or a confirmed loop break — the two things that must be heard precisely when
+the mind is busiest. `crowdSensitivity` defaults to `0`: an existing mind behaves
+exactly as before until it opts in. It works at any depth, so each channel prices
+its own traffic — a saturated price feed raises its own bar without touching the
+news beside it.
+
 ## The observers
 
 Observers are independent processes that watch the stream and bid for attention.
