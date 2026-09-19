@@ -90,6 +90,16 @@ const log = logger('mAct.js');
  *     all hands share the single `cooldown` lane, exactly as before.
  *   - intentCooldown: min time before re-acting on the SAME intent (default "15m")
  *   - minArousal: stand down entirely when arousal falls below this (default 0.15)
+ *   - decideWindow: chars of stream the DECIDE prompt sees (default 1200). A reach
+ *     often assembles over several bursts — with `every=8` and ~300-token bursts,
+ *     ~5-7k chars pass between decides, so the default shows DECIDE only the last
+ *     burst or two and a slowly-formed want is invisible to the gate. Raise it
+ *     (together with the observer `window`, which caps what there is to slice)
+ *     when the run's question depends on noticing such reaches.
+ *   - realizeWindow: chars of memory tail in the REALIZE frame (default 900). The
+ *     tail itself is bounded by the mind's `tailLength`, so values above that add
+ *     nothing; the frame's other grounding (recalled notes, story/recent) is
+ *     unaffected by this attribute.
  *   - model (actorModel): the tool-calling realizer (defaults to ancestor voice model)
  *   - decisionModel: the cheap decide gate (defaults to ancestor utilityModel)
  *   - realizeTokens: max tokens for the realize call (default 2048). Must cover the
@@ -901,6 +911,18 @@ export class MAct extends MObserver {
         return this._capabilities.map(c => `- ${c.name}: ${c.description}`).join("\n")
     }
 
+    /** Chars of stream DECIDE sees (default 1200 — the historical fixed slice). */
+    _decideWindowChars() {
+        const n = Number(this.attr("decideWindow") || 1200)
+        return Number.isFinite(n) && n > 0 ? n : 1200
+    }
+
+    /** Chars of memory tail the REALIZE frame carries (default 900 — historical). */
+    _realizeWindowChars() {
+        const n = Number(this.attr("realizeWindow") || 900)
+        return Number.isFinite(n) && n > 0 ? n : 900
+    }
+
     _decisionPrompt() {
         return `You are the impulse to REACH inside a mind that mostly thinks quietly to itself. Some thoughts are a reaching-toward: a genuine wish to find something out about the real world, to change something in it, or to turn back to something the mind itself set down before and now wants to find again. You decide whether, right now, the mind is reaching toward something one of its hands could actually realize — not merely musing in passing. This is occasional: most idle wondering is not a real reach, so stay quiet unless there is a true, realizable pull. But wanting to recover what it already worked out — to find again a thing it set down earlier, especially when it feels unsure, or like it is going over the same ground it has covered before — IS a real, realizable reach, not idle wondering. And the keeping side of that same arc counts just as much: when the mind has reached a result that finally settles, caught and corrected something it had wrong, or sharpened a conjecture worth holding onto, wanting to set it down so it is not lost as the monologue scrolls on IS a real, realizable reach — not the running commentary of every passing step, but the deliberate keeping of something it would be sorry to lose. And when the mind wants to TRY something concrete rather than only reason it by hand — to run a search, check a family of cases against the actual numbers, count something, generate or transform data, or work out a computation it cannot finish in its head — wanting to actually execute that computation IS a real, realizable reach, not idle musing about what the answer might be.
 
@@ -911,7 +933,7 @@ ${this._handsList()}
 
 Its recent stream of thought:
 <stream>
-…${this.window.slice(-1200)}
+…${this.window.slice(-this._decideWindowChars())}
 </stream>
 
 Reply with ONE of:
@@ -942,7 +964,7 @@ Reply with ONE of:
         // The live end of the stream — "what it was just saying". Prefer memory's tail
         // (verbatim, restored on wake, and carrying perceived events) over this observer's
         // own raw window, falling back to it before memory is up.
-        const recent = ((this._memTail || this.window) || "").slice(-900)
+        const recent = ((this._memTail || this.window) || "").slice(-this._realizeWindowChars())
         if (recent) parts.push(`## What the mind has been thinking\n…${recent}`)
 
         parts.push(`## What it is reaching toward\n${decision.gist}`)

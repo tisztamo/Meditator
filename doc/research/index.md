@@ -69,6 +69,8 @@ Digital Consciousness Model — reconstructed and verified in
   Diagnoses why reopening looks near-immediate (deficit isn't reset by voluntary
   orientation) and quantifies the endogenous-dominance pattern
   [`a-world-to-meet.md`](../architecture/a-world-to-meet.md) predicted.
+  A tuned B5 retry (body-schema discoverability, trigger balance, DECIDE window) is
+  prepared in [`architecture/lab/search-study/`](../../architecture/lab/search-study/README.md).
 
 ## Model-shape studies
 
