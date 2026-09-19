@@ -93,7 +93,7 @@
        loud things rather than the early ones. -->
   <m-interrupts name="attention" threshold="0.35" rateLimit="20s" keep="2"
                 arousalSensitivity="0.25"
-                crowdSensitivity="0.2" crowdStep="0.2" crowdRelax="2m"></m-interrupts>
+                crowdSensitivity="0.2" crowdStep="0.2" crowdRelax="5m"></m-interrupts>
 
   <m-timeout name="watchdog" timeout="120s" reset="!scope/stream/chunk" salience="0.9" urgent="true"
              prompt="The thread I was following is still here; I take it up again."></m-timeout>
@@ -107,14 +107,30 @@
 
   <m-region name="market" modality="text" aperture="open" dwell="30s" contactHorizon="12m"
             compareDeadline="8s">
-    <m-interrupts threshold="0.3" rateLimit="90s" gain="1"></m-interrupts>
+    <!-- Priced too, and it is the gate that most needed it: 90s of budget for the
+         traffic of BOTH channels. A first pass left it blind, and the log showed
+         the cost — `promote ×0.9` followed by `drop (rate limit)` is a bid the
+         prices channel had already judged worth promoting, refused here on
+         timing alone. -->
+    <m-interrupts threshold="0.3" rateLimit="90s" gain="1"
+                  crowdSensitivity="0.15" crowdStep="0.25" crowdRelax="5m"></m-interrupts>
     <m-bid name="market-bid" expectedFloor="0.25" mismatchWeight="0.6"></m-bid>
 
     <!-- NEWS, EDGE-GROUNDED. aperture="soft": the channel recedes between looks,
          which is the whole point — a soft gate still lets the sense score its own
          candidates, because grounding happens before awareness. -->
     <m-region name="news" modality="text" aperture="soft" dwell="60s" contactHorizon="45m">
-      <m-interrupts gain="1" threshold="0.35" rateLimit="6m" keep="2"></m-interrupts>
+      <!-- gain 1.2, and this is a statement about what the mind is for. Crowding
+           selects by LOUDNESS, which quietly punishes the channel that is quiet
+           BY NATURE: a headline at 0.40 loses every rush to the twentieth tick of
+           a price at 0.55, and run 6 showed exactly that — six reports offered,
+           none heard. Rarity is worth gain. A report that arrives a median twelve
+           minutes apart lands at 0.48, a well-scored one at 0.66, and it can hold
+           its own against a busy market without being made louder at the source
+           (which would have lied about how much a headline is worth when the
+           market is calm). Arbiter gain may exceed 1: it is competition, not
+           enclosure. -->
+      <m-interrupts gain="1.2" threshold="0.35" rateLimit="6m" keep="2"></m-interrupts>
       <m-stereotic-news name="reports"
                         url="https://stereotic.com/data/news/token-specific.json"
                         watchTickers="BTC,ETH,SOL"
@@ -131,7 +147,7 @@
            raising its bar during a burst would refuse the very thing we waited
            twelve minutes for. -->
       <m-interrupts gain="0.9" threshold="0.3" rateLimit="60s" keep="2"
-                    crowdSensitivity="0.15" crowdStep="0.25" crowdRelax="90s"></m-interrupts>
+                    crowdSensitivity="0.15" crowdStep="0.25" crowdRelax="5m"></m-interrupts>
 
       <m-stereotic-prices name="btc" ticker="BTC"
                           url="https://stereotic.com/data/stats/top100_stat.json"

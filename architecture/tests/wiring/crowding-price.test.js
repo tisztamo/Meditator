@@ -161,3 +161,31 @@ test("a garbage crowdStep falls back instead of NaN-ing the threshold", async ()
     expect(priced._crowd).toBeLessThanOrEqual(1);
     priced.setAttribute("crowdStep", "0.25");
 });
+
+test("the half-life must outlast the gap between refusals, or nothing accumulates", async () => {
+    // The tuning trap, pinned as a test because a live run fell into it: a leaky
+    // integrator with step s, half-life h and refusals every T settles at
+    // s / (1 - 2^(-T/h)). Refusals 100s apart against a 90s half-life settle at
+    // ~0.46 — a bar raised by seven hundredths, which does nothing. The same
+    // cadence against a 5m half-life saturates.
+    const steady = (stepAttr, relaxAttr, gapMs, rounds) => {
+        priced.setAttribute("crowdStep", String(stepAttr));
+        priced.setAttribute("crowdRelax", relaxAttr);
+        priced._crowd = 0;
+        priced._crowdAt = Date.now();
+        for (let i = 0; i < rounds; i++) {
+            priced._crowdAt -= gapMs;        // a gap of silence, then one refusal
+            priced._noteCrowding(Date.now());
+        }
+        return priced._crowd;
+    };
+
+    const tooFast = steady(0.25, "90s", 100_000, 30);
+    expect(tooFast).toBeLessThan(0.55);      // ~0.46: the mechanism is inert here
+
+    const slowEnough = steady(0.25, "5m", 100_000, 30);
+    expect(slowEnough).toBeGreaterThan(0.95);   // saturated: the price actually bites
+
+    priced.setAttribute("crowdStep", "0.25");
+    priced.setAttribute("crowdRelax", "90s");
+});

@@ -120,6 +120,39 @@ exactly as before until it opts in. It works at any depth, so each channel price
 its own traffic — a saturated price feed raises its own bar without touching the
 news beside it.
 
+**Tuning it: the half-life must outlast the gap between refusals.** This is the
+one number that is easy to get wrong, and getting it wrong makes the mechanism
+silently do nothing. The price is a leaky integrator, so with `crowdStep` *s*,
+half-life *h*, and refusals arriving every *T*, the steady state is
+
+```
+p ≈ s / (1 − 2^(−T/h))
+```
+
+A first live run priced two gates at `crowdStep="0.25"` and `crowdRelax="90s"`
+against refusals roughly 100 s apart. That settles at `p ≈ 0.46` — a bar raised by
+seven hundredths, invisible in the log and in the behaviour. At `crowdRelax="5m"`
+the same refusal cadence saturates instead. **Set the half-life from the observed
+interval between refusals at that gate, not from how long a rush feels.** If
+refusals are bursty, a short half-life is right; if they are a steady drip, the
+price has to remember across the gaps or it never accumulates at all.
+
+**Price every gate on the path, or price none of it.** Refusals happen at
+whichever gate runs out of budget first, and that is usually not the one you
+expect. In the same run the busiest refuser was the *middle* gate — an outer
+region with one budget shared by two channels — which had been left unpriced
+while both of its neighbours were priced. The log shows this directly: a
+`promote ×0.9` immediately followed by `drop (rate limit)` is a bid the inner
+channel judged worth promoting, refused one level up on timing alone.
+
+**Crowding selects by loudness, which is not always what you mean.** A channel
+that is quiet *by nature* — rare, slow, important — loses every rush to a busy
+channel's ordinary traffic, and the more the price bites the more reliably it
+loses. The fix is `gain` on that channel's own arbiter (it may exceed 1:
+arbiter gain is competition, not enclosure), which says *this faculty's bids are
+worth more than their salience alone* without lying at the source about what a
+single one of them is worth when nothing else is competing.
+
 ## The observers
 
 Observers are independent processes that watch the stream and bid for attention.
