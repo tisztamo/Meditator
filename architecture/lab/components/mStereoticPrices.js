@@ -244,10 +244,17 @@ export class MStereoticPrices extends MSense {
         return this._slots.get(symbol)
     }
 
-    /** The world, not the mechanism. */
+    /** The world, not the mechanism. Include price and volume so a search
+     *  template can match against the data, not just the narrative. */
     _line(asset, movePct) {
         const sign = movePct >= 0 ? "+" : ""
-        return `${asset.symbol} has moved ${sign}${movePct.toFixed(2)}% over the past ${this._window} — the market is restless.`
+        const parts = []
+        if (asset.price != null) parts.push(`${asset.symbol} is at $${asset.price.toFixed(2)}`)
+        else parts.push(asset.symbol)
+        parts.push(`moved ${sign}${movePct.toFixed(2)}% over the past ${this._window}`)
+        if (asset.volume24h != null) parts.push(`volume $${(asset.volume24h / 1e6).toFixed(1)}M over 24h`)
+        if (asset.volume1h != null) parts.push(`$${(asset.volume1h / 1e6).toFixed(1)}M in the last hour`)
+        return parts.join(", ") + "."
     }
 }
 

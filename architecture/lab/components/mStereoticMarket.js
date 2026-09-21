@@ -368,6 +368,8 @@ export function marketWeather(assets, opts = {}) {
     const day = column(rows, "change24h")
     let breadth = null
     let breadthState = o.prevBreadth ?? null
+    const dayValues = day.map(r => r.value)
+    const medianDay = dayValues.length ? median(dayValues) : null
     if (day.length >= o.minAssets) {
         breadth = day.filter(r => r.value > 0).length / day.length
         const up = 0.5 + o.breadthBand / 2
@@ -378,7 +380,7 @@ export function marketWeather(assets, opts = {}) {
             breadthState = observed          // first sighting — record it, never fire
         } else if (observed !== breadthState) {
             breadthState = observed
-            signals.push(breadthSignal(observed, breadth, day.length))
+            signals.push(breadthSignal(observed, breadth, day.length, medianDay))
         }
     }
 
@@ -403,7 +405,11 @@ export function marketWeather(assets, opts = {}) {
             if (Math.abs(dev) < o.standoutMinMove) continue
             if (!best || z > best.z) best = reading
         }
-        if (best) signals.push(standoutSignal(best, o.standoutWindow, o.standoutEpsilon))
+        if (best) {
+            // Look up the asset's price from the raw rows so the line can carry it.
+            const priceRow = rows.find(r => r.symbol === best.symbol)
+            signals.push(standoutSignal(best, o.standoutWindow, o.standoutEpsilon, priceRow?.price ?? null))
+        }
 
         // An ENDING. A standout we actually spoke about, now visible again and back
         // inside the field, is its own piece of news — said once (selectOffer forgets
@@ -432,7 +438,7 @@ export function marketWeather(assets, opts = {}) {
         if (h == null || d == null) continue
         if (!opposed(h, d)) continue
         if (Math.abs(h) < o.turn1h || Math.abs(d) < o.turn24h) continue
-        if (!turn || Math.abs(h) > Math.abs(turn.hour)) turn = { symbol: a.symbol, hour: h, day: d }
+        if (!turn || Math.abs(h) > Math.abs(turn.hour)) turn = { symbol: a.symbol, hour: h, day: d, price: a.price ?? null }
     }
     if (turn) signals.push(turnSignal(turn, o.turnEpsilon))
 
@@ -443,7 +449,7 @@ export function marketWeather(assets, opts = {}) {
         const ratio = a.volume1h / (a.volume24h / 24)
         if (!Number.isFinite(ratio) || ratio < o.volumeRatio) continue
         if (a.change1h == null || Math.abs(a.change1h) > o.volumeFlat) continue
-        if (!pressure || ratio > pressure.ratio) pressure = { symbol: a.symbol, ratio, move: a.change1h }
+        if (!pressure || ratio > pressure.ratio) pressure = { symbol: a.symbol, ratio, move: a.change1h, price: a.price ?? null, volume1h: a.volume1h, volume24h: a.volume24h }
     }
     if (pressure) signals.push(pressureSignal(pressure, o.pressureEpsilon))
 
@@ -482,28 +488,30 @@ const pct = n => `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`
 
 // --- the felt lines. World-facing, first person, present tense. -------------
 
-function breadthSignal(state, breadth, count) {
+function breadthSignal(state, breadth, count, medianDay) {
     const green = Math.round(breadth * 100)
     // A flip of the whole field is the loudest thing this sense can feel: the top
     // of the band, and it still cannot preempt (0.75 * 0.9 = 0.675 < 1).
     const salience = band(0.75)
+    const medPart = medianDay != null ? ` The middle of the field is ${pct(medianDay)} on the day.` : ""
     const line = state === "up"
-        ? `Most of what I can see has turned green at once — ${green} out of every hundred are up on the day now. The whole field is lifting, not one thing standing in it.`
-        : `The green has drained out of the field while I watched — only ${green} in a hundred are still up on the day. Everything is leaning the same way, and the way is down.`
+        ? `Most of what I can see has turned green at once — ${green} out of every hundred are up on the day now.${medPart} The whole field is lifting, not one thing standing in it.`
+        : `The green has drained out of the field while I watched — only ${green} in a hundred are still up on the day.${medPart} Everything is leaning the same way, and the way is down.`
     return {
         kind: "breadth", changeKey: `market:breadth:${state}`, salience, line,
         edge: true, value: breadth, epsilon: 0,     // edge-triggered: never value-suppressed
-        detail: { breadth, count },
+        detail: { breadth, count, medianDay },
     }
 }
 
-function standoutSignal(best, window, epsilon) {
+function standoutSignal(best, window, epsilon, price) {
     const horizon = HORIZON_WORDS[window] || window
     // 0.55 at the threshold, climbing with how far out of line it is.
     const salience = band(0.55 + (best.z - 3) * 0.05)
+    const pricePart = price != null ? ` at $${price.toFixed(2)}` : ""
     const line = best.dev > 0
-        ? `${best.symbol} is going somewhere on its own — ${pct(best.value)} ${horizon} while everything around it sits near ${pct(best.med)}. Whatever is happening is happening to it and to nothing else I can see.`
-        : `${best.symbol} is falling out from under the rest — ${pct(best.value)} ${horizon} while the field around it holds near ${pct(best.med)}. It is coming apart alone.`
+        ? `${best.symbol}${pricePart} is going somewhere on its own — ${pct(best.value)} ${horizon} while everything around it sits near ${pct(best.med)}. Whatever is happening is happening to it and to nothing else I can see.`
+        : `${best.symbol}${pricePart} is falling out from under the rest — ${pct(best.value)} ${horizon} while the field around it holds near ${pct(best.med)}. It is coming apart alone.`
     return {
         kind: "standout",
         changeKey: `${STANDOUT_PREFIX}${best.symbol}`,
@@ -514,7 +522,7 @@ function standoutSignal(best, window, epsilon) {
         // the live window without ever being new.
         value: best.value,
         epsilon,
-        detail: { symbol: best.symbol, value: best.value, median: best.med, z: best.z, window },
+        detail: { symbol: best.symbol, value: best.value, median: best.med, z: best.z, window, price },
     }
 }
 
@@ -550,9 +558,10 @@ function fieldTurnSignal(medHour, medDay, epsilon) {
 
 function turnSignal(turn, epsilon) {
     const salience = band(0.5 + Math.min(0.15, Math.abs(turn.hour) / 20))
+    const pricePart = turn.price != null ? ` at $${turn.price.toFixed(2)}` : ""
     const line = turn.hour > 0
-        ? `${turn.symbol} has been sinking all day, ${pct(turn.day)}, and in the last hour it has turned and started climbing, ${pct(turn.hour)}. If that holds it is a bottom; I will find out whether I was right.`
-        : `${turn.symbol} carried the day at ${pct(turn.day)} and has spent the last hour giving it back, ${pct(turn.hour)}. The day says up and the hour says down, and the hour is the newer news.`
+        ? `${turn.symbol}${pricePart} has been sinking all day, ${pct(turn.day)}, and in the last hour it has turned and started climbing, ${pct(turn.hour)}. If that holds it is a bottom; I will find out whether I was right.`
+        : `${turn.symbol}${pricePart} carried the day at ${pct(turn.day)} and has spent the last hour giving it back, ${pct(turn.hour)}. The day says up and the hour says down, and the hour is the newer news.`
     return {
         kind: "turn",
         changeKey: `market:turn:${turn.symbol}`,
@@ -560,14 +569,16 @@ function turnSignal(turn, epsilon) {
         line,
         value: turn.hour,
         epsilon,
-        detail: { symbol: turn.symbol, hour: turn.hour, day: turn.day },
+        detail: { symbol: turn.symbol, hour: turn.hour, day: turn.day, price: turn.price ?? null },
     }
 }
 
 function pressureSignal(p, epsilon) {
     // The quietest of the four: something that has NOT happened yet.
     const salience = band(0.45 + Math.min(0.15, (p.ratio - 2) * 0.03))
-    const line = `${p.symbol} is changing hands far harder than it usually does — something like ${p.ratio.toFixed(1)} times its ordinary hour — and the price has barely moved, ${pct(p.move)}. Something is pressing on it and nothing has given way.`
+    const pricePart = p.price != null ? ` at $${p.price.toFixed(2)}` : ""
+    const volPart = p.volume1h != null ? ` — $${(p.volume1h / 1e6).toFixed(1)}M in the last hour vs $${((p.volume24h ?? 0) / 24 / 1e6).toFixed(1)}M ordinary` : ""
+    const line = `${p.symbol}${pricePart} is changing hands far harder than it usually does — something like ${p.ratio.toFixed(1)} times its ordinary hour${volPart} — and the price has barely moved, ${pct(p.move)}. Something is pressing on it and nothing has given way.`
     return {
         kind: "pressure",
         changeKey: `market:pressure:${p.symbol}`,
@@ -575,7 +586,7 @@ function pressureSignal(p, epsilon) {
         line,
         value: p.ratio,
         epsilon,
-        detail: { symbol: p.symbol, ratio: p.ratio, move: p.move },
+        detail: { symbol: p.symbol, ratio: p.ratio, move: p.move, price: p.price ?? null, volume1h: p.volume1h, volume24h: p.volume24h },
     }
 }
 
