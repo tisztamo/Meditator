@@ -101,9 +101,17 @@
   <m-compare name="compare"></m-compare>
 
   <!-- The search controller: m-orient with a `template` hands the looking-for here,
-       and search owns stopping. Budgets kept small — a look is bounded. -->
-  <m-search name="search" sampleBudget="4" deadline="2m"
-            attemptTimeout="25s" matchThreshold="0.7"></m-search>
+       and search owns stopping.
+
+       Budgets: sampleBudget=8 gives two passes through the four price routes.
+       The first pass may hit a cold poll cache (the prices poll on a 100s tick);
+       the second pass catches the warm cache. attemptTimeout=60s lets the tier-0
+       materialize-then-judge path complete: the source must fetch (up to 100s
+       pollCache), parse, render, and the comparator must judge — 25s was not
+       enough for a cold fetch and both live searches timed out at zero coverage.
+       deadline=4m is the wall-clock ceiling for the whole search. -->
+  <m-search name="search" sampleBudget="8" deadline="4m"
+            attemptTimeout="60s" matchThreshold="0.7"></m-search>
 
   <m-region name="market" modality="text" aperture="open" dwell="30s" contactHorizon="12m"
             compareDeadline="8s">
