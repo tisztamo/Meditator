@@ -5,7 +5,7 @@ import { MBaseComponent } from "./mBaseComponent.js"
 import { InterruptRecord } from '../../infrastructure/interruptRecord.js';
 import { probeBackend, runScript, parseSizeBytes } from '../../infrastructure/sandbox.js';
 import { isDryRun } from "../../modelAccess/llm.js"
-import { mindHome } from '../../infrastructure/memoryVault.js';
+import { mindHome, mindWorkspace } from '../../infrastructure/memoryVault.js';
 import { parseTime } from '../../config/timeParser.js';
 import { logger } from '../../infrastructure/logger.js';
 
@@ -298,7 +298,14 @@ export class MTerminal extends MBaseComponent {
         // is what lets an agent — or a whole TEAM of sub-agents (agent-loop.md §16) — share
         // ONE workspace, so a file written with write_file is directly runnable here. Accept
         // `workspace=` too for back-compat. Absent both, fall back to the agent's own home.
-        const root = this.attr("root") || this.attr("workspace") || mindHome(this, "workspace")
+        const rawRoot = this.attr("root") || this.attr("workspace")
+        // root="mind" points a subagent's terminal at the ENCLOSING MIND's workspace
+        // (memory/<mind>/workspace) — the shared desk the mind's senses write to —
+        // instead of the agent's own home. This is what lets the data analyst read
+        // the raw data the senses already fetched, regardless of the run's name.
+        const effectiveRoot = rawRoot === "mind"
+            ? mindWorkspace(this)
+            : (rawRoot || mindHome(this, "workspace"))
         // WORKSPACE COHERENCE (agent-loop.md §8, §14 open-Q #1). An AGENT shares ONE
         // workspace with its file tools (read/write/edit), so the terminal must run IN
         // that shared root — then a file the agent just wrote with write_file is directly
@@ -309,8 +316,8 @@ export class MTerminal extends MBaseComponent {
         // that nothing else shares, so it keeps a fresh per-wake run-<stamp>/ subdir,
         // out of the way of its versioned memory home.
         this._runDir = this._forAgent
-            ? path.resolve(root)
-            : path.resolve(path.join(root, `run-${new Date().toISOString().replace(/[:.]/g, "-")}`))
+            ? path.resolve(effectiveRoot)
+            : path.resolve(path.join(effectiveRoot, `run-${new Date().toISOString().replace(/[:.]/g, "-")}`))
         await fs.mkdir(path.join(this._runDir, ".runs"), { recursive: true })
         return this._runDir
     }

@@ -2,7 +2,7 @@ import A from "amanita"
 import { MSense } from "../../../src/mindComponents/mind/mSense.js"
 import { logger } from "../../../src/infrastructure/logger.js"
 import { parseTime } from "../../../src/config/timeParser.js"
-import { fetchStereoticText } from "./stereoticFeed.js"
+import { fetchStereoticText, writeStereoticSnapshot } from "./stereoticFeed.js"
 
 const log = logger("mStereoticPrices.js")
 
@@ -195,7 +195,11 @@ export class MStereoticPrices extends MSense {
     async onSense(request) {
         // Shared across every stereotic sense: N per-ticker channels cost one
         // HTTP request per publish tick, not N.
-        const text = await fetchStereoticText(this.url, { ttlMs: this._ttlMs ?? 100000 })
+        const { text, fresh } = await fetchStereoticText(this.url, { ttlMs: this._ttlMs ?? 100000 })
+        // The analyst's desk: persist the raw surface the senses just pulled, so the data
+        // hand can compute over it without re-fetching. Only on a real fetch (fresh), so
+        // the N per-ticker senses sharing one document write once per publish tick.
+        if (fresh) writeStereoticSnapshot(this, text, "top100_stat.json")
         const assets = parseStereoticPrices(text)
         if (!assets.length) return                      // nothing there — stay quiet
 

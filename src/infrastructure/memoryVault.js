@@ -60,6 +60,28 @@ export function mindHome(el, sub) {
     return sub ? path.join(home, sub) : home;
 }
 
+/**
+ * The workspace of the enclosing MIND specifically (not the nearest agent).
+ *
+ * For a tool inside an <m-agent>, mindHome() resolves to the AGENT's own home
+ * (memory/<agent>/workspace) — but a shared desk that the MIND's senses write to
+ * lives under the mind (memory/<mind>/workspace). `root="mind"` on a subagent's
+ * terminal/file tools points them at that mind workspace regardless of the agent's
+ * name or the run's name, so the senses and the analyst share one desk with no
+ * path coupling (agent-loop.md §16 shared-workspace, the stereotic data hand).
+ */
+export function mindWorkspace(el) {
+    const mind = el.closest('m-mind');
+    const slug = slugify(mind?.getAttribute('memory') || mind?.getAttribute('name')) || 'mind';
+    const society = mind?.closest('m-society');
+    const societySlug = society ? (slugify(society.getAttribute('name')) || 'society') : null;
+    const prefix = isDryRun() ? 'dry-' : '';
+    const home = societySlug
+        ? path.join(VAULT_ROOT, prefix + societySlug, slug)
+        : path.join(VAULT_ROOT, prefix + slug);
+    return path.join(home, 'workspace');
+}
+
 /** True if dir lies inside the vault (then commits cover it). */
 export function inVault(dir) {
     const resolved = path.resolve(dir);

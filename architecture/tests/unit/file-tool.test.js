@@ -70,3 +70,24 @@ test("toolRoot resolves a relative root against cwd", () => {
     const el = { attr: name => (name === "root" ? "rel/dir" : null) };
     expect(toolRoot(el)).toBe(path.resolve("rel/dir"));
 });
+
+// ── toolRoot: the root="mind" sentinel points at the enclosing MIND's workspace ──
+
+// A tool inside an <m-agent> would default to the AGENT's home; root="mind" instead
+// resolves to the ENCLOSING MIND's workspace (the shared desk the senses write to),
+// whatever this run is named. The mock exposes closest() the way a real element does.
+function toolElInMind(mindName) {
+    const mind = { getAttribute: n => (n === "name" ? mindName : n === "memory" ? null : null), closest: () => null };
+    return {
+        attr: name => (name === "root" ? "mind" : null),
+        closest: sel => (sel === "m-mind" ? mind : null),
+    };
+}
+
+test("toolRoot root=\"mind\" resolves to the enclosing mind's workspace", () => {
+    expect(toolRoot(toolElInMind("stereotic-lab-jev-3"))).toBe(path.resolve("memory/stereotic-lab-jev-3/workspace"));
+});
+
+test("toolRoot root=\"mind\" tracks the run's name (no hardcoding)", () => {
+    expect(toolRoot(toolElInMind("stereotic-lab-jev"))).toBe(path.resolve("memory/stereotic-lab-jev/workspace"));
+});

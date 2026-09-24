@@ -40,6 +40,13 @@
  * exercise offline. Dependency-free on purpose — it is `fetch` and a Map.
  */
 
+import fs from "node:fs"
+import path from "node:path"
+import { mindHome } from "../../../src/infrastructure/memoryVault.js"
+import { logger } from "../../../src/infrastructure/logger.js"
+
+const log = logger("stereoticFeed.js")
+
 const cache = new Map()   // url -> { at: epoch ms, ttlMs, text } | { at, ttlMs, promise }
 
 /**
@@ -51,7 +58,10 @@ const cache = new Map()   // url -> { at: epoch ms, ttlMs, text } | { at, ttlMs,
  *     measured publish tick)
  *   - timeoutMs: abort an individual request after this long (default 8000)
  *   - agent: user-agent sent to the far end (identifies us honestly)
- * @returns {Promise<string>} the response body
+ * @returns {Promise<{text: string, fresh: boolean}>} the response body, and `fresh`
+ *   — true when the bytes came from a network fetch this call, false when served from
+ *   the in-window cache (so a caller that wants to persist the snapshot writes only on
+ *   a real fetch, not once per sense per tick).
  * @throws on a network error or a non-2xx status; nothing is cached in that case
  */
 export async function fetchStereoticText(url, {
@@ -67,8 +77,11 @@ export async function fetchStereoticText(url, {
     if (entry && now - entry.at < window) {
         // Either the bytes from this tick, or the request that is fetching them
         // right now. Both are the same answer; the second caller just waits.
-        if (entry.promise) return entry.promise
-        if (typeof entry.text === "string") return entry.text
+        if (entry.promise) {
+            const text = await entry.promise
+            return { text, fresh: false }
+        }
+        return { text: entry.text, fresh: false }
     }
 
     const promise = (async () => {
@@ -97,10 +110,39 @@ export async function fetchStereoticText(url, {
     }
     const current = cache.get(url)
     if (current && current.promise === promise) cache.set(url, { at: current.at, ttlMs: window, text })
-    return text
+    return { text, fresh: true }
 }
 
 /** Forget everything. For tests, which must not inherit one test's bytes. */
 export function resetStereoticCache() {
     cache.clear()
+}
+
+/**
+ * Write the raw bytes a sense just fetched into the MIND's shared workspace, so the
+ * data analyst (the `data` subagent hand) can analyse them instead of re-fetching.
+ *
+ * WHY HERE. The senses are the only thing that touches the live feed; the analyst has
+ * no business fetching (its sandbox is network-off) — it computes from what the senses
+ * already pulled. `mindHome(this, "workspace")` from a sense is the MIND's workspace
+ * (the senses sit directly in <m-mind>), and the agent's terminal + file tools default
+ * to that SAME directory, so both sides share one desk with no path coupling.
+ *
+ * A pure SIDE CHANNEL: a write failure (disk, permissions) must never break the sense's
+ * percept, so it logs and swallows. Best-effort, synchronous — the bytes are small and
+ * the write is once per publish tick per URL, not per percept.
+ *
+ * @param {object} el  a sense element (resolves the enclosing mind's workspace)
+ * @param {string} text the raw response body just fetched
+ * @param {string} file the snapshot filename (e.g. "top100_stat.json")
+ */
+export function writeStereoticSnapshot(el, text, file) {
+    if (!text) return
+    try {
+        const dir = mindHome(el, "workspace")
+        fs.mkdirSync(dir, { recursive: true })
+        fs.writeFileSync(path.join(dir, file), text)
+    } catch (error) {
+        log.warn(`stereotic snapshot write failed (${file}): ${error?.message || error}`)
+    }
 }

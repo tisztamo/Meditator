@@ -2,7 +2,7 @@ import A from "amanita"
 import { MSense } from "../../../src/mindComponents/mind/mSense.js"
 import { logger } from "../../../src/infrastructure/logger.js"
 import { parseTime } from "../../../src/config/timeParser.js"
-import { fetchStereoticText } from "./stereoticFeed.js"
+import { fetchStereoticText, writeStereoticSnapshot } from "./stereoticFeed.js"
 
 const log = logger("mStereoticNews.js")
 
@@ -229,11 +229,13 @@ export class MStereoticNews extends MSense {
     async _items() {
         const ttl = parseTime(this.attr("pollCache") || "60s")
         const ttlMs = Number.isFinite(ttl) && ttl > 0 ? ttl : 60000
-        const text = await fetchStereoticText(this.url, {
+        const { text, fresh } = await fetchStereoticText(this.url, {
             ttlMs,
             timeoutMs: 8000,
             agent: "Meditator/0 (+stereotic news sense)",
         })
+        // The analyst's desk: persist the raw news surface so the data hand can compute over it.
+        if (fresh) writeStereoticSnapshot(this, text, "token_specific_news.json")
         return sortNewestFirst(parseStereoticNews(text))
     }
 }

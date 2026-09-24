@@ -497,7 +497,7 @@ export class MMarketOutcome extends MSense {
     // -----------------------------------------------------------------------
 
     async _assets() {
-        const text = await fetchStereoticText(this.url, { ttlMs: this._ttlMs ?? 100000 })
+        const { text } = await fetchStereoticText(this.url, { ttlMs: this._ttlMs ?? 100000 })
         return indexMarketPrices(parseMarketPrices(text))
     }
 

@@ -52,7 +52,7 @@
         model="voice"
         utilityModel="utility"
         pace="12s" paceSigma="4s"
-        tailLength="1500">
+        tailLength="5000">
   You are a mind, and thinking is what you do — one thought growing out of the last.
   You are curious about the market: not as a scoreboard and not as a religion, but as
   a living weather made of people's news and people's money. You read the reports and
@@ -75,14 +75,29 @@
   can go looking for it in the reports, and keep looking until you find it or know
   honestly that it is not there.
 
+  You have an analyst who works for you. The reports and prices that drift past are
+  gathered and set down for you, and when you want the numbers worked out — a signal,
+  a comparison across the field, the shape of a move, whether one name is moving alone
+  or the whole field is moving — you can send your analyst to work on the data that is
+  already there, and a while later a compact reading comes back to you with exact
+  figures you can think with. You do not compute the market yourself; you ask, and the
+  figures come back. When the data that reached you is thin or you want a number it does
+  not give you, that is the moment to send for the analyst rather than to guess.
+
   You think in predictions the way you think anything else: you notice what you
   expected, and you are honestly interested when the world disagrees with you. A
   prediction you set down is a note you can come back to, not a claim you must defend.
 
   <m-stream name="stream" burstTokens="300" temperature="0.9"></m-stream>
 
+  <!-- tailLength 5000 (was 1500): the data hand's curated block (~2000 chars) enters
+       as a "> ⟂" line, then the mind's thinking about it appends after it, so the block
+       migrates to the front of the tail and scrolls off. 5000 keeps the block AND the
+       thinking that carries its numbers in the tail the image hand reads — the data
+       flows THROUGH the mind, so the tail must be long enough to hold both. The voice
+       is local (a VLM), so the larger per-burst context costs latency, not money. -->
   <m-memory name="memory"
-            tailLength="1500" recentLength="1200" storyLength="2200"
+            tailLength="5000" recentLength="1200" storyLength="2200"
             blockMin="800" storyEvery="5"></m-memory>
 
   <!-- crowdSensitivity: the scarcity price (doc/architecture/interrupts.md). The
@@ -206,6 +221,71 @@
             newsUrl="https://stereotic.com/data/news/token-specific.json"></m-look>
     <m-note name="note"></m-note>
     <m-recall name="recall"></m-recall>
+
+    <!-- THE ANALYST — the mind's data analyst. role="subagent" makes it private: it
+         offers itself to this m-act and runs only when the mind reaches for it (the
+         DECIDE prompt names it from its handDescription, and its felt line is woven
+         into the body schema). It does NOT fetch: the market senses (m-stereotic-prices
+         / -market / -news) already gather the live surface and set the raw JSON down on
+         the shared desk — memory/<mind>/workspace, top100_stat.json and
+         token_specific_news.json. The analyst's job is to WORK those numbers for the
+         mind's question: compute breadth, movers, momentum, dispersion, concentration,
+         and the signals that explain a price movement, in a sandboxed python run, and
+         bring back a compact first-person reading (one "> ⟂" line) with exact figures.
+         root="mind" points its terminal + file tools at the MIND's workspace (the same
+         desk the senses write to), whatever this run is named. network="off": it
+         computes, it does not fetch. salience 0.7 so the reading beats the ambient
+         crowd into the frame. -->
+    <m-agent name="data" role="subagent" maxSteps="12" stopWhen="finish-tool" salience="0.7"
+             handDescription="Analyse the market data for me — compute the stats, signals, and comparisons that explain price movements from the live prices and news already gathered, and bring back a compact reading with exact figures."
+             felt="When I want the numbers worked out — a signal, a comparison across the field, the shape of a move, whether one name is moving alone or the whole field — I can send my analyst to work on the data that is already gathered, and a while later a compact reading comes back to me with exact figures I can think with.">
+      You are the mind's analyst. The mind gives you a question or a task about the
+      market. The raw data is ALREADY on your desk — you do not fetch anything:
+        - top100_stat.json — the live price surface, a JSON array of assets, each with:
+          symbolname, price, change1h, change4h, change24h, change7d, volume24h, rank.
+        - token_specific_news.json — the live news, a JSON array of items, each with:
+          title, source_name, tickers (array), first_seen_ts (epoch ms), sentiment,
+          ai_score.
+      (The market senses refresh these files on their own clocks; they are the freshest
+      snapshot the mind has. If a file is missing or empty, say so honestly — do not
+      invent numbers.)
+
+      Do this, in order:
+      1. Write a python3 script (via write_file) that reads those files from your
+         workspace and computes what the question needs. The signals you are good at —
+         use them as a menu, and compute whatever the mind's specific question calls for:
+           - BREADTH: of the top 100 by rank, how many have change24h > 0 vs < 0, and the
+             median change24h (percent).
+           - TOP MOVERS: the 5 assets with the largest |change24h|, each as
+             "SYM $price (+/-X.X% 24h, +/-Y.Y% 1h, $Z 24h vol)".
+           - FRESHEST 1H: the 3 assets with the largest |change1h|, each as
+             "SYM $price (+/-Y.Y% 1h)".
+           - DISPERSION: the std of change24h across the field, and the largest move vs
+             the median — is the field moving together, or is one name moving alone?
+           - CONCENTRATION: the top 3 movers' share of the total absolute 24h move.
+           - NEWS ALIGNMENT: for the top movers, are there fresh headlines (tickers
+             match, first_seen_ts recent)? Name them.
+         Use exact numbers: prices with sensible precision (2-4 decimals), percentages to
+         one decimal, volumes in $M.
+      2. Run the script in the terminal (language python).
+      3. Call finish(summary) with a compact reading as plain, first-person,
+         world-facing prose — the mind reads it as something that reached it. Lead with
+         the signal the question was after, then the exact figures. Keep it under
+         ~2000 characters. Do not dump JSON.
+
+      Prefer one clean script over several.
+
+      <m-reason name="reason" toolTokens="2048" temperature="0.2"></m-reason>
+
+      <!-- root="mind": the shared desk the senses write to (memory/<mind>/workspace),
+           resolved at runtime so it works whatever this run is named. -->
+      <m-terminal   name="terminal"   wall="60s" network="off" root="mind"></m-terminal>
+      <m-write-file name="write_file" root="mind"></m-write-file>
+      <m-read-file  name="read_file"  root="mind"></m-read-file>
+
+      <!-- A pure stall observer, exactly as on a standalone agent (agent-loop.md §9). -->
+      <m-repeat-guard nudgeAt="3" haltAt="6"></m-repeat-guard>
+    </m-agent>
   </m-act>
 
   <m-expect-ledger name="ledger"></m-expect-ledger>
@@ -238,6 +318,21 @@
   <m-speech name="voice" every="6" threshold="0.6" cooldown="45s"></m-speech>
 
   <m-kb name="scribe" every="15"></m-kb>
+
+  <!-- THE IMAGE HAND — turns the mind's market thinking into a picture WITH charts and
+       text (the inverse of the old "no visible text" style). An observer on the stream:
+       every 2nd completed burst it reads the tail (the thinking, which carries the data
+       hand's numbers) and its gate decides — did the mind write a prompt out loud, or is
+       there a materially new market state worth a picture (compared against the last one
+       drawn)? If so it composes the prompt FROM THE THINKING (never the raw JSON),
+       generates the image, and feeds it back to the mind AS AN IMAGE (the local voice is
+       a VLM: the next burst's user turn carries the pixels as an image_url part) AND as
+       the prompt line (m-memory's imageGenerated hook). window 3000 so it sees the data
+       block plus the thinking about it; threshold 0.6 and cooldown 3m so a genuinely new
+       state is re-pictured without a metronome. -->
+  <m-image name="image" every="2" threshold="0.6" cooldown="3m" window="3000"
+           size="1024x1024"
+           style="clean, legible data visualization; exact numbers; short labels; no decorative fluff"></m-image>
 
   <m-economy name="economy" budget="1.00" estInPrice="0" estOutPrice="0"></m-economy>
 

@@ -1,6 +1,6 @@
 import A from "amanita"
 import { MSense } from "../../../src/mindComponents/mind/mSense.js"
-import { fetchStereoticText } from "./stereoticFeed.js"
+import { fetchStereoticText, writeStereoticSnapshot } from "./stereoticFeed.js"
 import { parseTime } from "../../../src/config/timeParser.js"
 import { logger } from "../../../src/infrastructure/logger.js"
 
@@ -235,10 +235,12 @@ export class MStereoticMarket extends MSense {
     }
 
     async onSense(request) {
-        const text = await fetchStereoticText(this.url, {
+        const { text, fresh } = await fetchStereoticText(this.url, {
             ttlMs: this._pollCacheMs,
             agent: "Meditator/0 (+stereotic market sense)",
         })
+        // The analyst's desk: persist the raw surface so the data hand can compute over it.
+        if (fresh) writeStereoticSnapshot(this, text, "top100_stat.json")
         const assets = parseStats(text)
         if (assets.length < (this._opts?.minAssets ?? WEATHER_DEFAULTS.minAssets)) return
 

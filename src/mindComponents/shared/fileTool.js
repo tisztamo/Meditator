@@ -6,17 +6,21 @@
 // than being copy-pasted (and drifting) across three files.
 
 import path from "node:path"
-import { mindHome } from "../../infrastructure/memoryVault.js"
+import { mindHome, mindWorkspace } from "../../infrastructure/memoryVault.js"
 
 /**
  * The workspace ROOT a file tool operates within. An explicit `root="…"` attribute lets
- * an author point a tool at a project directory; otherwise it defaults to the entity's
- * own workspace home under the vault (memory/<agent>/workspace) — the safe, contained
- * default, and the SAME root m-terminal uses, so the file tools and the terminal see one
- * shared desk. Resolved once, at connect.
+ * an author point a tool at a project directory; `root="mind"` points a subagent's tool
+ * at the ENCLOSING MIND's workspace (memory/<mind>/workspace) — the shared desk the
+ * mind's senses write to — whatever this run is named; otherwise it defaults to the
+ * entity's own workspace home under the vault (memory/<agent>/workspace) — the safe,
+ * contained default, and the SAME root m-terminal uses, so the file tools and the
+ * terminal see one shared desk. Resolved once, at connect.
  */
 export function toolRoot(el) {
-    return path.resolve(el.attr("root") || mindHome(el, "workspace"))
+    const raw = el.attr("root")
+    if (raw === "mind") return path.resolve(mindWorkspace(el))
+    return path.resolve(raw || mindHome(el, "workspace"))
 }
 
 /**
