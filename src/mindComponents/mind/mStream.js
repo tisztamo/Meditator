@@ -58,6 +58,44 @@ export function trimSeamOverlap(prev, next) {
     return cueStripped ? stripped : next
 }
 
+/**
+ * Builds the chat messages for one burst. Pure, so the image-percept path can be
+ * tested without a stream. A pending image (image.dataUrl) rides the user turn as
+ * an image_url content part — the mind SAW this; it is what it just generated. The
+ * local voice is a VLM, so the pixels are perceivable; with a non-VLM voice the
+ * provider drops or errors the part, and the prompt line in the tail is the
+ * fallback. Thinking mode folds the prefill into the user turn (the reasoning
+ * channel only fires on a fresh assistant turn), so the image joins that same
+ * user turn.
+ */
+export function buildBurstMessages({ system, userTurn, prefill, thinking, image }) {
+    const messages = []
+    if (system) messages.push({ role: 'system', content: system })
+    const imageDataUrl = image?.dataUrl
+    if (prefill && thinking) {
+        const text = `${userTurn}\n\nThe monologue so far:\n"…${prefill}"`
+        messages.push(imageDataUrl
+            ? { role: 'user', content: [
+                { type: 'text', text },
+                { type: 'image_url', image_url: { url: imageDataUrl } },
+            ] }
+            : { role: 'user', content: text })
+    } else {
+        if (userTurn) {
+            if (imageDataUrl) {
+                messages.push({ role: 'user', content: [
+                    { type: 'text', text: userTurn },
+                    { type: 'image_url', image_url: { url: imageDataUrl } },
+                ] })
+            } else {
+                messages.push({ role: 'user', content: userTurn })
+            }
+        }
+        if (prefill) messages.push({ role: 'assistant', content: prefill })
+    }
+    return messages
+}
+
 export class MStream extends MBaseComponent {
     chunkHistory = []
     streamState = "idle"
@@ -81,7 +119,7 @@ export class MStream extends MBaseComponent {
     }
 
     async _startBurst(payload, generation) {
-        const { system, instruction, prefill, frame, prefix, dedupe, burstTokens } =
+        const { system, instruction, prefill, frame, prefix, dedupe, burstTokens, image } =
             typeof payload === 'string' ? { frame: payload } : payload
 
         this.burstIndex += 1
@@ -107,14 +145,7 @@ export class MStream extends MBaseComponent {
         const thinking = voiceModel?.thinking === true
         const continueFinal = Boolean(prefill) && !thinking
 
-        const messages = []
-        if (system) messages.push({ role: 'system', content: system })
-        if (prefill && thinking) {
-            messages.push({ role: 'user', content: `${userTurn}\n\nThe monologue so far:\n"…${prefill}"` })
-        } else {
-            if (userTurn) messages.push({ role: 'user', content: userTurn })
-            if (prefill) messages.push({ role: 'assistant', content: prefill })
-        }
+        const messages = buildBurstMessages({ system, userTurn, prefill, thinking, image })
 
         // Injected prefix (landing opener, optional bridge, …) physically enters the stream:
         // it becomes part of the monologue, the tail, the memory, the journal.

@@ -190,6 +190,7 @@ export class MMind extends MBaseComponent {
     _memTail = ""            // mirrors of memory's content, fed by its topics (not pulled)
     _memRecent = ""
     _memStory = ""
+    _pendingImage = null     // a generated image's pixels, held one-shot for the next burst (VLM voice)
     _factsPinned = ""        // pinned verbatim facts, mirrored from m-facts
     _hasFacts = false
     _factsReady = false
@@ -214,6 +215,19 @@ export class MMind extends MBaseComponent {
         const tailSrc = this.attr('tailSrc') || '!scope/memory/tail'
         const compressedSrc = this.attr('compressedSrc') || '!scope/memory/compressed'
         if (tailSrc !== 'off') this.sub(tailSrc, t => { this._memTail = t || "" })
+
+        // The image the mind generated (m-image's "generated" topic): hold its pixels
+        // as a one-shot percept so the NEXT burst's user turn can carry them as an
+        // image_url part — the mind sees the picture it drew, then thinks about it in
+        // words (which ride the tail). Off by default? No: on by default when a VLM
+        // voice is bound; a non-VLM voice simply cannot render the part, so the prompt
+        // line in the tail is the fallback. Set imagePerceptSrc="off" to disable.
+        const imagePerceptSrc = this.attr('imagePerceptSrc')
+        if (imagePerceptSrc !== 'off') {
+            this.sub(imagePerceptSrc || '!scope/image/generated', img => {
+                if (img && img.dataUrl) this._pendingImage = img
+            }).catch(() => {})
+        }
         if (compressedSrc !== 'off') {
             this.sub(compressedSrc, c => { if (c) { this._memRecent = c.recent || ""; this._memStory = c.story || "" } })
         }
@@ -697,7 +711,12 @@ export class MMind extends MBaseComponent {
             prefix,
             dedupe: thoughtInProgress.slice(-100),
             kind: stimuli.length ? "redirect" : "continue",
+            image: this._pendingImage,
         }
+        // The image percept is one-shot: it rides exactly this burst's user turn, then
+        // is dropped so the pixels do not ride every burst. The mind's WORDS about the
+        // picture (in the tail) are what carry forward, not the pixels.
+        this._pendingImage = null
         // While the voice is speaking, thin the thinking burst so most of the
         // verbal effort goes to the utterance (m-stream honors payload.burstTokens).
         if (this._speaking) {
