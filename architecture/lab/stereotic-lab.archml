@@ -280,8 +280,14 @@
   <m-region name="drift">
     <m-interrupts gain="0.7" threshold="0.4" rateLimit="30s"></m-interrupts>
 
-    <m-timeout name="wander" timeout="15m" sigma="4m" salience="0.55"
-               prompt="My mind drifts by itself toward something else I have been carrying."></m-timeout>
+    <!-- The spontaneous change-of-direction, rewritten to OFFER a destination (m-drift):
+         when it fires it picks a thread to turn toward — arm A, a set-down thread FAR from
+         the current thought; arm B (when nothing is far enough), a fresh thread generated
+         from randomness and chosen by context. It names the thread, so the mind can actually
+         go there — unlike the old content-free wander, which offered nothing and bounced
+         straight back to the attractor. -->
+    <m-drift name="drift" timeout="15m" sigma="4m" salience="0.55"
+             farThreshold="0.3" minNoteChars="80" candidates="5"></m-drift>
 
     <m-loop-guard name="loop-guard" window="1600" overlap="0.45" salience="0.85" cooldown="90s"></m-loop-guard>
 

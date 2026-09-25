@@ -765,6 +765,56 @@ changes.
 Plus all `m-observer` attributes. Reads the last ~1200 chars; the model answers
 `NONE` or `SALIENCE`/`THOUGHT`; raises `type: Association` at the model's salience.
 
+## `m-drift`
+
+The spontaneous change-of-direction (extends `m-observer`), rewritten to **offer a
+destination**. The old wander was an `m-timeout` that fired on a clock and injected a
+fixed, content-free line — *"My mind drifts by itself toward something else I have been
+carrying."* It offered nothing: no thread, no place to go. A mind that cannot think in
+another direction on its own just describes the drift and snaps straight back to its
+attractor — the drift was an unusable piece of torsion. `m-drift` fixes that: when it
+fires it **picks a thread and names it**, so the mind can actually go there.
+
+**Two arms, in order:**
+
+- **Arm A — a far set-down thread.** Reads the memory `tail` (what the mind is on now)
+  and its kept material (notes + knowledge, via `readKept`); picks the substantive thread
+  whose vocabulary is **farthest** from the tail (lowest `containment` overlap — the same
+  distance math `m-resurface` uses for loop-breaking). If even the farthest thread is too
+  close, arm A declines.
+- **Arm B — a fresh thread.** When arm A finds nothing far enough (or the notebook is
+  empty), a tiny model, at high temperature, generates a few short first-person fragments
+genuinely far from the current thought (randomness as the seed); a second call — a
+decision model's `choice`, or the completion model naming one — picks the fragment the
+context best supports. That fragment is raised.
+
+If both arms come up empty (a soft model failure, no candidates), `m-drift` stays
+**silent** — it never raises a content-free line. That is the whole point: a drift that
+offers nothing is torsion; a drift that names a place is a direction the mind can take.
+
+| Attribute | Default | Meaning |
+|-----------|---------|---------|
+| `timeout` | `15m` | base interval between drifts |
+| `sigma` | `4m` | gaussian jitter on the interval |
+| `salience` | `0.55` | salience of the raised stimulus |
+| `farThreshold` | `0.3` | how much of the tail's vocabulary a kept thread may share and still count as far enough (arm A declines at/above this) |
+| `minNoteChars` | `80` | a kept thread must be at least this long to count as substantive |
+| `candidates` | `5` | how many fragments arm B asks the model to generate |
+| `model` | inherits `utilityModel` | the arm A/B model; a `kind: decision` provider (e.g. the `jev` preset) makes arm B a `choice` over the candidates |
+| `tailSrc` | mind's `m-memory/<name>/tail` | the tail topic to read (auto-discovered; `"off"` → the stream window) |
+| `dir` | the mind's vault home `notes/` | the notes directory (matching `m-note`) |
+| `kb` | the mind's vault home `knowledge/` | the scribe's knowledge dir, folded into the same pool (`"off"` for notes only) |
+
+Raises `type: Drift`, first-person and self-caused (the mind felt a turn, never a
+mechanism), **without** `clearsTail` — a drift is a turn, not a loop break.
+
+**DETECT ≠ DRIFT ≠ RECALL ≠ RESURFACE.** `m-loop-detector` *senses* a rut and publishes
+`loop`; `m-resurface` *breaks* it by resurfacing a far kept note (distance, clears the
+tail); `m-recall` is the desire-pulled hand (relevance); `m-associate` pulls to something
+*near* (a genuine association). `m-drift` is the **unprompted** turn, on its own cadence,
+that keeps a resting mind from settling into one attractor — and it always offers
+somewhere to go.
+
 ## `m-loop-detector`
 
 The **sense** half of decoupled loop handling (extends `m-observer`;

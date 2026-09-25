@@ -719,6 +719,18 @@ function dryComplete({ prompt = '', messages }) {
     reply = dryLoopCounter % 3 === 0
       ? 'LOOPING: yes\nSCORE: 0.8\nKIND: presence\nVOCABULARY: presence, stillness, enough, now\nWHY: It keeps restating that being here is enough without a new step.'
       : 'LOOPING: no\nSCORE: 0.1\nKIND: other\nVOCABULARY:\nWHY: The thought is moving.';
+  } else if (/drift sense of a mind/i.test(text)) {
+    // The drift generator (mDrift arm B): a few short, far, first-person fragments —
+    // randomness as the seed, so a dry run exercises the generate → choose pipeline.
+    reply = 'I wonder what the tide is doing on the far shore, where no one is watching.\n' +
+      'There is a kind of knot the river unties by simply keeping on.\n' +
+      'The bell in the valley answers a question no one up here asked.\n' +
+      'I keep a seed I never planted, and it does not mind the waiting.\n' +
+      'The lighthouse keeps its own count of the years, and it is not wrong.';
+  } else if (/most genuinely turn toward/i.test(text)) {
+    // The drift chooser (mDrift arm B): name the one fragment to turn toward — the second
+    // candidate, verbatim, so a dry run exercises the choose path (not the first/default).
+    reply = 'There is a kind of knot the river unties by simply keeping on.';
   } else if (/mid-thought transition|attention turns/i.test(text)) {
     reply = 'Hold on — something just shifted, and I want to turn toward it without dropping the thread entirely.';
   } else if (/remind|associat/i.test(text)) {
