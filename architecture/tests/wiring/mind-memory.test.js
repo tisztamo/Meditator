@@ -14,6 +14,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { delay } from "./setup.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
+import { request } from "../../../src/infrastructure/requestReply.js";
 
 let mind, stream, memory, persistDir, tailSeen, compressedSeen;
 const raised = [];
@@ -108,8 +109,9 @@ test("the mind's `attended` stimuli are journaled AND enter the tail as a `> ⟂
     const origNote = memory.note.bind(memory);
     memory.note = (text, opts) => { notes.push(text); return origNote(text, opts); };
     const tailBefore = memory.getTail();
-    mind.fire("attended", ["A bell rang somewhere in the fog."]);
-    await delay(10);
+    // The mind's `attended {lines}` request; memory answers once journaled + appended.
+    const reply = await request(mind, "attended", { lines: ["A bell rang somewhere in the fog."] });
+    expect(reply).toMatchObject({ status: "ok", data: { noted: 1 } });
     memory.note = origNote;
     expect(notes.some(line => line.includes("bell rang"))).toBe(true);
     expect(memory.getTail().includes("> ⟂ A bell rang somewhere in the fog.")).toBe(true);

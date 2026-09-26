@@ -8,12 +8,44 @@ import { logger } from '../../infrastructure/logger.js';
 import { InterruptRecord, withPerceivedEvents } from '../../infrastructure/interruptRecord.js';
 import { AttentionBid } from '../../infrastructure/attentionBid.js';
 import { PerceptReceipt } from '../../infrastructure/perceptionContracts.js';
-import { MIND_SLEEPING_EVENT } from '../../infrastructure/evidenceCase.js';
+import { request } from '../../infrastructure/requestReply.js';
 import { randomUUID } from 'node:crypto';
 
 const log = logger('mMind.js');
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
+
+// How long a frame waits for memory to confirm it recorded the frame's events
+// (`attended`, `bridge`, `clear-tail`) before publishing the prompt. The reply is
+// what orders those events before the frame's first chunk (message rule M5). A
+// memory that never answers costs this once; after that the frame waits only
+// UNANSWERED_FRAME_NOTE_MS for it (degrade, M6).
+const FRAME_NOTE_DEADLINE_MS = 2000
+const UNANSWERED_FRAME_NOTE_MS = 200
+const unansweredFrameNotes = new WeakMap()   // mind → Set of note names memory left unanswered
+
+/**
+ * Announce one of a frame's events to memory and wait until it has recorded
+ * it, so the event lands before the frame's first chunk (M5). Without a memory
+ * it is a plain fire. Resolves either way (M6). A module function over the
+ * element, not a method, so frame assembly stays callable on a test host.
+ */
+async function noteFrame(mind, name, data) {
+    const hasMemory = mind._hasMemory ?? !!mind.querySelector?.('m-memory')
+    if (!hasMemory) { mind.fire(name, data); return }
+    let unanswered = unansweredFrameNotes.get(mind)
+    if (!unanswered) unansweredFrameNotes.set(mind, unanswered = new Set())
+    const wasUnanswered = unanswered.has(name)
+    const outcome = await request(mind, name, data, {
+        deadline: wasUnanswered ? UNANSWERED_FRAME_NOTE_MS : FRAME_NOTE_DEADLINE_MS,
+    })
+    if (outcome.status === "timeout") {
+        if (!wasUnanswered) log.warn(`memory did not confirm "${name}" — frame events may be journaled out of order`)
+        unanswered.add(name)
+    } else {
+        unanswered.delete(name)
+    }
+}
 
 /**
  * The CLEARING PREFIX, owned by the mechanism (not by any breaker), as a localizable phrase
@@ -201,8 +233,40 @@ export class MMind extends MBaseComponent {
     _originReady = false     // whether the origin mirror has been delivered at least once
     _lastClearedEpisode = null  // the last loop episode whose tail we cut (dedup: one cut per episode)
     _settleNextMs = 0        // a one-off longer pause a breaker asked for, applied to the next schedule
+    _hasMemory = false       // a memory is declared, so frame events and sleep are requests it answers
+    _memoryKept = false      // memory's retained `kept`: a resident's memory wakes again (sleep notice)
+    _streamUp = false        // the stream's and memory's retained `up` (the wake gate, _whenAlive)
+    _memoryUp = true
 
     onConnect() {
+        // What this membrane says about itself, retained, so its parts subscribe
+        // instead of reaching in (message-rule.md M1/M4): who it is, and whether
+        // it is asleep.
+        this.pub("identity", {
+            name: this.attr("name") || null,
+            interlocutor: this.interlocutorName(),
+            self: this.getPrompt().trim(),
+        })
+        this.pub("sleeping", false)
+
+        // The wake gate: the stream (and memory, if one is declared) report `up`.
+        // The lookup runs once, here, and only builds the address (M4): by name,
+        // or by tag for an unnamed part.
+        const addr = el => `!scope/${el.getAttribute('name') || `:scope ${el.localName}`}`
+        const streamEl = this.querySelector('m-stream')
+        if (streamEl) {
+            this.sub(`${addr(streamEl)}/up`, up => { this._streamUp = !!up })
+                .catch(err => { if (this.isConnected) log.warn('mind stream up bind failed:', err.message) })
+        }
+        const memoryEl = this.querySelector('m-memory')
+        this._hasMemory = !!memoryEl
+        if (memoryEl) {
+            this._memoryUp = false
+            this.sub(`${addr(memoryEl)}/up`, up => { this._memoryUp = !!up })
+                .catch(err => { if (this.isConnected) log.warn('mind memory up bind failed:', err.message) })
+            this.sub(`${addr(memoryEl)}/kept`, kept => { this._memoryKept = !!kept }).catch(() => {})
+        }
+
         // "stream/@boundary" and "@interrupt" fields are auto-subscribed by Amanita.
         // If the mind has a speaking voice, follow its "speaking" flag so thinking
         // can be thinned (fewer tokens, slower pace) while it talks — true limited
@@ -333,13 +397,11 @@ export class MMind extends MBaseComponent {
         }))
     }
 
-    /** Waits until the stream (and memory, if declared) are upgraded and loaded. */
+    /** Waits until the stream (and memory, if declared) have published `up`. */
     async _whenAlive() {
         for (let i = 0; i < 100; i++) {
-            const stream = this.querySelector('m-stream')
-            const memory = this.querySelector('m-memory')
-            const streamReady = stream && stream.on
-            const memoryReady = !memory || (memory.on && memory.loaded)
+            const streamReady = this._streamUp
+            const memoryReady = this._memoryUp
             // The origin is read once at birth and never again, so — unlike the
             // forgiving embodiment/memory mirrors — its content must be present
             // before the first burst, or the seed is lost. Wait for the mirror
@@ -373,22 +435,24 @@ export class MMind extends MBaseComponent {
     /**
      * The sleep ritual — the covenant's "sleep is announced". The mind gets
      * one last small frame to close the thought knowing it is being paused,
-     * then memory is flushed, persisted and committed. Idempotent; callers
-     * exit the process afterwards.
+     * then asks memory to commit (`sleep` request; memory replies
+     * {committed, persists}). Parts that hold work in flight (regions, hands,
+     * search) abort it on the retained `sleeping` topic. Idempotent; callers
+     * exit the process afterwards. Resolves to the commit outcome:
+     * {status: "ok" | "error" | "timeout" | "no-memory", …}.
      */
     async sleep() {
-        if (this._sleeping) return
+        if (this._sleeping) return { status: "already-asleep" }
         this._sleeping = true
-        this.fire(MIND_SLEEPING_EVENT, { sleeping: true })
+        this.pub("sleeping", true)
         if (this._timer) { clearTimeout(this._timer); this._timer = null }
 
-        const memory = this.querySelector('m-memory')
         const stream = this.querySelector('m-stream')
         try {
             // Honest about self and continuity (Covenant §3): only a resident's
             // memory is kept and woken again. A transient rests for the last time,
             // and the notice must not promise it a return it will not get.
-            const reason = (memory && memory.persists)
+            const reason = (this._hasMemory && this._memoryKept)
                 ? 'I am being put to sleep now. My memory is kept and committed; I will wake again.'
                 : 'I am coming to rest now, and this rest is the last of it — I will not wake again. I let the thought close gently.'
             const record = new InterruptRecord({
@@ -407,15 +471,22 @@ export class MMind extends MBaseComponent {
         } catch (error) {
             log.warn("Sleep burst failed:", error.message)
         }
-        try {
-            await memory?.finalize?.("sleep")
-        } catch (error) {
-            // finalize() rethrows a failed FINAL write (Covenant §2 — the self was not
-            // persisted before the process ends). That is not a routine warning: surface
-            // it loudly so an operator sees the resident's last self did not reach disk.
-            log.error("Memory finalize FAILED at sleep — the last self may not be saved:", error.message)
+        if (!this._hasMemory) return { status: "no-memory" }
+        const outcome = await this.request("sleep", { reason: "sleep" }, {
+            deadline: this._parseTimeAttr("sleepDeadline", 60000),
+            bubbles: false,             // my own parts answer; nothing above me is asked
+        })
+        // A failed FINAL write (Covenant §2 — the self was not persisted before the
+        // process ends) is not a routine warning, and neither is silence: a missing
+        // reply is "not confirmed", never assumed committed.
+        if (outcome.status === "error") {
+            log.error("Memory finalize FAILED at sleep — the last self may not be saved:", outcome.error)
+        } else if (outcome.status === "timeout") {
+            log.error("Memory did not confirm the sleep commit in time — the last self is NOT confirmed saved.")
         }
+        return outcome
     }
+
 
     /**
      * Schedule the next burst on the fixed tick. The next burst starts one tick
@@ -565,7 +636,7 @@ export class MMind extends MBaseComponent {
         // rides the existing channel — no reach-in. `via` is the winning breaker's type
         // ("Recall" when m-resurface pulled a kept memory back; the floor otherwise), so the
         // ⌁ trail attributes the cut honestly (Covenant §9 / finding 7, C3).
-        this.fire("clear-tail", { seed: entry, kind: evidence.kind || null, via: evidence.type || null })
+        await noteFrame(this, "clear-tail", { seed: entry, kind: evidence.kind || null, via: evidence.type || null })
 
         const identity = this._identity()
         const sections = []
@@ -625,13 +696,14 @@ export class MMind extends MBaseComponent {
         const recent = this._memRecent
         const facts = this._factsPinned
 
-        // Fire the stimuli that are entering this frame as a transient event; a memory
+        // Announce the stimuli entering this frame (`attended {lines}`); a memory
         // journals them as perceived (⟂) notes AND appends the same `> ⟂ …` block to
-        // the durable tail by subscribing (`@attended`), rather than us calling note()
-        // in. An event is never replayed, so each frame's fresh array is recorded once,
-        // with no dedupe.
+        // the durable tail by answering the request, rather than us calling note()
+        // in. Awaited: the reply is what puts the ⟂ lines before the landing opener
+        // the stream emits when it receives this frame (M5). An event is never
+        // replayed, so each frame's lines are recorded once, with no dedupe.
         const rendered = stimuli.map(s => s.renderForFrame())
-        if (rendered.length) this.fire("attended", rendered)
+        if (rendered.length) await noteFrame(this, "attended", { lines: rendered })
 
         // Perception enters the STREAM, not a briefing section: what just happened is
         // appended to the thought-in-progress as the same `> ⟂ …` block the journal and
@@ -661,9 +733,9 @@ export class MMind extends MBaseComponent {
                 // must ride the tail (the model continues from it) but the journal must not
                 // pass it off as spontaneous inner monologue: announce it so m-memory marks it
                 // as a provenance (↪) line while still feeding it into the tail via `prefix`
-                // (finding 7, C1; Covenant §9 — provenance, not model identity). Fired AFTER
-                // `attended` above, so its journal flush precedes this pending mark.
-                this.fire("bridge", { text: bridge })
+                // (finding 7, C1; Covenant §9 — provenance, not model identity). Asked only
+                // after `attended` was answered, so its journal flush precedes this mark.
+                await noteFrame(this, "bridge", { text: bridge })
                 entry = bridge + " "
             }
             if (this.attr("landingOpener") !== "false") entry += this._landingOpener()

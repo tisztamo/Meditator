@@ -16,8 +16,6 @@ import {
     asEvaluations, compareDeadlineMs, awaitUntilAbort, DEFAULT_COMPARE_DEADLINE_MS,
 } from './compareContinuation.js'
 
-export const MIND_SLEEPING_EVENT = 'mind-sleeping'
-
 /**
  * @param {object} opts
  * @param {object} opts.owner            for isConnected / deadline attr

@@ -150,7 +150,7 @@ test('closed content is never rendered, dispatched, or journaled; reopening samp
     expect(payload.prefill).toContain(`> ⟂ ${present}\n\n`);
     expect(region.contactPressure).toBeLessThan(debt);
     const attended = fired.find(f => f.name === 'attended');
-    expect(attended.detail).toEqual([present]);
+    expect(attended.detail.lines).toEqual([present]);   // the `attended {lines}` request to memory
     const receipt = receiptOf(fired);
     expect(receipt).toBeInstanceOf(PerceptReceipt);
     expect(receipt.perceptId).toBe(pendingEvidence.id);
@@ -548,7 +548,8 @@ test('boundary reflex requests a fresh sample without preemption; sleep suppress
     expect(pending).toHaveLength(1);
     expect(AttentionBid.evidenceOf(pending[0]).requestId).toBe(sampleRequest.id);
     expect(interrupts).toBe(0);
-    mind._sleeping = true;
+    mind.pub('sleeping', true);            // the membrane's retained topic (message-rule.md)
+    await delay(0);
     const before = region.contactPressure;
     region.onBoundary(Date.now() + 100000);
     expect(region.contactPressure).toBe(before);
@@ -574,7 +575,8 @@ test('requestControl drops detached or sleeping sources without throwing', async
     still.setAttribute('name', 'still');
     region.appendChild(still);
     region.registerSource(still, () => { samples++; });
-    mind._sleeping = true;
+    mind.pub('sleeping', true);
+    await delay(0);
     expect(() => region.requestControl(new ControlRequest({
         kind: 'sample', issuedBy: 'test', reason: 'probe', target: 'still',
     }))).not.toThrow();

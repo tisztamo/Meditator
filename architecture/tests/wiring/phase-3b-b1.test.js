@@ -8,6 +8,7 @@ import { delay } from './setup.js'
 import { loadMindComponents } from '../../../src/startup/loadMindComponents.js'
 import { PREDICTION_EVENT } from '../../../src/infrastructure/predictionContracts.js'
 import { mindHome } from '../../../src/infrastructure/memoryVault.js'
+import { offerFixtureHand } from './fixtureHand.js'
 
 if (!customElements.get('m-mind')) {
     customElements.define('m-mind', class extends A(HTMLElement) {})
@@ -74,7 +75,7 @@ test('10. it writes to mindHome predictions/ledger.jsonl only', async () => {
         pubs.push({ topic, data })
         return origPub(topic, data)
     }
-    act._registerCapability({
+    await offerFixtureHand(act, {
         name: 'probe',
         description: 'fixture',
         parameters: { type: 'object', properties: { q: { type: 'string' } }, required: ['q'] },
@@ -117,8 +118,8 @@ test('11. both arms produce identical REALIZE schemas except for the expect prop
         felt: 'reach',
         execute: async () => ({ experience: 'x' }),
     }
-    on._registerCapability({ ...spec })
-    off._registerCapability({ ...spec, name: 'probe-off' })
+    await offerFixtureHand(on, { ...spec })
+    await offerFixtureHand(off, { ...spec, name: 'probe-off' })
     const capOn = on._capabilities[0]
     const capOff = off._capabilities[0]
     const toolOn = on._toolParameters(capOn)

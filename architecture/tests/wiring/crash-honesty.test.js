@@ -10,6 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { delay } from "./setup.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
+import { request } from "../../../src/infrastructure/requestReply.js";
 import { readArchitectureFile, resetLoadedArchitecture } from "../../../src/startup/architecture.js";
 
 const raised = [];
@@ -112,7 +113,7 @@ test("legacy memory with no marker is treated as clean — never a false crash a
     expect(frame.includes("ended mid-thought")).toBe(false);
 });
 
-test("finalize() stamps endedCleanly:true; a live session's memory.md carries false", async () => {
+test("the sleep request stamps endedCleanly:true; a live session's memory.md carries false", async () => {
     const { home, memory } = await wakeInto(memoryMd(`,"endedCleanly":false`));
 
     // A running session has not finalized: any persist it wrote records the open state.
@@ -122,7 +123,7 @@ test("finalize() stamps endedCleanly:true; a live session's memory.md carries fa
     expect(meta.endedCleanly).toBe(false);
 
     // A clean sleep flips it — the marker the next wake will read as "rested".
-    await memory.finalize("sleep");
+    expect((await request(document.querySelector("m-mind"), "sleep", { reason: "sleep" }, { bubbles: false })).status).toBe("ok");
     meta = JSON.parse(fs.readFileSync(path.join(home, "memory.md"), "utf8").match(/<!-- meta: (.*?) -->/s)[1]);
     expect(meta.endedCleanly).toBe(true);
 });

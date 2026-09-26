@@ -68,7 +68,8 @@ test("a confabulated `> ⟂` line is held back and stops the burst", () => {
 });
 
 test("a line the mind just perceived (via @attended) passes", () => {
-    mind.fire("attended", ["a door closes"]);
+    // The frame's `attended {lines, requestId}` request to memory; the filter only listens.
+    mind.fire("attended", { lines: ["a door closes"], requestId: "rq-test-1" });
     const r = burst("I heard\n> ⟂ a door closes\nit was far\n");
     expect(r.signal).toBeNull();
     expect(r.emit).toContain("> ⟂ a door closes");

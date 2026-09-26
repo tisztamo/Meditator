@@ -12,6 +12,7 @@ import { Percept } from '../../../src/infrastructure/percept.js'
 import {
     Prediction, firePrediction, PREDICTION_SETTLED_EVENT, EVALUATION_COMMIT_EVENT,
 } from '../../../src/infrastructure/predictionContracts.js'
+import { offerFixtureHand } from './fixtureHand.js'
 
 const FIXTURE = 'the screen answers 42'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -74,7 +75,7 @@ test('13. m-judge returns [] for progress, empty text, and unmatched actId', asy
 })
 
 test('13. one complete call per evidence; abort → insufficient', async () => {
-    act._registerCapability({
+    await offerFixtureHand(act, {
         name: 'probe',
         description: 'fixture',
         parameters: { type: 'object', properties: { q: { type: 'string' } }, required: ['q'] },
@@ -124,7 +125,7 @@ test('13. one complete call per evidence; abort → insufficient', async () => {
 })
 
 test('14. with complete stubbed, m-judge matches exact fixture text on the act path', async () => {
-    act._registerCapability({
+    await offerFixtureHand(act, {
         name: 'probe',
         description: 'fixture',
         parameters: { type: 'object', properties: { q: { type: 'string' } }, required: ['q'] },

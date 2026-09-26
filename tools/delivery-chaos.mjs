@@ -57,6 +57,7 @@ const suites = [
 const failures = new Set()
 const violations = new Map()
 let totals = { tests: 0, failed: 0 }
+const silent = []   // test files that produced no results under chaos
 
 for (const s of suites) {
     const xml = join(out, `${s.name}.xml`)
@@ -81,6 +82,11 @@ for (const s of suites) {
         process.exit(2)
     }
     const parsed = parseJunit(readFileSync(xml, "utf8"))
+    // A file with no results at all was aborted, typically by an unhandled error an
+    // earlier file left behind. Its tests would silently drop out of the ratchet.
+    for (const file of testFiles(join(ROOT, s.argv[1]))) {
+        if (!parsed.files.has(file)) silent.push(file)
+    }
     totals.tests += parsed.tests
     totals.failed += parsed.failed.length
     for (const f of parsed.failed) failures.add(f)
@@ -108,6 +114,13 @@ const current = {
 console.log(`delivery-chaos (${mode}, wire=${wire}): ${totals.failed}/${totals.tests} tests fail, ` +
     `${violations.size} plain-data violation kinds, ` +
     `${Object.values(legacy).reduce((a, b) => a + b, 0)} legacy handle calls in tests`)
+
+// Never compare or write a baseline with a file missing: its failures would vanish.
+if (silent.length) {
+    console.error("test files with NO results under async delivery (aborted — look for an " +
+        "unhandled error left by the file that ran before):\n" + silent.map(f => `  ${f}`).join("\n"))
+    process.exit(1)
+}
 
 if (update) {
     writeFileSync(BASELINE, JSON.stringify({
@@ -171,18 +184,34 @@ function attr(tag, name) {
 /** Failed testcases as "file > [describe > ]name". */
 function parseJunit(xml) {
     const failed = []
+    const files = new Set()
     let tests = 0
     const re = /<testcase\b([^>]*?)(\/>|>([\s\S]*?)<\/testcase>)/g
     let m
     while ((m = re.exec(xml))) {
         tests++
+        files.add(attr(m[1], "file"))
         const body = m[3] || ""
         if (!/<(failure|error)\b/.test(body)) continue
         const head = m[1]
         const cls = attr(head, "classname")
         failed.push([attr(head, "file"), cls, attr(head, "name")].filter(Boolean).join(" > "))
     }
-    return { tests, failed }
+    return { tests, failed, files }
+}
+
+/** Test files under `dir` (repo-relative, as junit names them), skipping live/. */
+function testFiles(dir) {
+    const found = []
+    const walk = d => {
+        for (const e of readdirSync(d)) {
+            const p = join(d, e)
+            if (statSync(p).isDirectory()) { if (e !== "live") walk(p) }
+            else if (p.endsWith(".test.js")) found.push(relative(ROOT, p))
+        }
+    }
+    walk(dir)
+    return found
 }
 
 function countLegacyCalls(dir) {

@@ -10,7 +10,6 @@ import {
 } from '../../infrastructure/predictionContracts.js'
 import { Evaluation } from '../../infrastructure/perceptionContracts.js'
 import { parseTime } from '../../config/timeParser.js'
-import { MIND_SLEEPING_EVENT } from '../../infrastructure/evidenceCase.js'
 import { logger } from '../../infrastructure/logger.js'
 
 const log = logger('mSearch.js')
@@ -56,7 +55,8 @@ export class MSearch extends MBaseComponent {
         mind.addEventListener(CONTROL_RESULT_EVENT, this._onControlResult)
         mind.addEventListener(EVALUATION_COMMIT_EVENT, this._onCommit)
         mind.addEventListener(EDGE_EVIDENCE_EVENT, this._onEdgeEvidence)
-        mind.addEventListener(MIND_SLEEPING_EVENT, this._onSleeping)
+        // Sleep is the membrane's retained `sleeping` topic (message-rule.md).
+        this.sub('!scope/sleeping', sleeping => { if (sleeping) this._onSleeping() }).catch(() => {})
     }
 
     onDisconnect() {
@@ -67,7 +67,6 @@ export class MSearch extends MBaseComponent {
             this._host.removeEventListener(CONTROL_RESULT_EVENT, this._onControlResult)
             this._host.removeEventListener(EVALUATION_COMMIT_EVENT, this._onCommit)
             this._host.removeEventListener(EDGE_EVIDENCE_EVENT, this._onEdgeEvidence)
-            this._host.removeEventListener(MIND_SLEEPING_EVENT, this._onSleeping)
         }
         this._host = null
     }

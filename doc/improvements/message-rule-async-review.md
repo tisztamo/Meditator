@@ -407,7 +407,9 @@ existing seam, none rewrites a mind's behaviour.
 3. **Hands.** Data-only capability offers, `call`/`result` invocation, idempotent
    re-offer (kills `_updateCapability`, `_registerCapability`, the facts retry
    loop). `m-agent` shares the `hands` assembler role instead of duplicating it
-   (§2.8, §5).
+   (§2.8, §5). *Done 2026-09-26 (`shared/hands.js`): the result is the `call`
+   request's reply rather than a separate `result` event. See
+   [message-rule.md](../architecture/message-rule.md).*
 4. **Attention payloads.** Plain bid records + pure functions; arbiter emits
    fresh records; `takePending` → push; `m-act` stops self-intercepting and
    instead *emits* the bid form directly (§3.1, §3.2).
@@ -479,9 +481,20 @@ seeds. The speak command should carry its target id (M5).
 2. *Journal lines after the sleep marker.* `mMemory.note()` has no
    `_finalized` guard. A deed (`_onActed`), backstage trail, filing or
    aperture change that lands after `finalize()` is appended after
-   `*sleep at …*` and is not committed until the next wake. Not yet pinned,
-   because a test for it would fail in sync mode.
+   `*sleep at …*` and is not committed until the next wake. **Fixed with the
+   request/reply pilot:** `note()` returns once finalized; pinned in
+   `persist-serialization.test.js`.
 
 **Fixed here:** the Studio `focusedKind`/`focusReset` ordering (§3.4).
 `focusReset` now carries `{id, kind}`, and the panes apply the kind from it.
 
+**Found while migrating hands (2026-09-26).** Once tools could be called under
+the json wire, agent-govern's async-veto test reached the governance protocol,
+whose `deny` closure does not cross. Its governor threw in a dangling promise,
+and bun reported that unhandled error while loading the *next* file
+(`market-outcome.test.js`). All 35 of that file's tests dropped out of the junit
+report, and the ratchet counted neither their passes nor their failures. The
+test now guards the call, and the ratchet fails any run in which a test file
+produced no results. One jitter run (seed 3) failed once in the hands contracts
+and did not reproduce in three reruns or in eight more seeds. It is noted here,
+not diagnosed.

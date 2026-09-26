@@ -92,7 +92,7 @@ something to do.
                  ▼
   ┌── EXECUTE ─────────────────────────────────┐   the capability's own code runs
   │ validate args against the JSON schema,      │   (read-only first; world-changing later)
-  │ run capability.execute(args)                │   → { experience, salience?, data? }
+  │ call the hand (a `call` request)            │   → { experience, salience?, data? }
   └──────────────┬───────────────────────────────┘
                  │  (latency is fine — seconds, even bursts, is lifelike)
    ┌─────────────┴──────────────┬──────────────────────────┐
@@ -128,10 +128,11 @@ hardcoded prose blurb), and nothing is ever scraped from or printed into the str
 
 ### The capability contract
 
-Each capability registers itself with its parent `m-act` on connect:
+Each capability offers itself to the nearest `hands` assembler (`m-act`, or
+`m-agent` for an agent's tools) on connect:
 
 ```js
-this.closest("m-act").registerCapability({
+this.offerCapability({
   name: "look",                         // the tool-call function name
   description: "Look at some part of the real world right now — the weather " +
                "where the mind is, the day outside, a headline drifting by — " +
@@ -162,6 +163,14 @@ this.closest("m-act").registerCapability({
   },
 })
 ```
+
+The offer crosses as **plain data**: `offerCapability` keeps `execute` on the hand
+and sends the rest with an `offerId` in a bubbling `capability` event. m-act runs the
+hand with a `call` request (`{hand, offerId, args, ctx}`), and the hand answers with
+what `execute()` returned (`shared/hands.js`, [message-rule.md](message-rule.md)). A
+second offer under the same `offerId` replaces the entry, which is how `m-orient`
+refreshes its aperture enum. A hand that does not answer within its `deadline` (else
+m-act's `callDeadline`, 30 min) has slipped.
 
 `execute()` returns an **experience**, not data — the first-person sensation that will
 become afference. The optional `data` is for the backstage note and Studio, never the

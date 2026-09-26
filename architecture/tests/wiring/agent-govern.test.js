@@ -133,7 +133,9 @@ test("asynchronous VETO: a governor may hold(promise) to decide, and m-agent awa
     // not run the tool until that promise settles and the deny lands.
     const { agent, steps } = await runGoverned(p => {
         if (p.name !== "terminal") return;
-        p.hold(delay(30).then(() => p.deny("async policy: denied after review")));
+        // `?.`: under the chaos harness's JSON wire the closures do not cross, and a
+        // dangling TypeError here would abort the NEXT test file's run.
+        p.hold(delay(30).then(() => p.deny?.("async policy: denied after review")));
     });
     expect(agent._done).toBe(true);
     const termObs = steps.flatMap(s => s.observations).filter(o => o.name === "terminal");

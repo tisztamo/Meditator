@@ -1,6 +1,8 @@
 import A from "amanita"
 import { seedPos, anchorOnRing, applyStep, extractInfoton, envelope, ENERGY, SPACE_DEFAULTS } from "./infoton.js"
 import { checkPayload } from "../../infrastructure/deliveryChaos.js"
+import { request as requestOf, requestAll as requestAllOf, respond as respondOf } from "../../infrastructure/requestReply.js"
+import { offerHand, withdrawHands } from "./hands.js"
 import { reflectProvides, reflectBoundary, enclosingOf, enclosingAllOf, membraneOf, part as partsOf, providesOf, isMembrane } from "./enclosure.js"
 
 export { enclosingOf, enclosingAllOf, membraneOf, part, providesOf } from "./enclosure.js"
@@ -23,9 +25,19 @@ export { enclosingOf, enclosingAllOf, membraneOf, part, providesOf } from "./enc
  * `static spacePinnedDefault` (m-mind, m-society) to hold position while still
  * acting as a source (the paper's pinned-coordinator trick).
  *
+ * ## Messages (doc/architecture/message-rule.md)
+ * `request()` / `requestAll()` / `respond()` are the request/reply seam: a fired
+ * request carrying a `requestId`, a reply event back to the requester, a
+ * deadline on every wait (infrastructure/requestReply.js).
+ *
  * @interface
  * Topics published to:
  *   - "prompt": Published on connect with the component's prompt content
+ *   - "up": true once the component is up — right after onConnect, or, for a
+ *     class with `static deferUp = true`, when it calls markUp() after its async
+ *     load. Readers subscribe to it instead of polling `.on` / `.loaded`. (Not
+ *     "ready": Amanita stores a topic as a property, and `ready()` is mSense's
+ *     subclass hook.)
  */
 export class MBaseComponent extends A(HTMLElement) {
     pos = null        // {x,y,z} in the enclosing space, or null when outside any space
@@ -50,6 +62,12 @@ export class MBaseComponent extends A(HTMLElement) {
         }
         this._spaceInit()
         super.connectedCallback()
+        if (!this.constructor.deferUp) this.markUp()
+    }
+
+    /** Publish the retained `up` topic (see the class comment). */
+    markUp() {
+        this.pub("up", true)
     }
 
     /** Nearest proper ancestor providing `role`, or null. Stops at the membrane. */
@@ -85,9 +103,39 @@ export class MBaseComponent extends A(HTMLElement) {
         this.pub("prompt", this.getPrompt())
     }
 
-    // Offer a hand up to its assembler (m-act) as a bubbling event; see efference.md / decoupling.md.
-    offerCapability(spec) {
-        this.fire("capability", spec)
+    /** Offer a hand to its assembler (m-act, m-agent) as plain data; the assembler
+     *  calls it back with a `call` request (shared/hands.js). `spec.execute(args, ctx)`
+     *  stays here. opts.to: the assembler, for a hand that is not inside it (m-facts).
+     *  Offering the same name again replaces the entry (a new schema). */
+    offerCapability(spec, opts = {}) {
+        return offerHand(this, spec, opts)
+    }
+
+    disconnectedCallback() {
+        withdrawHands(this)
+        super.disconnectedCallback()
+    }
+
+    // ------------------------------------------------------- request / reply
+
+    /** Ask once; the first reply wins. Resolves to {status: "ok", data, from},
+     *  {status: "error", error, from} or {status: "timeout"} — never rejects.
+     *  `data` is a plain object; opts: {deadline (ms), bubbles}. */
+    request(name, data, opts) {
+        return requestOf(this, name, data, opts)
+    }
+
+    /** Ask and collect until `expect` replies or the deadline:
+     *  {status: "ok" | "timeout", replies}. opts: {expect, deadline, bubbles}. */
+    requestAll(name, data, opts) {
+        return requestAllOf(this, name, data, opts)
+    }
+
+    /** Answer requests named `name`: on myself (a descendant's bubbling request),
+     *  or through `opts.src`, an `@event` ref (e.g. "!scope/@sleep"). The handler
+     *  returns the reply data (or a Promise); `undefined` abstains. */
+    respond(name, handler, opts) {
+        return respondOf(this, name, handler, opts)
     }
 
     // ------------------------------------------------------------- the Plenum

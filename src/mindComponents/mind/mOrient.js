@@ -42,11 +42,15 @@ export class MOrient extends MBaseComponent {
         this._refreshSchema()
     }
 
-    async _register() {
+    _register() {
+        this.offerCapability(this._spec())
+    }
+
+    _spec() {
         const name = this.attr('name') || 'orient'
         const cooldown = this.attr('cooldown') || '30s'
         const intentThreshold = Number(this.attr('intentThreshold') || 0.75)
-        const spec = {
+        return {
             name,
             description: "Change how open a named channel of the outside is, or follow one voice in it. "
                 + "When the reach is a looking-for — the mind wants to find something specific out there — "
@@ -62,15 +66,12 @@ export class MOrient extends MBaseComponent {
             consequenceType: null,
             execute: async (args, ctx) => this._orient(args, ctx),
         }
-        this.offerCapability(spec)
-        // Apertures may already be connected; pick up their names on the next tick.
-        queueMicrotask(() => this._refreshSchema())
     }
 
+    /** A late aperture changes the enum: offer again. The re-offer carries the same
+     *  offerId, so the assembler replaces the entry (message-rule.md, idempotent offer). */
     _refreshSchema() {
-        const parent = this.parentElement
-        if (typeof parent?._updateCapability !== 'function') return
-        parent._updateCapability(this.attr('name') || 'orient', { parameters: this._schema() })
+        if (this.isConnected) this._register()
     }
 
     _schema() {

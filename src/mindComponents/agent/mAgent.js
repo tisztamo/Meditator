@@ -1,6 +1,8 @@
 import A from "amanita"
 import { MBaseComponent } from "../shared/mBaseComponent.js"
 import { validateAgainstSchema } from "../shared/toolSchema.js"
+import { HandRegistry } from "../shared/hands.js"
+import { providesOf } from "../shared/enclosure.js"
 import { logger } from "../../infrastructure/logger.js"
 
 const log = logger("mAgent.js")
@@ -28,9 +30,10 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
  *   - m-reason subscribes ../turn, calls the model, publishes `reply`.
  *   - m-agent subscribes reason/reply; appends the assistant message; runs the tool
  *     calls; appends the `tool` messages; FIRES a `step` boundary event; loops.
- *   - Tools self-register by bubbling a `capability` event (identical to a mind's
- *     hands registering with m-act); m-agent catches them anywhere in its subtree
- *     and republishes the schema set as a retained `tools` topic.
+ *   - Tools offer themselves as plain data in a bubbling `capability` event (identical
+ *     to a mind's hands offering to m-act); m-agent catches them anywhere in its
+ *     subtree, republishes the schema set as a retained `tools` topic, and runs a tool
+ *     with a `call` request the tool answers (shared/hands.js).
  *   - Observers (loop guard, …) subscribe to `step` and bubble `nudge` / `halt`
  *     events up; a nudge folds into the next `user` turn, a halt is a stop condition.
  *   - m-agent publishes `status` and `transcript` for the Studio / a report port.
@@ -69,9 +72,15 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
  *   - "done": {answer, steps, reason, error?} — a task ended (fires once per task).
  */
 export class MAgent extends MBaseComponent {
-    static provides = { agent: true }
+    static provides = { agent: true, hands: true }
 
-    _tools = []              // registered capabilities (from bubbling `capability` events)
+    // registered capabilities (plain-data offers, called back by request; shared/hands.js)
+    _toolRegistry = new HandRegistry(this, {
+        noun: "tool",
+        log,
+        claim: true,
+        onChange: () => this.pub("tools", this._toolSchemas()),
+    })
     _messages = []           // the transcript: user / assistant(+tool_calls) / tool messages
     _step = 0
     _awaitingReply = false   // true between publishing a turn and draining its reply
@@ -99,6 +108,8 @@ export class MAgent extends MBaseComponent {
     _resolveReady = null
 
     onConnect() {
+        // Retained, like a mind's: parts below abort in-flight work on it (message-rule.md).
+        this.pub("sleeping", false)
         // COMPOSITION (agent-loop.md §11): an <m-agent role="subagent"> nested inside a
         // mind's <m-act> is used as a single HAND — the mind wonders, m-act hands it a
         // task, the agent runs its whole tool-calling loop BACKSTAGE, and only the OUTCOME
@@ -108,20 +119,13 @@ export class MAgent extends MBaseComponent {
         this._asHand = (this.attr("role") || "").toLowerCase() === "subagent"
         this._ready = new Promise(resolve => { this._resolveReady = resolve })
 
-        // Tools announce themselves with a bubbling `capability` event, exactly as a
-        // mind's hands do with m-act; one self-listener catches them all (incl. tools
-        // added later). stopPropagation so a tool nested inside THIS agent is claimed
-        // here and does not also register with an enclosing m-act (the composition case,
-        // agent-loop.md §11) — the nearest entity owns its tool. The `e.target === this`
-        // guard lets our OWN offer to the enclosing m-act (a subagent hand's _offerAsHand,
-        // fired ON this element) pass straight through: we neither claim it nor stop it, so
-        // it bubbles past us up to that m-act, while a child tool's event (target a
-        // descendant) is claimed here.
-        this.addEventListener("capability", e => {
-            if (e.target === this) return
-            e.stopPropagation()
-            this._registerCapability(e?.detail)
-        })
+        // Tools offer themselves as plain data (a bubbling `capability` event), exactly
+        // as a mind's hands do with m-act, and are called back with a `call` request
+        // (shared/hands.js). The registry CLAIMS each offer (stopPropagation), so a tool
+        // nested inside THIS agent is the agent's and never also an enclosing m-act's —
+        // the nearest entity owns its tool (agent-loop.md §11). Our OWN offer to that
+        // m-act (a subagent hand, fired from this element) passes straight through.
+        this._toolRegistry.listen()
 
         // Observer seams (agent-loop.md §3, §9): a `nudge` becomes a note on the next
         // user turn; a `halt` is a stop condition. Pure observers wire onto these with
@@ -182,40 +186,20 @@ export class MAgent extends MBaseComponent {
         // rather than as a blocking tool. (Checking the nearest enclosing entity — not just
         // any ancestor m-act — so a sub-agent nested in a sub-agent inside a mind is not
         // mistaken for the mind's own hand.)
-        const enclosing = this.parentElement?.closest("m-act, m-agent")
-        if (this._asHand && enclosing?.localName === "m-act") this._offerAsHand()
+        const assembler = this.enclosing("hands")
+        if (this._asHand && assembler && !providesOf(assembler, "agent")) this._offerAsHand()
 
         this._begin()
     }
 
     onDisconnect() {
         this._sleeping = true
+        this.pub("sleeping", true)
     }
 
-    // Register a tool from its bubbling `capability` event detail — the SAME closed
-    // contract m-act uses (agent-loop.md §4): {name, description, parameters, execute}.
-    // Returns false (and warns) on a malformed spec rather than throwing — a broken tool
-    // must not crash a wake. The menu is closed: the model can only ever call a
-    // registered tool with schema-validated args.
-    _registerCapability(spec) {
-        if (!spec || typeof spec.name !== "string" || typeof spec.execute !== "function") {
-            log.warn(`ignoring a malformed capability registration: ${JSON.stringify(spec?.name)}`)
-            return false
-        }
-        if (this._tools.some(t => t.name === spec.name)) {
-            log.warn(`a tool named "${spec.name}" is already registered; ignoring the duplicate`)
-            return false
-        }
-        this._tools.push({
-            name: spec.name,
-            description: spec.description || "",
-            parameters: spec.parameters || { type: "object", properties: {} },
-            execute: spec.execute.bind(spec),
-        })
-        log.info(`tool registered: ${spec.name}`)
-        this.pub("tools", this._toolSchemas())
-        return true
-    }
+    /** The closed menu: every offered tool, normalized (shared/hands.js). The model can
+     *  only ever call a registered tool with schema-validated args. */
+    get _tools() { return this._toolRegistry.entries }
 
     async _begin() {
         try {
@@ -526,7 +510,7 @@ export class MAgent extends MBaseComponent {
      *  the loop (handled in _runOne / _onReply). */
     _registerFinishTool() {
         if (this._tools.some(t => t.name === FINISH_TOOL)) return
-        this._registerCapability({
+        this._toolRegistry.register({
             name: FINISH_TOOL,
             description: "Call this ONLY when the objective is fully complete and verified. Provide a short summary of what was accomplished. This ends the task.",
             parameters: { type: "object", properties: { summary: { type: "string", description: "a short summary of what was done" } }, required: ["summary"] },
@@ -586,14 +570,11 @@ export class MAgent extends MBaseComponent {
      *  first-person sensation — so the mind's conscious stream perceives only the
      *  consequence, never the tool-calling underneath (the One Rule).
      *
-     *  Bubbled exactly as a leaf hand offers (m-note/m-look) — one shot, no retry. Our own
-     *  `capability` listener lets it pass (e.target === this; see onConnect) so it reaches
-     *  the enclosing m-act. No retry is needed because the connect order is the contract:
-     *  loadMindComponents defines tags in document order with no awaits, so a parent m-act
-     *  is upgraded — and its capability listener attached synchronously in onConnect —
-     *  before this child agent connects and offers, just as m-act precedes any leaf hand. */
+     *  Offered exactly as a leaf hand offers (m-note/m-look): plain data bubbling up, and
+     *  m-act's `call` request runs _runAsHand. Our own tool registry lets it pass (it is
+     *  fired from this element; see onConnect) so it reaches the enclosing m-act. */
     _offerAsHand() {
-        this.fire("capability", this._handSpec())
+        this.offerCapability(this._handSpec())
     }
 
     /** The capability spec this agent offers as a hand. readonly defaults to false: an
@@ -853,6 +834,7 @@ export class MAgent extends MBaseComponent {
     async sleep() {
         if (this._sleeping) return
         this._sleeping = true
+        this.pub("sleeping", true)
         // Unblock anything waiting on this agent so a mind's m-act (or a hand call in
         // flight) is not left hanging as the process winds down.
         this._resolveReady?.()

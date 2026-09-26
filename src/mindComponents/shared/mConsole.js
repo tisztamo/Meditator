@@ -17,6 +17,8 @@ export class MConsole extends MBaseComponent {
     _rl = null
 
     onConnect() {
+        // The mind's retained `identity` (its companion's name), mirrored, not asked for.
+        this.sub("!scope/identity", id => { this._mindIdentity = id || null }).catch(() => {})
         if (!process.stdin.isTTY && process.env.MEDITATOR_STDIN !== "1") {
             log.debug("stdin is not a TTY; console input disabled")
             return
@@ -40,7 +42,7 @@ export class MConsole extends MBaseComponent {
                 source: 'External',
                 type: 'ConsoleInput',
                 reason: text,
-                from: this.closest('m-mind')?.interlocutorName?.() || null,
+                from: this._mindIdentity?.interlocutor || null,
                 lang: langOf(this),
                 salience: 1,
                 urgent: true,

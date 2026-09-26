@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto"
 import { MObserver } from "../mind/mObserver.js"
 import { parseSpeechDecision } from "../mind/mSpeech.js"
 import { validateAgainstSchema } from "./toolSchema.js"
+import { HandRegistry } from "./hands.js"
 import { completeWithTools, complete } from "../../modelAccess/llm.js"
 import { resolveModelRef } from "../../modelAccess/modelConfig.js"
 import { readKept } from "./recallSources.js"
@@ -20,7 +21,7 @@ import { projectEvidenceFromPercept } from '../../infrastructure/evidenceView.js
 import {
     CompareBudget, CommitOrder, evaluationIdsOf, verdictsOf,
 } from '../../infrastructure/compareContinuation.js';
-import { runEvidenceCase, MIND_SLEEPING_EVENT } from '../../infrastructure/evidenceCase.js';
+import { runEvidenceCase } from '../../infrastructure/evidenceCase.js';
 import { part, bidOwnerOf, isCustomElementDefined } from "./enclosure.js";
 import { mindHome } from '../../infrastructure/memoryVault.js';
 import { parseTime } from '../../config/timeParser.js';
@@ -60,8 +61,8 @@ const log = logger('mAct.js');
  *   REALIZE (capable model, tools = the capability menu, tool_choice:"auto"): given
  *           the reach + recent window, pick a registered capability and its args —
  *           or decline, and the intention simply evaporated.
- *   EXECUTE (the capability's own code): validate args against the JSON Schema, run
- *           capability.execute(args) → { experience, salience?, data? }.
+ *   EXECUTE (the capability's own code): validate args against the JSON Schema, send
+ *           the hand a `call` request → it replies { experience, salience?, data? }.
  *
  * Then the split that the whole design exists for:
  *   - the DEED (the realizer ran, the hand executed) is fired as `acted` and a
@@ -74,7 +75,10 @@ const log = logger('mAct.js');
  *     capability name, never "the tool returned."
  *
  * Capabilities are wired INSIDE m-act (e.g. <m-act><m-look/></m-act>) and offer themselves
- * on connect with a bubbling "capability" event m-act listens for (no hand names m-act).
+ * on connect as plain data, a bubbling "capability" event m-act listens for (no hand names
+ * m-act); m-act invokes a hand with a `call` request it answers (shared/hands.js). A call
+ * waits at most the hand's `deadline`, else `callDeadline` (default 30m); a hand that never
+ * answers has slipped.
  * The menu is CLOSED: the realizer can only ever call a registered hand with schema-validated
  * args — it cannot invent one. A mind has exactly the hands its .archml gives it, like a body plan.
  *
@@ -155,7 +159,17 @@ export class MAct extends MObserver {
 
     _boundaryCount = 0
     _busy = false
-    _capabilities = []
+    _hands = new HandRegistry(this, {
+        noun: "hand",
+        log,
+        onChange: () => this._publishEmbodiment(),
+        deadline: () => {
+            const ms = parseTime(this.attr("callDeadline") || "30m")
+            return Number.isFinite(ms) && ms > 0 ? ms : undefined
+        },
+        // Architecture-owned target metadata for a Prediction. Never parsed from expect text.
+        normalizeEntry: entry => { entry.predictionTarget = freezePredictionTarget(entry.predictionTarget) },
+    })
     _ledger = new Map()   // normalized intent → timestamp of last act on it
     _busyToldAt = new Map()  // normalized intent → when the mind was last told this reach is in motion
     _lastActAt = 0        // world-changing lane (and the single shared lane in legacy mode)
@@ -171,8 +185,16 @@ export class MAct extends MObserver {
     _actCommit = new Map()
     _compareAborts = new Set()
     _compareBindGen = 0
+    _membraneSleeping = false   // the membrane's retained `sleeping`, mirrored (never read off it)
 
     onObserverConnect() {
+        // Sleep reaches the hands as the membrane's retained `sleeping` topic: a compare
+        // in flight is aborted, and a late completion is refused by revalidate().
+        this.sub("!scope/sleeping", sleeping => {
+            this._membraneSleeping = !!sleeping
+            if (sleeping) this._onMindSleeping()
+        }).catch(() => {})
+
         // Interoception, gated: a tired or near-broke mind does not reach. Tracks the
         // economy's arousal exactly as the arbiter does; with no economy the topic
         // never publishes and arousal stays 1, so a mind without a metabolism reaches
@@ -188,9 +210,10 @@ export class MAct extends MObserver {
             }).catch(() => {})
         }
 
-        // Each hand announces itself with a bubbling "capability" event; one self-listener
-        // catches them all (incl. hands added later). Synchronous listener — see decoupling.md.
-        this.addEventListener("capability", e => this._registerCapability(e?.detail))
+        // Each hand offers itself as plain data (a bubbling "capability" event, or one
+        // delivered here by a hand beside m-act); m-act calls it back with a `call`
+        // request (shared/hands.js). A re-offer under the same offerId replaces the entry.
+        this._hands.listen()
         if (this._predictionEnabled()) this._ensurePredictionListener()
     }
 
@@ -198,53 +221,13 @@ export class MAct extends MObserver {
         this._teardownPrediction("disconnect")
     }
 
-    // Register a hand from its "capability" event detail (efference.md §3). Returns false
-    // (and warns) on a malformed spec rather than throwing — a broken hand must not crash a wake.
-    // spec: { name, description, parameters (JSON Schema), felt?, readonly?, execute(args) }.
-    _registerCapability(spec) {
-        if (!spec || typeof spec.name !== "string" || typeof spec.execute !== "function") {
-            log.warn(`ignoring a malformed capability registration: ${JSON.stringify(spec?.name)}`)
-            return false
-        }
-        if (this._capabilities.some(c => c.name === spec.name)) {
-            log.warn(`a capability named "${spec.name}" is already registered; ignoring the duplicate`)
-            return false
-        }
-        this._capabilities.push({
-            name: spec.name,
-            description: spec.description || "",
-            parameters: spec.parameters || { type: "object", properties: {} },
-            felt: (spec.felt || "").trim(),
-            readonly: spec.readonly !== false,   // read-only unless explicitly opted out (§6c)
-            execute: spec.execute.bind(spec),
-            // Architecture-owned target metadata for a Prediction. Never parsed from expect text.
-            predictionTarget: freezePredictionTarget(spec.predictionTarget),
-            lane: typeof spec.lane === "string" && spec.lane ? spec.lane : null,
-            cooldown: spec.cooldown ?? null,
-            intentThreshold: spec.intentThreshold == null ? null : Number(spec.intentThreshold),
-            acceptsTemplate: spec.acceptsTemplate === true,
-            consequenceType: Object.prototype.hasOwnProperty.call(spec, "consequenceType")
-                ? spec.consequenceType
-                : undefined,
-        })
-        log.info(`hand registered: ${spec.name}${spec.readonly === false ? " (WORLD-CHANGING)" : ""}`)
-        this._publishEmbodiment()
-        return true
-    }
-
-    /** Hands such as m-orient refresh a closed enum after a late aperture connects. */
-    _updateCapability(name, patch) {
-        const cap = this._capabilities.find(c => c.name === name)
-        if (!cap || !patch || typeof patch !== "object") return false
-        Object.assign(cap, patch)
-        this._publishEmbodiment()
-        return true
-    }
+    /** The closed menu: every offered hand, normalized (shared/hands.js). */
+    get _capabilities() { return this._hands.entries }
 
     /**
      * Assemble and publish the BODY SCHEMA: the mind's first-person sense of what it
      * can reach, joined from each hand's `felt` line. Re-published whenever a hand
-     * registers (registration is async — hands retry until their parent is up). The
+     * registers or re-offers (a late hand, a sibling, a new schema). The
      * mind weaves this softly into its identity, so its affordances are standing
      * self-knowledge rather than a tool menu it must consult — and so a hand stays
      * reachable even when the stream never wanders into its domain on its own.
@@ -610,10 +593,6 @@ export class MAct extends MObserver {
             this._evaluationCommitListener = this._onEvaluationCommit
             mind.addEventListener(EVALUATION_COMMIT_EVENT, this._evaluationCommitListener)
         }
-        if (mind && !this._mindSleepingListener) {
-            this._mindSleepingListener = this._onMindSleeping
-            mind.addEventListener(MIND_SLEEPING_EVENT, this._mindSleepingListener)
-        }
     }
 
     _onMindSleeping = () => {
@@ -635,11 +614,7 @@ export class MAct extends MObserver {
         if (this._commitHost && this._evaluationCommitListener) {
             this._commitHost.removeEventListener(EVALUATION_COMMIT_EVENT, this._evaluationCommitListener)
         }
-        if (this._commitHost && this._mindSleepingListener) {
-            this._commitHost.removeEventListener(MIND_SLEEPING_EVENT, this._mindSleepingListener)
-        }
         this._evaluationCommitListener = null
-        this._mindSleepingListener = null
         this._commitHost = null
         for (const actId of [...this._liveActs.keys()]) this._cancelLiveAct(actId, reason)
     }
@@ -722,7 +697,7 @@ export class MAct extends MObserver {
             aborts: this._compareAborts,
             revalidate: () => this.isConnected
                 && this._compareBindGen === bindGen
-                && !this.membrane()?._sleeping,
+                && !this._membraneSleeping,
             commit: evaluations => {
                 if (evaluations.length) {
                     const predictionId = evaluations.find(e => e.subject?.kind === "prediction")?.subject?.id

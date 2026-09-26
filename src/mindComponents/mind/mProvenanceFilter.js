@@ -60,7 +60,8 @@ export class MProvenanceFilter extends MBaseComponent {
     }
 
     _onAttended = e => {
-        const lines = Array.isArray(e?.detail) ? e.detail.map(l => `> ⟂ ${l}`) : []
+        // `attended {lines, requestId}` — the frame's request to memory; we only listen.
+        const lines = Array.isArray(e?.detail?.lines) ? e.detail.lines.map(l => `> ⟂ ${l}`) : []
         if (!lines.length) return
         const recall = Number(this.attr("recall")) || 16
         this._recent = [...lines, ...this._recent].slice(0, recall)

@@ -89,7 +89,7 @@ test("spawn returns immediately with a job id (dry-run: no process)", async () =
 test("list_jobs and check reflect a job; a dry job finishes cleanly", async () => {
     const { tool } = await buildAgent();
     await tool("spawn")({ language: "bash", script: "echo one" });
-    const list = tool("list_jobs")();
+    const list = await tool("list_jobs")();
     expect(list.observation).toMatch(/job-1/);
     // The dry runner resolves immediately, so by now the job has finished.
     const checked = await tool("check")({ id: "job-1" });
@@ -185,7 +185,7 @@ test("killing a job stops it and suppresses its completion notice", async () => 
     const controls = useControllableRegistry(jobs);
     await tool("spawn")({ language: "bash", script: "run" });
 
-    const killed = tool("kill")({ id: "job-1" });
+    const killed = await tool("kill")({ id: "job-1" });
     expect(killed.observation).toMatch(/killed job-1/);
     expect(controls[0].killed).toBe(true);
 

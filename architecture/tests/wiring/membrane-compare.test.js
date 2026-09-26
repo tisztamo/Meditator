@@ -17,6 +17,7 @@ import {
     EVALUATION_COMMIT_EVENT,
 } from '../../../src/infrastructure/predictionContracts.js';
 import { CompareBudget } from '../../../src/infrastructure/compareContinuation.js';
+import { offerFixtureHand } from './fixtureHand.js';
 
 const FIXTURE = 'the screen answers 42';
 const MISMATCH_TEXT = 'the screen answers 43';
@@ -286,10 +287,12 @@ test('13b. sleep and a moved source drop in-flight comparison; rebound comparato
     compare.evaluate = () => new Promise(resolve => { releaseSleep = () => resolve([]); });
     const sleeping = offer(header('sleep'), () => 'sleep archival');
     await waitUntil(() => typeof releaseSleep === 'function');
-    mind._sleeping = true;
+    mind.pub('sleeping', true);            // the membrane's retained topic (message-rule.md)
+    await delay(0);
     releaseSleep();
     expect(await sleeping).toBeNull();
-    mind._sleeping = false;
+    mind.pub('sleeping', false);
+    await delay(0);
 
     let releaseMove;
     compare.evaluate = () => new Promise(resolve => { releaseMove = () => resolve([]); });
@@ -405,7 +408,7 @@ test('capacity full still admits evidence without match/mismatch', async () => {
 });
 
 test('act-path comparison uses the same Percept id through commit and bid', async () => {
-    act._registerCapability({
+    await offerFixtureHand(act, {
         name: 'probe',
         description: 'fixture',
         parameters: { type: 'object', properties: { q: { type: 'string' } }, required: ['q'] },
@@ -429,7 +432,7 @@ test('act-path comparison uses the same Percept id through commit and bid', asyn
 
 test('act-path without comparator stays synchronous A2 redispatch', async () => {
     compare.remove();
-    act._registerCapability({
+    await offerFixtureHand(act, {
         name: 'sync-probe',
         description: 'fixture',
         parameters: { type: 'object', properties: { q: { type: 'string' } } },
@@ -465,7 +468,7 @@ test('14. immediate and deferred mismatches raise bids through the same configur
     expect(membrane.signals.changeMagnitude).toBe(0.2);
     expect(membrane.salience).toBe(0.95);
 
-    act._registerCapability({
+    await offerFixtureHand(act, {
         name: 'imm-mismatch',
         description: 'fixture',
         parameters: { type: 'object', properties: { q: { type: 'string' } }, required: ['q'] },
@@ -486,7 +489,7 @@ test('14. immediate and deferred mismatches raise bids through the same configur
     expect(immediate.salience).toBe(0.95);
 
     let seenCtx = null;
-    act._registerCapability({
+    await offerFixtureHand(act, {
         name: 'defer-mismatch',
         description: 'fixture',
         parameters: { type: 'object', properties: { q: { type: 'string' } }, required: ['q'] },
@@ -518,7 +521,7 @@ test('14. immediate and deferred mismatches raise bids through the same configur
 test('owner-local: a region bidder does not bind for m-act', async () => {
     act.querySelector('[name="act-bid"]').remove();
     region.querySelector('[name="region-bid"]').setAttribute('mismatchWeight', '0.95');
-    act._registerCapability({
+    await offerFixtureHand(act, {
         name: 'no-act-bidder',
         description: 'fixture',
         parameters: { type: 'object', properties: { q: { type: 'string' } }, required: ['q'] },

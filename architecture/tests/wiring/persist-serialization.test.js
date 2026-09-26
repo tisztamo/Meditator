@@ -5,7 +5,7 @@
 //   1. SERIALIZE the writes. Overlapping persists now run through one queue (as
 //      m-context already does), so they apply in issue order and a stale write never
 //      wins the rename after a fresher one.
-//   2. AWAIT an in-flight consolidation at finalize(), so the last compressed self is
+//   2. AWAIT an in-flight consolidation at finalize() (the mind's `sleep` request), so the last compressed self is
 //      what reaches disk — not the state from just before the fold landed.
 //   3. Make the FINAL write LOUD. A routine boundary write may fail and be retried next
 //      boundary; the sleep write is the resident's last self, so its failure is logged
@@ -17,6 +17,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { delay } from "./setup.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
+import { request } from "../../../src/infrastructure/requestReply.js";
 
 let seq = 0;
 const homes = [];
@@ -76,7 +77,7 @@ test("overlapping writes are SERIALIZED — a slow write still completes before 
     expect(order).toEqual([1, 2]);
 });
 
-test("finalize() awaits an IN-FLIGHT consolidation, so the last compressed self reaches disk (§2)", async () => {
+test("the sleep request awaits an IN-FLIGHT consolidation, so the last compressed self reaches disk (§2)", async () => {
     const { home, memory } = await freshMemory();
     memory.recent = "the summary from before the fold";
     // Sleep arrives while a consolidation is still running; it is about to replace
@@ -89,7 +90,8 @@ test("finalize() awaits an IN-FLIGHT consolidation, so the last compressed self 
         folded = true;
     })();
 
-    await memory.finalize("sleep");
+    const reply = await request(document.querySelector("m-mind"), "sleep", { reason: "sleep" }, { bubbles: false });
+    expect(reply).toMatchObject({ status: "ok", data: { committed: true }, from: "memory" });
 
     expect(folded).toBe(true);                                     // finalize waited for the fold
     const md = readMd(home);
@@ -115,9 +117,26 @@ test("a failed FINAL write at sleep is LOUD and rethrown, where a boundary write
     // The FINAL write is the resident's last self: its failure must not be silent.
     await expect(memory._persist({ critical: true })).rejects.toThrow();
 
-    // ...and finalize() propagates it, so the sleep ritual cannot report a clean save
-    // that did not happen.
-    await expect(memory.finalize("sleep")).rejects.toThrow();
+    // ...and the sleep request's reply carries it, so the sleep ritual cannot report a
+    // clean save that did not happen.
+    const reply = await request(document.querySelector("m-mind"), "sleep", { reason: "sleep" }, { bubbles: false });
+    expect(reply.status).toBe("error");
+    expect(reply.error).toBeTruthy();
+});
+
+test("nothing is journaled after the sleep marker: a late deed or trail belongs to no session (review §9, bug 2)", async () => {
+    const { home, memory } = await freshMemory();
+    const stream = document.querySelector("m-stream");
+    expect((await request(document.querySelector("m-mind"), "sleep", { reason: "sleep" }, { bubbles: false })).status).toBe("ok");
+    // Late arrivals on the channels memory journals from, after the commit.
+    stream.dispatchEvent(new CustomEvent("backstage", { bubbles: true, detail: { text: "a late mechanism trail" } }));
+    stream.dispatchEvent(new CustomEvent("aperture-change", { bubbles: true, detail: { from: "open", to: "soft", reason: "late" } }));
+    await delay(20);
+    await memory._journalQueue;
+    const journalDir = path.join(home, "journal");
+    const journal = fs.readdirSync(journalDir).map(f => fs.readFileSync(path.join(journalDir, f), "utf8")).join("\n");
+    expect(journal).toMatch(/\*sleep at [^*]+\*\s*$/);
+    expect(journal.includes("a late mechanism trail")).toBe(false);
 });
 
 test("a boundary write is best-effort (one attempt); the FINAL write retries once before giving up", async () => {

@@ -8,7 +8,7 @@ import { InterruptRecord } from '../../infrastructure/interruptRecord.js'
 import { parseTime } from '../../config/timeParser.js'
 import { projectEvidenceView } from '../../infrastructure/evidenceView.js'
 import { CompareBudget, CommitOrder, evaluationIdsOf, verdictsOf } from '../../infrastructure/compareContinuation.js'
-import { runEvidenceCase, MIND_SLEEPING_EVENT } from '../../infrastructure/evidenceCase.js'
+import { runEvidenceCase } from '../../infrastructure/evidenceCase.js'
 import { evaluationCommitPayload, fireEvaluationCommit } from '../../infrastructure/predictionContracts.js'
 import { OrientationRequest } from '../../infrastructure/predictionContracts.js'
 import { logger } from '../../infrastructure/logger.js'
@@ -132,12 +132,17 @@ export class MRegion extends MBaseComponent {
         this._arousal = 1
         const mind = this._mind()
         mind?.addEventListener('percepts-attended', this._onPerceptsAttended)
-        mind?.addEventListener(MIND_SLEEPING_EVENT, this._onMindSleeping)
         // closest() is empty after removal; remember the connect-time host for unlisten.
         this._unlistenPercepts = () => {
             mind?.removeEventListener('percepts-attended', this._onPerceptsAttended)
-            mind?.removeEventListener(MIND_SLEEPING_EVENT, this._onMindSleeping)
         }
+        // Sleep arrives as the membrane's retained `sleeping` topic (message-rule.md):
+        // mirrored, never read off the mind; a compare in flight is aborted on it.
+        this._membraneSleeping = false
+        this.sub('!scope/sleeping', sleeping => {
+            this._membraneSleeping = !!sleeping
+            if (sleeping) this._onMindSleeping()
+        }).catch(() => {})
         if (mind?.querySelector('m-stream')) {
             this.sub('!scope/stream/@boundary', () => this.onBoundary()).catch(() => {})
         }
@@ -194,7 +199,7 @@ export class MRegion extends MBaseComponent {
         entry.offer = async (header, materialize) => {
             const attached = () => this.isConnected && element.isConnected
                 && this._modalityRegion(element) === this && this._sources.get(element) === entry
-            if (!attached() || this._mind()?._sleeping) return null
+            if (!attached() || this._membraneSleeping) return null
             const control = entry.controlStack[entry.controlStack.length - 1] ?? entry.control ?? null
             const requestId = control?.id ?? header.requestId ?? null
             // Act lineage comes only from a trusted ControlRequest, never a source header.
@@ -279,7 +284,7 @@ export class MRegion extends MBaseComponent {
             } finally { entry.busy = false }
 
             if (failed) return null
-            if (!attached() || this._mind()?._sleeping
+            if (!attached() || this._membraneSleeping
                 || !this._versionsHold(annotated)) return null
 
             const occurredAt = new Date(Math.min(now, candidate.occurredAt)).toISOString()
@@ -307,7 +312,7 @@ export class MRegion extends MBaseComponent {
                     budget: this._compareBudget,
                     order: this._orderFor(contract.name),
                     aborts: this._compareAborts,
-                    revalidate: () => attached() && !this._mind()?._sleeping
+                    revalidate: () => attached() && !this._membraneSleeping
                         && this._bindGen === regionGen && this._versionsHold(annotated),
                 })
                 if (outcome == null) return null
@@ -331,7 +336,7 @@ export class MRegion extends MBaseComponent {
             })
             element.dispatchEvent(awarenessEvent)
             const awareness = this._composedGate(awarenessEvent, expectedGates)
-            if (awareness.permitted && (!attached() || this._mind()?._sleeping
+            if (awareness.permitted && (!attached() || this._membraneSleeping
                 || !this._versionsHold(annotated))) {
                 this._publishDecision(this._gateMissingVerdict(awarenessDetail), annotated)
                 return null
@@ -731,7 +736,7 @@ export class MRegion extends MBaseComponent {
     onBoundary(now = Date.now()) {
         if (!this.aperture) return
         const before = this.aperture.state
-        const changed = this.aperture.advance(now, { awake: !this._mind()?._sleeping, arousal: this._arousal })
+        const changed = this.aperture.advance(now, { awake: !this._membraneSleeping, arousal: this._arousal })
         if (changed) this._transition(before, 'contact-deficit')
         else this._publishAperture()
     }
@@ -759,7 +764,7 @@ export class MRegion extends MBaseComponent {
     requestControl(request) {
         if (!(request instanceof ControlRequest)) throw new Error('requestControl requires a ControlRequest')
         if (!this.aperture) return false
-        const sleeping = this._mind()?._sleeping
+        const sleeping = this._membraneSleeping
         const targeted = request.target != null
         let delivered = false
         let owned = false

@@ -1,5 +1,5 @@
 // B0 — hands role, ids, progress, rebinding already covered in membrane-compare 13b,
-// duplicate comparator at connect, mind-sleeping abort, compareDeadline, substitute act.
+// duplicate comparator at connect, sleeping-topic abort, compareDeadline, substitute act.
 import './setup.js';
 import { test, expect, beforeAll, afterAll, afterEach } from 'bun:test';
 import A from 'amanita';
@@ -13,8 +13,8 @@ import { bidOwnerOf, providesOf } from '../../../src/mindComponents/shared/enclo
 import { InterruptRecord } from '../../../src/infrastructure/interruptRecord.js';
 import { AttentionBid } from '../../../src/infrastructure/attentionBid.js';
 import { compareDeadlineMs, DEFAULT_COMPARE_DEADLINE_MS } from '../../../src/infrastructure/compareContinuation.js';
-import { MIND_SLEEPING_EVENT } from '../../../src/infrastructure/evidenceCase.js';
 import { EVALUATION_COMMIT_EVENT } from '../../../src/infrastructure/predictionContracts.js';
+import { offerFixtureHand } from './fixtureHand.js';
 
 const COMPONENTS_DIR = fileURLToPath(new URL('./components', import.meta.url));
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -127,7 +127,7 @@ test('4. progress: true is trusted, survives to the view, and is not judged; coe
     const act = mind.querySelector('m-act');
     const commits = [];
     mind.addEventListener(EVALUATION_COMMIT_EVENT, e => commits.push(e.detail));
-    act._registerCapability({
+    await offerFixtureHand(act, {
         name: 'probe',
         description: 'fixture',
         parameters: { type: 'object', properties: { q: { type: 'string' } }, required: ['q'] },
@@ -183,7 +183,7 @@ test('5. a second comparator throws on connect', async () => {
     expect(captured?.message || String(captured)).toMatch(/only one comparator/);
 });
 
-test('6. mind-sleeping aborts a live region case; a late completion is inert', async () => {
+test('6. the membrane\'s `sleeping` topic aborts a live region case; a late completion is inert', async () => {
     await mount(`
       <m-mind name="b0-sleep">
         <m-stream name="stream"></m-stream>
@@ -206,8 +206,8 @@ test('6. mind-sleeping aborts a live region case; a late completion is inert', a
     const pending = offer({ changeMagnitude: 0.9, changeKey: 'sleep', occurredAt: Date.now() }, () => 'sleep archival');
     const start = Date.now();
     while (Date.now() - start < 400 && typeof release !== 'function') await delay(5);
-    mind._sleeping = true;
-    mind.dispatchEvent(new CustomEvent(MIND_SLEEPING_EVENT, { detail: { sleeping: true } }));
+    mind.pub('sleeping', true);
+    await delay(0);
     release();
     expect(await pending).toBeNull();
 });

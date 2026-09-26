@@ -11,6 +11,7 @@ import { loadMindComponents } from '../../../src/startup/loadMindComponents.js'
 import { OrientationRequest } from '../../../src/infrastructure/predictionContracts.js'
 import { PerceptReceipt } from '../../../src/infrastructure/perceptionContracts.js'
 import { normalizeIntent } from '../../../src/mindComponents/shared/mAct.js'
+import { offerFixtureHand } from './fixtureHand.js'
 
 const COMPONENTS_DIR = fileURLToPath(new URL('./components', import.meta.url))
 
@@ -102,12 +103,12 @@ test('18. orientation cannot carry bypass powers, exceed configured states, or a
     expect(inner.aperture.state).not.toBe('narrow')
 })
 
-test('19. the control lane does not consume read/world cooldowns and vice versa', () => {
+test('19. the control lane does not consume read/world cooldowns and vice versa', async () => {
     const look = { name: 'look', readonly: true, execute: async () => ({}) }
     const note = { name: 'note', readonly: false, execute: async () => ({}) }
     const capOrient = act._capabilities.find(c => c.name === 'orient')
-    act._registerCapability({ ...look, description: 'd' })
-    act._registerCapability({ ...note, description: 'd' })
+    await offerFixtureHand(act, { ...look, description: 'd' })
+    await offerFixtureHand(act, { ...note, description: 'd' })
     const lookCap = act._capabilities.find(c => c.name === 'look')
     const noteCap = act._capabilities.find(c => c.name === 'note')
     expect(act._laneOpen(lookCap)).toBe(true)
@@ -212,7 +213,7 @@ test('claim-at-execute: a declined reach does not burn the intent ledger; execut
     const gist = 'let the world recede a little'
     const key = normalizeIntent(gist)
     expect(act._ledger.has(key)).toBe(false)
-    act._registerCapability({
+    await offerFixtureHand(act, {
         name: 'probe',
         description: 'fixture',
         parameters: { type: 'object', properties: { q: { type: 'string' } } },

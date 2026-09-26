@@ -1,11 +1,11 @@
 // Bridge provenance (philosophical-review-2026-07-02 finding 7, ui-journal-honesty C1).
 // A redirect burst opens with a BRIDGE — a transition sentence written by the UTILITY model,
 // not the mind's own voice. It must ride the verbatim tail (the model continues from it) but
-// the human-facing journal must not pass it off as spontaneous inner monologue. m-mind fires a
-// transient `@bridge` event; m-memory marks it pending and _flushJournal peels it off the front
+// the human-facing journal must not pass it off as spontaneous inner monologue. m-mind asks a
+// `bridge` request (message-rule.md); m-memory marks it pending, replies, and _flushJournal peels it off the front
 // of the next flushed block as a `↪` provenance line while leaving the tail untouched. This
 // exercises the memory-side seam directly (no utility-model call); the m-mind fire is glue
-// covered by the smoke/live runs.
+// covered by the frame-ordering contract.
 import { test, expect, beforeAll, afterAll } from "bun:test";
 import A from "amanita";
 import os from "node:os";
@@ -13,6 +13,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { delay } from "./setup.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
+import { request } from "../../../src/infrastructure/requestReply.js";
 
 let mind, memory, journalDir;
 
@@ -51,10 +52,10 @@ const count = (hay, needle) => hay.split(needle).length - 1;
 
 test("the bridge is journaled as a ↪ provenance line, never as inner monologue", async () => {
     const before = await journalText();
-    // Production order: m-mind fires @bridge, THEN the stream emits the opening `prefix`
-    // chunk (bridge + opener), then the model's continuation.
-    mind.fire("bridge", { text: BRIDGE });
-    await delay(10);
+    // Production order: m-mind asks `bridge` and waits for memory's reply, THEN the stream
+    // emits the opening `prefix` chunk (bridge + opener), then the model's continuation.
+    const reply = await request(mind, "bridge", { text: BRIDGE });
+    expect(reply).toMatchObject({ status: "ok", data: { marked: true } });
     memory._onChunk(`${BRIDGE} And so, turning it over, I keep thinking.`);
     memory._flushJournal();
     const added = (await journalText()).slice(before.length);
@@ -71,8 +72,7 @@ test("the bridge still rides the verbatim tail (the model continues from it)", (
 
 test("a pending bridge is consumed once — a later plain flush is untouched", async () => {
     const before = await journalText();
-    mind.fire("bridge", { text: BRIDGE });
-    await delay(10);
+    await request(mind, "bridge", { text: BRIDGE });
     memory._onChunk(`${BRIDGE} first continuation.`);
     memory._flushJournal();                       // consumes the pending bridge
     memory._onChunk(`${BRIDGE} a later mention, genuinely the mind's own words.`);

@@ -53,16 +53,23 @@ const log = logger('mMemory.js');
  *     backstage (⌁) note — the mind never saw it reach. Its CONSEQUENCE arrives
  *     separately as an External stimulus and is journaled perceived (⟂) via
  *     `attended`. Deed ⌁, consequence ⟂. Exactly mirrors `filedSrc` for the scribe.
- *   - attendedSrc (default "!scope/attended"; "off" disables): the stimuli that
- *     entered each frame, journaled as perceived (⟂) notes by subscribing here
- *     rather than the mind calling note() in — AND appended to the verbatim tail
- *     as the same `> ⟂ …` block, so perception persists in memory like the mind's
- *     own words instead of living for a single frame.
+ *   - attendedSrc (default "!scope/@attended"; "off" disables): the stimuli that
+ *     entered each frame, journaled as perceived (⟂) notes by answering the mind's
+ *     `attended {lines}` request rather than the mind calling note() in — AND
+ *     appended to the verbatim tail as the same `> ⟂ …` block, so perception
+ *     persists in memory like the mind's own words instead of living for a single
+ *     frame. The reply is what lets the mind publish the frame knowing the ⟂ lines
+ *     landed before the frame's first chunk (message rule M5).
  *   - bridgeSrc (default "!scope/@bridge"; "off" disables): the utility-model
  *     transition sentence m-mind injects at the head of a redirect burst. It rides
  *     the verbatim tail via the stream `prefix` chunk (the model continues from it),
  *     but is peeled off the journal as a provenance (↪) line rather than recorded as
- *     the mind's own spontaneous thought (finding 7, C1; Covenant §9).
+ *     the mind's own spontaneous thought (finding 7, C1; Covenant §9). A request,
+ *     answered once the pending mark is set.
+ *   - sleepSrc (default "!scope/@sleep"; "off" disables): the sleep ritual's
+ *     `sleep {reason}` request. Memory finalizes (journal marker, final persist,
+ *     vault commit) and replies {committed, persists}; a failed final write replies
+ *     an error, so the mind can report the self as not confirmed.
  *   - backstageSrc (default "!scope/@backstage"; "off" disables): the GENERIC mechanism
  *     trail. Any component fires a bubbling `backstage` event {text?, kind?, record?}:
  *     `text` is journaled as a ⌁ note, and `kind` (a slug) + `record` (an object) are
@@ -82,6 +89,9 @@ const log = logger('mMemory.js');
  *   - "compressed": {recent, story} after a consolidation, and once on load
  */
 export class MMemory extends MBaseComponent {
+    // `up` waits for _load(): the mind must not think before the self is read back.
+    static deferUp = true
+
     tail = ""
     recent = ""
     story = ""
@@ -141,6 +151,8 @@ export class MMemory extends MBaseComponent {
         // resident manifest, so tierOf is "transient"/"none", and `commitVault`
         // additionally hard-stops on a dry run.
         this._persists = this._vaulted && tierOf(dir) === 'resident'
+        // Retained, so the sleep notice can be honest without reading my getter.
+        this.pub("kept", !!this._persists)
 
         // Defense-in-depth: refuse to load existing memory for transient minds.
         // A transient re-woken into an existing home would load old memory without
@@ -191,8 +203,16 @@ export class MMemory extends MBaseComponent {
         // we journal them as perceived (⟂) notes here, rather than the mind reaching
         // in to call note() per stimulus.
         if (this.attr("attendedSrc") !== "off") {
-            this.sub(this.attr("attendedSrc") || "!scope/@attended", this._onAttended)
+            this.respond("attended", this._onAttended, { src: this.attr("attendedSrc") || "!scope/@attended" })
             this.sub('!scope/@percepts-attended', this._onPerceptsAttended)
+        }
+
+        // THE SLEEP RITUAL asks, memory answers (message-rule.md): the membrane's
+        // `sleep` request is the only way in, and the reply says whether the self
+        // was committed. A mind without memory simply gets no reply.
+        if (this.attr("sleepSrc") !== "off") {
+            this.respond("sleep", d => this._onSleep(d), { src: this.attr("sleepSrc") || "!scope/@sleep" })
+                .catch(err => { if (this.isConnected) log.warn('memory sleep bind failed:', err.message) })
         }
 
         // THE BACKSTAGE CHANNEL: any component leaves a mechanism trail by firing a
@@ -215,7 +235,8 @@ export class MMemory extends MBaseComponent {
         // `_flushJournal` peels it off the front of the next flushed block as a ↪ provenance
         // line (finding 7, C1; ui-journal-honesty.md). Off-able; auto-discovered on the mind.
         if (this.attr("bridgeSrc") !== "off") {
-            this.sub(this.attr("bridgeSrc") || "!scope/@bridge", e => { this._pendingBridge = e?.detail?.text || null })
+            this.respond("bridge", d => { this._pendingBridge = d.text || null; return { marked: !!d.text } },
+                { src: this.attr("bridgeSrc") || "!scope/@bridge" })
         }
 
         // A LOOP BREAK arrives as the mind's transient `@clear-tail` event (loop-detection-
@@ -223,7 +244,7 @@ export class MMemory extends MBaseComponent {
         // we reseed it to the breaker's fresh seed here rather than the mind reaching in to
         // set it: the cut then rides our existing `tail` channel to everyone who watches it.
         if (this.attr("clearTailSrc") !== "off") {
-            this.sub(this.attr("clearTailSrc") || "!scope/@clear-tail", this._onClearTail)
+            this.respond("clear-tail", this._onClearTail, { src: this.attr("clearTailSrc") || "!scope/@clear-tail" })
         }
 
         // A MUFFLING: the arbiter dropped a stimulus a rested mind would have taken, because
@@ -257,6 +278,7 @@ export class MMemory extends MBaseComponent {
 
         this._load().finally(async () => {
             this.loaded = true
+            this.markUp()
             if (this._persists) {
                 // Open the session durably (§2/§3 crash honesty): stamp memory.md with
                 // endedCleanly:false now, so even a crash before the first boundary is
@@ -422,13 +444,13 @@ export class MMemory extends MBaseComponent {
     // into the compressor, and outlives the one frame it used to live in
     // (doc/improvements/perception-not-compressible.md — option 1, chosen 2026-07-03
     // after the lemma-lab-20 run showed the mind amnesic about its own computed results).
-    _onAttended = e => {
-        const lines = e.detail
-        if (!Array.isArray(lines) || !lines.length) return
+    _onAttended = d => {
+        const lines = d?.lines
+        if (!Array.isArray(lines) || !lines.length || this._finalized) return { noted: 0 }
         for (const line of lines) this.note(line)
-        if (this._finalized) return
         this.tail = withPerceivedEvents(this.tail, lines)
         this._trimTail()
+        return { noted: lines.length }
     }
 
     // Typed source of truth beside the textual journal. Built from frame receipts,
@@ -504,9 +526,8 @@ export class MMemory extends MBaseComponent {
     // (`via === "Recall"`, m-resurface) or the mind was simply brought to rest (the floor).
     // Without this trail the journal presented deliberate first-person agency for an
     // involuntary injection (philosophical-review-2026-07-02 finding 7; ui-journal-honesty C3).
-    _onClearTail = e => {
-        const d = e.detail
-        if (this._finalized || !d || typeof d.seed !== "string" || !d.seed.trim()) return
+    _onClearTail = d => {
+        if (this._finalized || !d || typeof d.seed !== "string" || !d.seed.trim()) return { reseeded: false }
         const discarded = this.tail.length + this._overflow.length
         this.tail = d.seed
         this._overflow = ""
@@ -521,6 +542,7 @@ export class MMemory extends MBaseComponent {
         )
         this._persist()
         this.pub("tail", this.tail)
+        return { reseeded: true }
     }
 
     // A muffling: low arousal raised the interrupt threshold and dropped a stimulus a rested
@@ -538,9 +560,17 @@ export class MMemory extends MBaseComponent {
         )
     }
 
+    // The `sleep` request's answer. A failed final write throws out of finalize()
+    // and becomes an error reply: the mind reports the self as not confirmed.
+    async _onSleep(d) {
+        await this.finalize(typeof d?.reason === "string" && d.reason ? d.reason : "sleep")
+        return { committed: true, persists: this.persists }
+    }
+
     /**
      * The end of a session, done properly: flush the journal, note the moment,
-     * persist, and commit the vault. Called by the sleep ritual; idempotent.
+     * persist, and commit the vault. Reached through the sleep ritual's `sleep`
+     * request (_onSleep); idempotent.
      */
     async finalize(reason = "sleep") {
         if (this._finalized) return
@@ -667,6 +697,9 @@ export class MMemory extends MBaseComponent {
      * backstage (⌁) events stay journal-only — the mind never experienced them.
      */
     note(text, { perceived = true } = {}) {
+        // After the sleep marker nothing more is the record's to say: a deed, trail or
+        // filing that lands late belongs to no session (review §9, bug 2).
+        if (this._finalized) return
         this._flushJournal()
         this._appendJournal(`\n> ${perceived ? "⟂" : "⌁"} ${text}\n\n`)
     }

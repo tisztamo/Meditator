@@ -109,7 +109,7 @@ test("spawn_agent starts a background job that runs the sub-agent's WHOLE loop t
     expect(out.observation).toMatch(/started job-1/);
 
     // It is registered as an AGENT job in the same registry as shell jobs.
-    const list = tool("list_jobs")();
+    const list = await tool("list_jobs")();
     expect(list.data.jobs[0].kind).toBe("agent");
 
     // Wait on it — the dry worker runs terminal ×2 then finish, so it completes; the final

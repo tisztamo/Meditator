@@ -520,8 +520,8 @@ exactly like `m-speech`: a cheap **decide** gate keeps the expensive tool-callin
 - **REALIZE** (capable model, tools = the capability menu, `tool_choice:"auto"`):
   given the reach, pick a registered capability and its args — or decline, and the
   intention simply evaporated (the second gate).
-- **EXECUTE**: validate the args against the capability's JSON Schema, run
-  `capability.execute(args)` → `{experience, salience?, data?}`. A slip is swallowed
+- **EXECUTE**: validate the args against the capability's JSON Schema, send the hand a
+  `call` request; it replies with `execute(args, ctx)`'s `{experience, salience?, data?}`. A slip is swallowed
   and logged (failure is silent, never self-blame) — the mind feels nothing rather
   than a failure-of-self.
 
@@ -542,8 +542,11 @@ exactly like `m-speech`: a cheap **decide** gate keeps the expensive tool-callin
 Plus all `m-observer` attributes.
 
 - **Capabilities register, the menu is closed:** each child capability calls
-  `registerCapability({name, description, parameters, felt?, readonly?, execute, lane?, cooldown?, intentThreshold?, acceptsTemplate?, consequenceType?, predictionTarget?})` on
-  connect. `description`/`parameters` are *machine-facing* (the realizer's tool schema);
+  `this.offerCapability({name, description, parameters, felt?, readonly?, execute, lane?, cooldown?, intentThreshold?, acceptsTemplate?, consequenceType?, predictionTarget?, deadline?})` on
+  connect. The offer is plain data (`execute` stays on the hand); m-act invokes it with a
+  `call` request and a deadline (`deadline`, else `callDeadline`, default `30m`), and a
+  re-offer under the same `offerId` replaces the entry (`shared/hands.js`). A hand beside
+  m-act rather than inside it passes `{to}` (m-facts). `description`/`parameters` are *machine-facing* (the realizer's tool schema);
   `felt` is *world-facing* — a first-person, no-mechanism sense of the affordance, in
   the mind's own voice. Optional `lane: 'control'` plus a declared `cooldown` is a third
   cooldown lane (used by `m-orient`); `intentThreshold` filters the REALIZE menu after

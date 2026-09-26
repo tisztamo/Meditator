@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { MBaseComponent } from "../shared/mBaseComponent.js"
+import { part } from "../shared/enclosure.js"
 import { mindHome } from '../../infrastructure/memoryVault.js';
 import { logger } from '../../infrastructure/logger.js';
 
@@ -23,7 +24,6 @@ const log = logger('mFacts.js');
 export class MFacts extends MBaseComponent {
     facts = new Map()
     loaded = false
-    _registeredHands = false
 
     onConnect() {
         this._loadAndSeed()
@@ -31,7 +31,7 @@ export class MFacts extends MBaseComponent {
             .finally(() => {
                 this.loaded = true
                 this._publishPinned()
-                this._registerHandsSoon()
+                this._offerHands()
             })
     }
 
@@ -149,21 +149,15 @@ export class MFacts extends MBaseComponent {
         this.pub("pinned", text)
     }
 
-    _registerHandsSoon(tries = 0) {
-        if (this._registeredHands) return
-        const act = this.closest("m-act") || this.closest("m-mind")?.querySelector("m-act")
-        if (act && typeof act._registerCapability === "function") {
-            this._registeredHands = true
-            this._offerTo(act, this._rememberSpec())
-            this._offerTo(act, this._recallSpec())
-            return
-        }
-        if (tries < 50) setTimeout(() => this._registerHandsSoon(tries + 1), 20)
-    }
-
-    _offerTo(act, spec) {
-        if (act === this.parentElement) this.offerCapability(spec)
-        else act.dispatchEvent(new CustomEvent("capability", { detail: spec, bubbles: false }))
+    /** Offer remember / recall-fact to the mind's hands: the enclosing assembler, or
+     *  the mind's own `hands` part when m-facts sits beside it. An assembler that comes
+     *  up later asks for offers again (`capability-wanted`, shared/hands.js), so there
+     *  is nothing to retry. */
+    _offerHands() {
+        const act = this.enclosing("hands") || part(this.membrane(), "hands")[0] || null
+        if (!act) return
+        this.offerCapability(this._rememberSpec(), { to: act })
+        this.offerCapability(this._recallSpec(), { to: act })
     }
 
     _rememberSpec() {

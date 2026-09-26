@@ -14,6 +14,7 @@ import { AttentionBid } from "../../../src/infrastructure/attentionBid.js";
 import {
     PREDICTION_EVENT, PREDICTION_SETTLED_EVENT, PREDICTION_DELIVERY, MAX_PREDICTION_LIFETIME_MS,
 } from "../../../src/infrastructure/predictionContracts.js";
+import { offerFixtureHand } from "./fixtureHand.js";
 
 const EXPECT_PHRASE = "EXPECT_PHRASE_A2_DO_NOT_LEAK";
 const EXPERIENCE = "I turn toward the sky and the light has gone grey.";
@@ -25,9 +26,9 @@ function call(name, args) {
     return { function: { name, arguments: JSON.stringify(args) } };
 }
 
-function registerProbe(host, spec) {
+async function registerProbe(host, spec) {
     const execute = spec.execute || (async () => ({ experience: EXPERIENCE }));
-    host._registerCapability({
+    return offerFixtureHand(host, {
         name: spec.name || "probe",
         description: spec.description || "a fixture hand",
         parameters: spec.parameters || {
@@ -39,7 +40,6 @@ function registerProbe(host, spec) {
         execute,
         predictionTarget: spec.predictionTarget,
     });
-    return host._capabilities.find(c => c.name === (spec.name || "probe"));
 }
 
 beforeAll(async () => {
@@ -83,8 +83,8 @@ afterAll(async () => {
     try { fs.rmSync(journalDir, { recursive: true, force: true }); } catch { /* best effort */ }
 });
 
-test("prediction defaults off: REALIZE schemas are identical to phase 2", () => {
-    const cap = registerProbe(legacy, { name: "legacy-probe" });
+test("prediction defaults off: REALIZE schemas are identical to phase 2", async () => {
+    const cap = await registerProbe(legacy, { name: "legacy-probe" });
     const orig = cap.parameters;
     expect(legacy.attr("prediction")).not.toBe("on");
     expect(legacy._predictionEnabled()).toBe(false);
@@ -93,8 +93,8 @@ test("prediction defaults off: REALIZE schemas are identical to phase 2", () => 
     expect("expect" in (orig.properties || {})).toBe(false);
 });
 
-test("enabled REALIZE copies add expect without mutating cap.parameters", () => {
-    const cap = registerProbe(act, { name: "schema-probe" });
+test("enabled REALIZE copies add expect without mutating cap.parameters", async () => {
+    const cap = await registerProbe(act, { name: "schema-probe" });
     const orig = cap.parameters;
     const before = orig;
     const toolParams = act._toolParameters(cap);
@@ -113,7 +113,7 @@ test("enabled REALIZE copies add expect without mutating cap.parameters", () => 
 
 test("Prediction publication precedes immediate hand execution", async () => {
     const order = [];
-    const cap = registerProbe(act, {
+    const cap = await registerProbe(act, {
         name: "order-probe",
         execute: async () => {
             order.push("execute");
@@ -136,7 +136,7 @@ test("Prediction publication precedes immediate hand execution", async () => {
 test("expect never enters execute, acted, journal, or a frame", async () => {
     let seenArgs = null;
     let seenCtx = null;
-    registerProbe(act, {
+    await registerProbe(act, {
         name: "strip-probe",
         execute: async (args, ctx) => {
             seenArgs = args;
@@ -194,7 +194,7 @@ test("expect never enters execute, acted, journal, or a frame", async () => {
 
 test("immediate consequence preserves one actId through percept and bid.evidence", async () => {
     let seenCtx = null;
-    registerProbe(act, {
+    await registerProbe(act, {
         name: "imm-probe",
         execute: async (_args, ctx) => {
             seenCtx = ctx;
@@ -223,7 +223,7 @@ test("immediate consequence preserves one actId through percept and bid.evidence
 
 test("deferred terminal consequence preserves the same live actId through one Percept", async () => {
     let seenCtx = null;
-    registerProbe(act, {
+    await registerProbe(act, {
         name: "defer-probe",
         execute: async (_args, ctx) => {
             seenCtx = ctx;
@@ -258,7 +258,7 @@ test("deferred terminal consequence preserves the same live actId through one Pe
 
 test("trusted conversion uses one Percept id as AttentionBid.evidence", async () => {
     let seenCtx = null;
-    registerProbe(act, {
+    await registerProbe(act, {
         name: "id-probe",
         execute: async (_args, ctx) => {
             seenCtx = ctx;
@@ -292,7 +292,7 @@ test("prediction events remain fire not pub; expect is not retained telemetry", 
         pubs.push({ topic, data });
         return origPub(topic, data);
     };
-    registerProbe(act, { name: "fire-probe", execute: async () => ({ experience: EXPERIENCE }) });
+    await registerProbe(act, { name: "fire-probe", execute: async () => ({ experience: EXPERIENCE }) });
     try {
         await act._execute(call("fire-probe", { q: "sky", expect: EXPECT_PHRASE }), { gist: "look" });
     } finally {
@@ -307,7 +307,7 @@ test("prediction events remain fire not pub; expect is not retained telemetry", 
 test("empty expect does not publish but still mints actId for lineage", async () => {
     let seenCtx = null;
     const predictions = [];
-    registerProbe(act, {
+    await registerProbe(act, {
         name: "empty-probe",
         execute: async (_args, ctx) => {
             seenCtx = ctx;
@@ -329,7 +329,7 @@ test("empty expect does not publish but still mints actId for lineage", async ()
 test("disabled execute stays { intent } only — no actId, no prediction", async () => {
     let seenCtx = null;
     let seenArgs = null;
-    registerProbe(legacy, {
+    await registerProbe(legacy, {
         name: "off-probe",
         execute: async (args, ctx) => {
             seenArgs = args;
@@ -385,7 +385,7 @@ test("AttentionBid passes through the listener without looping", () => {
 
 test("execution failure cancels without manufacturing mismatch", async () => {
     const settlements = [];
-    registerProbe(act, {
+    await registerProbe(act, {
         name: "fail-probe",
         execute: async () => { throw new Error("boom"); },
     });
@@ -404,7 +404,7 @@ test("execution failure cancels without manufacturing mismatch", async () => {
 
 test("untrusted plain-object consequences are not claimed for lineage", async () => {
     let seenCtx = null;
-    registerProbe(act, {
+    await registerProbe(act, {
         name: "trust-probe",
         execute: async (_args, ctx) => {
             seenCtx = ctx;
@@ -434,7 +434,7 @@ test("untrusted plain-object consequences are not claimed for lineage", async ()
 
 test("target identity comes from trusted capability metadata, never expect text", async () => {
     const predictions = [];
-    registerProbe(act, {
+    await registerProbe(act, {
         name: "target-probe",
         predictionTarget: { sourceId: "garden", modality: "vision", eventType: "Sense-garden" },
         execute: async () => ({ experience: EXPERIENCE }),
@@ -463,7 +463,7 @@ test("target identity comes from trusted capability metadata, never expect text"
 
 test("existing hands default prediction target eventType to Sense-${name}", async () => {
     const predictions = [];
-    registerProbe(act, {
+    await registerProbe(act, {
         name: "default-target",
         execute: async () => ({ experience: EXPERIENCE }),
     });
@@ -480,7 +480,7 @@ test("existing hands default prediction target eventType to Sense-${name}", asyn
 test("timed validUntil expires without mismatch", async () => {
     const settlements = [];
     act.setAttribute("intentCooldown", "50ms");
-    registerProbe(act, {
+    await registerProbe(act, {
         name: "expire-probe",
         execute: async () => ({ experience: EXPERIENCE }),
     });
@@ -499,7 +499,7 @@ test("timed validUntil expires without mismatch", async () => {
 
 test("disconnect cancels live predictions without mismatch", async () => {
     const settlements = [];
-    registerProbe(act, {
+    await registerProbe(act, {
         name: "disc-probe",
         execute: async () => ({ experience: EXPERIENCE }),
     });

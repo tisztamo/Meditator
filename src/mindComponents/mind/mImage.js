@@ -109,6 +109,12 @@ export class MImage extends MObserver {
   _lastGeneratedAt = 0;
   _lastPrompt = null;
   _imagesMade = 0;
+  _mindIdentity = null;
+
+  onObserverConnect() {
+    // Who the mind is, from its retained `identity` topic (never getPrompt() on it).
+    this.sub("!scope/identity", id => { this._mindIdentity = id || null; }).catch(() => {});
+  }
 
   async onBoundary(boundary) {
     if (boundary?.reason !== "completed") return;
@@ -317,8 +323,7 @@ Reply with the image prompt only — no preamble, no quotes, at most 450 charact
   }
 
   _decisionPrompt() {
-    const mind = this.closest("m-mind");
-    const identity = mind?.getPrompt ? mind.getPrompt().trim().slice(0, 1000) : "";
+    const identity = (this._mindIdentity?.self || "").slice(0, 1000);
     return `You are the visual imagination of a mind. It mostly thinks in words, but sometimes a recent thought becomes vivid enough to deserve an image.
 
 Do not illustrate every topic. Generate an image only when there is a concrete scene, object, texture, face, landscape, room, creature, diagram, or visual metaphor that would deepen the mind's continuity. Prefer one specific image over a collage.

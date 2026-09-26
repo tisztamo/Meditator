@@ -126,6 +126,8 @@ export class MSpeech extends MObserver {
     _lastSpokeAt = 0
 
     onObserverConnect() {
+        // Who the mind is, from its retained `identity` topic (never getPrompt() on it).
+        this.sub("!scope/identity", id => { this._mindIdentity = id || null }).catch(() => {})
         // Bind to the mind's bubbling interrupt events — but only once m-mind has
         // upgraded into an Amanita component. Component upgrade order is not
         // guaranteed, and an auto-subscribed "../@…" field can bind before the
@@ -296,8 +298,8 @@ export class MSpeech extends MObserver {
 
     _speechSystem() {
         const book = this._phrasebook()
-        const mind = this.closest('m-mind')
-        const identity = mind?.getPrompt ? fillInterlocutor(mind.getPrompt().trim(), mind.interlocutorName?.() || "") : ""
+        const id = this._mindIdentity
+        const identity = id?.self ? fillInterlocutor(id.self, id.interlocutor || "") : ""
         const base = book.line("speak-role")
         return identity ? `${base}\n\n${book.line("speak-about-label")}\n${identity}` : base
     }

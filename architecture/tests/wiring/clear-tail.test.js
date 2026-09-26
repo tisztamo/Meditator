@@ -1,9 +1,10 @@
 // The BREAK seam of loop handling (loop-detection-redesign.md §break): the mind announces a
-// loop cut as a transient `clear-tail` event carrying the fresh seed, and m-memory — which
-// OWNS the tail — reseeds it, drops the overflow (so the loop spam is never fed to the
+// loop cut as a `clear-tail` request carrying the fresh seed (message-rule.md), and m-memory —
+// which OWNS the tail — reseeds it, drops the overflow (so the loop spam is never fed to the
 // compressor), journals the cut as the mind's own felt act (the One Rule), and re-publishes
-// `tail` so everyone downstream updates through the channel that already exists. No method is
-// called in either direction. m-mind is stubbed here (as in every wiring test); the mind's
+// `tail` so everyone downstream updates through the channel that already exists, then
+// replies {reseeded} — the reply is what lets the mind publish the clear frame after the
+// reseed. No method is called in either direction. m-mind is stubbed here (as in every wiring test); the mind's
 // enacting side — composing the seed and seeding the prefill — is exercised by the smoke run.
 import { test, expect, beforeAll, afterAll } from "bun:test";
 import A from "amanita";
@@ -12,6 +13,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { delay } from "./setup.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
+import { request } from "../../../src/infrastructure/requestReply.js";
 
 let mind, memory, persistDir, tailSeen;
 
@@ -63,8 +65,8 @@ const SEED = "I realize I have been going over the same ground; I set it down, l
 
 test("a clear-tail event reseeds the verbatim tail to the breaker's seed", async () => {
     expect(memory.getTail()).toMatch(/it is enough, and it is enough/);   // the loop, before the cut
-    mind.fire("clear-tail", { seed: SEED, kind: "presence" });
-    await delay(10);
+    const reply = await request(mind, "clear-tail", { seed: SEED, kind: "presence" });
+    expect(reply).toMatchObject({ status: "ok", data: { reseeded: true }, from: "memory" });
     expect(memory.getTail()).toBe(SEED);
     expect(memory.getTail()).not.toMatch(/it is enough, and it is enough/);   // the loop tail is gone
 });
@@ -78,7 +80,7 @@ test("the cut drops the compressor overflow so loop spam is never consolidated",
     // consolidation (default tailLength 1500, so push well over it)...
     memory._onChunk(" and it is enough".repeat(120));
     expect(memory._overflow.length).toBeGreaterThan(0);
-    mind.fire("clear-tail", { seed: SEED, kind: "presence" });
+    await request(mind, "clear-tail", { seed: SEED, kind: "presence" });
     await delay(10);
     expect(memory._overflow).toBe("");          // overflow wiped — the loop is not fed forward
     expect(memory.getTail()).toBe(SEED);
@@ -88,7 +90,7 @@ test("the cut the MIND feels (⟂) is its own felt act — never a mechanism (On
     const notes = [];
     const orig = memory.note.bind(memory);
     memory.note = (text, opts = {}) => { notes.push({ text, perceived: opts.perceived !== false }); return orig(text, opts); };
-    mind.fire("clear-tail", { seed: SEED, kind: "void" });
+    await request(mind, "clear-tail", { seed: SEED, kind: "void" });
     await delay(10);
     memory.note = orig;
     // Exactly one PERCEIVED (⟂) note — what the mind experiences — and it names no mechanism.
@@ -105,7 +107,7 @@ test("the cut ALSO leaves a ⌁ backstage trail of the mechanism (honesty ledger
     const notes = [];
     const orig = memory.note.bind(memory);
     memory.note = (text, opts = {}) => { notes.push({ text, perceived: opts.perceived !== false }); return orig(text, opts); };
-    mind.fire("clear-tail", { seed: SEED, kind: "presence" });
+    await request(mind, "clear-tail", { seed: SEED, kind: "presence" });
     await delay(10);
     memory.note = orig;
     const backstage = notes.filter(n => !n.perceived);
@@ -119,7 +121,7 @@ test("a Recall breaker's ⌁ trail says a kept memory was resurfaced", async () 
     const notes = [];
     const orig = memory.note.bind(memory);
     memory.note = (text, opts = {}) => { notes.push({ text, perceived: opts.perceived !== false }); return orig(text, opts); };
-    mind.fire("clear-tail", { seed: SEED, kind: "presence", via: "Recall" });
+    await request(mind, "clear-tail", { seed: SEED, kind: "presence", via: "Recall" });
     await delay(10);
     memory.note = orig;
     const backstage = notes.filter(n => !n.perceived);
@@ -128,9 +130,9 @@ test("a Recall breaker's ⌁ trail says a kept memory was resurfaced", async () 
 });
 
 test("a clear-tail with an empty seed is ignored (never blanks the tail)", async () => {
-    mind.fire("clear-tail", { seed: SEED, kind: "presence" });
+    await request(mind, "clear-tail", { seed: SEED, kind: "presence" });
     await delay(10);
-    mind.fire("clear-tail", { seed: "   ", kind: "presence" });
-    await delay(10);
+    const reply = await request(mind, "clear-tail", { seed: "   ", kind: "presence" });
+    expect(reply).toMatchObject({ status: "ok", data: { reseeded: false } });
     expect(memory.getTail()).toBe(SEED);   // unchanged by the empty seed
 });

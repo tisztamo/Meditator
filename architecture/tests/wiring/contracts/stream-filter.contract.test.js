@@ -154,8 +154,8 @@ test("a confabulated sense is held back and stops the burst; then the trail land
 }, 10000);
 
 test("a sense the mind perceived a frame earlier (via @attended) passes as its own echo", async () => {
-    // Frame 1 perceives it (the mind fires `attended`, its prefill carries the block).
-    host.fire("attended", ["a door closes downstairs"]);
+    // Frame 1 perceives it (the mind announces `attended {lines}`, its prefill carries the block).
+    host.fire("attended", { lines: ["a door closes downstairs"] });
     host.pub("prompt", { instruction: "think", prefill: "quiet.\n\n> ⟂ a door closes downstairs\n\n" });
     expect(await waitFor(() => boundaries.length > 0, 4000)).toBeTruthy();
     chunks.length = 0; boundaries.length = 0;

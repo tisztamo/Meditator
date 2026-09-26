@@ -55,6 +55,8 @@ export class MWs extends MBaseComponent {
    * Set up the WebSocket server when the component connects
    */
   async onConnect() {
+    // The mind's retained `identity` (its companion's name), mirrored, not asked for.
+    this.sub("!scope/identity", id => { this._mindIdentity = id || null }).catch(() => {});
     try {
       // Dynamic import of WebSocket module
       const { WebSocketServer } = await import("ws");
@@ -276,7 +278,7 @@ export class MWs extends MBaseComponent {
       source: "WebSocketClient",
       type: "UserInput",
       reason: input,
-      from: this._mind()?.interlocutorName?.() || null,
+      from: this._mindIdentity?.interlocutor || null,
       lang: langOf(this),
       salience: 1,
       urgent: true,
