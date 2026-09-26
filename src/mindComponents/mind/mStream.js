@@ -27,6 +27,8 @@ const log = logger('mStream.js');
  *
  * Subscriptions:
  *   - "../prompt": receives {system, frame, prefix?, kind?} or a plain string
+ *   - "!scope/@hush" (hushSrc): a request; the running burst is superseded and the
+ *     reply {hushed, burstIndex} follows, so the mind perceives after the burst stopped
  *
  * Topics published:
  *   - "chunk": each text fragment as it arrives (the prefix is emitted as a chunk too)
@@ -126,6 +128,25 @@ export class MStream extends MBaseComponent {
         const generation = this._generation
         this._supersede()
         await this._startBurst(payload, generation)
+    }
+
+    onConnect() {
+        super.onConnect()
+        // The mind asks for quiet before it perceives (message-rule.md): stop the
+        // running burst now, so its last words are recorded before what reached the
+        // mind, not after. The reply is sent once the burst is aborted.
+        if (this.attr("hushSrc") !== "off") {
+            this.respond("hush", () => this._hush(), { src: this.attr("hushSrc") || "!scope/@hush" })
+                .catch(err => { if (this.isConnected) log.warn('stream hush bind failed:', err.message) })
+        }
+    }
+
+    /** Supersede the running (or opening) burst without starting another. */
+    _hush() {
+        const running = !!this._current
+        this._generation += 1
+        this._supersede()
+        return { hushed: running, burstIndex: this.burstIndex }
     }
 
     _supersede() {

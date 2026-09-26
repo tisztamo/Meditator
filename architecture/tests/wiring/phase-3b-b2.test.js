@@ -13,6 +13,7 @@ import {
     Prediction, firePrediction, PREDICTION_SETTLED_EVENT, EVALUATION_COMMIT_EVENT,
 } from '../../../src/infrastructure/predictionContracts.js'
 import { offerFixtureHand } from './fixtureHand.js'
+import { heardBid } from "./attentionProbe.js";
 
 const FIXTURE = 'the screen answers 42'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -86,7 +87,7 @@ test('13. one complete call per evidence; abort → insufficient', async () => {
     stubJudge(async () => { calls++; return { text: 'MATCH 1' } })
     const bids = []
     mind.addEventListener('interrupt-request', e => {
-        if (e.detail instanceof AttentionBid) bids.push(e.detail)
+        { const heard = heardBid(e); if (heard) bids.push(heard) }
     })
     await act._execute(
         { function: { name: 'probe', arguments: JSON.stringify({ q: 'sky', expect: FIXTURE }) } },

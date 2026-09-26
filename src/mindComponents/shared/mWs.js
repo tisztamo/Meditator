@@ -1,5 +1,5 @@
 import { MBaseComponent } from "./mBaseComponent.js";
-import { InterruptRecord } from "../../infrastructure/interruptRecord.js";
+import { stimulus, renderStimulus } from "../../infrastructure/interruptRecord.js";
 import { langOf } from "./i18n.js";
 import { logger } from "../../infrastructure/logger.js";
 
@@ -272,9 +272,9 @@ export class MWs extends MBaseComponent {
     // Create an urgent external stimulus and put it on the interrupt bus.
     // Store the raw user input in `reason`, the mind's companion as `from`, and the
     // mind's ambient language as `lang`: the framing "<from> says: …" (in that
-    // language) is added by `InterruptRecord.renderForFrame()` for the model's frame,
+    // language) is added by `renderStimulus()` for the model's frame,
     // while the raw words stay available for the UI (A2/B2/B3).
-    const interrupt = new InterruptRecord({
+    const interrupt = stimulus({
       source: "WebSocketClient",
       type: "UserInput",
       reason: input,
@@ -475,7 +475,7 @@ export class MWs extends MBaseComponent {
       const r = (e && e.detail) || {};
       this._emit("attention", "bid", {
         source: r.source, type: r.type, reason: r.reason,
-        text: r.renderForFrame?.(),
+        text: renderStimulus(r),
         salience: r.salience, urgent: !!r.urgent, clearsTail: !!r.clearsTail,
       });
     });
@@ -483,7 +483,7 @@ export class MWs extends MBaseComponent {
       const r = (e && e.detail) || {};
       this._emit("attention", "urgent", {
         type: r.type, reason: r.reason,
-        text: r.renderForFrame?.(),
+        text: renderStimulus(r),
       });
     });
 
@@ -640,13 +640,13 @@ export class MWs extends MBaseComponent {
       const r = (e && e.detail) || {};
       emit("attention", "bid", {
         source: r.source, type: r.type, reason: r.reason,
-        text: r.renderForFrame?.(),
+        text: renderStimulus(r),
         salience: r.salience, urgent: !!r.urgent, clearsTail: !!r.clearsTail,
       });
     });
     subMind("@interrupt", e => {
       const r = (e && e.detail) || {};
-      emit("attention", "urgent", { type: r.type, reason: r.reason, text: r.renderForFrame?.() });
+      emit("attention", "urgent", { type: r.type, reason: r.reason, text: renderStimulus(r) });
     });
 
     subEvent(mind.querySelector("m-stream"), "boundary", boundary => {

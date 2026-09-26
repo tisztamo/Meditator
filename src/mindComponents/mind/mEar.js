@@ -1,6 +1,6 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
 import { extractInfoton, falloff, dist } from "../shared/infoton.js"
-import { InterruptRecord } from "../../infrastructure/interruptRecord.js"
+import { stimulus } from "../../infrastructure/interruptRecord.js"
 import { parseTime } from "../../config/timeParser.js"
 import { langOf } from "../shared/i18n.js"
 import { logger } from "../../infrastructure/logger.js"
@@ -100,7 +100,7 @@ export class MEar extends MBaseComponent {
             salience = salience * ((1 - this._coupling) + this._coupling * f)
         }
 
-        this.fire("interrupt-request", new InterruptRecord({
+        this.fire("interrupt-request", stimulus({
             source: "Peer",
             type: "Peer",
             reason: text,

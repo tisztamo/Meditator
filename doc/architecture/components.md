@@ -278,9 +278,8 @@ The attention **arbiter**. Mechanical, no LLM. See [Interrupts & observers](inte
 | `keep` | `2` | max queued stimuli; highest salience wins |
 | `gain` | `1` | nested only: trail factor on a promoted bid (evidence is not rewritten) |
 
-- **Listens (DOM, on parent):** `interrupt-request` (an `InterruptRecord` or an `AttentionBid`). Nested arbiters append a gain-trail entry and recompute bid salience; they never write the evidence.
-- **Dispatches (DOM, bubbling):** `interrupt` for urgent stimuli.
-- **API used by the mind:** `takePending()` — queued **bids**, oldest first, clears the queue. Frame assembly must read evidence through `AttentionBid.evidenceOf`.
+- **Listens (DOM, on parent):** `interrupt-request` (a stimulus or a bid's wire form, plain data). The arbiter builds its own bid (`AttentionBid.from`, trusted only when a component sent it); nested arbiters append a gain-trail entry to that copy and recompute its salience; they never write the evidence or the sender's bid. Global only: `taken {bidIds}` on the mind.
+- **Dispatches (DOM, bubbling), global only:** `accepted {bid}` for each admitted bid (the mind keeps its own queue from these and thinks now when the bid is urgent); `withdrawn {bidIds, why}` when `keep` crowds one out; `interrupt` (the bid) for urgent stimuli, for observers. Nothing is pulled: there is no `takePending()`.
 - **Pressure:** a nested arbiter publishes the faculty's folded `contactPressure`. The global arbiter mixes `part(mind, 'aperture')` — top-level providers only, each already folded — with a 60s mean, unless a child `aggregator` (`aggregate(pressures) → number`) supplies the mix. Absent one, the built-in mean is today's numbers for flat minds.
 
 ## `m-region`

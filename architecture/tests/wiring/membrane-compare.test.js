@@ -18,6 +18,7 @@ import {
 } from '../../../src/infrastructure/predictionContracts.js';
 import { CompareBudget } from '../../../src/infrastructure/compareContinuation.js';
 import { offerFixtureHand } from './fixtureHand.js';
+import { takeAccepted, heardBid } from "./attentionProbe.js";
 
 const FIXTURE = 'the screen answers 42';
 const MISMATCH_TEXT = 'the screen answers 43';
@@ -247,7 +248,7 @@ test('12. faster later comparison does not overtake earlier commit from the same
     const offerB = region.registerSource(other);
     const order = [];
     mind.addEventListener('interrupt-request', e => {
-        if (e.detail instanceof AttentionBid) order.push(AttentionBid.evidenceOf(e.detail).reason);
+        { const heard = heardBid(e); if (heard) order.push(heard.evidence.reason) };
     });
     const a1 = offerA(header('a1'), () => 'alpha-slow');
     await waitUntil(() => blockers.has('alpha-slow'));
@@ -329,7 +330,7 @@ test('13b. sleep and a moved source drop in-flight comparison; rebound comparato
 test('18. awareness refusal after comparison produces no bid, receipt, memory line, or content-bearing telemetry', async () => {
     const pred = liveExpect(makePrediction());
     const bids = [];
-    mind.addEventListener('interrupt-request', e => bids.push(e.detail));
+    mind.addEventListener('interrupt-request', e => bids.push(heardBid(e) ?? e.detail));
     const commits = [];
     mind.addEventListener(EVALUATION_COMMIT_EVENT, e => commits.push(e.detail));
     const published = interceptPub(region);
@@ -348,7 +349,7 @@ test('18. awareness refusal after comparison produces no bid, receipt, memory li
     expect(result).toBeNull();
     expect(bids).toHaveLength(0);
     expect(commits).toHaveLength(0);
-    expect(global.takePending()).toHaveLength(0);
+    expect(takeAccepted(global)).toHaveLength(0);
     const awareness = published.filter(p => p.topic === 'perceptDecision' && p.data.stage === 'awareness');
     expect(awareness).toHaveLength(1);
     expect(awareness[0].data.permitted).toBe(false);
@@ -418,7 +419,7 @@ test('act-path comparison uses the same Percept id through commit and bid', asyn
     const settlements = [];
     act.addEventListener(PREDICTION_SETTLED_EVENT, e => settlements.push(e.detail));
     const bids = [];
-    mind.addEventListener('interrupt-request', e => bids.push(e.detail));
+    mind.addEventListener('interrupt-request', e => bids.push(heardBid(e) ?? e.detail));
     await act._execute(
         { function: { name: 'probe', arguments: JSON.stringify({ q: 'sky', expect: FIXTURE }) } },
         { gist: 'look' },
@@ -440,7 +441,7 @@ test('act-path without comparator stays synchronous A2 redispatch', async () => 
         execute: async () => ({ experience: EXPERIENCE }),
     });
     const seen = [];
-    mind.addEventListener('interrupt-request', e => seen.push(e.detail));
+    mind.addEventListener('interrupt-request', e => seen.push(heardBid(e) ?? e.detail));
     await act._execute(
         { function: { name: 'sync-probe', arguments: JSON.stringify({ q: 'sky', expect: EXPECT_PHRASE }) } },
         { gist: 'look' },
@@ -477,7 +478,7 @@ test('14. immediate and deferred mismatches raise bids through the same configur
     });
     const bids = [];
     mind.addEventListener('interrupt-request', e => {
-        if (e.detail instanceof AttentionBid) bids.push(e.detail);
+        { const heard = heardBid(e); if (heard) bids.push(heard) };
     });
     await act._execute(
         { function: { name: 'imm-mismatch', arguments: JSON.stringify({ q: 'sky', expect: FIXTURE }) } },
@@ -530,7 +531,7 @@ test('owner-local: a region bidder does not bind for m-act', async () => {
     });
     const bids = [];
     mind.addEventListener('interrupt-request', e => {
-        if (e.detail instanceof AttentionBid) bids.push(e.detail);
+        { const heard = heardBid(e); if (heard) bids.push(heard) };
     });
     await act._execute(
         { function: { name: 'no-act-bidder', arguments: JSON.stringify({ q: 'sky', expect: FIXTURE }) } },
@@ -590,7 +591,7 @@ test('17. invalid custom bidder output refuses the bid', async () => {
     };
     const bids = [];
     mind.addEventListener('interrupt-request', e => {
-        if (e.detail instanceof AttentionBid) bids.push(e.detail);
+        { const heard = heardBid(e); if (heard) bids.push(heard) };
     });
     const offer = region.registerSource(source);
     const result = await offer(header('forge'), () => 'still admitted text');

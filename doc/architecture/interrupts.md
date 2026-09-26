@@ -13,24 +13,29 @@ attention, and the observers that generate stimuli.
 ## The shape of attention
 
 ```
-generators ──interrupt-request──▶ m-interrupts (arbiter) ──▶ queue
-(timeout, resurface,                       │                     │
- associate, console, ws)                 │ urgent?             │ at next boundary
-                                         ▼                     ▼
-                                  ──interrupt──▶ m-mind ◀── takePending()
-                                  (think now,            (assemble frame
-                                   supersede burst)       with the stimuli)
+generators ──interrupt-request──▶ m-interrupts (arbiter) ──accepted {bid}──▶ m-mind's queue
+(timeout, resurface,                       │                                  │
+ associate, console, ws)                 │ crowded out?                      │ urgent: think now
+                                         ▼                                  │ else: at next boundary
+                                  ──withdrawn {bidIds}──▶ m-mind            ▼
+                                  ◀──taken {bidIds}── m-mind drains its queue into a frame
 ```
 
 Any component, anywhere in the mind, can raise a stimulus by dispatching a
-**bubbling** `interrupt-request` DOM event carrying an
-[`InterruptRecord`](#the-interruptrecord). The event bubbles up to the arbiter.
+**bubbling** `interrupt-request` DOM event carrying a
+[stimulus](#the-stimulus) as plain data. The event bubbles up to the arbiter.
 Because it is a DOM event, generators need no reference to the arbiter — they just
 fire, and the generator that fired *knows why*, so it supplies its own salience.
 
-## The `InterruptRecord`
+Every payload on this spine is plain data ([the message rule](message-rule.md), M2):
+a stimulus, or a bid's wire form (`bidData`). Each receiver builds its own bid from
+a message (`AttentionBid.from`) and never holds or mutates the sender's.
 
-`src/infrastructure/interruptRecord.js`. A stimulus is a small structured record:
+## The stimulus
+
+`src/infrastructure/interruptRecord.js`. A stimulus is a small structured record,
+built with `stimulus({...})` (the fields an `InterruptRecord` normalizes, as a
+plain object):
 
 | Field | Meaning |
 |-------|---------|
@@ -41,10 +46,20 @@ fire, and the generator that fired *knows why*, so it supplies its own salience.
 | `urgent` | `true` ⇒ supersede the running burst now; otherwise wait for the boundary |
 | `suggestion` | optional extra line (e.g. loop-guard's "pick something unrelated") |
 
-`renderForFrame()` produces what actually appears under **"## This just
-happened"** in the frame: the `reason`, plus the `suggestion` if present.
-`InterruptRecord.coerce()` accepts a record, a plain object, or a raw string, so
-generators can be loose about what they dispatch.
+`renderStimulus(record)` produces the line that enters the frame as `> ⟂ …`: the
+`reason` (framed as a voice for `UserInput` / `ConsoleInput` / `Peer`), plus the
+`suggestion` if present. It is a pure function, so it reads a stimulus, a
+percept or a bid alike.
+
+**Authority comes from the sender.** `urgent`, `clearsTail`, `actId` and
+`progress` are architecture-owned powers. They are honoured only when a
+component sent the message: the event's target is an upgraded custom element,
+or a component dispatched it on behalf of one (`dispatchOnBehalf`: m-region on
+its source, a nested arbiter on its region's parent). The same payload from a
+plain node is coerced like a legacy string, with `legacy-unspecified`
+provenance and no powers (`src/infrastructure/messageOrigin.js`). Before the
+message rule this was decided by `instanceof InterruptRecord`, which a JSON wire
+cannot carry.
 
 ## The arbiter (`m-interrupts`)
 
@@ -62,14 +77,19 @@ rest are crowded out and logged.
 
 What happens next depends on urgency:
 
-- **Non-urgent:** the stimulus simply waits. At the next burst boundary, `m-mind`
-  calls `takePending()`, which returns the queued stimuli oldest-first and clears
-  the queue. They enter the next frame as `> ⟂ …` lines appended to the thought in
+- **Non-urgent:** the stimulus simply waits. The arbiter pushes `accepted {bid}`
+  and `m-mind` keeps its own copy of the queue. At the next burst boundary it
+  drains that copy, oldest first, and fires `taken {bidIds}` on itself so the
+  arbiter clears its queue too. A bid that `keep` crowds out is announced as
+  `withdrawn {bidIds}`. The stimuli enter the next frame as `> ⟂ …` lines appended to the thought in
   progress — after the mind's last words, where they actually reached it — and
   `m-memory` appends the identical block to the durable tail, so the perception
   outlives the frame. *An interruption is just an attended boundary.*
-- **Urgent:** the arbiter *also* dispatches a bubbling `interrupt` event. `m-mind`
-  hears it and thinks immediately, superseding the running burst. A human voice
+- **Urgent:** the same `accepted` message carries the bid's `urgent` flag, and
+  `m-mind` thinks immediately. It first asks the stream to `hush` (a request the
+  stream answers once the running burst is aborted), so the burst's last words
+  are recorded before the `> ⟂` line, not after. The arbiter also fires a
+  bubbling `interrupt` for observers (m-ws, m-speech). A human voice
   is always urgent — you don't wait your turn, and there is no reply turn; you
   hear the mind think about what you said.
 
@@ -235,21 +255,19 @@ sentence or two. The next frame opens on the event plus a
 
 ## Writing your own generator
 
-Any component can be a generator. Dispatch a bubbling `interrupt-request` with an
-`InterruptRecord`:
+Any component can be a generator. Fire a bubbling `interrupt-request` carrying a
+plain stimulus, from the component itself (its `urgent` counts only because a
+component sent it):
 
 ```js
-import { InterruptRecord } from "../infrastructure/interruptRecord.js"
+import { stimulus } from "../infrastructure/interruptRecord.js"
 
-this.dispatchEvent(new CustomEvent("interrupt-request", {
-  bubbles: true,
-  detail: new InterruptRecord({
-    source: "Observer",
-    type: "MyObserver",
-    reason: "Something I noticed, said in the mind's own first person.",
-    salience: 0.6,        // how hard you're bidding for attention
-    urgent: false,        // true only for things that must not wait
-  }),
+this.fire("interrupt-request", stimulus({
+  source: "Observer",
+  type: "MyObserver",
+  reason: "Something I noticed, said in the mind's own first person.",
+  salience: 0.6,        // how hard you're bidding for attention
+  urgent: false,        // true only for things that must not wait
 }))
 ```
 

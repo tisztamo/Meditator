@@ -4,6 +4,7 @@ import { delay } from "./setup.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
 import { InterruptRecord } from "../../../src/infrastructure/interruptRecord.js";
 import { AttentionBid } from "../../../src/infrastructure/attentionBid.js";
+import { takeAccepted } from "./attentionProbe.js";
 
 let global, local, regionSrc, topSrc;
 
@@ -44,7 +45,7 @@ test("components upgrade and nest correctly", () => {
 test("region bid is re-weighted and promoted to global arbiter", () => {
     bid(regionSrc, 0.8, "a strong drift");
     expect(local.pending.length).toBe(0);
-    const promoted = global.takePending();
+    const promoted = takeAccepted(global);
     expect(promoted.length).toBe(1);
     expect(promoted[0]).toBeInstanceOf(AttentionBid);
     expect(Math.abs(promoted[0].salience - 0.4)).toBeLessThan(1e-9);
@@ -55,12 +56,12 @@ test("region bid is re-weighted and promoted to global arbiter", () => {
 
 test("locally dropped bid does not leak upward", () => {
     bid(regionSrc, 0.3, "a faint drift below the faculty's bar");
-    expect(global.takePending().length).toBe(0);
+    expect(takeAccepted(global).length).toBe(0);
 });
 
 test("top-level bid reaches global unchanged", () => {
     bid(topSrc, 0.7, "a direct stimulus");
-    const top = global.takePending();
+    const top = takeAccepted(global);
     expect(top.length).toBe(1);
     expect(Math.abs(top[0].salience - 0.7)).toBeLessThan(1e-9);
 });

@@ -16,6 +16,7 @@ import { enclosingOf } from '../../../src/mindComponents/shared/enclosure.js';
 import { AttentionBid } from '../../../src/infrastructure/attentionBid.js';
 import { Percept } from '../../../src/infrastructure/percept.js';
 import { ControlRequest } from '../../../src/infrastructure/perceptionContracts.js';
+import { takeAccepted } from "./attentionProbe.js";
 
 const COMPONENTS_DIR = fileURLToPath(new URL('./components', import.meta.url));
 const TEXT = 'The simulated garden is still.';
@@ -137,7 +138,7 @@ async function driveOpenOffer(mind) {
     mind.addEventListener('interrupt-request', e => bids.push(e.detail));
     const offer = inner.registerSource(source);
     const percept = await offer(header('garden-light'), () => TEXT);
-    const pending = global.takePending();
+    const pending = takeAccepted(global);
     const fired = interceptFire(mind);
     await MMind.prototype.assembleFrame.call(mind, pending);
     await memory._journalQueue;
@@ -194,7 +195,7 @@ async function runC1(mind, provider) {
     expect(refused).toBeNull();
     expect(renders).toBe(0);
     expect(bids).toHaveLength(0);
-    expect(global.takePending()).toHaveLength(0);
+    expect(takeAccepted(global)).toHaveLength(0);
     expect(fs.existsSync(path.join(journalDir, 'percepts.jsonl'))).toBe(false);
 
     // Fold: outer published pressure is max(own, children).
@@ -234,7 +235,7 @@ async function runC1(mind, provider) {
         return origOuterAttended(...args);
     };
 
-    const pending = global.takePending();
+    const pending = takeAccepted(global);
     expect(pending).toHaveLength(1);
     expect(pending[0].evidenceId).toBe(evidenceId);
     const fired = interceptFire(mind);

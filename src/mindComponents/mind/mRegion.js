@@ -3,8 +3,10 @@ import { enclosingOf, enclosingAllOf, isMembrane, providesOf, isCustomElementDef
 import { Aperture } from '../../infrastructure/aperture.js'
 import { Percept, PerceptCandidate } from '../../infrastructure/percept.js'
 import { issueOwnerBid } from '../../infrastructure/bidderPolicy.js'
-import { SourceContract, AnnotatedCandidate, decideGate, GateVerdict, ControlRequest, RenditionRequest, PerceptReceipt, pushGainTrail, fireControlResult } from '../../infrastructure/perceptionContracts.js'
+import { SourceContract, AnnotatedCandidate, decideGate, GateVerdict, ControlRequest, RenditionRequest, receiptsFrom, pushGainTrail, fireControlResult } from '../../infrastructure/perceptionContracts.js'
 import { InterruptRecord } from '../../infrastructure/interruptRecord.js'
+import { bidData } from '../../infrastructure/attentionBid.js'
+import { dispatchOnBehalf } from '../../infrastructure/messageOrigin.js'
 import { parseTime } from '../../config/timeParser.js'
 import { projectEvidenceView } from '../../infrastructure/evidenceView.js'
 import { CompareBudget, CommitOrder, evaluationIdsOf, verdictsOf } from '../../infrastructure/compareContinuation.js'
@@ -369,7 +371,7 @@ export class MRegion extends MBaseComponent {
             }
             const issuedAt = Date.parse(percept.dateTime)
             this._recordIssued(percept.id, Number.isFinite(issuedAt) ? issuedAt : Date.now())
-            element.dispatchEvent(new CustomEvent('interrupt-request', { bubbles: true, detail: bid }))
+            dispatchOnBehalf(element, 'interrupt-request', bidData(bid))
             return bid
         }
         this._sources.set(element, entry)
@@ -841,8 +843,7 @@ export class MRegion extends MBaseComponent {
 
     _onPerceptsAttended = e => {
         if (!Array.isArray(e.detail) || !this._issued) return
-        for (const item of e.detail) {
-            if (!(item instanceof PerceptReceipt)) continue
+        for (const item of receiptsFrom(e)) {
             const id = item.perceptId
             if (!this._issued.has(id)) continue
             const occurredAt = typeof item.occurredAt === 'number' ? item.occurredAt : Date.parse(item.occurredAt)

@@ -15,6 +15,7 @@ import path from "node:path";
 import { delay } from "./setup.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
 import { request } from "../../../src/infrastructure/requestReply.js";
+import { renderStimulus } from "../../../src/infrastructure/interruptRecord.js";
 
 let mind, stream, memory, persistDir, tailSeen, compressedSeen;
 const raised = [];
@@ -98,7 +99,7 @@ test("the tail topic tracks every change as the stream flows", async () => {
 test("waking is raised onto the attention spine, not parked for a pull", () => {
     const waking = raised.find(s => s.type === "Waking");
     expect(waking).toBeTruthy();
-    expect(waking.renderForFrame().includes("waking up")).toBe(true);
+    expect(renderStimulus(waking).includes("waking up")).toBe(true);
 });
 
 test("the mind's `attended` stimuli are journaled AND enter the tail as a `> ⟂` block", async () => {

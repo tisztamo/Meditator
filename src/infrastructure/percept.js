@@ -84,11 +84,14 @@ export class Percept extends InterruptRecord {
         Object.freeze(this);
     }
 
-    /** Existing in-process InterruptRecords keep their established authority.
-     * Serialized compatibility shapes cannot acquire urgency or loop-break powers.
-     * Provenance is the enumerated legacy map in perceptionContracts.js.
+    /** A stimulus in any form, as evidence. Authority is `trusted`: the receiver
+     * passes whether a component sent it (messageOrigin.js). Untrusted shapes
+     * cannot acquire urgency, loop-break powers or act lineage. Without the
+     * option, an in-process InterruptRecord instance counts as trusted (a direct
+     * caller holding one built it). Provenance is the enumerated legacy map in
+     * perceptionContracts.js.
      */
-    static fromInterrupt(detail) {
+    static fromInterrupt(detail, { trusted = detail instanceof InterruptRecord } = {}) {
         if (detail instanceof Percept) return detail;
         // A bid is not a payload. Unwrapping preserves the evidence id;
         // coercing it as a plain object would mint a new Percept and break
@@ -97,16 +100,58 @@ export class Percept extends InterruptRecord {
             && detail.evidenceId === detail.evidence.id && Array.isArray(detail.gainTrail)) {
             return detail.evidence;
         }
-        const trusted = detail instanceof InterruptRecord;
-        const record = InterruptRecord.coerce(detail);
+        // A bid's or a percept's wire form, from a trusted sender, keeps its id,
+        // provenance and powers. From anyone else it is coerced like any payload.
+        if (isBidData(detail)) return Percept.fromInterrupt(detail.evidence, { trusted });
+        if (trusted && isPerceptData(detail)) return Percept.fromData(detail);
+        const record = detail instanceof InterruptRecord ? detail
+            : trusted ? InterruptRecord.fromData(detail) : InterruptRecord.coerce(detail);
         if (!trusted) { record.urgent = false; record.clearsTail = false; }
         const { provenance, policy } = legacyCompatibility(record, { trusted });
         return new Percept({
             record, provenance, sourceId: record.type || 'legacy', policy, tier: null,
-            // Lineage follows urgency: only a trusted in-process InterruptRecord
-            // keeps actId. Coerced plain objects cannot steal it, even if coerce
-            // also strips the field.
+            // Lineage follows urgency: only a trusted record keeps actId.
+            // Coerced plain objects cannot steal it, even if coerce also strips
+            // the field.
             actId: trusted ? record.actId : null,
         });
     }
+
+    /** Rebuild a percept from its wire form (perceptData). Only for a trusted
+     * sender: the data's provenance and powers are taken as given. */
+    static fromData(data) {
+        return new Percept({
+            record: InterruptRecord.fromData(data),
+            id: data.id,
+            sourceId: data.sourceId,
+            modality: data.modality,
+            provenance: data.provenance,
+            policy: data.policy ?? {},
+            occurredAt: data.dateTime,
+            tier: data.tier ?? null,
+            requestId: data.requestId ?? null,
+            actId: data.actId ?? null,
+            gateTrail: (data.gateTrail ?? []).map(v => v instanceof GateVerdict ? v : new GateVerdict(v)),
+        });
+    }
+}
+
+/** A percept's wire form: its own fields as plain data (message rule M2). */
+export function perceptData(percept) {
+    return { ...percept, gateTrail: percept.gateTrail.map(v => ({ ...v })) };
+}
+
+/** Whether `x` is a percept's wire form (not a class instance). */
+export function isPerceptData(x) {
+    return !!x && typeof x === 'object' && !(x instanceof InterruptRecord)
+        && typeof x.id === 'string' && typeof x.provenance === 'string'
+        && !!x.policy && typeof x.policy === 'object' && Array.isArray(x.gateTrail);
+}
+
+/** Whether `x` is a bid's wire form (see attentionBid.js bidData). Lives here so
+ * Percept.fromInterrupt can unwrap one without an import cycle. */
+export function isBidData(x) {
+    return !!x && typeof x === 'object' && typeof x.evidenceId === 'string'
+        && !!x.evidence && typeof x.evidence === 'object' && Array.isArray(x.gainTrail)
+        && !(x.evidence instanceof Percept);
 }

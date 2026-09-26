@@ -5,7 +5,9 @@ import { resolveModelRef } from "../../modelAccess/modelConfig.js"
 import { makePhrasebook } from "../shared/i18n.js"
 import { parseTime } from '../../config/timeParser.js';
 import { logger } from '../../infrastructure/logger.js';
-import { InterruptRecord, withPerceivedEvents } from '../../infrastructure/interruptRecord.js';
+import { InterruptRecord, stimulus, withPerceivedEvents } from '../../infrastructure/interruptRecord.js';
+import { AttentionQueue } from '../../infrastructure/attentionQueue.js';
+import { sentByComponent } from '../../infrastructure/messageOrigin.js';
 import { AttentionBid } from '../../infrastructure/attentionBid.js';
 import { PerceptReceipt } from '../../infrastructure/perceptionContracts.js';
 import { request } from '../../infrastructure/requestReply.js';
@@ -113,8 +115,12 @@ const LANDING_PHRASES = {
  * followed by quiet slack until the next tick (a viewer can fill that slack by
  * slowing its display so the burst itself is barely visible), while a burst that
  * OVERRUNS the tick is followed immediately by the next, with nothing queued
- * behind it. Urgent stimuli (the arbiter dispatches an "interrupt" DOM event)
- * skip the schedule and supersede the running burst immediately.
+ * behind it. Urgent stimuli (an `accepted` bid marked urgent) skip the schedule
+ * and supersede the running burst immediately.
+ *
+ * Attention is pushed, not pulled: the global arbiter fires `accepted {bid}` and
+ * `withdrawn {bidIds}`, the mind keeps its own queue from them, drains it at a
+ * boundary and fires `taken {bidIds}` (non-bubbling) so the arbiter clears its own.
  *
  * Attributes:
  *   - model: default model for the whole mind (children inherit via env())
@@ -127,7 +133,8 @@ const LANDING_PHRASES = {
  * Topics published:
  *   - "prompt": the assembled attention frame for each burst (consumed by m-stream)
  *   - "pace": {tickMs} — the current effective tick, so a viewer can pace its display
- * Events: attended (existing rendered lines), percepts-attended (typed frame receipts).
+ * Events: attended (existing rendered lines), percepts-attended (frame receipts as
+ * plain data), taken {bidIds} (on itself).
  */
 /** Delay until the next burst given the target tick and how long the cycle that
  *  just finished took from its start. Zero means "now": the model was slower
@@ -233,6 +240,7 @@ export class MMind extends MBaseComponent {
     _originReady = false     // whether the origin mirror has been delivered at least once
     _lastClearedEpisode = null  // the last loop episode whose tail we cut (dedup: one cut per episode)
     _settleNextMs = 0        // a one-off longer pause a breaker asked for, applied to the next schedule
+    _attention = new AttentionQueue()  // this mind's copy of what its arbiter admitted (pushed, not pulled)
     _hasMemory = false       // a memory is declared, so frame events and sleep are requests it answers
     _memoryKept = false      // memory's retained `kept`: a resident's memory wakes again (sleep notice)
     _streamUp = false        // the stream's and memory's retained `up` (the wake gate, _whenAlive)
@@ -254,6 +262,7 @@ export class MMind extends MBaseComponent {
         // or by tag for an unnamed part.
         const addr = el => `!scope/${el.getAttribute('name') || `:scope ${el.localName}`}`
         const streamEl = this.querySelector('m-stream')
+        this._hasStream = !!streamEl
         if (streamEl) {
             this.sub(`${addr(streamEl)}/up`, up => { this._streamUp = !!up })
                 .catch(err => { if (this.isConnected) log.warn('mind stream up bind failed:', err.message) })
@@ -389,7 +398,7 @@ export class MMind extends MBaseComponent {
         const origin = (this._originText || "").trim()
         if (!origin) return
         log.info(`Seeding the first thought from <m-origin> (${origin.length} chars).`)
-        this.fire("interrupt-request", new InterruptRecord({
+        this.fire("interrupt-request", stimulus({
             source: 'Internal',
             type: 'Origin',
             reason: origin,
@@ -426,10 +435,29 @@ export class MMind extends MBaseComponent {
         this._scheduleNext()
     }
 
-    /** Urgent stimulus accepted by the arbiter: think now, superseding the burst. */
-    "@interrupt" = () => {
-        if (this._sleeping) return
-        this.continueThinking()
+    /** What the global arbiter admitted, as it decides (review §5: push, not a
+     *  pull at frame time). The mind keeps its own queue; an urgent bid also
+     *  means think now, superseding the burst. The same message carries both, so
+     *  the preemption can never arrive before the bid it is about (M5). */
+    "@accepted" = e => {
+        if (e.target !== this._arbiter()) return
+        const data = e.detail?.bid
+        if (!data) return
+        const bid = AttentionBid.from(data, { trusted: sentByComponent(e) })
+        if (!this._attention.accept(bid)) return
+        if (bid.urgent && !this._sleeping) this.continueThinking()
+    }
+
+    /** The arbiter crowded these out of its queue (`keep`). */
+    "@withdrawn" = e => {
+        if (e.target !== this._arbiter()) return
+        this._attention.withdraw(e.detail?.bidIds)
+    }
+
+    /** Bids drained into a frame — by this mind, or by anyone draining on its behalf. */
+    "@taken" = e => {
+        if (e.target !== this) return
+        this._attention.withdraw(e.detail?.bidIds)
     }
 
     /**
@@ -556,11 +584,17 @@ export class MMind extends MBaseComponent {
         if (this._timer) { clearTimeout(this._timer); this._timer = null }
         this._burstStartedAt = Date.now()   // anchor the tick for the next schedule
 
-        const arbiter = this._arbiter()
-
         // The wake stimulus is no longer pulled from memory — it arrives here like
-        // any other, raised by memory onto the attention spine when it loads.
-        const stimuli = arbiter?.takePending ? arbiter.takePending() : []
+        // any other, raised by memory onto the attention spine when it loads. The
+        // queue is this mind's copy of what the arbiter pushed; `taken` tells the
+        // arbiter which bids this frame drained.
+        const stimuli = this._attention.take()
+        if (stimuli.length) {
+            this.fire("taken", { bidIds: stimuli.map(s => s.id) }, { bubbles: false })
+            // Perceiving mid-burst (an urgent bid) must not let the running burst keep
+            // talking past the ⟂ line or into a reseeded tail: quiet the voice first.
+            await this._hushVoice()
+        }
 
         // LOOP BREAK. If the top bid this frame carries `clearsTail` (and a louder,
         // preempting stimulus — a human voice — has not displaced it), the cut OWNS this
@@ -583,6 +617,21 @@ export class MMind extends MBaseComponent {
         // stimuli from there, so the mind no longer calls memory.note() per stimulus.
         const payload = await this.assembleFrame(stimuli)
         this.pub("prompt", payload)
+    }
+
+    /** Ask the stream to stop its running burst and wait for the reply (M5: the
+     *  burst's last words then precede what is perceived). A mind with no stream
+     *  skips it; one that never answers is waited on briefly once, then not at all (M6). */
+    async _hushVoice() {
+        if (!this._hasStream) return
+        const outcome = await this.request("hush", {}, {
+            bubbles: false,
+            deadline: this._hushUnanswered ? UNANSWERED_FRAME_NOTE_MS : FRAME_NOTE_DEADLINE_MS,
+        })
+        if (outcome.status === "timeout" && !this._hushUnanswered) {
+            log.warn("stream did not confirm hush — a preempted burst may be journaled after the stimulus")
+        }
+        this._hushUnanswered = outcome.status === "timeout"
     }
 
     /** The top taken stimulus, if it is a not-yet-enacted loop break. Returns null when the
@@ -800,7 +849,7 @@ export class MMind extends MBaseComponent {
             const factor = Number(this.attr("speakingTokensFactor") || 0.35)
             payload.burstTokens = Math.max(60, Math.round(base * factor))
         }
-        if (stimuli.length) this.fire('percepts-attended', frameReceipts(stimuli, rendered))
+        if (stimuli.length) this.fire('percepts-attended', frameReceipts(stimuli, rendered).map(r => ({ ...r })))
         return payload
     }
 

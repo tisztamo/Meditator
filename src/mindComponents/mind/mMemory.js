@@ -6,8 +6,8 @@ import { langOf } from "../shared/i18n.js"
 import { complete, isDryRun } from "../../modelAccess/llm.js"
 import { resolveModelRef } from "../../modelAccess/modelConfig.js"
 import { logger } from '../../infrastructure/logger.js';
-import { InterruptRecord, withPerceivedEvents } from '../../infrastructure/interruptRecord.js';
-import { PerceptReceipt } from '../../infrastructure/perceptionContracts.js';
+import { withPerceivedEvents, stimulus } from '../../infrastructure/interruptRecord.js';
+import { receiptsFrom } from '../../infrastructure/perceptionContracts.js';
 import { mindHome, inVault, ensureVault, commitVault, assertNotRetired, assertIdentityMatchesHome } from '../../infrastructure/memoryVault.js';
 import { FORMAT_VERSION, recordWake, tierOf } from '../../infrastructure/manifest.js';
 import { getLoadedArchitecture } from '../../startup/architecture.js';
@@ -461,7 +461,7 @@ export class MMemory extends MBaseComponent {
     _onPerceptsAttended = e => {
         const dir = this._journalDir()
         if (this._finalized || !dir || !Array.isArray(e.detail)) return
-        const entries = e.detail.filter(r => r instanceof PerceptReceipt).map(r => ({
+        const entries = receiptsFrom(e).map(r => ({
             id: r.perceptId,
             source: r.sourceId,
             modality: r.modality,
@@ -797,8 +797,8 @@ export class MMemory extends MBaseComponent {
                 // Waking is a stimulus like any other, so raise it onto the
                 // attention spine rather than parking it for the mind to pull. The
                 // arbiter is a child of m-mind and connected before this async load
-                // resolves, so the bubbling request lands; the mind drains it (with
-                // takePending) on its first burst, which it gates on `loaded`.
+                // resolves, so the bubbling request lands; the arbiter pushes it to the
+                // mind, which drains it on its first burst (gated on memory's `up`).
                 const ago = this._savedAt ? this._describeGap(Date.now() - new Date(this._savedAt).getTime()) : null
                 let reason
                 if (this._priorEndedCleanly === false) {
@@ -826,7 +826,7 @@ export class MMemory extends MBaseComponent {
                     this.note(`Disclosed at wake (Covenant §3): ${disclosure.journal}`, { perceived: false })
                     log.info(`Identity change disclosed at wake: ${disclosure.journal}`)
                 }
-                this.fire("interrupt-request", new InterruptRecord({
+                this.fire("interrupt-request", stimulus({
                     source: 'Internal',
                     type: 'Waking',
                     reason,

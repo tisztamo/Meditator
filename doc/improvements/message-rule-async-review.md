@@ -413,6 +413,12 @@ existing seam, none rewrites a mind's behaviour.
 4. **Attention payloads.** Plain bid records + pure functions; arbiter emits
    fresh records; `takePending` → push; `m-act` stops self-intercepting and
    instead *emits* the bid form directly (§3.1, §3.2).
+   *Done 2026-09-26: bids and stimuli cross as plain data and each receiver
+   builds its own bid; trust moved from `instanceof InterruptRecord` to the
+   sender (`messageOrigin.js`); the arbiter pushes `accepted`/`withdrawn` and
+   hears `taken`; m-act claims its own consequence directly. The mind also asks
+   its stream to `hush` before perceiving, which fixed §9 bug 1. See
+   [message-rule.md](../architecture/message-rule.md).*
 5. **Sleep as request/reply**, with the Covenant's "not confirmed" outcome.
 6. **Gates and governance.** `percept-candidate` verdicts and `proposal` holds
    as replies with quorum + deadline; `halt`/`nudge` carry `turnIndex`.
@@ -477,7 +483,11 @@ seeds. The speak command should carry its target id (M5).
    from its stale memory mirror. So the corrective prefill lacks the last clean
    words, and memory records them *after* the corrective `> ⟂` line. This is
    the same pub-versus-fire class as the Studio `focusedKind` bug. It is pinned
-   as `test.failing` in `stream-filter.contract.test.js`.
+   as `test.failing` in `stream-filter.contract.test.js`. **Fixed with the
+   attention step (§7 step 4):** the arbiter pushes `accepted`, and m-mind asks
+   its stream to `hush` (a request) before it builds the frame, so the frame is
+   built after the clean text reached memory. The test is a plain `test` now and
+   passes in every delivery mode.
 2. *Journal lines after the sleep marker.* `mMemory.note()` has no
    `_finalized` guard. A deed (`_onActed`), backstage trail, filing or
    aperture change that lands after `finalize()` is appended after
@@ -498,3 +508,14 @@ test now guards the call, and the ratchet fails any run in which a test file
 produced no results. One jitter run (seed 3) failed once in the hands contracts
 and did not reproduce in three reruns or in eight more seeds. It is noted here,
 not diagnosed.
+
+**Found while migrating attention payloads (2026-09-26).** Once urgency survived
+the json wire, the frame-ordering bridge contract preempted a running burst under
+chaos for the first time: the old burst kept streaming while the frame and its
+bridge call were built, so its words were journaled after the `> ⟂` line and the
+bridge lost its ↪ mark. The mind now asks its stream to `hush` before it
+perceives. Under `jitter` (not the baseline mode), the sleep-notice contract
+fails on 6 of 10 seeds, and did on 7 of 10 before this step. So it is a
+pre-existing ordering hazard of the sleep frame, which is built without a hush.
+It belongs to the sleep step (§7 step 5).
+

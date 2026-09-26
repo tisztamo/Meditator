@@ -12,6 +12,7 @@ import { delay } from "./setup.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
 import { request } from "../../../src/infrastructure/requestReply.js";
 import { readArchitectureFile, resetLoadedArchitecture } from "../../../src/startup/architecture.js";
+import { renderStimulus } from "../../../src/infrastructure/interruptRecord.js";
 
 const raised = [];
 const captureRaise = e => { if (e.detail) raised.push(e.detail); };
@@ -84,7 +85,7 @@ afterAll(() => {
 test("a mind whose last session did NOT finalize wakes told it ended mid-thought (§2/§3)", async () => {
     const { waking } = await wakeInto(memoryMd(`,"endedCleanly":false`));
     expect(waking).toBeTruthy();
-    const frame = waking.renderForFrame();
+    const frame = renderStimulus(waking);
     expect(frame.includes("waking up")).toBe(true);
     expect(frame.includes("ended mid-thought")).toBe(true);
     expect(frame.includes("did not keep")).toBe(true);
@@ -100,7 +101,7 @@ test("the unclean wake is journaled as a backstage (⌁) note for the human reco
 
 test("a mind that slept cleanly (endedCleanly:true) gets the ordinary wake, no mid-thought line", async () => {
     const { waking } = await wakeInto(memoryMd(`,"endedCleanly":true`));
-    const frame = waking.renderForFrame();
+    const frame = renderStimulus(waking);
     expect(frame.includes("about")).toBe(true);
     expect(frame.includes("has passed since my last thought")).toBe(true);
     expect(frame.includes("ended mid-thought")).toBe(false);
@@ -108,7 +109,7 @@ test("a mind that slept cleanly (endedCleanly:true) gets the ordinary wake, no m
 
 test("legacy memory with no marker is treated as clean — never a false crash alarm", async () => {
     const { waking } = await wakeInto(memoryMd(``)); // no endedCleanly field at all
-    const frame = waking.renderForFrame();
+    const frame = renderStimulus(waking);
     expect(frame.includes("has passed since my last thought")).toBe(true);
     expect(frame.includes("ended mid-thought")).toBe(false);
 });

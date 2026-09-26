@@ -16,21 +16,16 @@
 //      through the arbiter (`interrupt`).
 //   3. A `> ⟂` line the mind did perceive — delivered earlier via `@attended`, no longer
 //      in the carried prefill — passes as the mind's own echo: emitted, no stop.
-//   4. KNOWN BUG, pinned with test.failing (flip it to test() when fixed): with a real
-//      mind, the clean text the stream emitted just before a provenance stop must be in
-//      the corrective frame's prefill and must precede the corrective `> ⟂` line in
-//      memory's tail and journal. Today, under SYNC delivery, _stopBurst publishes that
-//      text (pub → subscribers on a microtask) and then react() fires interrupt-request
-//      (sync) → arbiter `interrupt` → m-mind builds the corrective frame INSIDE that
-//      dispatch from its stale `_memTail` mirror, and memory journals/appends the ⟂ line
-//      before the chunk arrives. The mind's last words go missing from the prefill and
-//      are recorded as if thought AFTER the correction. (m-stream's class doc says "the
-//      ordering is the stream's job, so a filter can safely fire interrupt-request from
-//      react()"; the pub-vs-fire split — review §3.4, the focusedKind class — defeats it.)
-//      Under microtask AND macrotask delivery this test PASSES (bun then reports "marked
-//      as failing but passed"): deferring the reaction's events behind the chunk pub
-//      restores the order — async delivery fixes this one. (Macrotask still journals
-//      the landing opener ahead of the ⟂ line; that is the frame-ordering row.)
+//   4. Formerly a KNOWN BUG (review §9 bug 1), fixed by the attention step (review
+//      §7 step 4): with a real mind, the clean text the stream emitted just before a
+//      provenance stop must be in the corrective frame's prefill and must precede the
+//      corrective `> ⟂` line in memory's tail and journal. It failed under SYNC delivery
+//      because _stopBurst publishes that text (pub → subscribers on a microtask) and
+//      react() then fired interrupt-request (sync) → arbiter `interrupt` → m-mind built
+//      the corrective frame INSIDE that dispatch from its stale `_memTail` mirror. Now the
+//      arbiter pushes `accepted {bid}` and the mind asks its stream to `hush` before it
+//      perceives; the frame is built after that reply, by which time the chunk has
+//      reached memory. It passes in every delivery mode.
 //
 // Why 1–3 are expected to stay GREEN under async delivery today: the chain is not an
 // event protocol but role-port METHOD CALLS on looked-up elements (review §3.3) —
@@ -174,7 +169,7 @@ test("a sense the mind perceived a frame earlier (via @attended) passes as its o
 class TSfMind extends MMind {}
 if (!customElements.get("t-sf-mind")) customElements.define("t-sf-mind", TSfMind);
 
-test.failing("KNOWN BUG: after a provenance stop, the corrective frame and the record keep the mind's last clean words before the correction", async () => {
+test("after a provenance stop, the corrective frame and the record keep the mind's last clean words before the correction", async () => {
     const mindDir = fs.mkdtempSync(path.join(os.tmpdir(), "med-sf-mind-contract-"));
     try {
         document.body.innerHTML = `

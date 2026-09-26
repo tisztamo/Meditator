@@ -1,5 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { Percept } from './percept.js';
+import { Percept, perceptData, isBidData } from './percept.js';
+import { InterruptRecord } from './interruptRecord.js';
+
+export { isBidData } from './percept.js';
 import { decideBid } from './perceptionContracts.js';
 
 /** Read surface existing listeners already use. Not a second Percept: no
@@ -141,17 +144,74 @@ export class AttentionBid {
         return this.evidence.toString();
     }
 
-    /** A bid passes through. Anything else is coerced via Percept.fromInterrupt
-     * and wrapped — legacy producers still raise InterruptRecords. */
-    static from(detail) {
-        if (detail instanceof AttentionBid) return detail;
-        return new AttentionBid({ evidence: Percept.fromInterrupt(detail) });
+    /** The receiver's own bid for a message (message rule M2: it never holds,
+     * or mutates, the sender's). A bid, or a bid's wire form, from a trusted
+     * sender is rebuilt with its id, trail, decisions and evidence. From anyone
+     * else only the evidence is kept, coerced as an untrusted payload, in a fresh
+     * bid. Anything else is a stimulus, made evidence via Percept.fromInterrupt
+     * (legacy producers still raise InterruptRecords). `trusted` is whether a
+     * component sent it (messageOrigin.js); without the option, an in-process
+     * instance counts as trusted. */
+    static from(detail, {
+        trusted = detail instanceof AttentionBid || detail instanceof InterruptRecord,
+    } = {}) {
+        const data = detail instanceof AttentionBid ? bidData(detail) : detail;
+        if (isBidData(data)) {
+            if (trusted) return AttentionBid.fromData(data);
+            return new AttentionBid({ evidence: Percept.fromInterrupt(data.evidence, { trusted: false }) });
+        }
+        return new AttentionBid({ evidence: Percept.fromInterrupt(detail, { trusted }) });
+    }
+
+    /** Rebuild a bid from its wire form (bidData). Salience is recomputed from the
+     * carried signals, floors and trail, never taken from the data. */
+    static fromData(data) {
+        const bid = new AttentionBid({
+            evidence: Percept.fromData(data.evidence),
+            gainTrail: data.gainTrail,
+            signals: data.signals,
+            requestedFloor: data.requestedFloor ?? 0,
+            expectedFloor: data.expectedFloor ?? 0,
+            mismatchWeight: data.mismatchWeight ?? 0,
+            evaluationIds: data.evaluationIds ?? [],
+        });
+        if (typeof data.id === 'string' && data.id) bid.id = data.id;
+        if (typeof data.createdAt === 'string') bid.createdAt = data.createdAt;
+        bid.decisions = (data.decisions ?? []).map(d => Object.freeze({ ...d }));
+        if (data.infoton) bid.infoton = data.infoton;
+        return bid;
     }
 
     /** The bid's evidence, or a Percept coerced from `x`. Frame assembly uses
      * this so a bid cannot mint a new percept id. */
-    static evidenceOf(x) {
+    static evidenceOf(x, { trusted = x instanceof AttentionBid || x instanceof InterruptRecord } = {}) {
         if (x instanceof AttentionBid) return x.evidence;
-        return Percept.fromInterrupt(x);
+        return Percept.fromInterrupt(x, { trusted });
     }
+}
+
+/** A bid's wire form: plain data a receiver rebuilds with AttentionBid.from
+ * (message rule M2). It carries the evidence and what salience is computed
+ * from, plus the evidence's read surface (`type`, `reason`, `clearsTail`, …)
+ * so a listener that only reads those needs no class. */
+export function bidData(bid) {
+    const data = {
+        id: bid.id,
+        evidenceId: bid.evidenceId,
+        createdAt: bid.createdAt,
+        salience: bid.salience,
+        urgent: bid.urgent,
+        bypassAdmission: bid.bypassAdmission,
+        gainTrail: bid.gainTrail.map(entry => ({ ...entry })),
+        decisions: bid.decisions.map(entry => ({ ...entry })),
+        evaluationIds: [...bid.evaluationIds],
+        signals: { ...bid.signals },
+        requestedFloor: bid.requestedFloor,
+        expectedFloor: bid.expectedFloor,
+        mismatchWeight: bid.mismatchWeight,
+        evidence: perceptData(bid.evidence),
+        infoton: bid.infoton ?? null,
+    };
+    for (const key of DELEGATED) data[key] = bid.evidence[key] ?? null;
+    return data;
 }

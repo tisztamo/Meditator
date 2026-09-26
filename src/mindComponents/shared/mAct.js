@@ -8,9 +8,10 @@ import { resolveModelRef } from "../../modelAccess/modelConfig.js"
 import { readKept } from "./recallSources.js"
 import { contentStems, containment } from "./loopMath.js"
 import { ENERGY } from "./infoton.js"
-import { InterruptRecord } from '../../infrastructure/interruptRecord.js';
+import { stimulus, describeStimulus } from '../../infrastructure/interruptRecord.js';
+import { sentByComponent } from '../../infrastructure/messageOrigin.js';
 import { Percept } from '../../infrastructure/percept.js';
-import { AttentionBid } from '../../infrastructure/attentionBid.js';
+import { bidData, isBidData } from '../../infrastructure/attentionBid.js';
 import { issueOwnerBid } from '../../infrastructure/bidderPolicy.js';
 import {
     Prediction, firePrediction, firePredictionSettlement, expirePrediction, cancelPrediction,
@@ -540,7 +541,7 @@ export class MAct extends MObserver {
             const salience = out && typeof out.salience === "number"
                 ? Math.max(0, Math.min(1, out.salience))
                 : Number(this.attr("salience") || 0.5)
-            const record = new InterruptRecord({
+            const record = stimulus({
                 source: 'External',                          // the world reaching in — not the mind reaching down
                 type: (out && out.type) || `Sense-${name}`,  // reads like any other sensation
                 reason: experience,
@@ -558,8 +559,10 @@ export class MAct extends MObserver {
                 // stamp from the hand's return; a coerced payload cannot set this.
                 progress: !!(out && out.progress),
             })
-            log.debug(`consequence of "${name}": ${record}`)
-            this.fire("interrupt-request", record)
+            log.debug(`consequence of "${name}": ${describeStimulus(record)}`)
+            // A consequence of a live act is this act's own evidence: claim it here
+            // rather than firing it and catching it on the way out.
+            if (!this._claimConsequence(record, { trusted: true })) this.fire("interrupt-request", record)
         }
     }
 
@@ -663,25 +666,28 @@ export class MAct extends MObserver {
         firePredictionSettlement(this, settlement)
     }
 
+    /** A hand's deferred consequence bubbling through m-act (m-terminal's slow
+     *  run): claimed when it belongs to a live act, and then it goes no further. */
+    _onLiveConsequence = event => {
+        if (this._claimConsequence(event.detail, { trusted: sentByComponent(event) })) event.stopPropagation()
+    }
+
     /**
-     * Local claim of this act's live trusted consequences. Synchronous stop + convert.
+     * Local claim of this act's live trusted consequences. Synchronous decision + convert.
      * Absent a comparator, redispatch the default bid immediately (A2). With one,
      * compare asynchronously then revalidate and dispatch one finished bid.
      * Comparator loss or rebinding admits with null prediction slots (like timeout);
      * it does not silence otherwise admissible evidence. Sleep/disconnect drop the case.
      */
-    _onLiveConsequence = event => {
-        const detail = event.detail
-        if (detail instanceof AttentionBid) return
-        if (!(detail instanceof InterruptRecord)) return
+    _claimConsequence(detail, { trusted }) {
+        if (!trusted || !detail || typeof detail !== "object" || isBidData(detail)) return false
         const actId = detail.actId
-        if (typeof actId !== "string" || !actId || !this._liveAct(actId)) return
-        event.stopPropagation()
-        const percept = Percept.fromInterrupt(detail)
+        if (typeof actId !== "string" || !actId || !this._liveAct(actId)) return false
+        const percept = Percept.fromInterrupt(detail, { trusted: true })
         const comparator = this._liveComparator()
         if (!comparator) {
             this._dispatchOwnerBid(percept, [])
-            return
+            return true
         }
         const bindGen = this._compareBindGen
         const comparatorGen = comparator._bindGen
@@ -717,6 +723,7 @@ export class MAct extends MObserver {
                 this._dispatchOwnerBid(percept, evaluations)
             },
         }).catch(() => {})
+        return true
     }
 
     _dispatchOwnerBid(percept, evaluations) {
@@ -732,10 +739,9 @@ export class MAct extends MObserver {
         this._redispatchBid(bid)
     }
 
+    /** The finished bid, as data, from m-act itself; its own listener lets bids pass. */
     _redispatchBid(bid) {
-        const host = this.parentElement
-        if (host && typeof host.fire === "function") host.fire("interrupt-request", bid)
-        else if (host) host.dispatchEvent(new CustomEvent("interrupt-request", { detail: bid, bubbles: true }))
+        this.fire("interrupt-request", bidData(bid))
     }
 
     _liveComparator() {
@@ -872,13 +878,13 @@ export class MAct extends MObserver {
         const last = this._busyToldAt.get(key)
         if (last != null && now - last < window) return
         this._busyToldAt.set(key, now)
-        const record = new InterruptRecord({
+        const record = stimulus({
             source: 'External',                      // reaches the mind as a sensation, like any consequence
             type: 'Sense-reach',
             reason: "My hands are still busy with what I last set going; I leave this reach to wait and keep thinking.",
             salience: Number(this.attr("busySalience") || 0.2),
         })
-        log.debug(`reach held (already in motion): ${record}`)
+        log.debug(`reach held (already in motion): ${describeStimulus(record)}`)
         this.fire("interrupt-request", record)
     }
 

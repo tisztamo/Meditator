@@ -2,6 +2,7 @@
 import { test, expect, beforeAll } from "bun:test";
 import { delay } from "./setup.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
+import { takeAccepted } from "./attentionProbe.js";
 
 let attention, daylight, weather, feed;
 
@@ -30,7 +31,7 @@ test("sense components upgrade; unconfigured senses stay dormant", () => {
 
 test("first daylight reading is a salient External band change", () => {
     daylight.onSense();
-    const q = attention.takePending();
+    const q = takeAccepted(attention);
     const first = q[0] || {};
     expect(q.length).toBe(1);
     expect(first.source).toBe("External");
@@ -42,11 +43,11 @@ test("first daylight reading is a salient External band change", () => {
 });
 
 test("second daylight reading is ambient with fresh prose", () => {
-    attention.takePending();
+    takeAccepted(attention);
     daylight.onSense();
-    const first = attention.takePending()[0] || {};
+    const first = takeAccepted(attention)[0] || {};
     daylight.onSense();
-    const second = attention.takePending()[0] || {};
+    const second = takeAccepted(attention)[0] || {};
     expect(second.salience).toBeLessThan(0.6);
     expect(second.salience).toBeGreaterThanOrEqual(0.32 - 1e-9);
     expect(second.salience).toBeLessThanOrEqual(0.48 + 1e-9);
@@ -55,7 +56,7 @@ test("second daylight reading is ambient with fresh prose", () => {
 
 test("feed-style ambient bid stays in the ambient band", () => {
     feed.feel("A scrap of the world drifts past.", {});
-    const ambient = attention.takePending()[0] || {};
+    const ambient = takeAccepted(attention)[0] || {};
     expect(ambient.source).toBe("External");
     expect(ambient.urgent).toBe(false);
     expect(ambient.salience).toBeGreaterThanOrEqual(0.32 - 1e-9);

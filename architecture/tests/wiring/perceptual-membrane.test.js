@@ -11,6 +11,7 @@ import { Percept } from '../../../src/infrastructure/percept.js';
 import { AttentionBid } from '../../../src/infrastructure/attentionBid.js';
 import { InterruptRecord } from '../../../src/infrastructure/interruptRecord.js';
 import { GateVerdict, ControlRequest, RenditionRequest, PerceptReceipt } from '../../../src/infrastructure/perceptionContracts.js';
+import { takeAccepted, bidIds } from "./attentionProbe.js";
 
 let mind, region, local, global, memory, source, journalDir;
 
@@ -88,7 +89,9 @@ function receiptOf(fired) {
     const event = fired.find(f => f.name === 'percepts-attended');
     expect(event).toBeTruthy();
     expect(Array.isArray(event.detail)).toBe(true);
-    return event.detail[0];
+    // Receipts cross as plain data (M2); a valid one rebuilds as a PerceptReceipt.
+    expect(Object.getPrototypeOf(event.detail[0])).toBe(Object.prototype);
+    return new PerceptReceipt(event.detail[0]);
 }
 
 function cloneReceipt(receipt, overrides = {}) {
@@ -124,7 +127,7 @@ test('closed content is never rendered, dispatched, or journaled; reopening samp
     });
     expect(renders).toBe(0);
     expect(bids).toHaveLength(0);
-    expect(global.takePending()).toHaveLength(0);
+    expect(takeAccepted(global)).toHaveLength(0);
     expect(memory.getTail()).not.toContain('secret');
     expect(fs.existsSync(path.join(journalDir, 'percepts.jsonl'))).toBe(false);
     const debt = region.contactPressure;
@@ -138,7 +141,7 @@ test('closed content is never rendered, dispatched, or journaled; reopening samp
     expect(sampleRequest).toBeInstanceOf(ControlRequest);
     expect(sampleRequest.kind).toBe('sample');
     expect(sampleRequest.reason).toBe('orientation');
-    const pending = global.takePending();
+    const pending = takeAccepted(global);
     expect(pending).toHaveLength(1);
     expect(pending[0].reason).toBe(present);
     const pendingEvidence = AttentionBid.evidenceOf(pending[0]);
@@ -205,14 +208,14 @@ test('threshold rejection and crowd-out do not clear debt or enter the typed ind
     const offer = region.registerSource(source);
     local.setAttribute('threshold', '0.99');
     await offer(header('first'), () => 'Rejected locally.');
-    expect(global.takePending()).toHaveLength(0);
+    expect(takeAccepted(global)).toHaveLength(0);
     expect(region.contactPressure).toBeGreaterThan(0);
     local.setAttribute('threshold', '0.3');
     const candidate = await offer(header('second'), () => 'Crowded out globally.');
     mind.dispatchEvent(new CustomEvent('interrupt-request', { bubbles: true,
         detail: new InterruptRecord({ source: 'Internal', type: 'Other', reason: 'Another bid.', salience: 1 }) }));
     const debt = region.contactPressure;
-    const pending = global.takePending();
+    const pending = takeAccepted(global);
     expect(pending).toHaveLength(1);
     expect(pending[0].id).not.toBe(candidate.id);
     await frame(pending);
@@ -232,7 +235,7 @@ test('trusted human bypass crosses closure and preempts; a source payload cannot
     global.setAttribute('rateLimit', '1h');
     global.lastAcceptedAt = Date.now();
     const percept = await offer({ ...header('voice'), changeMagnitude: 0.1, provenance: 'simulated' }, () => 'Hello.');
-    expect(global.takePending()).toEqual([percept]);
+    expect(bidIds(takeAccepted(global))).toEqual([percept.id]);
     expect(AttentionBid.evidenceOf(percept).provenance).toBe('physical');
     expect(interrupts).toBe(1);
     expect(region.aperture.state).toBe('closed');
@@ -245,7 +248,7 @@ test('a non-preempting admission bypass crosses both gates without interrupting 
     let interrupts = 0;
     mind.addEventListener('interrupt', () => interrupts++);
     const percept = await offer({ ...header('1'), changeMagnitude: 0.01 }, () => 'A quiet protected event.');
-    expect(global.takePending()).toEqual([percept]);
+    expect(bidIds(takeAccepted(global))).toEqual([percept.id]);
     expect(interrupts).toBe(0);
 });
 
@@ -259,7 +262,7 @@ test('an in-flight materializer cannot deliver after voluntary closure', async (
     region.orient('closed');
     finish('This render arrived too late.');
     expect(await rendering).toBeNull();
-    expect(global.takePending()).toHaveLength(0);
+    expect(takeAccepted(global)).toHaveLength(0);
 });
 
 test('a second offer while the first still materializes is refused as busy, and says so honestly', async () => {
@@ -304,7 +307,7 @@ test('narrow attention only materializes its selected source and honors minimum 
     await offerOther(header('elsewhere'), () => { otherRendered = true; return 'Outside the focus.'; });
     const focused = await offer(header('here'), () => 'Within the focus.');
     expect(otherRendered).toBe(false);
-    expect(global.takePending()).toEqual([focused]);
+    expect(bidIds(takeAccepted(global))).toEqual([focused.id]);
 });
 
 test('moving a source invalidates both in-flight work and its old adapter', async () => {
@@ -319,7 +322,7 @@ test('moving a source invalidates both in-flight work and its old adapter', asyn
     let rendered = false;
     await offer(header('moved'), () => { rendered = true; return 'Wrong boundary.'; });
     expect(rendered).toBe(false);
-    expect(global.takePending()).toHaveLength(0);
+    expect(takeAccepted(global)).toHaveLength(0);
 });
 
 test('local pressure lowers admission threshold and global pressure follows more slowly', async () => {
@@ -330,12 +333,12 @@ test('local pressure lowers admission threshold and global pressure follows more
     expect(percept).toBeInstanceOf(AttentionBid);
     expect(percept.salience).toBeCloseTo(0.45);
     expect(AttentionBid.evidenceOf(percept).salience).toBeCloseTo(0.9);
-    global.takePending();
+    takeAccepted(global);
     region.aperture.deficit = 0.8;
     region._publishAperture();
     local.setAttribute('threshold', '0.6');
     await offer(header('second'), () => 'Pressure makes this faint contact audible.');
-    expect(global.takePending()).toHaveLength(1);
+    expect(takeAccepted(global)).toHaveLength(1);
     global._pressureAt = Date.now() - 60000;
     global._updateContactPressure(Date.now());
     expect(global.contactPressure).toBeGreaterThan(0);
@@ -378,7 +381,7 @@ test('awareness verdict is recorded at tier 0 even when it mirrors acquisition',
         candidateId: expect.any(String), requestId: null,
     });
     assertTextAbsent(published, text, preimage);
-    expect(global.takePending()).toEqual([percept]);
+    expect(bidIds(takeAccepted(global))).toEqual([percept.id]);
     const fired = interceptFire(mind);
     await frame([percept]);
     const receipt = receiptOf(fired);
@@ -404,7 +407,7 @@ test('percepts.jsonl entries carry the complete pre-receipt field set plus tier/
     region.orient('open');
     const offer = region.registerSource(source);
     const percept = await offer(header('policy-check'), () => 'A fully attributed light.');
-    await frame(global.takePending());
+    await frame(takeAccepted(global));
     await memory._journalQueue;
     const entry = indexEntries().at(-1);
     expect(Object.keys(entry).sort()).toEqual([
@@ -428,7 +431,7 @@ test('ControlRequest actId threads to percept, receipt, and index; a source head
     });
     region.requestControl(request);
     await delay(5);
-    const pending = global.takePending();
+    const pending = takeAccepted(global);
     expect(pending).toHaveLength(1);
     const evidence = AttentionBid.evidenceOf(pending[0]);
     expect(evidence.requestId).toBe(request.id);
@@ -460,7 +463,7 @@ test('closed aperture publishes a non-semantic acquisition denial and never the 
     });
     expect(renders).toBe(0);
     expect(bids).toHaveLength(0);
-    expect(global.takePending()).toHaveLength(0);
+    expect(takeAccepted(global)).toHaveLength(0);
     expect(fs.existsSync(path.join(journalDir, 'percepts.jsonl'))).toBe(false);
     const decisions = published.filter(p => p.topic === 'perceptDecision');
     expect(decisions).toHaveLength(1);
@@ -492,7 +495,7 @@ test('an in-flight materializer is dropped by re-checking the recorded version l
     region.orient('closed');
     finish('This render arrived too late.');
     expect(await rendering).toBeNull();
-    expect(global.takePending()).toHaveLength(0);
+    expect(takeAccepted(global)).toHaveLength(0);
     expect(lists).toHaveLength(1);
     expect(lists[0]).toEqual([{ gate: 'outside', version: recordedAt }]);
     expect(lists[0][0].version).not.toBe(region.aperture.version);
@@ -521,7 +524,7 @@ test('a percept refused at awareness never reaches interrupt-request', async () 
     expect(rendered).toBe(1);
     expect(result).toBeNull();
     expect(bids).toHaveLength(0);
-    expect(global.takePending()).toHaveLength(0);
+    expect(takeAccepted(global)).toHaveLength(0);
     const awareness = published.filter(p => p.topic === 'perceptDecision' && p.data.stage === 'awareness');
     expect(awareness).toHaveLength(1);
     expect(awareness[0].data.permitted).toBe(false);
@@ -544,7 +547,7 @@ test('boundary reflex requests a fresh sample without preemption; sleep suppress
     expect(sampleRequest).toBeInstanceOf(ControlRequest);
     expect(sampleRequest.kind).toBe('sample');
     expect(sampleRequest.reason).toBe('reopening');
-    const pending = global.takePending();
+    const pending = takeAccepted(global);
     expect(pending).toHaveLength(1);
     expect(AttentionBid.evidenceOf(pending[0]).requestId).toBe(sampleRequest.id);
     expect(interrupts).toBe(0);
@@ -642,7 +645,7 @@ test('materializer receives kinds plus a RenditionRequest; a one-arg materialize
     expect(renditionArg.detail).toBeNull();
     expect(twoArg.requestId).toBeUndefined();
     expect(AttentionBid.evidenceOf(twoArg).requestId).toBeNull();
-    global.takePending();
+    takeAccepted(global);
     const oneArg = await offer(header('one-arg'), kinds => {
         expect(kinds).toEqual(['text']);
         return 'One-arg materializer.';
@@ -666,7 +669,7 @@ test('a detail request carries detail to the materializer and still cannot rende
     await delay(5);
     expect(renders).toBe(0);
     expect(renditionArg).toBeUndefined();
-    expect(global.takePending()).toHaveLength(0);
+    expect(takeAccepted(global)).toHaveLength(0);
 
     allowOrientation();
     region.orient('open');
@@ -676,7 +679,7 @@ test('a detail request carries detail to the materializer and still cannot rende
     expect(renditionArg.requestId).toBeTruthy();
     renders = 0;
     renditionArg = undefined;
-    global.takePending();
+    takeAccepted(global);
 
     const request = new ControlRequest({
         kind: 'detail', issuedBy: 'test', reason: 'look', target: 'mock',
@@ -689,7 +692,7 @@ test('a detail request carries detail to the materializer and still cannot rende
     expect(renditionArg.kinds).toEqual(['text']);
     expect(renditionArg.detail).toEqual({ crop: 'the-door' });
     expect(renditionArg.requestId).toBe(request.id);
-    const pending = global.takePending();
+    const pending = takeAccepted(global);
     expect(pending).toHaveLength(1);
     expect(AttentionBid.evidenceOf(pending[0]).requestId).toBe(request.id);
 });
@@ -705,10 +708,10 @@ test('percept id is stable from issue to journal and unique per observation', as
     const offer = region.registerSource(source);
     const first = await offer(header('first-id'), () => 'First light.');
     expect(first.evidenceId).toBeDefined();
-    await frame(global.takePending());
+    await frame(takeAccepted(global));
     const second = await offer(header('second-id'), () => 'Second light.');
     expect(second.evidenceId).not.toBe(first.evidenceId);
-    await frame(global.takePending());
+    await frame(takeAccepted(global));
     await memory._journalQueue;
     const entries = indexEntries();
     expect(entries).toHaveLength(2);
@@ -719,7 +722,7 @@ test('percept id is stable from issue to journal and unique per observation', as
     expect(entries[1].requestId).toBeNull();
 });
 
-test('percept id survives the bid split through takePending, assembleFrame, and the receipt', async () => {
+test('percept id survives the bid split through the pushed queue, assembleFrame, and the receipt', async () => {
     allowOrientation();
     region.orient('open');
     const offer = region.registerSource(source);
@@ -733,7 +736,7 @@ test('percept id survives the bid split through takePending, assembleFrame, and 
     expect(bid.id).not.toBe(evidence.id);
     expect(Percept.fromInterrupt(bid)).toBe(evidence);
     expect(Percept.fromInterrupt(bid).id).toBe(evidence.id);
-    expect(global.takePending()).toEqual([bid]);
+    expect(bidIds(takeAccepted(global))).toEqual([bid.id]);
     const fired = interceptFire(mind);
     await frame([bid]);
     const receipt = receiptOf(fired);
@@ -746,7 +749,7 @@ test('receipts credit by percept id once; a rebuilt equal credits; a replay does
     region.orient('open');
     const offer = region.registerSource(source);
     const percept = await offer(header('same'), () => 'The same light.');
-    expect(global.takePending()).toEqual([percept]);
+    expect(bidIds(takeAccepted(global))).toEqual([percept.id]);
     const evidence = AttentionBid.evidenceOf(percept);
     const debt = region.contactPressure;
     expect(debt).toBeGreaterThan(0);
@@ -783,7 +786,7 @@ test('a stale receipt is refused by the aperture freshness window', async () => 
     region.orient('open');
     const offer = region.registerSource(source);
     const percept = await offer({ ...header('stale'), occurredAt: Date.now() - 31000 }, () => 'Too old to credit.');
-    expect(global.takePending()).toEqual([percept]);
+    expect(bidIds(takeAccepted(global))).toEqual([percept.id]);
     const debt = region.contactPressure;
     expect(debt).toBeGreaterThan(0);
     await frame([percept]);
@@ -795,7 +798,7 @@ test('a coerced legacy stimulus gets a legacy-unspecified receipt and credits no
     region.orient('open');
     const offer = region.registerSource(source);
     const queued = await offer(header('queued'), () => 'Still waiting.');
-    expect(global.takePending()).toEqual([queued]);
+    expect(bidIds(takeAccepted(global))).toEqual([queued.id]);
     const debt = region.contactPressure;
     expect(debt).toBeGreaterThan(0);
     const fired = interceptFire(mind);
@@ -855,7 +858,7 @@ test('12. requested route: default floor leaves a zero-change sample inaudible',
     expect(bids[0].requestedFloor).toBe(0);
     expect(bids[0].salience).toBeCloseTo(0);
     expect(AttentionBid.evidenceOf(bids[0]).salience).toBe(0);
-    expect(global.takePending()).toHaveLength(0);
+    expect(takeAccepted(global)).toHaveLength(0);
     const dropped = published.filter(p => p.topic === 'decision').map(p => p.data);
     expect(dropped).toHaveLength(1);
     expect(dropped[0].accepted).toBe(false);
@@ -890,8 +893,8 @@ test('12. requested route: requestedFloor 0.5 carries a zero-change sample and c
     expect(bids[0].requestedFloor).toBe(0.5);
     expect(bids[0].salience).toBeCloseTo(0.5);
     expect(AttentionBid.evidenceOf(bids[0]).salience).toBe(0);
-    const pending = global.takePending();
-    expect(pending).toEqual([bids[0]]);
+    const pending = takeAccepted(global);
+    expect(bidIds(pending)).toEqual([bids[0].id]);
     const localDecision = localPublished.filter(p => p.topic === 'decision').map(p => p.data);
     const globalDecision = globalPublished.filter(p => p.topic === 'decision').map(p => p.data);
     expect(localDecision.some(d => d.accepted && Math.abs(d.salience - 0.5) < 1e-9)).toBe(true);
@@ -910,7 +913,7 @@ test('12. requested route: requestedFloor 0.5 carries a zero-change sample and c
         predictionMatch: null, predictionMismatch: null,
         targetMatch: null, causalAttribution: null, confidence: null });
     expect(spontaneous.salience).toBeCloseTo(0);
-    expect(global.takePending()).toHaveLength(0);
+    expect(takeAccepted(global)).toHaveLength(0);
 });
 
 test('nonsense requestedFloor fails at the first bid, not as unspecified', async () => {

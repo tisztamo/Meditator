@@ -12,6 +12,7 @@ import path from "node:path";
 import { delay } from "./setup.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
 import { readArchitectureFile, resetLoadedArchitecture } from "../../../src/startup/architecture.js";
+import { renderStimulus } from "../../../src/infrastructure/interruptRecord.js";
 
 let home, archPath, newArch, origArgv;
 const raised = [];
@@ -87,7 +88,7 @@ afterAll(() => {
 test("the wake stimulus discloses the identity change plainly (§3)", () => {
     const waking = raised.find(s => s.type === "Waking");
     expect(waking).toBeTruthy();
-    const frame = waking.renderForFrame();
+    const frame = renderStimulus(waking);
     expect(frame.includes("waking up")).toBe(true);                  // still the honest gap...
     expect(frame.includes("While I slept I was changed")).toBe(true); // ...plus the disclosure
     expect(frame.includes("self-description")).toBe(true);

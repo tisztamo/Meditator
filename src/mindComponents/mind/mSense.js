@@ -1,5 +1,5 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
-import { InterruptRecord } from '../../infrastructure/interruptRecord.js';
+import { stimulus, describeStimulus } from '../../infrastructure/interruptRecord.js';
 import { ControlRequest, EdgeEvidence, fireEdgeEvidence } from '../../infrastructure/perceptionContracts.js';
 import { decide } from '../../modelAccess/decide.js';
 import { logger } from '../../infrastructure/logger.js';
@@ -133,20 +133,20 @@ export class MSense extends MBaseComponent {
      * Raise a sensation into the attention bus.
      * @param {string} reason - first-person experience line for the frame
      * @param {{key?: string, salience?: number, type?: string}} [opts]
-     * @returns {InterruptRecord}
+     * @returns {Object} the fired stimulus (plain data)
      */
     feel(reason, { key = null, salience = null, type = null } = {}) {
         const sal = this._salienceFor(key, salience)
         if (key != null) this._lastKey = key
 
-        const record = new InterruptRecord({
+        const record = stimulus({
             source: 'External',                 // the world reaching in, not the mind reaching down
             type: type || `Sense-${this.attr("name") || this.localName}`,
             reason,
             salience: sal,
             urgent: false,                      // a sense is ambient, never commandeers a burst
         })
-        log.debug(`[${this.attr("name") || this.localName}]${key != null ? ` ${key}` : ""}: ${record}`)
+        log.debug(`[${this.attr("name") || this.localName}]${key != null ? ` ${key}` : ""}: ${describeStimulus(record)}`)
         this.fire("interrupt-request", record)
         return record
     }

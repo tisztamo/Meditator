@@ -61,6 +61,61 @@ export function withPerceivedEvents(text, lines) {
 }
 
 /**
+ * Renders a stimulus as the short first-person line the attention frame carries —
+ * what the mind experiences, not a bureaucratic record. A pure function over the
+ * wire form, so a receiver needs no class to read a message (message rule M2):
+ * works on a plain stimulus, an InterruptRecord, a Percept, or a bid (whose
+ * evidence it renders).
+ *
+ * For an external human voice (`UserInput` / `ConsoleInput`), wraps the raw
+ * `reason` in narrative framing so the model perceives it as someone speaking,
+ * in the mind's own language (`lang`). When the speaker is known (`from`, the
+ * mind's companion) the voice is attributed by name — a known person, not an
+ * unsettling source from nowhere; otherwise it falls back to the language's
+ * "someone says". The raw `reason` remains unadorned on the record itself, so
+ * UI consumers can display the user's actual words without the internal
+ * narrative wrapper.
+ * @param {Object} record
+ * @returns {string}
+ */
+export function renderStimulus(record) {
+  if (!record || typeof record !== 'object') return String(record ?? '');
+  if (record.evidence && typeof record.evidence === 'object' && typeof record.evidenceId === 'string') {
+    record = record.evidence;
+  }
+  let text = record.reason;
+  if (record.type === 'UserInput' || record.type === 'ConsoleInput' || record.type === 'Peer') {
+    // A human voice (UserInput/ConsoleInput) or another mind overheard in the same
+    // society (Peer, raised by m-ear) is experienced the same way: as someone
+    // speaking, attributed by name when known (`from`), in the mind's own language.
+    const f = voiceFraming(record.lang);
+    const speaker = record.from || f.who;
+    text = `${speaker} ${f.say}: "${record.reason}"`;
+  }
+  const parts = [text];
+  if (record.suggestion) parts.push(record.suggestion);
+  return parts.join(' ');
+}
+
+/**
+ * A stimulus as it crosses the attention spine: the fields an InterruptRecord
+ * normalizes, as a plain object (message rule M2). Producers fire this, not the
+ * class. Whether its `urgent` / `clearsTail` / `actId` / `progress` claims are
+ * honoured is decided by the receiver from who sent it (messageOrigin.js).
+ * @param {Object} fields InterruptRecord constructor options
+ * @returns {Object}
+ */
+export function stimulus(fields) {
+  return { ...new InterruptRecord(fields) };
+}
+
+/** One log line for a stimulus in any form (plain objects have no toString). */
+export function describeStimulus(record) {
+  const r = record?.evidence && typeof record?.evidenceId === 'string' ? record.evidence : record;
+  return `[${r?.source}/${r?.type}] ${r?.reason}`;
+}
+
+/**
  * Class representing a structured interrupt record
  * Implements the Markdown format described in architecture docs
  */
@@ -134,33 +189,9 @@ export class InterruptRecord {
     this.additionalData = additionalData;
   }
 
-  /**
-   * Renders the interrupt as a short first-person stimulus line for the
-   * attention frame — what the mind experiences, not a bureaucratic record.
-   *
-   * For an external human voice (`UserInput` / `ConsoleInput`), wraps the raw
-   * `reason` in narrative framing so the model perceives it as someone
-   * speaking, in the mind's own language (`lang`). When the speaker is known
-   * (`from`, the mind's companion) the voice is attributed by name — a known
-   * person, not an unsettling source from nowhere; otherwise it falls back to
-   * the language's "someone says". The raw `reason` remains unadorned on the
-   * record itself, so UI consumers can display the user's actual words without
-   * the internal narrative wrapper.
-   * @returns {string}
-   */
+  /** The frame line for this record — see renderStimulus. */
   renderForFrame() {
-    let text = this.reason;
-    if (this.type === 'UserInput' || this.type === 'ConsoleInput' || this.type === 'Peer') {
-      // A human voice (UserInput/ConsoleInput) or another mind overheard in the same
-      // society (Peer, raised by m-ear) is experienced the same way: as someone
-      // speaking, attributed by name when known (`from`), in the mind's own language.
-      const f = voiceFraming(this.lang);
-      const speaker = this.from || f.who;
-      text = `${speaker} ${f.say}: "${this.reason}"`;
-    }
-    const parts = [text];
-    if (this.suggestion) parts.push(this.suggestion);
-    return parts.join(' ');
+    return renderStimulus(this);
   }
 
   /**
@@ -180,6 +211,23 @@ export class InterruptRecord {
       return new InterruptRecord(rest);
     }
     return new InterruptRecord({ source: 'Unknown', type: 'Unknown', reason: String(detail) });
+  }
+
+  /**
+   * Rebuilds a record from its wire form (a plain object) for a receiver that
+   * trusts the SENDER (a component: see messageOrigin.js). Unlike coerce, it keeps
+   * the substrate-owned fields (`actId`, `progress`) and the original `dateTime`,
+   * because the authority comes from who sent it, not from the payload's
+   * prototype (doc/architecture/message-rule.md, M2).
+   * @param {Object} data
+   * @returns {InterruptRecord}
+   */
+  static fromData(data) {
+    if (data instanceof InterruptRecord) return data;
+    if (!data || typeof data !== 'object') return InterruptRecord.coerce(data);
+    const record = new InterruptRecord(data);
+    if (typeof data.dateTime === 'string' && data.dateTime) record.dateTime = data.dateTime;
+    return record;
   }
 
   /**

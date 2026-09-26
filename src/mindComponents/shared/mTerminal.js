@@ -2,7 +2,7 @@ import A from "amanita"
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { MBaseComponent } from "./mBaseComponent.js"
-import { InterruptRecord } from '../../infrastructure/interruptRecord.js';
+import { stimulus } from '../../infrastructure/interruptRecord.js';
 import { probeBackend, runScript, parseSizeBytes } from '../../infrastructure/sandbox.js';
 import { isDryRun } from "../../modelAccess/llm.js"
 import { mindHome, mindWorkspace } from '../../infrastructure/memoryVault.js';
@@ -273,7 +273,7 @@ export class MTerminal extends MBaseComponent {
     // arbiter exactly like a push-sense (the deferred-consequence path, terminal.md §2).
     _dispatch({ experience, salience, urgent, type, actId = null, progress = false }) {
         // Build a minimal record the arbiter understands; reuse the same shape m-act does.
-        this.fire("interrupt-request", new InterruptRecord({
+        this.fire("interrupt-request", stimulus({
             source: "External",
             type,
             reason: experience,

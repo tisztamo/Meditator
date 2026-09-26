@@ -1,7 +1,8 @@
 # The message rule — interaction that survives a process boundary
 
 > **Status: adopted as the target, measured; the request/reply seam is built and
-> piloted on sleep and frame ordering, and hands are messages (2026-09-26).**
+> piloted on sleep and frame ordering; hands and attention payloads are messages
+> (2026-09-26).**
 > The analysis behind it is
 > [message-rule-async-review.md](../improvements/message-rule-async-review.md).
 > This page states the rule, the one exception, and how the tree is held to it.
@@ -140,6 +141,33 @@ A hand still writes `execute(args, ctx)` in its spec, so the 14 hand components 
 not change. The authoring surface is the same, and only what crosses changed.
 m-agent's own `finish` tool is a local entry: kernel code, not a component.
 
+**Attention payloads (review §7 step 4, 2026-09-26).**
+
+| Before | Now |
+|---|---|
+| producers fired `new InterruptRecord(…)`; listeners called `.renderForFrame()` on it | producers fire `stimulus({…})`, the same normalized fields as a plain object; `renderStimulus(record)` is the pure render (it also reads a percept or a bid) |
+| a region / m-act / arbiter sent an `AttentionBid` instance, which the arbiters then mutated (`gainTrail`, `recomputeSalience()`, `decisions`) while the sender still held it | the wire form is `bidData(bid)` (with the evidence as `perceptData`). Every receiver builds its own bid with `AttentionBid.from(detail, {trusted})`; salience is recomputed from the carried signals, floors and trail. A nested arbiter re-weights its copy and promotes fresh data. |
+| a stimulus kept `urgent` / `clearsTail` / `actId` / `progress` when it was an in-process `InterruptRecord` instance, and lost them as a plain object | **authority comes from the sender** (`src/infrastructure/messageOrigin.js`): a message counts as trusted when its target is an upgraded custom element, or when a component dispatched it on behalf of one (`dispatchOnBehalf`: m-region on its source, a nested arbiter on its region's parent; delivery chaos carries the mark to its copy). The same payload from a plain node is coerced with no powers, as before. |
+| m-mind pulled `arbiter.takePending()` at frame time; urgency came as a separate `interrupt` event | the global arbiter pushes `accepted {bid}` and `withdrawn {bidIds}`; m-mind keeps its own `AttentionQueue`, drains it at a boundary and fires `taken {bidIds}` on itself, which the arbiter hears to clear its queue. An urgent bid's `accepted` is also the preemption, so the two cannot reorder (M5). `interrupt` stays, for observers. |
+| m-act fired its own consequence and caught it again on the way out to claim a live act | m-act claims its own consequence directly (`_claimConsequence`); it still claims a hand's deferred consequence (m-terminal) bubbling through it, by data shape and sender, and sends the finished bid from itself |
+| a preempting frame was built while the running burst kept streaming | before perceiving, m-mind asks its stream to `hush` (request/reply): the stream supersedes the burst and answers, so the burst's last words are recorded before the `> ⟂` line. Without a stream, or unanswered, it degrades (M6). |
+| `percepts-attended` carried `PerceptReceipt` instances, filtered by `instanceof` | receipts cross as plain data; `receiptsFrom(event)` rebuilds and validates them, and only from a component |
+
+Tests observe attention through `architecture/tests/wiring/attentionProbe.js`: it records
+each arbiter's `accepted` / `withdrawn` the way m-mind does and drains with the same
+`taken` message (54 `takePending()` calls → 0), and `heardBid(e)` rebuilds a bid the way
+an arbiter would.
+
+The `hush` exists because this step exposed an ordering hazard. Once urgency
+survived the json wire, the bridge contract preempted a running burst under chaos
+for the first time, and the old burst's chunks landed in the journal after the
+`> ⟂` line while the frame (and its bridge call) was being built. In production
+the same race is open whenever `bridge="true"`, because the bridge is a model
+call of several seconds. The hush also fixed review §9 bug 1:
+the provenance stop no longer loses the mind's last clean words, in any delivery mode,
+because the corrective frame is built after the hush reply and no longer inside the
+arbiter's dispatch.
+
 ## How the tree is held to it
 
 The rule is enforced by measurement rather than by audit list.
@@ -212,6 +240,19 @@ stripped `execute`, not m-act's self-interception. 11 of 38 contracts are still
 red: agent governance and the step round trip (step 6), the perception gate
 (step 6), the loop-break frame (step 4), the in-flight compare at sleep, and the
 provenance stop.
+
+**After attention payloads (2026-09-26).** 145 of 1147 fail (15 fixed), 10
+violation kinds (`fire|interrupt-request|instance:AttentionBid` and
+`fire|percepts-attended|instance:PerceptReceipt` are gone), 61 role-port calls
+(`takePending` 54 → 0). No production component sends an `InterruptRecord`
+instance any more. The kind stays listed because test code still does: raw
+dispatches on a stub mind or a `<span>`, and the frame-ordering contract's
+source, which is not edited. Two contracts turned green without editing them:
+the loop-break frame and the provenance stop. The third provenance-stop test,
+formerly `test.failing` (review §9 bug 1), was flipped to `test` as its comment
+asked. 9 of 38 contracts are still red: agent governance and the step round trip
+(step 6), the perception gate (step 6), and the in-flight compare at sleep,
+whose precondition rides the perception gate.
 
 ## What it does not change
 

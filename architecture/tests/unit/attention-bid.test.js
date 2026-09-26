@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test';
-import { AttentionBid } from '../../../src/infrastructure/attentionBid.js';
+import { AttentionBid, bidData } from '../../../src/infrastructure/attentionBid.js';
 import { Percept } from '../../../src/infrastructure/percept.js';
 import { InterruptRecord } from '../../../src/infrastructure/interruptRecord.js';
 import { GateVerdict } from '../../../src/infrastructure/perceptionContracts.js';
@@ -79,7 +79,14 @@ test('11. identity through the split: evidenceOf never mints a new id', () => {
     expect(AttentionBid.evidenceOf(bid).id).toBe(evidence.id);
     expect(Percept.fromInterrupt(bid)).toBe(evidence);
     expect(Percept.fromInterrupt(bid).id).toBe(evidence.id);
-    expect(AttentionBid.from(bid)).toBe(bid);
+    // A receiver builds its own bid (M2: it never holds or mutates the sender's),
+    // with the same identity and the same evidence id.
+    const received = AttentionBid.from(bid);
+    expect(received).not.toBe(bid);
+    expect(received.id).toBe(bid.id);
+    expect(received.evidenceId).toBe(evidence.id);
+    expect(received.salience).toBe(bid.salience);
+    expect(AttentionBid.from(bidData(bid), { trusted: true }).evidenceId).toBe(evidence.id);
 
     const passed = AttentionBid.from(new InterruptRecord({
         source: 'Observer', type: 'Test', reason: 'legacy', salience: 0.7,

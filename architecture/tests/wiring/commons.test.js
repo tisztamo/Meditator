@@ -4,6 +4,7 @@
 import { test, expect, beforeAll } from "bun:test";
 import { delay } from "./setup.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
+import { renderStimulus } from "../../../src/infrastructure/interruptRecord.js";
 
 let calculusVoice, historyVoice;
 const heard = { calculus: [], history: [] };
@@ -42,7 +43,7 @@ test("commons relays one member's speech to the other with speaker attribution",
   expect(heard.history.length).toBe(1);
   expect(heard.history[0].from).toBe("calculus");
   expect(heard.history[0].reason).toBe("The invariant is modulo 9.");
-  expect(heard.history[0].renderForFrame()).toBe('calculus says: "The invariant is modulo 9."');
+  expect(renderStimulus(heard.history[0])).toBe('calculus says: "The invariant is modulo 9."');
 });
 
 test("commons dedupes duplicate utterances (same `at`) per speaker", async () => {

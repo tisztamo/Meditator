@@ -2,7 +2,8 @@ import { MBaseComponent } from "../shared/mBaseComponent.js"
 import { part, isCustomElementDefined } from "../shared/enclosure.js"
 import { extractInfoton } from "../shared/infoton.js"
 import { logger } from '../../infrastructure/logger.js';
-import { AttentionBid } from '../../infrastructure/attentionBid.js';
+import { AttentionBid, bidData } from '../../infrastructure/attentionBid.js';
+import { sentByComponent, dispatchOnBehalf } from '../../infrastructure/messageOrigin.js';
 import { parseTime } from '../../config/timeParser.js';
 
 const log = logger('mInterrupts.js');
@@ -10,10 +11,17 @@ const log = logger('mInterrupts.js');
 /**
  * The attention arbiter. Generators anywhere in the mind (timeouts, observers,
  * websocket, console) dispatch bubbling "interrupt-request" DOM events carrying
- * an InterruptRecord or AttentionBid; this component decides what gets through to the mind.
- * takePending() returns bids. assembleFrame must read evidence through
- * AttentionBid.evidenceOf — coercing a bid through Percept.fromInterrupt would
- * mint a new id and break receipt crediting.
+ * a stimulus or a bid as plain data; this component decides what gets through
+ * to the mind. It builds its OWN bid from each message (AttentionBid.from) and
+ * never touches the sender's (message rule M2). A stimulus's powers (`urgent`,
+ * `clearsTail`, act lineage) are honoured only when a component sent it
+ * (messageOrigin.js).
+ *
+ * The global arbiter PUSHES what it admits: `accepted {bid}` when a bid joins
+ * the queue, `withdrawn {bidIds, why}` when `keep` crowds one out. The mind
+ * keeps its own copy of the queue and drains it at a boundary, then fires
+ * `taken {bidIds}` on itself, which this arbiter hears to clear its queue.
+ * Nothing is pulled (review §5: takePending → push).
  *
  * The decision is mechanical, not an LLM pipeline: the generator that raised
  * the interrupt knows why it fired and supplies the salience itself. Nested
@@ -23,8 +31,8 @@ const log = logger('mInterrupts.js');
  * POSITION decides the role, so the same component works at any depth:
  *   - GLOBAL arbiter (a direct child of m-mind): non-urgent stimuli are QUEUED
  *     and collected by m-mind at the next burst boundary (an interruption is
- *     just an attended boundary); urgent stimuli additionally dispatch an
- *     "interrupt" event, making the mind think immediately.
+ *     just an attended boundary); an urgent bid's `accepted` makes the mind
+ *     think immediately, and an "interrupt" event announces it to observers.
  *   - NESTED arbiter (inside an m-region): it governs that faculty. It gates
  *     locally, re-weights survivors by `gain`, stops the original event at the
  *     region, and re-dispatches the survivor one level up — to the enclosing
@@ -100,8 +108,11 @@ const log = logger('mInterrupts.js');
  * heard precisely when the mind is busiest.
  *
  * DOM events:
- *   - listens (on its region or the mind): "interrupt-request"
- *   - dispatches: "interrupt" (bubbling) for urgent stimuli — global only
+ *   - listens (on its region or the mind): "interrupt-request"; global only:
+ *     "taken" {bidIds} on the mind
+ *   - dispatches (global only): "accepted" {bid} (bubbling) for each admitted bid;
+ *     "withdrawn" {bidIds, why} (bubbling) when a queued bid is crowded out
+ *   - dispatches: "interrupt" (bubbling) with the bid, for urgent stimuli — global only
  *   - dispatches: "muffled" (bubbling) when low arousal alone dropped a stimulus — global
  *     only, throttled to rateLimit; a record-only signal the mind never perceives
  */
@@ -130,6 +141,7 @@ export class MInterrupts extends MBaseComponent {
         this._region = this.enclosing('faculty')
         this._container = this._region || this.membrane() || document
         this._container.addEventListener('interrupt-request', this._onRequest)
+        if (!this._region) this._container.addEventListener('taken', this._onTaken)
 
         if (!this._region) this._aggregator = this._boundAggregator()
 
@@ -177,6 +189,7 @@ export class MInterrupts extends MBaseComponent {
 
     onDisconnect() {
         this._container?.removeEventListener('interrupt-request', this._onRequest)
+        this._container?.removeEventListener('taken', this._onTaken)
         this._aggregator = null
         this._aggregatorWait = null
     }
@@ -187,7 +200,7 @@ export class MInterrupts extends MBaseComponent {
         // faculty per bid, before any gating (plenum.md §3.2: the message arrived;
         // what the handler does with the content is separate).
         this.applyInfoton(extractInfoton(e))
-        const bid = AttentionBid.from(e.detail)
+        const bid = AttentionBid.from(e.detail, { trusted: sentByComponent(e) })
         // A nested arbiter is the gate for its faculty: it consumes EVERY request
         // bubbling to its region — whether it ends up promoting or dropping it —
         // so a locally-rejected bid never leaks up to the mind. The global
@@ -264,8 +277,8 @@ export class MInterrupts extends MBaseComponent {
             }
             log.debug(`promote${gain !== 1 ? ` ×${gain}` : ""}: ${bid}`)
             this._publishDecision(bid, true, gain !== 1 ? `promoted ×${gain}` : "promoted")
-            this._region.parentElement?.dispatchEvent(
-                new CustomEvent("interrupt-request", { bubbles: true, detail: bid }))
+            const up = this._region.parentElement
+            if (up) dispatchOnBehalf(up, "interrupt-request", bidData(bid))
             return
         }
 
@@ -277,9 +290,24 @@ export class MInterrupts extends MBaseComponent {
         log.debug(`accepted${note}: ${bid}`)
         this._publishDecision(bid, true, bid.urgent ? "urgent" : bid.clearsTail ? "clears-tail" : "accepted")
 
+        // One message carries the admission and, for an urgent bid, the preemption:
+        // the mind queues it and thinks now. A separate "interrupt" could overtake
+        // it on another channel (M5); it is kept only for observers (m-ws, m-speech).
+        // `keep` may have crowded the newcomer out at once; then it was never queued.
+        if (!this.pending.includes(bid)) return
+        this.fire("accepted", { bid: bidData(bid) })
         if (bid.urgent) {
-            this.fire("interrupt", bid)
+            this.fire("interrupt", bidData(bid))
         }
+    }
+
+    /** The mind drained these bids into a frame: they leave the queue. */
+    _onTaken = e => {
+        const ids = e.detail?.bidIds
+        if (!Array.isArray(ids) || !ids.length) return
+        const taken = new Set(ids)
+        this.pending = this.pending.filter(bid => !taken.has(bid.id))
+        this._updateContactPressure(Date.now())
     }
 
     /** A stimulus a RESTED mind would have taken, dropped only because low arousal raised the
@@ -324,15 +352,8 @@ export class MInterrupts extends MBaseComponent {
             this.pending.sort((a, b) => (b.urgent - a.urgent) || (b.salience - a.salience))
             const dropped = this.pending.splice(keep)
             dropped.forEach(r => { log.debug(`crowded out: ${r}`); this._publishDecision(r, false, "crowded out") })
+            if (dropped.length) this.fire("withdrawn", { bidIds: dropped.map(r => r.id), why: "crowded out" })
         }
-    }
-
-    /** Called by m-mind at each boundary. Returns queued stimuli, oldest first, and clears the queue. */
-    takePending() {
-        this._updateContactPressure(Date.now())
-        const taken = this.pending
-        this.pending = []
-        return taken.sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime))
     }
 
     _updateContactPressure(now) {

@@ -13,7 +13,7 @@ import path from "node:path";
 import { delay } from "./setup.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
 import { probeBackend, resetBackendProbe } from "../../../src/infrastructure/sandbox.js";
-import { InterruptRecord } from "../../../src/infrastructure/interruptRecord.js";
+import { sentByComponent } from "../../../src/infrastructure/messageOrigin.js";
 import { AttentionBid } from "../../../src/infrastructure/attentionBid.js";
 
 let mind, act, terminal, memory, journalDir, workspaceDir, savedDry, savedBackend;
@@ -67,7 +67,7 @@ beforeAll(async () => {
 
     mind.addEventListener("interrupt-request", e => {
         const r = e && e.detail;
-        if (r && String(r.type || "").startsWith("Sense-terminal")) consequences.push(r);
+        if (r && String(r.type || "").startsWith("Sense-terminal")) consequences.push({ ...r, trusted: sentByComponent(e) });
     });
 });
 
@@ -83,9 +83,9 @@ test("a backend was probed on this host (informational)", () => {
     if (BACKEND === "none") console.warn("No sandbox backend on this host — real-exec terminal tests are skipped.");
 });
 
-test("deferred _dispatch is a trusted InterruptRecord whose urgency survives the arbiter", () => {
+test("deferred _dispatch is a plain stimulus from a component, whose urgency survives the arbiter", async () => {
     const captured = [];
-    const onReq = e => captured.push(e.detail);
+    const onReq = e => captured.push({ detail: e.detail, trusted: sentByComponent(e) });
     terminal.addEventListener("interrupt-request", onReq);
     try {
         terminal._dispatch({
@@ -94,14 +94,17 @@ test("deferred _dispatch is a trusted InterruptRecord whose urgency survives the
             urgent: true,
             type: "Sense-terminal",
         });
+        await delay(5);   // a deferred delivery lands before the listener goes
     } finally {
         terminal.removeEventListener("interrupt-request", onReq);
     }
     expect(captured).toHaveLength(1);
-    expect(captured[0]).toBeInstanceOf(InterruptRecord);
-    expect(captured[0].reason).toBe("I run it, and the screen answers: `42`.");
-    expect(captured[0].type).toBe("Sense-terminal");
-    const bid = AttentionBid.from(captured[0]);
+    expect(captured[0].trusted).toBe(true);
+    const detail = captured[0].detail;
+    expect(Object.getPrototypeOf(detail)).toBe(Object.prototype);   // plain data (M2)
+    expect(detail.reason).toBe("I run it, and the screen answers: `42`.");
+    expect(detail.type).toBe("Sense-terminal");
+    const bid = AttentionBid.from(detail, { trusted: captured[0].trusted });
     expect(bid.urgent).toBe(true);
     expect(bid.evidence.policy.preempt).toBe(true);
 });
@@ -198,12 +201,12 @@ test("SLOW path: a long run reassures now (ambient) and DELIVERS the result late
     // …then, bursts later, the result arrives on its own through the afferent bus.
     const deferred = await waitForConsequence(before, 4000);
     expect(deferred).toBeDefined();
-    expect(deferred).toBeInstanceOf(InterruptRecord);
+    expect(deferred.trusted).toBe(true);                // sent by a component (the terminal)
     expect(deferred.type).toBe("Sense-terminal");
     expect(deferred.reason).toMatch(/the late answer is 42/);
     expect(deferred.urgent).toBe(true);                 // urgent, as m-recall is (§2)
     expect(deferred.reason).not.toMatch(MECHANISM);
-    const bid = AttentionBid.from(deferred);
+    const bid = AttentionBid.from(deferred, { trusted: deferred.trusted });
     expect(bid.urgent).toBe(true);
     expect(bid.evidence.policy.preempt).toBe(true);
     terminal.setAttribute("grace", "2s");

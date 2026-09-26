@@ -28,6 +28,7 @@
 // unless an env var is set or configureDelivery() is called.
 
 import { writeFileSync } from "node:fs"
+import { carryOrigin } from "./messageOrigin.js"
 
 const MODES = new Set(["sync", "microtask", "macrotask", "jitter"])
 const CHECKS = new Set(["off", "report", "throw"])
@@ -140,6 +141,7 @@ function install(win) {
             composed: event.composed,
         })
         Object.defineProperty(copy, "__chaosDelivered", { value: true })
+        carryOrigin(event, copy)
         const target = this
         schedule(() => {
             // M2: "a payload is never mutated after sending; a change is a new message".

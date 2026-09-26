@@ -1,6 +1,6 @@
 import readline from 'node:readline';
 import { MBaseComponent } from "./mBaseComponent.js"
-import { InterruptRecord } from '../../infrastructure/interruptRecord.js';
+import { stimulus } from '../../infrastructure/interruptRecord.js';
 import { langOf } from "./i18n.js";
 import { logger } from '../../infrastructure/logger.js';
 
@@ -37,8 +37,8 @@ export class MConsole extends MBaseComponent {
             }
             // Raw words in `reason`, the mind's companion as `from`, the mind's
             // ambient language as `lang`; the framing "<from> says: …" (in that
-            // language) is added by InterruptRecord.renderForFrame().
-            const record = new InterruptRecord({
+            // language) is added by renderStimulus().
+            const record = stimulus({
                 source: 'External',
                 type: 'ConsoleInput',
                 reason: text,

@@ -13,6 +13,7 @@
 import { test, expect, beforeAll } from "bun:test";
 import { delay } from "./setup.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
+import { renderStimulus } from "../../../src/infrastructure/interruptRecord.js";
 
 let proverVoice, checkerVoice;
 const heard = { prover: [], checker: [] };
@@ -58,7 +59,7 @@ test("the Prover's spoken claim reaches the Checker, framed as a voice", async (
   expect(r.reason).toBe("I think n = 23 is balanced.");
   expect(Math.abs(r.salience - 0.85)).toBeLessThan(1e-9);
   expect(r.urgent).toBe(false);
-  expect(r.renderForFrame()).toBe('Prover says: "I think n = 23 is balanced."');
+  expect(renderStimulus(r)).toBe('Prover says: "I think n = 23 is balanced."');
 });
 
 test("the membrane holds — the Prover does not overhear itself", async () => {

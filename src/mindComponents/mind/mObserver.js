@@ -1,5 +1,5 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
-import { InterruptRecord } from '../../infrastructure/interruptRecord.js';
+import { stimulus, describeStimulus } from '../../infrastructure/interruptRecord.js';
 import { logger } from '../../infrastructure/logger.js';
 import { parseTime } from '../../config/timeParser.js';
 
@@ -54,7 +54,7 @@ export class MObserver extends MBaseComponent {
         if (now - this._lastRaisedAt < cooldownMs) return false
         this._lastRaisedAt = now
 
-        const record = new InterruptRecord({
+        const record = stimulus({
             source: 'Observer',
             type: opts.type || `Observer-${this.attr("name") || this.localName}`,
             reason,
@@ -68,7 +68,7 @@ export class MObserver extends MBaseComponent {
             episode: opts.episode ?? null,
             kind: opts.kind ?? null,
         })
-        log.debug(`[${this.attr("name") || this.localName}] raises: ${record}`)
+        log.debug(`[${this.attr("name") || this.localName}] raises: ${describeStimulus(record)}`)
         this.fire("interrupt-request", record)
         return true
     }

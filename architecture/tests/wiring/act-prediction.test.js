@@ -10,11 +10,15 @@ import { delay } from "./setup.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
 import { InterruptRecord } from "../../../src/infrastructure/interruptRecord.js";
 import { Percept } from "../../../src/infrastructure/percept.js";
-import { AttentionBid } from "../../../src/infrastructure/attentionBid.js";
+import { AttentionBid, bidData, isBidData } from "../../../src/infrastructure/attentionBid.js";
+import { sentByComponent } from "../../../src/infrastructure/messageOrigin.js";
 import {
     PREDICTION_EVENT, PREDICTION_SETTLED_EVENT, PREDICTION_DELIVERY, MAX_PREDICTION_LIFETIME_MS,
 } from "../../../src/infrastructure/predictionContracts.js";
 import { offerFixtureHand } from "./fixtureHand.js";
+
+/** What an arbiter hears: a bid's wire form rebuilt with its sender's trust; a stimulus as sent. */
+const heard = e => isBidData(e.detail) ? AttentionBid.from(e.detail, { trusted: sentByComponent(e) }) : e.detail;
 
 const EXPECT_PHRASE = "EXPECT_PHRASE_A2_DO_NOT_LEAK";
 const EXPERIENCE = "I turn toward the sky and the light has gone grey.";
@@ -155,7 +159,7 @@ test("expect never enters execute, acted, journal, or a frame", async () => {
     act.addEventListener("acted", onActed);
 
     const bids = [];
-    const onBid = e => bids.push(e.detail);
+    const onBid = e => bids.push(heard(e));
     mind.addEventListener("interrupt-request", onBid);
     try {
         await act._execute(
@@ -202,7 +206,7 @@ test("immediate consequence preserves one actId through percept and bid.evidence
         },
     });
     const seen = [];
-    const onReq = e => seen.push(e.detail);
+    const onReq = e => seen.push(heard(e));
     mind.addEventListener("interrupt-request", onReq);
     try {
         await act._execute(call("imm-probe", { q: "sky", expect: EXPECT_PHRASE }), { gist: "look" });
@@ -213,7 +217,8 @@ test("immediate consequence preserves one actId through percept and bid.evidence
     expect(seenCtx.predictionId).toMatch(UUID);
     const bid = seen.find(d => d instanceof AttentionBid);
     expect(bid).toBeDefined();
-    expect(seen.some(d => d instanceof InterruptRecord && !(d instanceof Percept))).toBe(false);
+    // m-act claims its own consequence: no raw stimulus leaves it, only the bid.
+    expect(seen.some(d => !(d instanceof AttentionBid))).toBe(false);
     expect(bid.evidence).toBeInstanceOf(Percept);
     expect(bid.evidence.actId).toBe(seenCtx.actId);
     expect(bid.evidenceId).toBe(bid.evidence.id);
@@ -233,7 +238,7 @@ test("deferred terminal consequence preserves the same live actId through one Pe
     await act._execute(call("defer-probe", { q: "sky", expect: EXPECT_PHRASE }), { gist: "run it" });
 
     const seen = [];
-    const onReq = e => seen.push(e.detail);
+    const onReq = e => seen.push(heard(e));
     mind.addEventListener("interrupt-request", onReq);
     try {
         terminal._dispatch({
@@ -266,7 +271,7 @@ test("trusted conversion uses one Percept id as AttentionBid.evidence", async ()
         },
     });
     const seen = [];
-    const onReq = e => seen.push(e.detail);
+    const onReq = e => seen.push(heard(e));
     mind.addEventListener("interrupt-request", onReq);
     try {
         await act._execute(call("id-probe", { q: "sky", expect: EXPECT_PHRASE }), { gist: "look" });
@@ -340,7 +345,7 @@ test("disabled execute stays { intent } only — no actId, no prediction", async
     const predictions = [];
     const seen = [];
     const onPred = e => predictions.push(e.detail);
-    const onReq = e => seen.push(e.detail);
+    const onReq = e => seen.push(heard(e));
     legacy.addEventListener(PREDICTION_EVENT, onPred);
     mind.addEventListener("interrupt-request", onReq);
     try {
@@ -359,28 +364,27 @@ test("disabled execute stays { intent } only — no actId, no prediction", async
     // Disabled schema does not know `expect`, so extra keys still reach the hand
     // the way additional properties always have — phase-2 validator ignores them.
     expect(seenArgs).toEqual({ q: "sky", expect: EXPECT_PHRASE });
-    const raw = seen.find(d => d instanceof InterruptRecord && !(d instanceof AttentionBid)
-        && d.reason === EXPERIENCE);
+    const raw = seen.find(d => !(d instanceof AttentionBid) && d.reason === EXPERIENCE);
     expect(raw).toBeDefined();
     expect(raw.actId).toBeNull();
 });
 
 test("AttentionBid passes through the listener without looping", () => {
     const seen = [];
-    const onReq = e => seen.push(e.detail);
+    const onReq = e => seen.push(heard(e));
     mind.addEventListener("interrupt-request", onReq);
     const evidence = Percept.fromInterrupt(new InterruptRecord({
         source: "External", type: "Sense-probe", reason: EXPERIENCE, salience: 0.5,
     }));
     const bid = new AttentionBid({ evidence });
     try {
-        act.fire("interrupt-request", bid);
+        act.fire("interrupt-request", bidData(bid));
     } finally {
         mind.removeEventListener("interrupt-request", onReq);
     }
     const bids = seen.filter(d => d instanceof AttentionBid);
     expect(bids).toHaveLength(1);
-    expect(bids[0]).toBe(bid);
+    expect(bids[0].id).toBe(bid.id);
 });
 
 test("execution failure cancels without manufacturing mismatch", async () => {
@@ -414,7 +418,7 @@ test("untrusted plain-object consequences are not claimed for lineage", async ()
     await act._execute(call("trust-probe", { q: "sky", expect: EXPECT_PHRASE }), { gist: "look" });
 
     const seen = [];
-    const onReq = e => seen.push(e.detail);
+    const onReq = e => seen.push(heard(e));
     mind.addEventListener("interrupt-request", onReq);
     const stolen = {
         source: "External",
@@ -424,7 +428,11 @@ test("untrusted plain-object consequences are not claimed for lineage", async ()
         urgent: true,
     };
     try {
-        terminal.dispatchEvent(new CustomEvent("interrupt-request", { bubbles: true, detail: stolen }));
+        // Not a component: a plain node under the terminal (authority follows the sender).
+        const stranger = document.createElement("span");
+        terminal.appendChild(stranger);
+        stranger.dispatchEvent(new CustomEvent("interrupt-request", { bubbles: true, detail: stolen }));
+        stranger.remove();
     } finally {
         mind.removeEventListener("interrupt-request", onReq);
     }

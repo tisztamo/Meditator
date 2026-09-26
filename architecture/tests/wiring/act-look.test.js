@@ -11,6 +11,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { delay } from "./setup.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
+import { takeAccepted } from "./attentionProbe.js";
 
 let mind, stream, memory, arbiter, act, look, journalDir, savedDry;
 const consequences = [];
@@ -111,7 +112,7 @@ test("a reach becomes a deed and a perceived consequence — never a tool result
 
     // INVARIANT (§5.4): the arbiter receives it like any other stimulus, so it would
     // be journaled perceived (⟂) via the ordinary `attended` path.
-    const pending = arbiter.takePending();
+    const pending = takeAccepted(arbiter);
     expect(pending.some(p => p.source === "External")).toBe(true);
 });
 

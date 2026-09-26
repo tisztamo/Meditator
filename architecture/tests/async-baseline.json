@@ -3,8 +3,6 @@
   "mode": "macrotask",
   "wire": "json",
   "failures": [
-    "architecture/tests/unit/terminal-parse.test.js > _dispatch fires a trusted InterruptRecord whose urgency survives AttentionBid.from",
-    "architecture/tests/unit/terminal-parse.test.js > _dispatch places ctx actId on the InterruptRecord; a missing actId stays null",
     "architecture/tests/wiring/act-busy.test.js > a genuinely different reach is felt on its own",
     "architecture/tests/wiring/act-busy.test.js > a held reach is felt as in-motion — low-salience, External, no mechanism (One Rule)",
     "architecture/tests/wiring/act-busy.test.js > the same reach within the window is felt once, not every cadence (throttle)",
@@ -13,12 +11,9 @@
     "architecture/tests/wiring/act-prediction.test.js > disabled execute stays { intent } only — no actId, no prediction",
     "architecture/tests/wiring/act-prediction.test.js > disconnect cancels live predictions without mismatch",
     "architecture/tests/wiring/act-prediction.test.js > execution failure cancels without manufacturing mismatch",
-    "architecture/tests/wiring/act-prediction.test.js > expect never enters execute, acted, journal, or a frame",
     "architecture/tests/wiring/act-prediction.test.js > immediate consequence preserves one actId through percept and bid.evidence",
     "architecture/tests/wiring/act-prediction.test.js > trusted conversion uses one Percept id as AttentionBid.evidence",
     "architecture/tests/wiring/act-prediction.test.js > untrusted plain-object consequences are not claimed for lineage",
-    "architecture/tests/wiring/act-terminal.test.js > SLOW path: a long run reassures now (ambient) and DELIVERS the result later (deferred, urgent)",
-    "architecture/tests/wiring/act-terminal.test.js > deferred _dispatch is a trusted InterruptRecord whose urgency survives the arbiter",
     "architecture/tests/wiring/act-terminal.test.js > the DEED is journaled backstage (⌁) and never touches the tail; the CONSEQUENCE is perceived (⟂)",
     "architecture/tests/wiring/agent-govern.test.js > MODIFY into an invalid shape is caught by the post-patch re-validation",
     "architecture/tests/wiring/agent-govern.test.js > asynchronous VETO: a governor may hold(promise) to decide, and m-agent awaits it",
@@ -31,21 +26,15 @@
     "architecture/tests/wiring/aperture-conformance.test.js > C1 S1 m-test-aperture: same table; loaded from a components/ dir",
     "architecture/tests/wiring/aperture-conformance.test.js > C1 baseline m-region: veto, nearest-credits, id receipt, fold, forwarding, control",
     "architecture/tests/wiring/aperture-conformance.test.js > S1: m-test-aperture receipts are identical to the baseline m-region",
-    "architecture/tests/wiring/commons.test.js > commons relays one member's speech to the other with speaker attribution",
     "architecture/tests/wiring/contracts/agent-governance.contract.test.js > a MODIFY into an invalid shape is re-validated and never runs",
     "architecture/tests/wiring/contracts/agent-governance.contract.test.js > a MODIFY is what runs, and the agent is told its call was adjusted",
     "architecture/tests/wiring/contracts/agent-governance.contract.test.js > a governor's DENY keeps the tool from running; the agent observes the refusal",
     "architecture/tests/wiring/contracts/agent-governance.contract.test.js > an ASYNC decision (hold, then deny) still vetoes: the tool waits for the governor",
     "architecture/tests/wiring/contracts/agent-step.contract.test.js > reaching haltAt stops the loop at that step: no further tool call, done names the guard",
     "architecture/tests/wiring/contracts/agent-step.contract.test.js > the guard's nudge for step N is folded into turn N+1 — the next thing the model reads",
-    "architecture/tests/wiring/contracts/frame-ordering.contract.test.js > the frame after a loop break continues from the fresh seed — never the stale tail, no clear-burst words lost",
     "architecture/tests/wiring/contracts/perception-gate.contract.test.js > permit: every gate answers yes → rendered once, exactly one bid reaches the mind's arbiter",
     "architecture/tests/wiring/contracts/perception-gate.contract.test.js > veto: an enclosing gate that refuses keeps the percept out, and the refusal is its own",
     "architecture/tests/wiring/contracts/sleep-fanout.contract.test.js > a compare in flight at sleep is aborted before memory commits; its late completion lands nowhere",
-    "architecture/tests/wiring/contracts/stream-filter.contract.test.js > a confabulated sense is held back and stops the burst; then the trail lands and a corrective stimulus preempts",
-    "architecture/tests/wiring/crash-honesty.test.js > a mind that slept cleanly (endedCleanly:true) gets the ordinary wake, no mid-thought line",
-    "architecture/tests/wiring/crash-honesty.test.js > a mind whose last session did NOT finalize wakes told it ended mid-thought (§2/§3)",
-    "architecture/tests/wiring/crash-honesty.test.js > legacy memory with no marker is treated as clean — never a false crash alarm",
     "architecture/tests/wiring/crowding-price.test.js > a quiet channel relaxes back to base on the half-life, with no timer",
     "architecture/tests/wiring/crowding-price.test.js > a salience drop does NOT feed the price — the bar must not raise itself",
     "architecture/tests/wiring/crowding-price.test.js > under load the gate selects by loudness, not by arrival order",
@@ -54,8 +43,6 @@
     "architecture/tests/wiring/drift.test.js > arm A declines when every note is too close, and arm B offers a FRESH thread instead",
     "architecture/tests/wiring/drift.test.js > arm A does not repeat the last thread it drifted to",
     "architecture/tests/wiring/drift.test.js > arm A: a far kept thread is picked by distance and NAMED (the mind can go there)",
-    "architecture/tests/wiring/ear.test.js > the Prover's spoken claim reaches the Checker, framed as a voice",
-    "architecture/tests/wiring/identity-disclosure.test.js > the wake stimulus discloses the identity change plainly (§3)",
     "architecture/tests/wiring/market-outcome.test.js > being wrong is felt, and felt louder than being right",
     "architecture/tests/wiring/market-outcome.test.js > when a right and a wrong settle in the same tick, the wrong one is the one felt",
     "architecture/tests/wiring/membrane-compare.test.js > 10. comparator timeout cannot settle a prediction; late resolution is ignored",
@@ -88,7 +75,6 @@
     "architecture/tests/wiring/membrane-composition.test.js > outer awareness refusal never reaches interrupt-request",
     "architecture/tests/wiring/membrane-composition.test.js > test 18: percept-candidate carries no content, materializer, or un-hashed key",
     "architecture/tests/wiring/membrane-composition.test.js > versions across gates: outer orientation during materialization drops the percept",
-    "architecture/tests/wiring/mind-memory.test.js > waking is raised onto the attention spine, not parked for a pull",
     "architecture/tests/wiring/nested-attention.test.js > region bid is re-weighted and promoted to global arbiter",
     "architecture/tests/wiring/nested-attention.test.js > top-level bid reaches global unchanged",
     "architecture/tests/wiring/perceptual-membrane.test.js > 12. requested route: default floor leaves a zero-change sample inaudible",
@@ -113,12 +99,11 @@
     "architecture/tests/wiring/perceptual-membrane.test.js > narrow attention only materializes its selected source and honors minimum dwell",
     "architecture/tests/wiring/perceptual-membrane.test.js > nonsense requestedFloor fails at the first bid, not as unspecified",
     "architecture/tests/wiring/perceptual-membrane.test.js > percept id is stable from issue to journal and unique per observation",
-    "architecture/tests/wiring/perceptual-membrane.test.js > percept id survives the bid split through takePending, assembleFrame, and the receipt",
+    "architecture/tests/wiring/perceptual-membrane.test.js > percept id survives the bid split through the pushed queue, assembleFrame, and the receipt",
     "architecture/tests/wiring/perceptual-membrane.test.js > percepts.jsonl entries carry the complete pre-receipt field set plus tier/requestId/frameId",
     "architecture/tests/wiring/perceptual-membrane.test.js > receipts credit by percept id once; a rebuilt equal credits; a replay does not",
     "architecture/tests/wiring/perceptual-membrane.test.js > threshold rejection and crowd-out do not clear debt or enter the typed index",
     "architecture/tests/wiring/perceptual-membrane.test.js > trusted human bypass crosses closure and preempts; a source payload cannot grant it",
-    "architecture/tests/wiring/phase-3b-b0.test.js > 4. progress: true is trusted, survives to the view, and is not judged; coerce cannot set it",
     "architecture/tests/wiring/phase-3b-b0.test.js > 6. the membrane's `sleeping` topic aborts a live region case; a late completion is inert",
     "architecture/tests/wiring/phase-3b-b1.test.js > 10. it writes to mindHome predictions/ledger.jsonl only",
     "architecture/tests/wiring/phase-3b-b2.test.js > 13. one complete call per evidence; abort → insufficient",
@@ -190,31 +175,9 @@
         "(root)"
       ]
     },
-    "fire|interrupt-request|instance:AttentionBid": {
-      "senders": [
-        "body",
-        "m-act",
-        "m-nested-host",
-        "m-region"
-      ],
-      "paths": [
-        "(root)"
-      ]
-    },
     "fire|interrupt-request|instance:InterruptRecord": {
       "senders": [
-        "m-act",
-        "m-clear-mind",
-        "m-daylight",
-        "m-drift",
-        "m-ear",
-        "m-feed",
-        "m-memory",
         "m-mind",
-        "m-nested-sense",
-        "m-provenance-filter",
-        "m-resurface",
-        "m-terminal",
         "span",
         "t-frame-source"
       ],
@@ -273,16 +236,6 @@
         "contract"
       ]
     },
-    "fire|percepts-attended|instance:PerceptReceipt": {
-      "senders": [
-        "m-mind",
-        "t-frame-mind",
-        "t-sleep-mind"
-      ],
-      "paths": [
-        "[0]"
-      ]
-    },
     "fire|prediction|instance:Prediction": {
       "senders": [
         "m-act"
@@ -318,7 +271,7 @@
     }
   },
   "legacyHandleCallsInTests": {
-    "takePending": 54,
+    "takePending": 0,
     "requestControl": 20,
     "requestOrientation": 7,
     "_registerCapability": 0,

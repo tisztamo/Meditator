@@ -17,6 +17,7 @@ import { AttentionBid } from '../../../src/infrastructure/attentionBid.js';
 import { Aperture } from '../../../src/infrastructure/aperture.js';
 import { GateVerdict, pushGainTrail, ControlRequest } from '../../../src/infrastructure/perceptionContracts.js';
 import { InterruptRecord } from '../../../src/infrastructure/interruptRecord.js';
+import { takeAccepted, bidIds } from "./attentionProbe.js";
 
 let journalDir;
 
@@ -262,7 +263,7 @@ async function driveOpenOffer(mind, { text = TEXT, changeKey = 'garden-light' } 
     mind.addEventListener('interrupt-request', e => bids.push(e.detail));
     const offer = inner.registerSource(source);
     const percept = await offer(header(changeKey), () => text);
-    const pending = global.takePending();
+    const pending = takeAccepted(global);
     const fired = interceptFire(mind);
     await MMind.prototype.assembleFrame.call(mind, pending);
     await memory._journalQueue;
@@ -355,7 +356,7 @@ test('W3 outer closed over inner open: no materializer, no bids, no journal, no 
     expect(result).toBeNull();
     expect(renders).toBe(0);
     expect(bids).toHaveLength(0);
-    expect(global.takePending()).toHaveLength(0);
+    expect(takeAccepted(global)).toHaveLength(0);
     expect(fs.existsSync(path.join(journalDir, 'percepts.jsonl'))).toBe(false);
     const decisions = published.filter(p => p.topic === 'perceptDecision');
     expect(decisions).toHaveLength(1);
@@ -461,7 +462,7 @@ test('versions across gates: outer orientation during materialization drops the 
     expect(outer.orient('soft')).toBe(true);
     finish('This render arrived too late.');
     expect(await rendering).toBeNull();
-    expect(global.takePending()).toHaveLength(0);
+    expect(takeAccepted(global)).toHaveLength(0);
     expect(held).toBe(false);
     expect(lists).toHaveLength(1);
     expect(lists[0].map(v => v.gate).sort()).toEqual(['outside', 'shell']);
@@ -490,7 +491,7 @@ test('outer awareness refusal never reaches interrupt-request', async () => {
     expect(renders).toBe(1);
     expect(result).toBeNull();
     expect(bids).toHaveLength(0);
-    expect(global.takePending()).toHaveLength(0);
+    expect(takeAccepted(global)).toHaveLength(0);
     const awareness = published.filter(p => p.topic === 'perceptDecision' && p.data.stage === 'awareness');
     expect(awareness).toHaveLength(1);
     expect(awareness[0].data.permitted).toBe(false);
@@ -537,7 +538,7 @@ test('bypass: trusted bypassAperture on the source crosses two closed gates; a p
     const percept = await trusted(header('voice'), () => { trustedRenders++; return 'Hello.'; });
     expect(trustedRenders).toBe(1);
     expect(percept).toBeInstanceOf(AttentionBid);
-    expect(global.takePending()).toEqual([percept]);
+    expect(bidIds(takeAccepted(global))).toEqual([percept.id]);
 
     let payloadRenders = 0;
     const untrusted = inner.registerSource(mock);
@@ -710,8 +711,8 @@ test('15. Regulator substitution: faster reflex, gate and receipts unchanged', a
     await delay(5);
     expect(renders).toBe(1);
     expect(bids).toHaveLength(1);
-    const pending = global.takePending();
-    expect(pending).toEqual(bids);
+    const pending = takeAccepted(global);
+    expect(bidIds(pending)).toEqual(bidIds(bids));
     const fired = interceptFire(mind);
     await MMind.prototype.assembleFrame.call(mind, pending);
     expect(credited).toHaveLength(1);
@@ -932,7 +933,7 @@ test('P1: nested suppressed header — outer pressure is max fold; nearest issue
     expect(inner.orient('open')).toBe(true);
     await delay(5);
     expect(renders).toBe(1);
-    const pending = global.takePending();
+    const pending = takeAccepted(global);
     expect(pending).toHaveLength(1);
     const evidenceId = pending[0].evidenceId;
     expect(inner._issued.has(evidenceId)).toBe(true);
@@ -1035,8 +1036,9 @@ test('nested arbiter gain 2 clamps salience to 1', async () => {
     const global = mind.querySelector('[name="attention"]');
     const offer = inner.registerSource(source);
     const bid = await offer(header('loud-gain'), () => TEXT);
-    expect(bid.salience).toBeCloseTo(1);
-    expect(global.takePending()[0].salience).toBeCloseTo(1);
+    // The arbiters re-weight their own copies; the region's bid is never mutated (M2).
+    expect(bid.salience).toBeCloseTo(0.9);
+    expect(takeAccepted(global)[0].salience).toBeCloseTo(1);
 });
 
 test('awareness re-checks versions: closing a gate after its verdict does not issue', async () => {
@@ -1057,7 +1059,7 @@ test('awareness re-checks versions: closing a gate after its verdict does not is
     expect(renders).toBe(1);
     expect(result).toBeNull();
     expect(bids).toHaveLength(0);
-    expect(global.takePending()).toHaveLength(0);
+    expect(takeAccepted(global)).toHaveLength(0);
 });
 
 test('removing a nested aperture republishes the outer fold', async () => {
@@ -1115,7 +1117,7 @@ test('invalid aggregator output fails closed: threshold stays finite', async () 
         bubbles: true,
         detail: new InterruptRecord({ source: 'Observer', type: 'Test', reason: 'quiet', salience: 0.2 }),
     }));
-    expect(global.takePending()).toHaveLength(0);
+    expect(takeAccepted(global)).toHaveLength(0);
 });
 
 test('same-batch regulator binds after its tag is defined, without failing the port check', async () => {

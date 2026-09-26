@@ -1,7 +1,7 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
 import { ENERGY } from "../shared/infoton.js"
 import { makePhrasebook } from "../shared/i18n.js"
-import { InterruptRecord } from '../../infrastructure/interruptRecord.js'
+import { stimulus } from '../../infrastructure/interruptRecord.js'
 import { logger } from '../../infrastructure/logger.js'
 import { ProvenanceGate, perceptLines } from './provenanceGate.js'
 
@@ -97,7 +97,7 @@ export class MProvenanceFilter extends MBaseComponent {
             kind: "provenance",
             record: { line, burstIndex: burstIndex ?? null },
         }, { energy: ENERGY.deed })
-        this.fire("interrupt-request", new InterruptRecord({
+        this.fire("interrupt-request", stimulus({
             source: 'Internal', type: 'Provenance',
             reason: (this._book ||= makePhrasebook(this, PROVENANCE_PHRASES)).line("provenance"),
             salience: 1, urgent: true,

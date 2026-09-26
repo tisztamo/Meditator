@@ -122,7 +122,7 @@ running burst. See [extending](../extending.md#filtering-the-streams-output).
 | image → memory | `m-image` → `generated` | `m-memory` `imageSrc` → `imageGenerated()` | ✅ done |
 | mind frame: recent/story | `m-memory` → `compressed {recent, story}` (also on load) | `m-mind` `compressedSrc` | ✅ done |
 | mind frame: tail | `m-memory` → `tail` (retained, on every change) | `m-mind` `tailSrc` | ✅ done |
-| mind: wake notice | `m-memory` raises `interrupt-request` on load | the arbiter → `takePending()` | ✅ done |
+| mind: wake notice | `m-memory` raises `interrupt-request` on load | the arbiter → `accepted {bid}` (pushed; was `takePending()`) | ✅ done |
 | mind: origin seed | `m-origin` → `prompt` (its content) | `m-mind` `originSrc` → `_seedIfFresh` raises `interrupt-request` | ✅ done |
 | mind: perceived-stimulus journaling | `m-mind` → `attended [lines]` | `m-memory` `attendedSrc` → `note()` | ✅ done |
 | mind: metabolic pace | `m-economy` → `paceFactor` (retained, with `energy`/`arousal`) | `m-mind` `paceFactorSrc` → mirrored, used in `_tickMs` | ✅ done |
@@ -148,7 +148,8 @@ hand, and never found by a class/`querySelector`.
 ## Deliberately *not* inverted
 
 These are orchestrator/transport **contracts**, not coupling smells. They stay as
-direct calls, on the same footing as the arbiter's documented `takePending()`:
+direct calls. (The arbiter's `takePending()` was one; the message rule replaced it
+with a push, see [message-rule.md](message-rule.md).)
 
 - **`m-memory.finalize("sleep")`** — the sleep ritual must *await* the flush +
   persist + commit before the process exits. Pub/sub is fire-and-forget; it cannot
@@ -156,9 +157,6 @@ direct calls, on the same footing as the arbiter's documented `takePending()`:
   orchestrator.
 - **`m-memory.persists`** (and `_whenAlive` reading `.on`/`.loaded`) — lifecycle
   *queries*: honest sleep wording, and a readiness gate before thinking starts.
-- **arbiter `takePending()`** — draining the attention queue at frame time is
-  pull-shaped *by design*; `deep-structure.md` treats the arbiter spine as a
-  first-class mechanism.
 - **`m-ws` telemetry** (`memory.getTail().length`, `economy.paceFactor()`, …) —
   transports are deliberately document-anchored: "the mind's external window, not
   part of any one faculty." Could publish a `stats` topic if purity ever matters.

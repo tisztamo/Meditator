@@ -4,7 +4,11 @@
 // here is pure and locked down by these tests.
 import { test, expect } from "bun:test";
 import { MTerminal, screenToExperience, stripAnsi } from "../../../src/mindComponents/shared/mTerminal.js";
-import { InterruptRecord } from "../../../src/infrastructure/interruptRecord.js";
+import { renderStimulus } from "../../../src/infrastructure/interruptRecord.js";
+import { sentByComponent } from "../../../src/infrastructure/messageOrigin.js";
+
+// Let a deferred delivery (delivery chaos) land before asserting on what was heard.
+const delivered = () => new Promise(r => setTimeout(r, 5));
 import { AttentionBid } from "../../../src/infrastructure/attentionBid.js";
 import {
     assembleCommand, scrubbedEnv, interpreterFor,
@@ -171,30 +175,34 @@ test("size and time parsers", () => {
     expect(() => interpreterFor("ruby")).toThrow();
 });
 
-test("_dispatch fires a trusted InterruptRecord whose urgency survives AttentionBid.from", () => {
+test("_dispatch fires a plain stimulus whose urgency survives AttentionBid.from, trusted by its sender", async () => {
     const el = document.createElement("m-terminal");
     expect(el).toBeInstanceOf(MTerminal);
-    const captured = [];
-    el.addEventListener("interrupt-request", e => captured.push(e.detail));
+    const captured = [], events = [];
+    el.addEventListener("interrupt-request", e => { captured.push(e.detail); events.push(e); });
     el._dispatch({
         experience: "I run it, and the screen answers: `42`.",
         salience: 0.7,
         urgent: true,
         type: "Sense-terminal",
     });
+    await delivered();
     expect(captured).toHaveLength(1);
-    expect(captured[0]).toBeInstanceOf(InterruptRecord);
+    expect(Object.getPrototypeOf(captured[0])).toBe(Object.prototype);   // plain data (M2)
+    expect(sentByComponent(events[0])).toBe(true);
     expect(captured[0].source).toBe("External");
     expect(captured[0].type).toBe("Sense-terminal");
     expect(captured[0].reason).toBe("I run it, and the screen answers: `42`.");
     expect(captured[0].urgent).toBe(true);
     expect(captured[0].actId).toBeNull();
-    const bid = AttentionBid.from(captured[0]);
+    const bid = AttentionBid.from(captured[0], { trusted: true });
     expect(bid.urgent).toBe(true);
     expect(bid.evidence.policy.preempt).toBe(true);
+    // The same payload from anyone but a component claims nothing.
+    expect(AttentionBid.from(captured[0], { trusted: false }).urgent).toBe(false);
 });
 
-test("_dispatch places ctx actId on the InterruptRecord; a missing actId stays null", () => {
+test("_dispatch places ctx actId on the stimulus; a missing actId stays null", async () => {
     const el = document.createElement("m-terminal");
     const captured = [];
     el.addEventListener("interrupt-request", e => captured.push(e.detail));
@@ -205,10 +213,11 @@ test("_dispatch places ctx actId on the InterruptRecord; a missing actId stays n
         type: "Sense-terminal",
         actId: "act-lineage-1",
     });
-    expect(captured[0]).toBeInstanceOf(InterruptRecord);
+    await delivered();
     expect(captured[0].actId).toBe("act-lineage-1");
-    expect(captured[0].renderForFrame()).toBe("I run it, and the screen answers: `42`.");
-    expect(AttentionBid.from(captured[0]).evidence.actId).toBe("act-lineage-1");
+    expect(renderStimulus(captured[0])).toBe("I run it, and the screen answers: `42`.");
+    expect(AttentionBid.from(captured[0], { trusted: true }).evidence.actId).toBe("act-lineage-1");
+    expect(AttentionBid.from(captured[0], { trusted: false }).evidence.actId).toBeNull();
 
     const started = el._startedConsequence("the count", "act-lineage-1");
     expect(started.actId).toBe("act-lineage-1");
@@ -217,6 +226,7 @@ test("_dispatch places ctx actId on the InterruptRecord; a missing actId stays n
     }, "the count", "act-lineage-1");
     expect(result.actId).toBe("act-lineage-1");
     el._dispatch(result);
+    await delivered();
     expect(captured[1].actId).toBe("act-lineage-1");
 });
 

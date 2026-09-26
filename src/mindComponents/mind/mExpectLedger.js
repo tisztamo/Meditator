@@ -1,8 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { MBaseComponent } from "../shared/mBaseComponent.js"
-import { AttentionBid } from '../../infrastructure/attentionBid.js'
-import { InterruptRecord } from '../../infrastructure/interruptRecord.js'
+import { AttentionBid, isBidData } from '../../infrastructure/attentionBid.js'
+import { renderStimulus } from '../../infrastructure/interruptRecord.js'
+import { sentByComponent } from '../../infrastructure/messageOrigin.js'
 import { Prediction } from '../../infrastructure/predictionContracts.js'
 import {
     PREDICTION_EVENT, PREDICTION_SETTLED_EVENT, EVALUATION_COMMIT_EVENT,
@@ -10,7 +11,7 @@ import {
 import {
     SEARCH_TARGET_EVENT, SEARCH_OUTCOME_EVENT, SearchTarget, SearchOutcome,
 } from '../../infrastructure/predictionContracts.js'
-import { PerceptReceipt, EdgeEvidence, EDGE_EVIDENCE_EVENT } from '../../infrastructure/perceptionContracts.js'
+import { receiptsFrom, EdgeEvidence, EDGE_EVIDENCE_EVENT } from '../../infrastructure/perceptionContracts.js'
 import { mindHome } from '../../infrastructure/memoryVault.js'
 
 /**
@@ -171,44 +172,28 @@ export class MExpectLedger extends MBaseComponent {
     }
 
     _onInterrupt = event => {
+        // Act lineage is honoured only on a component's message (messageOrigin.js);
+        // a bid carries it on its evidence, a plain stimulus on itself.
+        if (!sentByComponent(event)) return
         const detail = event.detail
-        if (detail instanceof AttentionBid) {
-            const evidence = detail.evidence
-            if (!evidence?.actId) return
-            this._append({
-                kind: 'consequence',
-                perceptId: evidence.id ?? null,
-                actId: evidence.actId,
-                type: evidence.type ?? null,
-                occurredAt: evidence.dateTime ?? null,
-                progress: evidence.progress === true ? true : undefined,
-                text: typeof evidence.renderForFrame === 'function'
-                    ? evidence.renderForFrame()
-                    : String(evidence.reason ?? ''),
-                salience: evidence.salience ?? null,
-            })
-            return
-        }
-        if (!(detail instanceof InterruptRecord) || !detail.actId) return
+        if (!detail || typeof detail !== 'object') return
+        const evidence = detail instanceof AttentionBid ? detail.evidence
+            : isBidData(detail) ? detail.evidence : detail
+        if (typeof evidence?.actId !== 'string' || !evidence.actId) return
         this._append({
             kind: 'consequence',
-            perceptId: detail.id ?? null,
-            actId: detail.actId,
-            type: detail.type ?? null,
-            occurredAt: detail.dateTime ?? null,
-            progress: detail.progress === true ? true : undefined,
-            text: typeof detail.renderForFrame === 'function'
-                ? detail.renderForFrame()
-                : String(detail.reason ?? ''),
-            salience: detail.salience ?? null,
+            perceptId: evidence.id ?? null,
+            actId: evidence.actId,
+            type: evidence.type ?? null,
+            occurredAt: evidence.dateTime ?? null,
+            progress: evidence.progress === true ? true : undefined,
+            text: renderStimulus(evidence),
+            salience: evidence.salience ?? null,
         })
     }
 
     _onAttended = event => {
-        const list = event.detail
-        if (!Array.isArray(list)) return
-        for (const item of list) {
-            if (!(item instanceof PerceptReceipt)) continue
+        for (const item of receiptsFrom(event)) {
             this._append({
                 kind: 'attended',
                 perceptId: item.perceptId,

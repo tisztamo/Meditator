@@ -10,6 +10,7 @@ import { loadMindComponents } from '../../../src/startup/loadMindComponents.js'
 import { AttentionBid } from '../../../src/infrastructure/attentionBid.js'
 import { InterruptRecord } from '../../../src/infrastructure/interruptRecord.js'
 import { Percept } from '../../../src/infrastructure/percept.js'
+import { heardBid } from "./attentionProbe.js";
 
 if (!customElements.get('m-mind')) {
     customElements.define('m-mind', class extends A(HTMLElement) {})
@@ -45,12 +46,12 @@ afterEach(async () => {
     fs.rmSync(journalDir, { recursive: true, force: true })
 })
 
-test('16. perceive() outside an aperture fires the same InterruptRecord feel() fires', () => {
+test('16. perceive() outside an aperture fires the same stimulus feel() fires', () => {
     const eager = mind.querySelector('[name="eager"]')
     const a = eager.feel('A scrap of the outside world drifts past — “Hello”.', { salience: 0.4 })
     const b = eager.perceive('A scrap of the outside world drifts past — “Hello”.', { salience: 0.4 })
-    expect(a).toBeInstanceOf(InterruptRecord)
-    expect(b).toBeInstanceOf(InterruptRecord)
+    expect(Object.getPrototypeOf(a)).toBe(Object.prototype)   // plain data (M2)
+    expect(Object.getPrototypeOf(b)).toBe(Object.prototype)
     expect(a.reason).toBe(b.reason)
     expect(a.salience).toBe(b.salience)
     expect(a.type).toBe(b.type)
@@ -63,7 +64,7 @@ test('17. under an open aperture at gain 1 with explicit salience, bid salience 
     const eager = feed.feel(line, { salience: 0.55 })
     const bids = []
     mind.addEventListener('interrupt-request', e => {
-        if (e.detail instanceof AttentionBid) bids.push(e.detail)
+        { const heard = heardBid(e); if (heard) bids.push(heard) }
     })
     const offered = await feed.perceive(line, { salience: 0.55, changeKey: 'Hello' })
     expect(offered).toBeInstanceOf(AttentionBid)

@@ -15,6 +15,7 @@ import { AttentionBid } from '../../../src/infrastructure/attentionBid.js';
 import { compareDeadlineMs, DEFAULT_COMPARE_DEADLINE_MS } from '../../../src/infrastructure/compareContinuation.js';
 import { EVALUATION_COMMIT_EVENT } from '../../../src/infrastructure/predictionContracts.js';
 import { offerFixtureHand } from './fixtureHand.js';
+import { heardBid } from "./attentionProbe.js";
 
 const COMPONENTS_DIR = fileURLToPath(new URL('./components', import.meta.url));
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -136,7 +137,7 @@ test('4. progress: true is trusted, survives to the view, and is not judged; coe
     });
     const bids = [];
     mind.addEventListener('interrupt-request', e => {
-        if (e.detail instanceof AttentionBid) bids.push(e.detail);
+        { const heard = heardBid(e); if (heard) bids.push(heard) };
     });
     await act._execute(
         { function: { name: 'probe', arguments: JSON.stringify({ q: 'sky', expect: 'the screen answers 42' }) } },

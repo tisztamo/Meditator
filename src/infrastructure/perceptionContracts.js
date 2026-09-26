@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { sentByComponent } from './messageOrigin.js';
 
 /** Architecture-owned provenance vocabulary. `legacy-unspecified` is reserved for
  * the compatibility path (coerced stimuli, receipts) and must not be authored on
@@ -502,6 +503,21 @@ export class PerceptReceipt {
         if (percept !== undefined) hide(this, 'percept', percept);
         Object.freeze(this);
     }
+}
+
+/** The frame receipts a `percepts-attended` message carries, rebuilt and
+ * validated by the receiver (message rule M2: the wire form is plain data). Only
+ * a component's message counts (messageOrigin.js); a malformed entry is skipped,
+ * never credited. */
+export function receiptsFrom(event) {
+    const list = event?.detail;
+    if (!Array.isArray(list) || !sentByComponent(event)) return [];
+    const receipts = [];
+    for (const item of list) {
+        if (item instanceof PerceptReceipt) { receipts.push(item); continue; }
+        try { receipts.push(new PerceptReceipt(item)); } catch { /* not a receipt */ }
+    }
+    return receipts;
 }
 
 /** Compatibility-path provenance. First matching row wins. Type-keyed physical /

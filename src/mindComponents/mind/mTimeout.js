@@ -2,7 +2,7 @@ import A from "amanita"
 import { MBaseComponent } from "../shared/mBaseComponent.js"
 import { parseTime } from '../../config/timeParser.js';
 import { logger } from '../../infrastructure/logger.js';
-import { InterruptRecord } from '../../infrastructure/interruptRecord.js';
+import { stimulus, describeStimulus } from '../../infrastructure/interruptRecord.js';
 
 const log = logger('mTimeout.js');
 
@@ -65,14 +65,14 @@ export class MTimeout extends MBaseComponent {
             }
         }
 
-        const record = new InterruptRecord({
+        const record = stimulus({
             source: 'Internal',
             type: `Time-${this.attr("name") || "timer"}`,
             reason: this.getPrompt().trim() || "Time passes.",
             salience: Number(this.attr("salience") || 0.5),
             urgent: this.attr("urgent") === "true",
         })
-        log.debug(`[${this.attr("name")}] fires: ${record}`)
+        log.debug(`[${this.attr("name")}] fires: ${describeStimulus(record)}`)
         this.fire("interrupt-request", record)
 
         this._lastActivity = Date.now()
