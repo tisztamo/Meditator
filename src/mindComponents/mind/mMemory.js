@@ -63,6 +63,11 @@ const log = logger('mMemory.js');
  *     the verbatim tail via the stream `prefix` chunk (the model continues from it),
  *     but is peeled off the journal as a provenance (↪) line rather than recorded as
  *     the mind's own spontaneous thought (finding 7, C1; Covenant §9).
+ *   - backstageSrc (default "!scope/@backstage"; "off" disables): the GENERIC mechanism
+ *     trail. Any component fires a bubbling `backstage` event {text?, kind?, record?}:
+ *     `text` is journaled as a ⌁ note, and `kind` (a slug) + `record` (an object) are
+ *     appended as one typed line to journal/<kind>.jsonl. A new mechanism leaves its
+ *     trail here instead of needing its own handler in memory.
  *
  * Journal marks: ⟂ perceived (a stimulus the mind actually saw this frame), ⌁ backstage
  * (a subconscious/mechanism event the mind never saw), ↪ bridge (a harness-written
@@ -188,6 +193,15 @@ export class MMemory extends MBaseComponent {
         if (this.attr("attendedSrc") !== "off") {
             this.sub(this.attr("attendedSrc") || "!scope/@attended", this._onAttended)
             this.sub('!scope/@percepts-attended', this._onPerceptsAttended)
+        }
+
+        // THE BACKSTAGE CHANNEL: any component leaves a mechanism trail by firing a
+        // bubbling `backstage` event — {text?, kind?, record?} — and names no memory.
+        // `text` becomes a ⌁ note; `kind` + `record` become one typed line in
+        // journal/<kind>.jsonl. One generic seam, so a new catch/guard/mechanism never
+        // needs a handler here. Off-able via `backstageSrc="off"`.
+        if (this.attr("backstageSrc") !== "off") {
+            this.sub(this.attr("backstageSrc") || "!scope/@backstage", this._onBackstage)
         }
         this.sub('!scope/@aperture-change', e => {
             const { from, to, reason } = e.detail || {}
@@ -446,6 +460,34 @@ export class MMemory extends MBaseComponent {
             await fs.mkdir(dir, { recursive: true })
             await fs.appendFile(path.join(dir, 'percepts.jsonl'), text)
         }).catch(error => log.warn('Percept index write failed:', error.message))
+    }
+
+    // A mechanism trail, arriving as a bubbling `backstage` event from any component.
+    // The mind never perceived the mechanism — only, perhaps, its consequence — so the
+    // text is a ⌁ note (perceived: false). A typed record goes beside the percept index
+    // as journal/<kind>.jsonl, stamped with `at` when the sender did not.
+    _onBackstage = e => {
+        const d = e?.detail || {}
+        if (typeof d.text === "string" && d.text) this.note(d.text, { perceived: false })
+        if (d.kind && d.record && typeof d.record === "object") {
+            this._appendJournalRecord(d.kind, { at: new Date().toISOString(), ...d.record })
+        }
+    }
+
+    // Append one typed record to journal/<kind>.jsonl, sharing the journal write queue
+    // so finalize() waits for it too. `kind` is a bare slug — never a path.
+    _appendJournalRecord(kind, record) {
+        const dir = this._journalDir()
+        if (this._finalized || !dir) return
+        if (!/^[a-z0-9][a-z0-9-]*$/.test(String(kind))) {
+            log.warn(`Backstage record dropped: kind "${kind}" is not a slug`)
+            return
+        }
+        const text = JSON.stringify(record) + '\n'
+        this._journalQueue = this._journalQueue.then(async () => {
+            await fs.mkdir(dir, { recursive: true })
+            await fs.appendFile(path.join(dir, `${kind}.jsonl`), text)
+        }).catch(error => log.warn(`Backstage ${kind} write failed:`, error.message))
     }
 
     // A loop break: the mind cleared its tail and starts fresh from `seed`. We own the

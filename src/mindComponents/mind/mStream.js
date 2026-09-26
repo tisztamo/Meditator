@@ -1,5 +1,6 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
 import { ENERGY } from "../shared/infoton.js"
+import { part } from "../shared/enclosure.js"
 import { chatStream } from "../../modelAccess/llm.js"
 import { resolveModelRef } from "../../modelAccess/modelConfig.js"
 import { logger } from '../../infrastructure/logger.js';
@@ -32,6 +33,22 @@ const log = logger('mStream.js');
  *   - "boundary": {reason: completed|aborted|error|superseded, burstIndex, burstChars, error?}
  *                 emitted when a burst ends and was NOT superseded by a newer prompt
  *   - "state": {oldState, newState, timestamp} — kept for the websocket client
+ *
+ * Role port `stream-filter` (the OUTPUT FILTER CHAIN): every child that `provides`
+ * `stream-filter` — found per burst via part(), run in tree order — sees the model's
+ * text BEFORE it is emitted, so a filter can pass, rewrite, hold back or stop it
+ * before it reaches the chunk topic, the tail and the journal. Unlike other role
+ * ports this is a CHAIN, not a singleton. Only model-authored text is filtered (after
+ * seam trimming); the mechanism's own `prefix` bypasses the chain. Port shape:
+ *   - begin?({burstIndex, prefill, prefix, payload})  a burst starts: reset state
+ *   - feed(text) → {emit, signal?}   emit = text to pass on now ("" holds it back)
+ *   - flush?()   → {emit, signal?}   the burst ended: release (or judge) held text
+ *   - react?(signal, {burstIndex, burstChars})   called AFTER the stream stopped
+ * A `signal` STOPS the burst: the stream emits what the filter passed, aborts,
+ * supersedes (no boundary — the mind neither reschedules nor backs off) and only
+ * then calls that filter's react(). The ordering is the stream's job, so a filter can
+ * safely fire `interrupt-request` (which may start the next burst synchronously) from
+ * react() without re-entering a burst that is still running.
  */
 /**
  * Trims the longest overlap between the end of the carried text and the start
@@ -102,6 +119,7 @@ export class MStream extends MBaseComponent {
     burstIndex = 0
     _current = null      // {burst, generation}
     _generation = 0
+    _badFilters = new WeakSet()   // filters already warned about (a port without feed())
 
     "../prompt" = async payload => {
         this._generation += 1
@@ -186,27 +204,34 @@ export class MStream extends MBaseComponent {
             // fresh continuation), so there is no seam overlap to trim.
             let pending = ""
             let seamChecked = !dedupe || thinking
+            // THE OUTPUT FILTER CHAIN (role port `stream-filter`, see the class doc): the
+            // model's text runs through every filter before it is emitted. With no
+            // filters the chain is a pass-through.
+            const filters = this._filters()
+            for (const f of filters) this._callFilter(f, "begin", { burstIndex, prefill, prefix, payload })
+            // Emit what the chain passed; true when a filter stopped the burst.
+            const pass = ({ emit, signal, by }) => {
+                if (emit) { this._emitChunk(emit); burstChars += emit.length }
+                if (!signal) return false
+                this._stopBurst(context, by, signal, { burstIndex, burstChars })
+                return true
+            }
             for await (const text of burst) {
                 if (context.superseded) break
+                let modelText = text
                 if (!seamChecked) {
                     pending += text
-                    if (pending.length >= 100) {
-                        const trimmed = trimSeamOverlap(dedupe, pending)
-                        seamChecked = true
-                        this._emitChunk(trimmed)
-                        burstChars += trimmed.length
-                        pending = ""
-                    }
-                    continue
+                    if (pending.length < 100) continue
+                    modelText = trimSeamOverlap(dedupe, pending)
+                    seamChecked = true
+                    pending = ""
                 }
-                this._emitChunk(text)
-                burstChars += text.length
+                if (pass(this._feedChain(filters, modelText))) break
             }
             if (!seamChecked && pending && !context.superseded) {
-                const trimmed = trimSeamOverlap(dedupe, pending)
-                this._emitChunk(trimmed)
-                burstChars += trimmed.length
+                pass(this._feedChain(filters, trimSeamOverlap(dedupe, pending)))
             }
+            if (!context.superseded) pass(this._flushChain(filters))
 
             if (!context.superseded) {
                 this._finishBurst({ reason: "completed", burstIndex, burstChars })
@@ -224,6 +249,88 @@ export class MStream extends MBaseComponent {
         this._changeState("idle")
         process.stdout.write("\n")
         this.fire("boundary", boundary, { energy: ENERGY.deed })
+    }
+
+    /** This burst's output filters: the `stream-filter` providers inside me, in tree
+     *  order. Resolved per burst, so adding or removing one takes effect at the next. */
+    _filters() {
+        return part(this, "stream-filter").filter(f => {
+            if (typeof f.feed === "function") return true
+            if (!this._badFilters.has(f)) {
+                this._badFilters.add(f)
+                log.warn(`<${f.localName}> provides stream-filter but has no feed() — skipped`)
+            }
+            return false
+        })
+    }
+
+    /** Call one port method, normalized to {emit, signal}. A missing method, a
+     *  non-object result or a throw PASSES THROUGH (feed) / releases nothing (flush):
+     *  a broken filter degrades to no filter, it never kills the burst. */
+    _callFilter(filter, method, arg) {
+        const passThrough = { emit: method === "feed" ? arg : "", signal: null }
+        const fn = filter[method]
+        if (typeof fn !== "function") return passThrough
+        try {
+            const r = fn.call(filter, arg)
+            if (typeof r === "string") return { emit: r, signal: null }
+            if (!r || typeof r !== "object") return passThrough
+            return { emit: typeof r.emit === "string" ? r.emit : "", signal: r.signal || null }
+        } catch (error) {
+            log.warn(`stream-filter <${filter.localName || "filter"}> ${method}() failed:`, error.message || error)
+            return passThrough
+        }
+    }
+
+    /** Run text through filters[from..]. A filter's signal stops the chain, but what
+     *  it passed BEFORE stopping still runs through the filters below it (a downstream
+     *  stop on that earlier text wins — it happened first in the text). */
+    _feedChain(filters, text, from = 0) {
+        let out = text
+        for (let i = from; i < filters.length; i++) {
+            if (!out) return { emit: "", signal: null }
+            const r = this._callFilter(filters[i], "feed", out)
+            if (r.signal) {
+                const down = this._feedChain(filters, r.emit, i + 1)
+                return down.signal ? down : { emit: down.emit, signal: r.signal, by: filters[i] }
+            }
+            out = r.emit
+        }
+        return { emit: out, signal: null }
+    }
+
+    /** End of burst: flush each filter in order, running what it releases through the
+     *  filters below it before flushing those — so held text is judged by all of them. */
+    _flushChain(filters) {
+        let emit = ""
+        for (let i = 0; i < filters.length; i++) {
+            const r = this._callFilter(filters[i], "flush")
+            const down = this._feedChain(filters, r.emit, i + 1)
+            emit += down.emit
+            if (down.signal) return { emit, signal: down.signal, by: down.by }
+            if (r.signal) return { emit, signal: r.signal, by: filters[i] }
+        }
+        return { emit, signal: null }
+    }
+
+    /**
+     * A filter stopped the burst. Stop FIRST — mark it superseded (so no boundary: the
+     * mind neither reschedules from it nor backs off), abort the model call — and only
+     * THEN hand the signal to the filter's react(). react() may fire `interrupt-request`,
+     * which can assemble the next frame and start a new burst synchronously; by then this
+     * one is already out of the way, and `context.superseded` keeps the caller's loop and
+     * finally from touching the new burst.
+     */
+    _stopBurst(context, filter, signal, info) {
+        log.info(`Burst ${info.burstIndex} stopped by stream-filter <${filter.localName || "filter"}>.`)
+        context.superseded = true
+        if (this._current === context) this._current = null
+        try { context.burst.abort() } catch { /* already closed */ }
+        this._changeState("idle")
+        process.stdout.write("\n")
+        if (typeof filter.react !== "function") return
+        try { filter.react(signal, info) }
+        catch (error) { log.warn(`stream-filter <${filter.localName || "filter"}> react() failed:`, error.message || error) }
     }
 
     _emitChunk(text) {

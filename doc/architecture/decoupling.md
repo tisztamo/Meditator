@@ -103,7 +103,13 @@ Rules:
 - disconnect invalidates in-flight work
 
 Instances: `regulator`, `aggregator`, `comparator`, `bidder`, `requestOrientation`
-(on aperture providers), `search`.
+(on aperture providers), `search`, `stream-filter`.
+
+`stream-filter` is the one **chain** port: `m-stream` resolves every provider inside
+it per burst (tree order) and runs the model's text through each before emission
+(`begin` / `feed` / `flush` / `react`). A `signal` stops the burst; the stream stops
+first and calls `react()` after, so a filter's `interrupt-request` never re-enters a
+running burst. See [extending](../extending.md#filtering-the-streams-output).
 
 ## Status
 
@@ -120,6 +126,7 @@ Instances: `regulator`, `aggregator`, `comparator`, `bidder`, `requestOrientatio
 | mind: origin seed | `m-origin` → `prompt` (its content) | `m-mind` `originSrc` → `_seedIfFresh` raises `interrupt-request` | ✅ done |
 | mind: perceived-stimulus journaling | `m-mind` → `attended [lines]` | `m-memory` `attendedSrc` → `note()` | ✅ done |
 | mind: metabolic pace | `m-economy` → `paceFactor` (retained, with `energy`/`arousal`) | `m-mind` `paceFactorSrc` → mirrored, used in `_tickMs` | ✅ done |
+| any mechanism → memory (backstage trail) | any component → bubbling `backstage {text?, kind?, record?}` | `m-memory` `backstageSrc` → ⌁ `note()` + `journal/<kind>.jsonl` | ✅ done |
 | hands → m-act: the efferent menu | each hand → bubbling `capability` event (`offerCapability`) | `m-act` `addEventListener("capability")` → `_registerCapability` | ✅ done |
 
 After these, **nothing pulls a faculty's *content* by class/method.** Memory is

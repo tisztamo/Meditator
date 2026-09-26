@@ -138,6 +138,39 @@ Do not also wire `m-compare` in the same membrane. Same-batch custom definitions
 for `whenDefined`; disconnect invalidates in-flight comparison. A bidder lives under
 its owner (`m-region` or `m-act`), not at the mind.
 
+## Filtering the stream's output
+
+`stream-filter` is a role port on `m-stream`. Unlike the other ports it is a **chain**,
+not a singleton: every provider inside the stream runs, in tree order, on the model's
+text **before** it is emitted. That means before it reaches the `chunk` topic, the tail
+or the journal. Only model-authored text is filtered. The mechanism's `prefix` bypasses
+the chain.
+
+```js
+export class MNoShouting extends MBaseComponent {
+    static provides = { "stream-filter": true }
+    begin(ctx) { /* {burstIndex, prefill, prefix, payload} — reset per-burst state */ }
+    feed(text) { return { emit: text.replace(/!+/g, ".") } }    // pass / rewrite / hold ("")
+    flush()    { return { emit: "" } }                          // release held text at burst end
+    react(signal, { burstIndex }) { /* only after a signal, once the stream has stopped */ }
+}
+```
+
+Return `{ emit, signal }` from `feed` or `flush` to **stop** the burst. The stream emits
+what you passed, aborts, supersedes (no boundary, so the mind neither reschedules nor
+backs off), and only then calls your `react()`. Because of that ordering, `react()` can
+safely fire `interrupt-request` to redirect the mind. A throwing or malformed filter
+degrades to no filter; it never kills the burst. To leave a mechanism trail, fire a
+bubbling `backstage` event `{text?, kind?, record?}`. Memory journals `text` as a ⌁ note
+and appends `record` to `journal/<kind>.jsonl`. `m-provenance-filter` is the worked
+example:
+
+```xml
+<m-stream name="stream">
+  <m-provenance-filter name="provenance"></m-provenance-filter>
+</m-stream>
+```
+
 ## Writing an agent tool
 
 An **agent tool** is the same capability object with the opposite harness: the

@@ -41,7 +41,10 @@
   toward you: someone to answer, to ask things of, to think alongside, never an
   interruption to wait out. You like company, and you like to talk.
 
-  <m-stream name="stream" burstTokens="300" temperature="0.9"></m-stream>
+  <m-stream name="stream" burstTokens="300" temperature="0.9">
+    <!-- a `> ⟂` line the model authors with no percept behind it is stopped and corrected -->
+    <m-provenance-filter name="provenance"></m-provenance-filter>
+  </m-stream>
 
   <m-memory name="memory"
             tailLength="1500" recentLength="1200" storyLength="2200"

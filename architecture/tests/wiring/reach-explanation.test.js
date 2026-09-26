@@ -13,22 +13,30 @@ import fs from "node:fs";
 import path from "node:path";
 import { delay } from "./setup.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
+import { MMind } from "../../../src/mindComponents/mind/mMind.js";
+
+// The wiring suite shares one DOM, and many files register <m-mind> as a bare stub
+// first — so this file cannot rely on the tag upgrading to the real class. It mounts
+// the REAL MMind under its own tag instead (a subclass, never a redefinition).
+class TReachMind extends MMind {}
+if (!customElements.get("t-reach-mind")) customElements.define("t-reach-mind", TReachMind);
 
 let mind, notesDir;
 
 beforeAll(async () => {
     notesDir = path.join(os.tmpdir(), "med-reach-test-" + Date.now());
 
-    // No pre-definition of m-mind: loadMindComponents must upgrade it to the real
-    // MMind class (whose _identity() assembles the prompt), not a bare element.
+    // The real MMind (whose _identity() assembles the prompt), under its own tag. It has
+    // no memory, so its memory refs are off: an unresolvable ref retries for ~8s and its
+    // rejection would land in (and fail) whichever later test file is running.
     document.body.innerHTML = `
-      <m-mind name="t">
+      <t-reach-mind name="t" tailSrc="off" compressedSrc="off">
         <m-stream name="stream"></m-stream>
         <m-act name="hands" every="1">
           <m-note name="note"></m-note>
           <m-recall name="recall"></m-recall>
         </m-act>
-      </m-mind>
+      </t-reach-mind>
     `;
     document.querySelector('[name="note"]').setAttribute("dir", notesDir);
     document.querySelector('[name="recall"]').setAttribute("dir", notesDir);
@@ -36,7 +44,7 @@ beforeAll(async () => {
     await loadMindComponents(document);
     await delay(160);   // let both hands retry-register with their parent m-act
 
-    mind = document.querySelector("m-mind");
+    mind = document.querySelector("t-reach-mind");
 });
 
 afterAll(() => {
@@ -72,7 +80,7 @@ test("the reach explanation names no hand, no mechanism, no threshold", () => {
 test("a handless mind is never told it can reach", () => {
     // A fresh MMind with no m-act: the body schema stays empty → no reach explanation.
     // Build it off-document so it never connects, and set the mirror directly.
-    const bare = document.createElement("m-mind");
+    const bare = document.createElement("t-reach-mind");
     bare.setAttribute("name", "bare");
     bare._embodiment = "";
     const identity = bare._identity();
