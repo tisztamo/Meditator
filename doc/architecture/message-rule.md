@@ -64,6 +64,36 @@ over `fire` + `sub` with a correlation id and a deadline, returning a Promise.
 The review's §5 table maps every current protocol onto it, or onto the plain
 `pub`, `fire` and `backstage` that already exist.
 
+Design decisions for the seam (settled, not yet built):
+
+- **Reply routing.** Events only bubble up, and a topic reply would need the
+  requester to know the responder's address. So `request(name, data,
+  {deadline})` fires a bubbling event carrying a `requestId`, and
+  `respond(name, handler)` replies with a **non-bubbling event dispatched on the
+  requesting element** (`event.target`). That reach to the target breaks M4, so
+  it lives only inside the helper, which is infrastructure, not component code.
+  It is also the shape Amanita's worker proxies forward: the element stays on the
+  host. If the transport changes, only the helper changes.
+- **Quorum.** `requestAll(name, data, {expect, deadline})` collects replies
+  until `expect` have answered or the deadline passes. Gates and governance use
+  it, and a missing gate counts as deny (monotone authority).
+- **Deadline (M6).** A timeout resolves to `{status: "timeout"}`. It never
+  rejects silently and never hangs. Callers map it to abstain, skip or degrade.
+  For sleep it is reported as "not confirmed" (Covenant).
+- **Payloads** obey M2. `requestId`s are plain strings, and cancellation is a
+  `cancel {requestId}` message.
+- **Pilot order.** Add the `ready`, `identity` and `sleeping` retained topics
+  alongside the seam, then pilot it on **sleep** (the mind asks, memory replies
+  `slept {id, committed}`, with region/act/search aborts fanning out) before
+  hands. Sleep has one requester and one responder, so it proves the deadline
+  path cheaply. Hands mean 14 capability specs plus m-agent's duplicate
+  assembler. Fixing the missing `_finalized` guard in `mMemory.note()` (review
+  §9, bug 2) belongs in the same pass.
+- **Done means:** the protocol's contract test turns green under
+  `bun run test:async` **without editing the test**, the old-API tests for
+  that protocol are rewritten against messages, and `--update` shrinks the
+  baseline.
+
 ## How the tree is held to it
 
 The rule is enforced by measurement rather than by audit list.
