@@ -156,7 +156,9 @@ start with `@`), which is why you see handlers like `"stream/boundary"` and
 The last reach-in method calls have been replaced with topics wired in the
 architecture; see [decoupling.md](decoupling.md) for the principle, the pattern,
 what was migrated, and what is intentionally left as an orchestrator/transport
-contract.
+contract. What may *cross* those wires — plain-data messages, nothing read back,
+order carried — is [message-rule.md](message-rule.md), measured by a
+delivery-chaos ratchet (`bun run test:async`).
 
 ## The component map
 

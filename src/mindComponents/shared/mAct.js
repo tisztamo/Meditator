@@ -64,7 +64,7 @@ const log = logger('mAct.js');
  *           capability.execute(args) → { experience, salience?, data? }.
  *
  * Then the split that the whole design exists for:
- *   - the DEED (the realizer ran, the hand executed) is published on `acted` and a
+ *   - the DEED (the realizer ran, the hand executed) is fired as `acted` and a
  *     memory journals it as a BACKSTAGE (⌁) note the mind never sees — exactly like
  *     the scribe's filings (m-memory's `actedSrc`, twin of `filedSrc`);
  *   - the CONSEQUENCE re-enters as an `External` `interrupt-request` through the
@@ -133,12 +133,14 @@ const log = logger('mAct.js');
  *     m-recall/m-note's dir/kb, else the vault home; recallKb="off" = notebook only)
  *   - recallTopK: how many kept items to fold in (default 3)
  *
+ * Events fired (bubbling):
+ *   - "acted": {intent, capability, args, ok, experience, data, actId?, predictionId?}
+ *     — a deed, journaled backstage (⌁) by a memory subscribing via `actedSrc`
+ *     (an `@acted` event ref). `args` are the stripped hand arguments; envelope text
+ *     never appears. The two ids are additive lineage, not content.
+ *
  * Topics published (for memory + Studio):
  *   - "intent": {salience, gist, accepted, reason} — every decide, for observability
- *   - "acted": {intent, capability, args, ok, experience, data, actId?, predictionId?}
- *     — a deed, journaled backstage (⌁) by a memory subscribing via `actedSrc`.
- *     `args` are the stripped hand arguments; envelope text never appears. The two
- *     ids are additive lineage, not content.
  *   - "embodiment": the assembled BODY SCHEMA — each hand's first-person `felt`
  *     self-description, joined. The mind subscribes (m-mind's `embodimentSrc`) and
  *     weaves it softly into its identity, so it KNOWS, the way you know your own

@@ -1,6 +1,8 @@
 # Architecture review: decoupling drift and the synchronous DOM
 
-**Status: analysis + proposal, 2026-09-26.** Written from a full read of
+**Status: analysis + proposal, 2026-09-26. Rule adopted as
+[message-rule.md](../architecture/message-rule.md); §6 harness + contract tests
+built (step 1 of §7).** Written from a full read of
 `src/mindComponents`, `src/startup`, `src/infrastructure`, `src/studio`, and of
 Amanita 0.5.0's `a.js` / `ref.js` / `pubsubutils.js` / `workered.js`. It answers
 two questions Kris asked: *where is the implementation not aligned with the
@@ -432,3 +434,54 @@ mechanism; `!scope` addressing; the loader's reflection window; templating;
 `backstage`; the three laws of enclosure (they hold better under M1–M6, because
 a container can only delay or drop messages, never widen what they carry). No
 mind needs a new archml to keep running as it does today.
+
+---
+
+## 9. What the harness found (2026-09-26)
+
+The §6 harness, the ratchet and 38 contract tests
+(`architecture/tests/wiring/contracts/`) now exist; see
+[message-rule.md](../architecture/message-rule.md). What they found beyond the
+audit above:
+
+**Timing and payload break different protocols.** Deferred delivery alone
+(`--wire ref`) breaks only the protocols that read something back inside one
+dispatch: gate verdicts, governance `deny`/`hold`/modify, the step→`halt`/`nudge`
+round trip, frame ordering under `macrotask`, and sleep-notice ordering. The
+capability offer, m-act's self-interception of `interrupt-request`, nested
+arbiters and `aperture-register` all **survive timing**. Mutation checks confirm
+they are genuinely pinned: each passes because every `stopPropagation` on one
+event's path still runs inside one (deferred) dispatch, and because instances
+and callbacks still pass by reference. They break only on the `json` wire,
+which is why the baseline uses it. Their blocker is §3.2 (payloads), not §3.1.
+
+**Two ordering hazards that survive only by latency.** The clear-tail reseed is
+safe because the first chunk of the clear frame arrives hundreds of ms after
+`clear-tail`, since the stream holds back its seam. Sleep fan-out is safe
+because every owner's `revalidate` reads `mind._sleeping` directly, a
+retained-state read that would not cross a boundary (hence the `sleeping`
+topic in §5).
+
+**Studio commands are fire-and-forget but order-dependent.** They survive FIFO
+deferral. Under `jitter`, "focus then speak" from two panes reorders on 8 of 10
+seeds. The speak command should carry its target id (M5).
+
+**Bugs present today (sync mode):**
+
+1. *Provenance stop loses the mind's last clean words.* `m-stream._stopBurst`
+   publishes the clean text with `pub` (a microtask), then the filter's
+   `react()` fires `interrupt-request` synchronously. The arbiter fires
+   `interrupt` and m-mind builds the corrective frame *inside that dispatch*
+   from its stale memory mirror. So the corrective prefill lacks the last clean
+   words, and memory records them *after* the corrective `> ⟂` line. This is
+   the same pub-versus-fire class as the Studio `focusedKind` bug. It is pinned
+   as `test.failing` in `stream-filter.contract.test.js`.
+2. *Journal lines after the sleep marker.* `mMemory.note()` has no
+   `_finalized` guard. A deed (`_onActed`), backstage trail, filing or
+   aperture change that lands after `finalize()` is appended after
+   `*sleep at …*` and is not committed until the next wake. Not yet pinned,
+   because a test for it would fail in sync mode.
+
+**Fixed here:** the Studio `focusedKind`/`focusReset` ordering (§3.4).
+`focusReset` now carries `{id, kind}`, and the panes apply the kind from it.
+

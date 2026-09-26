@@ -1,5 +1,6 @@
 import A from "amanita"
 import { seedPos, anchorOnRing, applyStep, extractInfoton, envelope, ENERGY, SPACE_DEFAULTS } from "./infoton.js"
+import { checkPayload } from "../../infrastructure/deliveryChaos.js"
 import { reflectProvides, reflectBoundary, enclosingOf, enclosingAllOf, membraneOf, part as partsOf, providesOf, isMembrane } from "./enclosure.js"
 
 export { enclosingOf, enclosingAllOf, membraneOf, part, providesOf } from "./enclosure.js"
@@ -187,6 +188,14 @@ export class MBaseComponent extends A(HTMLElement) {
             if (env) { try { detail.infoton = env } catch { /* sealed/exotic payloads stay unstamped */ } }
         }
         return super.fire(name, detail, opts)
+    }
+
+    /** Publish, with the message rule's plain-data check when delivery chaos is on
+     *  (fired details are checked at dispatch; see infrastructure/deliveryChaos.js). */
+    pub(propNameOrValue, newValue) {
+        checkPayload("pub", newValue === undefined ? "value" : propNameOrValue,
+            newValue === undefined ? propNameOrValue : newValue, this)
+        return super.pub(propNameOrValue, newValue)
     }
 
     /**

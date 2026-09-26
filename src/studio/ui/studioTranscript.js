@@ -27,7 +27,10 @@ export class StudioTranscript extends A(HTMLElement) {
     this.clear("Focus an agent to watch it work.");
     this.sub("/conn/focusedKind", k => this._onKind(k)).catch(() => {});
     this.sub("/conn/focused", id => { this.focusedId = id; });
-    this.sub("/conn/@focusReset", () => { this._awaitingBatch = true; this.tools = []; this.clear("reconstituting this agent"); }).catch(() => {});
+    this.sub("/conn/@focusReset", e => {
+      if (e && e.detail && "kind" in e.detail) this._onKind(e.detail.kind);   // the reset carries the kind (M5)
+      this._awaitingBatch = true; this.tools = []; this.clear("reconstituting this agent");
+    }).catch(() => {});
     this.sub("/conn/replayResume", () => { this._awaitingBatch = true; }).catch(() => {});
     this.sub("/conn/backfill", entries => this.renderBatch(entries || []));
     this.sub("/conn/@event", e => this.onEvent(e && e.detail)).catch(() => {});

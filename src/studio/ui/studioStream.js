@@ -91,10 +91,14 @@ export class StudioStream extends A(HTMLElement) {
     this.sub("/conn/focused", id => { this.focusedId = id; }).catch(() => {});
     // Hide (and stop ingesting) when the focused entity is an agent — its transcript
     // pane owns the stream column then (agent-loop.md §13).
-    this.sub("/conn/focusedKind", k => { this.isAgent = k === "agent"; this.style.display = this.isAgent ? "none" : ""; }).catch(() => {});
+    this.sub("/conn/focusedKind", k => this._onKind(k)).catch(() => {});
     // Fresh focus: clear and await the backfill batch. Reconnect: keep what is
-    // shown, settle the live tail, and await the delta batch.
-    this.sub("/conn/@focusReset", () => { this.clear("reconstituting this mind"); this._awaitingBatch = true; }).catch(() => {});
+    // shown, settle the live tail, and await the delta batch. The reset carries
+    // the kind, so the pane is right whichever of the two lands first.
+    this.sub("/conn/@focusReset", e => {
+      if (e && e.detail && "kind" in e.detail) this._onKind(e.detail.kind);
+      this.clear("reconstituting this mind"); this._awaitingBatch = true;
+    }).catch(() => {});
     this.sub("/conn/replayResume", () => { this._awaitingBatch = true; this.prime(); this.sealRun(); this.sealSpeech(); }).catch(() => {});
     this.sub("/conn/backfill", entries => this.renderBatch(entries || [])).catch(() => {});
     this.sub("/conn/hidden", h => this.setHidden(!!h)).catch(() => {});
@@ -402,6 +406,8 @@ export class StudioStream extends A(HTMLElement) {
    *  flow text first (so nothing is stranded across the switch), then re-publish the
    *  mode — every part re-renders itself from its own data, settled and in-flight
    *  alike. We never touch the parts directly; they react to the topic. */
+  _onKind(k) { this.isAgent = k === "agent"; this.style.display = this.isAgent ? "none" : ""; }
+
   setMode(mode) {
     if (mode === this.mode) return;
     this._flush();

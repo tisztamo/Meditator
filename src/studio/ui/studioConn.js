@@ -251,7 +251,7 @@ export class StudioConn extends A(HTMLElement) {
   force(id) { this.send({ type: "force", data: { id } }); }
 
   dismiss(id) {
-    if (id === this.focusedId) { this.focusedId = null; this.highestSeq = null; this.pub("focused", null); this.pub("focusedKind", null); this.pub("layout", null); this.fire("focusReset", null); this._remember(null); }
+    if (id === this.focusedId) { this.focusedId = null; this.highestSeq = null; this.pub("focused", null); this.pub("focusedKind", null); this.pub("layout", null); this.fire("focusReset", { id: null, kind: null }); this._remember(null); }
     this.send({ type: "dismiss", data: { id } });
   }
 
@@ -288,9 +288,12 @@ export class StudioConn extends A(HTMLElement) {
     this.pub("focused", id);
     // Which STANCE this entity takes — a mind (thought stream) or an agent (tool-calling
     // transcript). The stream / transcript panes gate on it to show the right column
-    // (agent-loop.md §13). Published before focusReset so a pane knows before it clears.
-    this.pub("focusedKind", this._kindOf(id));
-    if (this.highestSeq == null) { this.pub("layout", null); this.fire("focusReset", id); }  // fresh: clear + repaint tail
+    // (agent-loop.md §13). The reset CARRIES the kind (message rule M5): pub() delivers
+    // on a microtask and fire() inside the call, so a pane must not rely on focusedKind
+    // having landed before focusReset does.
+    const kind = this._kindOf(id);
+    this.pub("focusedKind", kind);
+    if (this.highestSeq == null) { this.pub("layout", null); this.fire("focusReset", { id, kind }); }  // fresh: clear + repaint tail
     else this.pub("replayResume", id);                          // reconnect: keep + append delta
     this.send({ type: "focus", data: { id, sinceSeq: this.highestSeq } });
   }

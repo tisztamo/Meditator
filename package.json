@@ -8,6 +8,7 @@
     "test:wiring": "bun test architecture/tests/wiring --max-concurrency 1",
     "test:smoke": "bun tools/smoke-run.mjs",
     "test:all": "bun run test && bun run test:smoke",
+    "test:async": "bun tools/delivery-chaos.mjs",
     "test:live": "bun architecture/tests/live/run-live.mjs"
   },
   "dependencies": {

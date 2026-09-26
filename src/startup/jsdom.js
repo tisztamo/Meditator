@@ -1,5 +1,6 @@
 // jsdom-setup.ts
 import { JSDOM } from 'jsdom';
+import { installFromEnv as installDeliveryChaos } from '../infrastructure/deliveryChaos.js';
 
 const { window } = new JSDOM('<!doctype html><html><body></body></html>');
 
@@ -14,6 +15,10 @@ globalThis.Node = window.Node;
 globalThis.customElements = window.customElements
 
 installCompactDomInspect(window);
+
+// Opt-in async delivery + plain-data checks (MEDITATOR_DELIVERY*), for measuring
+// the message rule — doc/architecture/message-rule.md. A no-op when unset.
+installDeliveryChaos(window);
 
 /**
  * Teach console.log/error to print DOM nodes as compact one-liners instead of
