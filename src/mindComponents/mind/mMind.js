@@ -214,7 +214,10 @@ export class MMind extends MBaseComponent {
         // !scope/… so a custom implementation keeps the same `name` and wires through.
         const tailSrc = this.attr('tailSrc') || '!scope/memory/tail'
         const compressedSrc = this.attr('compressedSrc') || '!scope/memory/compressed'
+        // A mind without memory is legal: an unresolved memory ref is a warning, never an
+        // unhandled rejection (which would surface ~8s later, far from its cause).
         if (tailSrc !== 'off') this.sub(tailSrc, t => { this._memTail = t || "" })
+            .catch(err => { if (this.isConnected) log.warn('mind tail bind failed:', err.message) })
 
         // The image the mind generated (m-image's "generated" topic): hold its pixels
         // as a one-shot percept so the NEXT burst's user turn can carry them as an
@@ -230,6 +233,7 @@ export class MMind extends MBaseComponent {
         }
         if (compressedSrc !== 'off') {
             this.sub(compressedSrc, c => { if (c) { this._memRecent = c.recent || ""; this._memStory = c.story || "" } })
+                .catch(err => { if (this.isConnected) log.warn('mind compressed bind failed:', err.message) })
         }
 
         const factsSrc = this.attr('factsSrc')
