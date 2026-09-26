@@ -5,6 +5,13 @@ user-facing docs** in `doc/` (architecture, getting-started, configuration, …)
 These are diagnoses and design options for maintainers, not user documentation, and
 not necessarily acted on yet. Each note states its status at the top.
 
+- [message-rule-async-review.md](message-rule-async-review.md) — 2026-09-26
+  architecture review: where the code still couples through role-port method
+  calls, tag lookups and function-carrying events; an inventory of everything
+  that depends on the DOM dispatching synchronously (Amanita's `pub()` already
+  is not); the proposed **message rule** (M1–M6: messages only, plain data,
+  nothing read back, lookups build addresses, order carried, every wait has a
+  deadline); a delivery-chaos test harness; ordered migration.
 - [enclosure-by-role.md](enclosure-by-role.md) — proposed mechanism for native
   recursion in the component tree: roles declared by implementations (`static
   provides`), reflected onto the live DOM in the loader's inert window, resolved by
