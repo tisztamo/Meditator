@@ -449,7 +449,10 @@ existing seam, none rewrites a mind's behaviour.
    comparator (`MComparator`, `shared/comparators.js`) replies with plain
    evaluations; the seam gained `request-cancel {requestId}` (a `signal` on
    `request()`); predictions and search targets cross as plain records trusted
-   by sender. See [message-rule.md](../architecture/message-rule.md).*
+   by sender. The bidder followed the same day: the owner asks its owner-local
+   bidder with a `bid` request (`MBidder`, `shared/bidders.js`), admits the
+   answer by id and issues it again over its own percept, and refuses a silent
+   bidder at `bidDeadline`. See [message-rule.md](../architecture/message-rule.md).*
 9. **Decoupling cleanups** (independent of async, can interleave): `stats`
    topic + generic `m-ws` walk (§2.1); producers emit `backstage`, memory drops
    per-feature handlers (§2.2); per-membrane usage attribution (§2.3);

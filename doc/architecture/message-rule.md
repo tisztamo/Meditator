@@ -5,8 +5,8 @@
 > (2026-09-26); sleep is asked for, not called, and an unconfirmed commit is
 > reported to the supervisor; agent governance, the step round trip and the
 > perception gate are request/reply with a quorum; the stream's output filters
-> are asked, stage by stage; the comparator is asked, and a request can be
-> cancelled (2026-09-27).**
+> are asked, stage by stage; the comparator and the bidder are asked, and a
+> request can be cancelled (2026-09-27).**
 > The analysis behind it is
 > [message-rule-async-review.md](../improvements/message-rule-async-review.md).
 > This page states the rule, the one exception, and how the tree is held to it.
@@ -277,9 +277,21 @@ M5), and the comparator waits for it to be indexed, until the deadline or a
 cancel. The region path has the same race when a sample follows a prediction
 within one tick. A region does not know the prediction's id (its `ControlRequest`
 carries only the `actId`), so it is not fixed here. In a live mind, several
-message hops separate the prediction from the sample's compare. One test pins it
-(membrane-compare 16, which predicts and samples in one tick), and it fails on
+message hops separate the prediction from the sample's compare. Two tests
+(membrane-compare 14 and 16) predict and sample in one tick, and fail on about
 1 of 10 `jitter` seeds.
+
+**The bidder (review §7 step 8, second part, 2026-09-27).** Built in
+`src/mindComponents/shared/bidders.js`:
+
+| Before | Now |
+|---|---|
+| m-region and m-act found their owner-local bidder with `part()` and called `createBid({evidence, evaluations, gainTrail, requestedFloor})`, checking that the returned `AttentionBid` held the very same `Percept` object | the owner asks: a `bid` request fired on the owner itself (`bubbles: false`) with the percept, the evaluations and the trail as data, answered `{bid}` in the bid's wire form. The bidder extends `MBidder`, which binds its responder on its owner (`bidOwnerOf`) at connect and answers from `createBid()`, so `m-bid` and a stubbed `createBid` are unchanged. |
+| identity (`bid.evidence === evidence`) was the proof that the bidder had not swapped the evidence | the answer is admitted by id: the same percept id, the same powers, evaluation ids and signal set (`admitBidderBid`). The owner then issues the bid again over **its own** percept, keeping the bidder's trail, signals and floors, so a bidder can weigh the evidence but never replace it. |
+| a bidder that threw or returned something else was refused (`bidRefusal {reason: "invalid-bidder"}`) | the same, and a bidder silent past the owner's `bidDeadline` (default 2 s) is refused with `reason: "bidder-silent"` (M6). No default bid is substituted for a bound bidder, as before. |
+| the act's bid was sent inside the act's commit order | `commit` is awaited inside the lane's order, so an act's bids still leave in commit order although the bidder's answer is async. With no bidder the default bid still goes out at once, because nothing is asked. |
+
+Two bidders under one owner still throw, as before.
 
 ## How the tree is held to it
 
@@ -419,6 +431,12 @@ source keep their commit order) fails on 3 to 6 of 10 seeds, because the owner
 dispatches the bids in commit order but the transport reorders them on the way to
 the arbiter. The attention channel carries no per-source sequence number, so this
 is noted, not fixed.
+
+**After the bidder (2026-09-27).** The ratchet is unchanged: 58 of 1166 fail, 3
+violation kinds, 60 role-port calls. The bidder's method call survived chaos in one
+heap, so nothing turned green and nothing regressed. What changed is that the call
+is a message now. One test was added (a silent bidder is refused at its deadline),
+and it passes under every delivery mode.
 
 ## What it does not change
 

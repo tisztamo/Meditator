@@ -12,7 +12,6 @@ import { stimulus, describeStimulus } from '../../infrastructure/interruptRecord
 import { sentByComponent } from '../../infrastructure/messageOrigin.js';
 import { Percept } from '../../infrastructure/percept.js';
 import { bidData, isBidData } from '../../infrastructure/attentionBid.js';
-import { issueOwnerBid } from '../../infrastructure/bidderPolicy.js';
 import {
     Prediction, firePrediction, firePredictionSettlement, expirePrediction, cancelPrediction,
     MAX_PREDICTION_LIFETIME_MS, predictionSettlement, EVALUATION_COMMIT_EVENT,
@@ -24,7 +23,8 @@ import {
 } from '../../infrastructure/compareContinuation.js';
 import { runEvidenceCase } from '../../infrastructure/evidenceCase.js';
 import { comparatorOf, askComparator } from './comparators.js';
-import { part, bidOwnerOf, isCustomElementDefined } from "./enclosure.js";
+import { bidderOf, issueBid } from './bidders.js';
+import { issueOwnerBid } from '../../infrastructure/bidderPolicy.js';
 import { mindHome } from '../../infrastructure/memoryVault.js';
 import { parseTime } from '../../config/timeParser.js';
 import { logger } from '../../infrastructure/logger.js';
@@ -724,39 +724,35 @@ export class MAct extends MObserver {
                             .map(e => ({ kind: e.subject.kind, verdict: e.verdict })),
                     }))
                 }
-                this._dispatchOwnerBid(percept, evaluations)
+                return this._dispatchOwnerBid(percept, evaluations)
             },
         }).catch(() => {})
         return true
     }
 
+    /** The owner-local bidder is asked (shared/bidders.js); none: the default bid.
+     *  Two bidders throw here, synchronously, as they always have. Resolves once the
+     *  bid is sent (or refused), so a commit that awaits it keeps the act's order. */
     _dispatchOwnerBid(percept, evaluations) {
-        const bid = issueOwnerBid({
-            bidder: this._liveBidder(),
-            evidence: percept,
-            evaluations,
-        })
-        if (!bid) {
-            this.pub("bidRefusal", { evidenceId: percept.id, reason: "invalid-bidder" })
-            return
+        const bidder = bidderOf(this, "an act")
+        if (!bidder) {
+            // Nothing to ask: the default bid goes out at once.
+            this._redispatchBid(issueOwnerBid({ evidence: percept, evaluations }))
+            return Promise.resolve()
         }
-        this._redispatchBid(bid)
+        return issueBid(this, { bidder, evidence: percept, evaluations }).then(issued => {
+            if (!issued.bid) {
+                this.pub("bidRefusal", { evidenceId: percept.id, reason: issued.refused })
+                return
+            }
+            if (!this.isConnected || this._membraneSleeping) return
+            this._redispatchBid(issued.bid)
+        })
     }
 
     /** The finished bid, as data, from m-act itself; its own listener lets bids pass. */
     _redispatchBid(bid) {
         this.fire("interrupt-request", bidData(bid))
-    }
-
-    /** Owner-local: a bidder under this act, not under a sibling region. */
-    _liveBidder() {
-        const found = part(this, "bidder").filter(el => bidOwnerOf(el) === this)
-        if (found.length > 1) throw new Error("an act may have only one bidder")
-        const el = found[0]
-        if (!el) return null
-        if (isCustomElementDefined(el)) customElements.upgrade(el)
-        if (typeof el.createBid !== "function") return { createBid() { throw new Error("bidder is missing createBid") } }
-        return el
     }
 
     _orderForAct(actId) {

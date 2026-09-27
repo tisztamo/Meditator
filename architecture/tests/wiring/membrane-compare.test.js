@@ -602,3 +602,25 @@ test('17. invalid custom bidder output refuses the bid', async () => {
     expect(refusals[0].evidenceId).toMatch(UUID);
     expect(JSON.stringify(refusals)).not.toContain('still admitted text');
 });
+
+test('a silent bidder is refused at its deadline, not replaced by a default bid (M6)', async () => {
+    const bidder = region.querySelector('[name="region-bid"]');
+    region.removeEventListener('bid', bidder._onBid);     // bound, but it never answers
+    region.setAttribute('bidDeadline', '40ms');
+    const refusals = [];
+    const origPub = region.pub.bind(region);
+    region.pub = (topic, data) => {
+        if (topic === 'bidRefusal') refusals.push(data);
+        return origPub(topic, data);
+    };
+    const bids = [];
+    mind.addEventListener('interrupt-request', e => {
+        { const heard = heardBid(e); if (heard) bids.push(heard) };
+    });
+    const offer = region.registerSource(source);
+    const result = await offer(header('silent'), () => 'nobody weighs this');
+    expect(result).toBeNull();
+    await delay(20);
+    expect(bids).toHaveLength(0);
+    expect(refusals.map(r => r.reason)).toEqual(['bidder-silent']);
+});

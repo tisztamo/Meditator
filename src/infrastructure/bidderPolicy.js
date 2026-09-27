@@ -69,13 +69,14 @@ export function expectedBidSignals({ evidence, evaluations = [], populatePredict
     });
 }
 
-/** Accept a bidder result only when it is an AttentionBid over the exact supplied
- * Percept, preserves powers / evaluation ids / the committed signal set, has
+/** Accept a bidder result only when it is an AttentionBid over the supplied
+ * Percept (by id: a bidder's answer crosses as data, so it is never the same
+ * object), preserves powers / evaluation ids / the committed signal set, has
  * finite salience in [0, 1], and recomputes under nested gain without changing
  * those invariants. Mutates the trail only for the check, then restores. */
 export function acceptIssuedBid(bid, { evidence, expectedSignals, evaluationIds } = {}) {
     if (!(bid instanceof AttentionBid)) return false;
-    if (bid.evidence !== evidence) return false;
+    if (bid.evidence?.id !== evidence.id) return false;
     if (bid.evidenceId !== evidence.id) return false;
     if (!samePowers(bid.evidence.policy, evidence.policy)) return false;
     if (!sameIdList(bid.evaluationIds, evaluationIds)) return false;
@@ -88,7 +89,7 @@ export function acceptIssuedBid(bid, { evidence, expectedSignals, evaluationIds 
     try {
         trail.push(Object.freeze({ gate: 'accept-check', factor: 0.5 }));
         bid.recomputeSalience();
-        if (bid.evidence !== evidence || bid.evidenceId !== evidence.id) return false;
+        if (bid.evidence?.id !== evidence.id || bid.evidenceId !== evidence.id) return false;
         if (!samePowers(bid.evidence.policy, evidence.policy)) return false;
         if (!sameIdList(bid.evaluationIds, evaluationIds)) return false;
         if (!sameSignals(bid.signals, expectedSignals)) return false;
@@ -103,21 +104,42 @@ export function acceptIssuedBid(bid, { evidence, expectedSignals, evaluationIds 
     return true;
 }
 
+/** A bound bidder's bid, admitted: accepted (acceptIssuedBid) and issued again over
+ * the owner's own Percept, so what the bidder chose — trail, signals, floors — is
+ * kept and the evidence is the owner's, whatever the bidder sent back. Invalid
+ * output returns null: do not substitute a default bid. */
+export function admitBidderBid(bid, { evidence, evaluations = [] } = {}) {
+    const expectedSignals = expectedBidSignals({ evidence, evaluations, populatePrediction: true });
+    const evaluationIds = evaluationIdsOf(evaluations);
+    if (!acceptIssuedBid(bid, { evidence, expectedSignals, evaluationIds })) return null;
+    try {
+        return new AttentionBid({
+            evidence,
+            gainTrail: bid.gainTrail,
+            signals: bid.signals,
+            requestedFloor: bid.requestedFloor,
+            expectedFloor: bid.expectedFloor,
+            mismatchWeight: bid.mismatchWeight,
+            evaluationIds: bid.evaluationIds,
+        });
+    } catch {
+        return null;
+    }
+}
+
 /** Absent a bidder, emit the phase-2/A3 default (prediction slots null, floors 0).
- * A bound bidder's invalid output returns null — do not substitute a default bid. */
+ * With an in-process bidder object (a policy under test), ask it and admit the
+ * result. A component bidder is asked by message instead (shared/bidders.js). */
 export function issueOwnerBid({
     bidder = null, evidence, evaluations = [], gainTrail = [], requestedFloor = 0,
 } = {}) {
-    const populatePrediction = bidder != null;
-    const expectedSignals = expectedBidSignals({ evidence, evaluations, populatePrediction });
-    const evaluationIds = evaluationIdsOf(evaluations);
     if (!bidder) {
         return new AttentionBid({
             evidence,
             gainTrail,
-            signals: expectedSignals,
+            signals: expectedBidSignals({ evidence, evaluations, populatePrediction: false }),
             requestedFloor,
-            evaluationIds,
+            evaluationIds: evaluationIdsOf(evaluations),
         });
     }
     let bid;
@@ -126,6 +148,5 @@ export function issueOwnerBid({
     } catch {
         return null;
     }
-    if (!acceptIssuedBid(bid, { evidence, expectedSignals, evaluationIds })) return null;
-    return bid;
+    return admitBidderBid(bid, { evidence, evaluations });
 }

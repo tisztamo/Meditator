@@ -25,7 +25,8 @@ import { compareDeadlineMs, DEFAULT_COMPARE_DEADLINE_MS } from './compareContinu
  * @param {object} opts.order            per-lane CommitOrder
  * @param {Set} opts.aborts              owner's live AbortController set
  * @param {() => boolean} opts.revalidate  owner-specific checks after the wait
- * @param {(evaluations: object[]) => void} [opts.commit]
+ * @param {(evaluations: object[]) => void|Promise} [opts.commit]  awaited inside
+ *   the lane's order, so what it sends keeps the commit order
  * @returns {Promise<object[]|null>} evaluations, or null when the case is dropped
  */
 export async function runEvidenceCase({
@@ -73,7 +74,7 @@ export async function runEvidenceCase({
         const live = typeof liveComparator === 'function' ? liveComparator() : comparator
         if (live !== comparator) evaluations = []
         if (controller.signal.aborted || Date.now() >= deadline) evaluations = []
-        commit?.(evaluations)
+        await commit?.(evaluations)
         return evaluations
     } finally {
         clearTimeout(timer)
