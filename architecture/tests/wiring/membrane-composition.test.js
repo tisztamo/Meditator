@@ -13,6 +13,7 @@ import { loadMindComponents } from '../../../src/startup/loadMindComponents.js';
 import { MMind } from '../../../src/mindComponents/mind/mMind.js';
 import { MBaseComponent } from '../../../src/mindComponents/shared/mBaseComponent.js';
 import { MRegulator, RegulatorMirror } from '../../../src/mindComponents/shared/regulators.js';
+import { MAggregator } from '../../../src/mindComponents/shared/aggregators.js';
 import { Percept } from '../../../src/infrastructure/percept.js';
 import { AttentionBid } from '../../../src/infrastructure/attentionBid.js';
 import { Aperture } from '../../../src/infrastructure/aperture.js';
@@ -91,24 +92,20 @@ class XIncompleteRegulator extends MRegulator {
 }
 
 /** Test-only mind-level mix: max of top-level folded pressures, not the mean. */
-class XMaxAggregator extends MBaseComponent {
-    static provides = { aggregator: true }
+class XMaxAggregator extends MAggregator {
     aggregate(pressures) {
         return (pressures || []).reduce((m, p) => Math.max(m, Number(p) || 0), 0)
     }
 }
 
-class XConstAggregator extends MBaseComponent {
-    static provides = { aggregator: true }
+class XConstAggregator extends MAggregator {
     aggregate() { return 0.73 }
 }
 
-class XIncompleteAggregator extends MBaseComponent {
-    static provides = { aggregator: true }
+class XIncompleteAggregator extends MAggregator {
 }
 
-class XNaNAggregator extends MBaseComponent {
-    static provides = { aggregator: true }
+class XNaNAggregator extends MAggregator {
     aggregate() { return NaN }
 }
 
@@ -972,6 +969,8 @@ test('P1: nested suppressed header — outer pressure is max fold; nearest issue
     outer.aperture.deficit = 0;
     inner.aperture.deficit = 0.9;
     inner._publishAperture();
+    // The outer hears the inner's retained topic: delivered, not read back.
+    await delay(0);
     expect(outer.contactPressure).toBeCloseTo(0.9);
     expect(outer.aperture.deficit).toBe(0);
     outer.aperture.changedAt = Date.now() - 2000;
@@ -1024,6 +1023,7 @@ test('17. Aggregator substitution: global mix follows aggregate(); without one, 
     right.aperture.deficit = 0.8;
     left._publishAperture();
     right._publishAperture();
+    await delay(0);
     meanGlobal._pressureAt = Date.now() - 600000;
     meanGlobal._updateContactPressure(Date.now());
     // 60s smoothing stays in the arbiter; after ~10 time-constants the mix is the mean.
@@ -1041,11 +1041,13 @@ test('17. Aggregator substitution: global mix follows aggregate(); without one, 
     const maxGlobal = maxMind.querySelector('[name="attention"]');
     const maxLeft = maxMind.querySelector('m-region[name="left"]');
     const maxRight = maxMind.querySelector('m-region[name="right"]');
-    expect(maxGlobal._aggregator).toBe(maxMind.querySelector('x-max-aggregator'));
+    // Held by name (M4); asked when a pressure changes.
+    expect(maxGlobal._aggregator).toBe('x-max-aggregator');
     maxLeft.aperture.deficit = 0.2;
     maxRight.aperture.deficit = 0.8;
     maxLeft._publishAperture();
     maxRight._publishAperture();
+    await until(() => maxGlobal._mixed === 0.8);
     maxGlobal._pressureAt = Date.now() - 600000;
     maxGlobal._updateContactPressure(Date.now());
     expect(maxGlobal.contactPressure).toBeCloseTo(0.8, 3);
@@ -1062,6 +1064,7 @@ test('17. Aggregator substitution: global mix follows aggregate(); without one, 
     const region = constMind.querySelector('m-region');
     region.aperture.deficit = 0.2;
     region._publishAperture();
+    await until(() => constGlobal._mixed != null);
     constGlobal._pressureAt = Date.now() - 600000;
     constGlobal._updateContactPressure(Date.now());
     expect(constGlobal.contactPressure).toBeCloseTo(0.73, 3);
@@ -1126,9 +1129,12 @@ test('removing a nested aperture republishes the outer fold', async () => {
     outer.aperture.deficit = 0;
     inner.aperture.deficit = 0.9;
     inner._publishAperture();
+    await delay(0);
     expect(outer.contactPressure).toBeCloseTo(0.9);
     inner.remove();
     expect(outer._childProviders()).toHaveLength(0);
+    // The leaving inner publishes "no pressure"; the outer unlinks it and folds again.
+    await delay(0);
     expect(outer.contactPressure).toBeCloseTo(0);
 });
 
@@ -1164,6 +1170,11 @@ test('invalid aggregator output fails closed: threshold stays finite', async () 
     const region = mind.querySelector('m-region');
     region.aperture.deficit = 0.8;
     region._publishAperture();
+    // Let the aggregator answer for 0.8 (without its answer the mean would be 0.8).
+    let asked = 0;
+    mind.addEventListener('aggregate', e => { if (e.detail?.pressures?.[0] === 0.8) asked++; });
+    await until(() => asked > 0);
+    await delay(25);
     global._pressureAt = Date.now() - 600000;
     global._updateContactPressure(Date.now());
     expect(global.contactPressure).toBe(0);
@@ -1225,8 +1236,7 @@ test('same-batch aggregator binds after its tag is defined', async () => {
     const mind = await mount(`
           <m-region name="outside" modality="text" aperture="open" dwell="1s" contactHorizon="10s"></m-region>`);
     const tag = `x-deferred-aggregator-${Date.now()}`;
-    class XDeferredAggregator extends MBaseComponent {
-        static provides = { aggregator: true }
+    class XDeferredAggregator extends MAggregator {
         aggregate() { return 0.61 }
     }
     const agg = document.createElement(tag);
@@ -1249,8 +1259,11 @@ test('same-batch aggregator binds after its tag is defined', async () => {
         window.removeEventListener('error', onError);
     }
     expect(captured).toBeNull();
-    expect(arb._aggregator).toBeNull();
+    // Named at connect, but not up: no answer yet, so the mean stands.
+    expect(arb._aggregator).toBe(tag);
+    expect(arb._mixed).toBeNull();
     customElements.define(tag, XDeferredAggregator);
-    await delay(20);
-    expect(arb._aggregator).toBe(agg);
+    // It announced itself and was asked.
+    await until(() => arb._mixed != null);
+    expect(arb._mixed).toBeCloseTo(0.61);
 });

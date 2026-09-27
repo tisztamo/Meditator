@@ -7,7 +7,8 @@
 > perception gate are request/reply with a quorum; the stream's output filters
 > are asked, stage by stage; the comparator and the bidder are asked, and a
 > request can be cancelled; controllers ask the apertures by name; a substituted
-> contact regulator is a message peer (2026-09-27).**
+> contact regulator is a message peer, and contact pressure is heard, not read
+> (2026-09-27).**
 > The analysis behind it is
 > [message-rule-async-review.md](../improvements/message-rule-async-review.md).
 > This page states the rule, the one exception, and how the tree is held to it.
@@ -311,7 +312,8 @@ The region's `requestOrientation()` / `requestControl()` / `contractFor()` stay 
 the implementation the responders run, which the tests still drive and stub.
 Inside one aperture tree a parent still forwards control to its child apertures by
 call, reads their `contactPressure` and calls its parent's `_publishAperture()`.
-That tree, the regulator and the aggregator are the next part.
+That tree, the regulator and the aggregator were the next part (below; the
+forwarding is still a call).
 
 **The contact regulator (review §7 step 8, fourth part, 2026-09-27).** Built in
 `src/mindComponents/shared/regulators.js`:
@@ -329,6 +331,23 @@ With a substituted regulator, `orient()` and `onBoundary()` return a Promise (th
 owns, not a component, so it stays in place and synchronous: that is the rule's one
 exception, and the dozens of tests that set `aperture.changedAt` or read
 `aperture.state` right after `orient()` still hold.
+
+**Contact pressure: the fold and the aggregator (review §7 step 8, fifth part,
+2026-09-27).** Built in `src/mindComponents/shared/aggregators.js`, plus
+`apertureRef` in `shared/apertureRequests.js`:
+
+| Before | Now |
+|---|---|
+| a parent aperture read `el.contactPressure` off each child for its fold, and a child called `parent._publishAperture()` after its own publish (with a `_hostAperture` back-pointer written into the child) | the parent subscribes to each linked child's retained `contactPressure` by the child's id (`apertureRef`, M4: a ref, not a handle); the retained value replays on subscribe, so link order does not matter. A child publishes and is done. A leaving child publishes `null`, and the parent unlinks it unless it is still in its interior (a move publishes again when it binds). |
+| the global arbiter read `region.contactPressure` off every top-level aperture at every bid; a nested arbiter read its region's | each keeps what it heard from those retained topics (`!scope/…/contactPressure` for the top level, `..[provides~="faculty"]/contactPressure` for its region) and reads that at the bid. A top-level aperture found later by role is subscribed from then on. |
+| the arbiter checked the aggregator had `aggregate`, waited on `whenDefined` for its tag, and called `aggregate(pressures)` at every bid | the aggregator is a peer (`MAggregator`): it checks itself at connect (`aggregator is missing aggregate`), announces `aggregator-up`, and answers `aggregate {pressures}` → `{pressure}` on its membrane. The arbiter, holding its name, asks when a pressure changes and keeps the answer; a later ask supersedes an earlier one. Until the aggregator has answered, or while it stays silent, the built-in mean stands (M6). The membrane stops both events. |
+| m-sense read `region.aperture.state` for the record a tier-1 score carries | its aperture's retained `apertureState` topic |
+
+The fold is now one delivery behind the child's publish, and the arbiter's mix one
+behind the aperture's. A mind's contact pressure moves over seconds to minutes (the
+global mix is a 60 s exponential mean), so that lag is not a behaviour change.
+The tests that read the parent's fold right after a child's publish now wait for
+the delivery.
 
 ## How the tree is held to it
 

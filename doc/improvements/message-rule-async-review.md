@@ -459,7 +459,10 @@ existing seam, none rewrites a mind's behaviour.
    contact regulator followed: a substituted one is a peer (`MRegulator`,
    `shared/regulators.js`) that announces `regulator-up` and answers `regulate`
    ops with a snapshot the region mirrors; the built-in `Aperture` stays the
-   region's own synchronous state. See
+   region's own synchronous state. Contact pressure followed: a parent aperture
+   and the arbiters hear it from the retained `contactPressure` topics instead
+   of reading it off the elements, and the aggregator is a peer (`MAggregator`,
+   `shared/aggregators.js`) asked when a pressure changes. See
    [message-rule.md](../architecture/message-rule.md).*
 9. **Decoupling cleanups** (independent of async, can interleave): `stats`
    topic + generic `m-ws` walk (§2.1); producers emit `backstage`, memory drops

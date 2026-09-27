@@ -70,6 +70,7 @@ export class MSense extends MBaseComponent {
 
     _timer = null
     _lastKey = null
+    _gateState = null
 
     get defaultTimeout() { return "8m" }
     get defaultSigma() { return "2m" }
@@ -85,6 +86,11 @@ export class MSense extends MBaseComponent {
                 bubbles: true,
                 detail: { sample: request => this.onSense(request) },
             }))
+            // The gate's state, for the record a tier-1 score carries: heard from the
+            // aperture's retained topic, never read off the element.
+            this.sub('..[provides~="aperture"]/apertureState', value => {
+                this._gateState = typeof value?.state === 'string' ? value.state : null
+            }).catch(() => {})
         }
         if (this.ready() === false) return       // unconfigured — stay dormant (subclass warns)
         this._schedule(this._nextDelay())
@@ -287,9 +293,7 @@ export class MSense extends MBaseComponent {
 
     /** For the record only: which gate this score was made behind. */
     _apertureState() {
-        const region = this._modalityRegion()
-        const state = region?.aperture?.state
-        return typeof state === 'string' ? state : null
+        return this._gateState
     }
 
     /** `feel()`'s salience computation, factored so `perceive()` agrees. */

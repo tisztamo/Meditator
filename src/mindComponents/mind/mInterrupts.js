@@ -1,5 +1,8 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
-import { part, isCustomElementDefined } from "../shared/enclosure.js"
+import { part } from "../shared/enclosure.js"
+import { apertureRef } from "../shared/apertureRequests.js"
+import { responderName } from "../../infrastructure/requestReply.js"
+import { AGGREGATOR_UP, aggregatorOf, askAggregate } from "../shared/aggregators.js"
 import { extractInfoton } from "../shared/infoton.js"
 import { logger } from '../../infrastructure/logger.js';
 import { AttentionBid, bidData } from '../../infrastructure/attentionBid.js';
@@ -59,11 +62,13 @@ const log = logger('mInterrupts.js');
  *   - contactSensitivity: threshold reduction at full contact pressure (default 0.25).
  *     Inactive without modality regions. Global pressure follows a 60s exponential
  *     mean of `part(mind, 'aperture')` — top-level providers only, each already
- *     folded. A child `aggregator` (`aggregate(pressures: number[]) → number`)
+ *     folded, each heard from its retained `contactPressure` topic. A child
+ *     `aggregator` (MAggregator, `aggregate(pressures: number[]) → number`)
  *     replaces that spatial mix; it is the mind-level combination, not a second
- *     contact regulator. Absent one, the built-in mean is today's numbers for
- *     flat minds. Nested arbiters read the region's retained (folded) pressure.
- *     Topic: contactPressure.
+ *     contact regulator. It is asked (`aggregate`) when a pressure changes, and
+ *     until it answers the built-in mean stands (shared/aggregators.js). Absent
+ *     one, the built-in mean is today's numbers for flat minds. Nested arbiters
+ *     hear the region's retained (folded) pressure. Topic: contactPressure.
  *   - crowdSensitivity: threshold INCREASE at full crowding pressure (default 0, off).
  *     The dual of contactSensitivity: see below. Works at any depth.
  *   - crowdStep: how much one scarcity refusal adds to the pressure (default 0.25,
@@ -129,7 +134,13 @@ export class MInterrupts extends MBaseComponent {
     _crowd = 0
     _crowdAt = Date.now()
     crowdPressure = 0
+    // The aggregator's name, and its last answer (null: none yet, the mean stands).
     _aggregator = null
+    _mixed = null
+    _mixSeq = 0
+    // Pressures heard, by aperture element (the region's, or the membrane's top level).
+    _regionPressure = 0
+    _pressures = new Map()
 
     onConnect() {
         super.onConnect()
@@ -143,7 +154,16 @@ export class MInterrupts extends MBaseComponent {
         this._container.addEventListener('interrupt-request', this._onRequest)
         if (!this._region) this._container.addEventListener('taken', this._onTaken)
 
-        if (!this._region) this._aggregator = this._boundAggregator()
+        if (this._region) {
+            // The region's folded pressure is its retained topic (M1): heard, not read.
+            this.sub('..[provides~="faculty"]/contactPressure', value => {
+                this._regionPressure = value
+            }).catch(() => {})
+        } else {
+            this._aggregator = aggregatorOf(this.membrane())
+            this._watchTopApertures()
+            this._container.addEventListener(AGGREGATOR_UP, this._onAggregatorUp)
+        }
 
         // Optional interoception (global only): subscribe to the mind's arousal
         // so a tired mind raises its own bar. Gated, so minds without an economy
@@ -155,43 +175,57 @@ export class MInterrupts extends MBaseComponent {
         }
     }
 
-    /** Unique `aggregator` inside the membrane. Zero → built-in mean.
-     * More than one fails loudly. If the tag is already defined, the port
-     * check runs during this onConnect. A same-batch child that is not yet
-     * defined is bound from `whenDefined` — upgrade() cannot define a tag. */
-    _boundAggregator() {
-        if (this._aggregator) return this._aggregator
+    /** The membrane's top-level apertures, found by role (a structural lookup):
+     *  subscribe to the pressure of any not yet heard. Called at connect and
+     *  before each mix, so an aperture added later is heard from then on. */
+    _watchTopApertures() {
         const mind = this.membrane()
-        if (!mind) return null
-        const found = part(mind, 'aggregator')
-        if (found.length > 1) throw new Error('a mind may have only one aggregator')
-        const aggregator = found[0]
-        if (!aggregator) return null
-        const take = () => {
-            customElements.upgrade(aggregator)
-            this._assertAggregatorPort(aggregator)
-            return aggregator
+        if (!mind) return []
+        const regions = part(mind, 'aperture')
+        for (const region of regions) {
+            if (this._pressures.has(region)) continue
+            this._pressures.set(region, null)
+            this.sub(apertureRef(responderName(region), 'contactPressure', { scope: '!scope' }), value => {
+                if (!this._pressures.has(region)) return
+                // null is an aperture leaving (or moving: it publishes again when it binds).
+                if (value == null && !part(this.membrane(), 'aperture').includes(region)) this._pressures.delete(region)
+                else this._pressures.set(region, value)
+                this._askMix()
+            }).catch(() => { this._pressures.delete(region) })
         }
-        if (isCustomElementDefined(aggregator)) return take()
-        if (!this._aggregatorWait) {
-            this._aggregatorWait = customElements.whenDefined(aggregator.localName).then(() => {
-                this._aggregatorWait = null
-                if (!this.isConnected) return
-                this._aggregator = take()
-            })
-        }
-        return null
+        return regions
     }
 
-    _assertAggregatorPort(aggregator) {
-        if (typeof aggregator.aggregate !== 'function') throw new Error('aggregator is missing aggregate')
+    /** Ask the aggregator for the mix of what was last heard; a later answer wins. */
+    _askMix() {
+        if (!this._aggregator) return
+        const seq = ++this._mixSeq
+        const pressures = this._livePressures()
+        askAggregate(this, this._aggregator, pressures).then(mixed => {
+            if (mixed == null || seq !== this._mixSeq || !this.isConnected) return
+            this._mixed = this._clampPressure(mixed)
+        })
+    }
+
+    /** An aggregator that came up after this arbiter looked or asked (a late tag,
+     *  a late append): look again, and ask. */
+    _onAggregatorUp = event => {
+        if (!sentByComponent(event)) return
+        this._aggregator = aggregatorOf(this.membrane())
+        if (responderName(event.target) === this._aggregator) this._askMix()
+    }
+
+    _livePressures(regions = part(this.membrane(), 'aperture')) {
+        return regions.map(region => this._clampPressure(this._pressures.get(region)))
     }
 
     onDisconnect() {
         this._container?.removeEventListener('interrupt-request', this._onRequest)
         this._container?.removeEventListener('taken', this._onTaken)
+        this._container?.removeEventListener(AGGREGATOR_UP, this._onAggregatorUp)
         this._aggregator = null
-        this._aggregatorWait = null
+        this._mixed = null
+        this._pressures.clear()
     }
 
     _onRequest = e => {
@@ -358,15 +392,13 @@ export class MInterrupts extends MBaseComponent {
 
     _updateContactPressure(now) {
         if (this._region) {
-            const pressure = this._clampPressure(this._region.contactPressure)
+            const pressure = this._clampPressure(this._regionPressure)
             this.contactPressure = pressure
             this.pub('contactPressure', pressure)
         } else {
-            if (!this._aggregator) this._aggregator = this._boundAggregator()
-            const regions = part(this.membrane(), 'aperture')
-            const pressures = regions.map(region => this._clampPressure(region.contactPressure))
-            const mixed = this._clampPressure(this._aggregator
-                ? this._aggregator.aggregate(pressures)
+            const pressures = this._livePressures(this._watchTopApertures())
+            const mixed = this._clampPressure(this._aggregator && this._mixed != null
+                ? this._mixed
                 : pressures.reduce((sum, p) => sum + p, 0) / (pressures.length || 1))
             const weight = 1 - Math.exp(-Math.max(0, now - this._pressureAt) / 60000)
             const next = this._clampPressure(

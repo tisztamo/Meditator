@@ -53,6 +53,19 @@ export function apertureNames(mind) {
     return names
 }
 
+/**
+ * A ref to a topic of the aperture whose id (gateIdOf: `name`, else the tag) is
+ * `id`: an address to subscribe to (M4), never a handle. `scope` prefixes it
+ * ("!scope" from anywhere in the membrane); without one it resolves inside the
+ * subscriber (a parent aperture subscribing to a child). A nameless aperture is
+ * matched by tag. Ids are unique among a membrane's apertures.
+ */
+export function apertureRef(id, topic, { scope = null } = {}) {
+    const byName = `[provides~="aperture"][name=${JSON.stringify(String(id))}]`
+    const byTag = /^[a-z][a-z0-9-]*$/.test(id) ? `, ${id}[provides~="aperture"]:not([name])` : ""
+    return `${scope ? `${scope}/` : ""}${byName}${byTag}/${topic}`
+}
+
 /** A request's plain fields, for any of the frozen request records. */
 export function requestFields(record) {
     return record ? JSON.parse(JSON.stringify(record)) : null

@@ -12,7 +12,7 @@ import { CompareBudget, CommitOrder, evaluationIdsOf, verdictsOf } from '../../i
 import { runEvidenceCase } from '../../infrastructure/evidenceCase.js'
 import { comparatorOf, askComparator } from '../shared/comparators.js'
 import { bidderOf, issueBid } from '../shared/bidders.js'
-import { serveApertureRequests } from '../shared/apertureRequests.js'
+import { serveApertureRequests, apertureRef } from '../shared/apertureRequests.js'
 import { REGULATOR_UP, RegulatorMirror, askRegulator, changeHeader } from '../shared/regulators.js'
 import { evaluationCommitPayload, fireEvaluationCommit } from '../../infrastructure/predictionContracts.js'
 import { OrientationRequest } from '../../infrastructure/predictionContracts.js'
@@ -125,7 +125,9 @@ function andThen(value, f) {
  * child provider registers with the nearest enclosing aperture only, in both
  * directions (announce on connect, plus an interior scan so connect order does
  * not matter). Fold termination depends on that. Published `contactPressure` is
- * `fold(ownDeficit, ...childPressures)` — default `max`, so an outer boundary
+ * `fold(ownDeficit, ...childPressures)`, each child's pressure heard from its
+ * retained `contactPressure` topic (subscribed by id at link; a leaving child
+ * publishes null and is unlinked) — default `max`, so an outer boundary
  * feels its most-starved interior channel. A mean would hide the channel the
  * reflex exists to rescue. The fold is not fed into `Aperture.advance`: the
  * regulator's deficit stays own dynamics. Nested and global arbiters consume
@@ -150,8 +152,11 @@ export class MRegion extends MBaseComponent {
         this._sourceCommit = new Map()
         this._compareAborts = new Set()
         // Child aperture providers. A tree, not a graph: nearest-only in both
-        // directions. The pressure fold notifies only this parent pointer.
+        // directions. The fold hears each child's retained `contactPressure`
+        // (subscribed by id when the child links); a child never calls up.
         this._children = []
+        this._childPressure = new Map()
+        this._childSubs = new Map()
         // At most 32 issued percept ids awaiting credit — same order as the
         // per-region source cap. WeakSet was wrong: a rebuilt record with the
         // same id must still credit. Evict the oldest issuedAt if the map is full.
@@ -205,12 +210,14 @@ export class MRegion extends MBaseComponent {
         this._sources?.clear()
         this._sourceCommit?.clear()
         this._children = []
+        this._childPressure?.clear()
+        this._childSubs?.clear()
         this._issued?.clear()
+        // The enclosing aperture and the arbiter hear this as "no pressure here now"
+        // (a moved aperture publishes again when it binds). Amanita drops this
+        // element's own subscriptions after onDisconnect.
+        if (this.aperture) this.pub('contactPressure', null)
         this.aperture = null
-        // parentElement is already null here; the host pointer was set at link.
-        const host = this._hostAperture
-        this._hostAperture = null
-        host?._unlinkChild?.(this)
     }
 
     _mind() { return this.membrane() }
@@ -539,18 +546,36 @@ export class MRegion extends MBaseComponent {
 
     _linkChild(el) {
         if (!el || el === this) return
-        if (this._children.includes(el)) return
-        this._children.push(el)
-        el._hostAperture = this
-        // The child may already have published; include it now. Do not notify
-        // the child (the fold walks toward the membrane, never back down).
+        if (!this._children.includes(el)) this._children.push(el)
+        if (this._childSubs.has(el)) return
+        // Subscribe to the child's folded pressure by its id (M4: a ref, not a
+        // handle). The retained value replays on subscribe, so a child that
+        // published first is included. Nothing is sent down to the child (the
+        // fold walks toward the membrane, never back down).
+        const sub = this.sub(apertureRef(gateIdOf(el), 'contactPressure'),
+            value => this._onChildPressure(el, value)).catch(() => null)
+        this._childSubs.set(el, sub)
+    }
+
+    /** A child's pressure. `null` is a child leaving: unlink it unless it is
+     *  still in this interior (moved within it, and about to publish again). */
+    _onChildPressure(el, value) {
+        if (!this._childSubs.has(el)) return
+        if (value == null && !this._childProviders().includes(el)) {
+            this._unlinkChild(el)
+            return
+        }
+        this._childPressure.set(el, value)
         this._publishAperture()
     }
 
     _unlinkChild(el) {
         const i = this._children.indexOf(el)
         if (i >= 0) this._children.splice(i, 1)
-        if (el?._hostAperture === this) el._hostAperture = null
+        const sub = this._childSubs.get(el)
+        this._childSubs.delete(el)
+        this._childPressure.delete(el)
+        sub?.then(desc => { if (desc) this.unsub(desc) })
         this._publishAperture()
     }
 
@@ -959,15 +984,15 @@ export class MRegion extends MBaseComponent {
     _publishAperture() {
         if (!this.aperture) return
         const own = this.aperture.deficit
-        const childPressures = this._childProviders().map(el => el.contactPressure)
+        const childPressures = this._childProviders()
+            .map(el => this._childPressure.get(el))
+            .filter(value => value != null)
         const pressure = this.fold(own, childPressures)
         this.contactPressure = pressure
         this.pub('contactPressure', pressure)
         this.pub('apertureState', { state: this.aperture.state, focus: this.aperture.focus,
             contactPressure: pressure, gain: this.aperture.gain })
-        // Tree, not graph: notify the nearest enclosing aperture only.
-        const parent = this.enclosing('aperture')
-        if (parent && typeof parent._publishAperture === 'function') parent._publishAperture()
+        // The enclosing aperture (only the nearest: tree, not graph) is subscribed.
     }
 
     _publishDecision(verdict, annotated) {
