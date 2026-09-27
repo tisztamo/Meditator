@@ -105,9 +105,10 @@ export function serveApertureRequests(region, mind) {
     const mine = () => region.getAttribute("name") || region.localName
     const fromComponent = event => sentByComponent(event)
     const bound = [
-        [ORIENT_REQUEST, respond(region, ORIENT_REQUEST, (d, e) => {
+        [ORIENT_REQUEST, respond(region, ORIENT_REQUEST, async (d, e) => {
             if (!fromComponent(e) || d?.request?.aperture !== mine()) return undefined
-            return { accepted: region._orientFromRequest(d.request) === true }
+            // A substituted regulator answers by message: the orientation is a Promise.
+            return { accepted: (await region._orientFromRequest(d.request)) === true }
         }, { on: mind })],
         [CONTROL_REQUEST, respond(region, CONTROL_REQUEST, (d, e) => {
             if (!fromComponent(e) || d?.aperture !== mine()) return undefined

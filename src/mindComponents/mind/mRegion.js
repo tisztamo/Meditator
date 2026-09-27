@@ -1,5 +1,5 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
-import { enclosingOf, enclosingAllOf, isMembrane, providesOf, isCustomElementDefined } from "../shared/enclosure.js"
+import { enclosingOf, enclosingAllOf, isMembrane, providesOf } from "../shared/enclosure.js"
 import { Aperture } from '../../infrastructure/aperture.js'
 import { Percept, PerceptCandidate } from '../../infrastructure/percept.js'
 import { SourceContract, AnnotatedCandidate, decideGate, GateVerdict, ControlRequest, RenditionRequest, receiptsFrom, pushGainTrail, fireControlResult } from '../../infrastructure/perceptionContracts.js'
@@ -13,10 +13,11 @@ import { runEvidenceCase } from '../../infrastructure/evidenceCase.js'
 import { comparatorOf, askComparator } from '../shared/comparators.js'
 import { bidderOf, issueBid } from '../shared/bidders.js'
 import { serveApertureRequests } from '../shared/apertureRequests.js'
+import { REGULATOR_UP, RegulatorMirror, askRegulator, changeHeader } from '../shared/regulators.js'
 import { evaluationCommitPayload, fireEvaluationCommit } from '../../infrastructure/predictionContracts.js'
 import { OrientationRequest } from '../../infrastructure/predictionContracts.js'
 import { logger } from '../../infrastructure/logger.js'
-import { respond } from '../../infrastructure/requestReply.js'
+import { respond, responderName } from '../../infrastructure/requestReply.js'
 
 const log = logger('mRegion.js')
 
@@ -25,6 +26,12 @@ const DEFAULT_GATE_DEADLINE_MS = 500
 
 export function gateIdOf(el) {
     return el?.getAttribute?.('name') || el?.localName
+}
+
+/** A value, or a Promise of one: `f` runs on it either way. The built-in policy
+ * answers in place; a substituted regulator answers by message (a Promise). */
+function andThen(value, f) {
+    return value && typeof value.then === 'function' ? value.then(f) : f(value)
 }
 
 /**
@@ -65,15 +72,21 @@ export function gateIdOf(el) {
  *   - compareDeadline: wall-clock budget for a live comparison (default "2s")
  *   - gateDeadline: how long an issued candidate waits for every gate on its path
  *     (default "500ms"); a gate that has not answered by then denies (gate-missing)
+ *   - regulateDeadline: how long a substituted regulator may take to answer one
+ *     op (default "2s"); a silent one changes nothing
  * Interior role: `regulator` — contact dynamics (debt, habituation, reflex).
  *   Resolved at connect via part('regulator'), then kept only if
  *   enclosingOf(el, 'aperture') === this, so a nested aperture's regulator is
- *   not stolen. Zero → constructed Aperture (the reference policy, not a tag).
- *   More than one for this aperture throws. A substitute is validated as a port
- *   before any other onConnect work that uses this.aperture; a missing method
- *   throws naming the method and the role (`regulator is missing attended`).
- *   A child whose tag is not yet defined waits for `whenDefined` — `upgrade()`
- *   cannot define a tag, so the port check must not run on a plain HTMLElement.
+ *   not stolen. Zero → constructed Aperture (the reference policy, not a tag),
+ *   run in place: `this.aperture` is that object and every op is synchronous.
+ *   More than one for this aperture throws. A substitute is a message peer
+ *   (MRegulator, shared/regulators.js): the region binds once it hears the
+ *   regulator's `regulator-up` (or its answer to a `snapshot` ask), keeps its
+ *   answers as a RegulatorMirror in `this.aperture`, and asks `regulate` for
+ *   observe / advance / orient / attended; orient() and onBoundary() then return
+ *   a Promise. The regulator checks its own port at connect (`regulator is
+ *   missing attended`). A child whose tag is never defined never comes up, and
+ *   the aperture stays unbound (gate-missing on its path).
  *   Gate policy (decideGate, percept-candidate) is not this port. Substituting
  *   the aperture provider is a class that `provides` `aperture`; C1 is the
  *   contract (architecture/tests/wiring/aperture-conformance.test.js).
@@ -169,6 +182,7 @@ export class MRegion extends MBaseComponent {
         // re-attach it in another phase and so disconnect can remove it.
         this._onPerceptCandidate = respond(this, 'percept-candidate', (detail, event) => this._gateAnswer(detail, event))
         this.addEventListener('aperture-register', this._onApertureRegister)
+        this.addEventListener(REGULATOR_UP, this._onRegulatorUp)
         // Controllers (m-orient, m-search) ask this aperture by name, through the
         // membrane (shared/apertureRequests.js).
         this._unserveApertureRequests = serveApertureRequests(this, mind)
@@ -186,6 +200,7 @@ export class MRegion extends MBaseComponent {
         this._unserveApertureRequests = null
         if (this._onPerceptCandidate) this.removeEventListener('percept-candidate', this._onPerceptCandidate)
         this.removeEventListener('aperture-register', this._onApertureRegister)
+        this.removeEventListener(REGULATOR_UP, this._onRegulatorUp)
         if (this.aperture) this.aperture.version++
         this._sources?.clear()
         this._sourceCommit?.clear()
@@ -229,8 +244,9 @@ export class MRegion extends MBaseComponent {
             const candidate = new PerceptCandidate({ ...header, requestId, actId }, materialize)
             const now = Date.now()
             // Closed still observes the header (debt); composition decides materialization.
-            this.aperture.observe(contract.name, candidate, now)
-            this._publishAperture()
+            // A substituted regulator hears the change header; the offer does not wait for it.
+            andThen(this._regulate('observe', { source: contract.name, change: changeHeader(candidate), now },
+                aperture => aperture.observe(contract.name, candidate, now)), () => this._publishAperture())
 
             // Snapshot the path before asking: a gate removed mid-flight must not look
             // like permission. Walk from the source so the issuer is included.
@@ -412,10 +428,10 @@ export class MRegion extends MBaseComponent {
         if (found.length > 1) {
             throw new Error(`an aperture may have only one regulator (${this._gateId()})`)
         }
-        const regulator = found[0]
         this._bindGen = (this._bindGen || 0) + 1
         const gen = this._bindGen
-        if (!regulator) {
+        if (!found[0]) {
+            this._regulator = null
             this._adoptAperture(new Aperture({
                 state: this.attr('aperture') || 'open',
                 dwellMs: parseTime(this.attr('dwell') || '30s'),
@@ -423,15 +439,49 @@ export class MRegion extends MBaseComponent {
             }))
             return
         }
-        const adopt = () => {
-            if (!this.isConnected || gen !== this._bindGen) return
-            if (enclosingOf(regulator, 'aperture') !== this) return
-            customElements.upgrade(regulator)
-            this._assertRegulatorPort(regulator)
-            this._adoptAperture(regulator)
+        // A message peer, held by name (M4). It announces itself when it connects
+        // (children usually connect after this region); a regulator already up
+        // answers the ask instead. Whichever lands first binds.
+        const name = responderName(found[0])
+        this._regulator = name
+        askRegulator(this, name, 'snapshot').then(({ snapshot }) => {
+            if (snapshot && this.isConnected && gen === this._bindGen) this._adoptRegulator(snapshot)
+        })
+    }
+
+    /** A substituted regulator's announcement: bind to its first snapshot. */
+    _onRegulatorUp = event => {
+        if (event.target === this) return
+        event.stopPropagation()
+        if (!this._regulator || !this.isConnected || !sentByComponent(event)) return
+        if (enclosingOf(event.target, 'aperture') !== this || responderName(event.target) !== this._regulator) return
+        if (event.detail?.snapshot) this._adoptRegulator(event.detail.snapshot)
+    }
+
+    _adoptRegulator(snapshot) {
+        if (this.aperture) {
+            if (this.aperture instanceof RegulatorMirror && this.aperture.apply(snapshot)) this._publishAperture()
+            return
         }
-        if (isCustomElementDefined(regulator)) adopt()
-        else customElements.whenDefined(regulator.localName).then(adopt)
+        const mirror = new RegulatorMirror(snapshot)
+        if (!Number.isFinite(mirror.seq)) return
+        this._adoptAperture(mirror)
+    }
+
+    /**
+     * One regulator op. With the built-in policy, `local(aperture)` runs in place and
+     * its result is returned as is. With a substituted regulator, the op is asked
+     * (`regulate`), the reply's snapshot updates the mirror, and the result is a
+     * Promise of whether the aperture changed; a silent regulator changed nothing.
+     */
+    _regulate(op, data, local) {
+        if (!this._regulator) return local(this.aperture)
+        const gen = this._bindGen
+        return askRegulator(this, this._regulator, op, data).then(({ changed, snapshot }) => {
+            if (gen !== this._bindGen || !(this.aperture instanceof RegulatorMirror)) return false
+            if (snapshot) this.aperture.apply(snapshot)
+            return changed
+        })
     }
 
     _adoptAperture(aperture) {
@@ -443,15 +493,6 @@ export class MRegion extends MBaseComponent {
         // Own announcement: this listener ignores target === this so the event
         // can bubble to the enclosing aperture. The membrane stops it if none.
         this.dispatchEvent(new CustomEvent('aperture-register', { bubbles: true }))
-    }
-
-    _assertRegulatorPort(regulator) {
-        for (const name of ['state', 'focus', 'deficit', 'gain', 'version']) {
-            if (!(name in regulator)) throw new Error(`regulator is missing ${name}`)
-        }
-        for (const name of ['allows', 'observe', 'advance', 'orient', 'attended']) {
-            if (typeof regulator[name] !== 'function') throw new Error(`regulator is missing ${name}`)
-        }
     }
 
     /**
@@ -746,26 +787,41 @@ export class MRegion extends MBaseComponent {
             if (!child.isConnected) continue
             customElements.upgrade(child)
             if (typeof child.requestOrientation !== 'function') continue
-            if (child.requestOrientation(request)) return true
+            // Names are unique in a membrane: a child's pending answer is the answer.
+            const accepted = child.requestOrientation(request)
+            if (accepted instanceof Promise) return accepted
+            if (accepted) return true
         }
         return false
     }
 
+    /** Whether the aperture changed: a boolean with the built-in policy, a Promise
+     *  of one with a substituted regulator. */
     orient(state, source = null, now = Date.now(), extra = {}) {
         if (!this.aperture) return false
         if (state === 'narrow' && ![...this._sources.values()].some(s => s.source === source)) return false
         const before = this.aperture.state
-        if (!this.aperture.orient(state, { source, now })) return false
-        this._transition(before, 'orientation', extra?.actId ?? null)
-        return true
+        const changed = this._regulate('orient', { state, source, now },
+            aperture => aperture.orient(state, { source, now }))
+        return andThen(changed, changed => {
+            if (!changed || !this.aperture) return false
+            this._transition(before, 'orientation', extra?.actId ?? null)
+            return true
+        })
     }
 
+    /** The burst boundary advances the regulator. Returns nothing with the built-in
+     *  policy, a Promise with a substituted regulator. */
     onBoundary(now = Date.now()) {
         if (!this.aperture) return
         const before = this.aperture.state
-        const changed = this.aperture.advance(now, { awake: !this._membraneSleeping, arousal: this._arousal })
-        if (changed) this._transition(before, 'contact-deficit')
-        else this._publishAperture()
+        const changed = this._regulate('advance', { now, awake: !this._membraneSleeping, arousal: this._arousal },
+            aperture => aperture.advance(now, { awake: !this._membraneSleeping, arousal: this._arousal }))
+        return andThen(changed, changed => {
+            if (!this.aperture) return
+            if (changed) this._transition(before, 'contact-deficit')
+            else this._publishAperture()
+        })
     }
 
     /** The one public door for sample / focus / detail. Reopening and the
@@ -872,8 +928,12 @@ export class MRegion extends MBaseComponent {
             const id = item.perceptId
             if (!this._issued.has(id)) continue
             const occurredAt = typeof item.occurredAt === 'number' ? item.occurredAt : Date.parse(item.occurredAt)
-            this.aperture.attended(occurredAt)
+            const now = Date.now()
             this._issued.delete(id)
+            // A substituted regulator's credit lands with its reply; publish it then.
+            const credited = this._regulate('attended', { occurredAt, now },
+                aperture => aperture.attended(occurredAt, now))
+            if (credited instanceof Promise) credited.then(() => this._publishAperture())
         }
         this._publishAperture()
     }

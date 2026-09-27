@@ -455,7 +455,11 @@ existing seam, none rewrites a mind's behaviour.
    bidder at `bidDeadline`. Controllers followed: m-orient and m-search ask the
    apertures by name (`orient`, `control`, `aperture-contract`,
    `aperture-sources`) and m-orient asks `search-start`
-   (`shared/apertureRequests.js`); `edge-evidence` crosses as data. See
+   (`shared/apertureRequests.js`); `edge-evidence` crosses as data. The
+   contact regulator followed: a substituted one is a peer (`MRegulator`,
+   `shared/regulators.js`) that announces `regulator-up` and answers `regulate`
+   ops with a snapshot the region mirrors; the built-in `Aperture` stays the
+   region's own synchronous state. See
    [message-rule.md](../architecture/message-rule.md).*
 9. **Decoupling cleanups** (independent of async, can interleave): `stats`
    topic + generic `m-ws` walk (§2.1); producers emit `backstage`, memory drops

@@ -5,8 +5,9 @@ import { EdgeEvidence } from './perceptionContracts.js';
  * Deterministic, afferent-only regulator. No timers, thought inspection, or model calls.
  * Call advance at awake burst boundaries and observe with private detector headers.
  * Constants are deliberately provisional experiment settings, not a tuning framework.
- * A modality region may wire a child `regulator` in its place at connect; this class
- * remains the default. The gate itself is the aperture provider (`m-region[modality]`,
+ * A modality region may wire a child `regulator` in its place (an MRegulator, a
+ * message peer: shared/regulators.js); this class remains the default, run in place
+ * by the region as its own state. The gate itself is the aperture provider (`m-region[modality]`,
  * or any class that `provides` `aperture`); C1 is that contract.
  */
 export class Aperture {

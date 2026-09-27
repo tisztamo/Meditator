@@ -6,8 +6,8 @@
 > reported to the supervisor; agent governance, the step round trip and the
 > perception gate are request/reply with a quorum; the stream's output filters
 > are asked, stage by stage; the comparator and the bidder are asked, and a
-> request can be cancelled; controllers ask the apertures by name
-> (2026-09-27).**
+> request can be cancelled; controllers ask the apertures by name; a substituted
+> contact regulator is a message peer (2026-09-27).**
 > The analysis behind it is
 > [message-rule-async-review.md](../improvements/message-rule-async-review.md).
 > This page states the rule, the one exception, and how the tree is held to it.
@@ -312,6 +312,23 @@ the implementation the responders run, which the tests still drive and stub.
 Inside one aperture tree a parent still forwards control to its child apertures by
 call, reads their `contactPressure` and calls its parent's `_publishAperture()`.
 That tree, the regulator and the aggregator are the next part.
+
+**The contact regulator (review §7 step 8, fourth part, 2026-09-27).** Built in
+`src/mindComponents/shared/regulators.js`:
+
+| Before | Now |
+|---|---|
+| a `regulator` part was adopted AS the region's `this.aperture`: the gate read `state` / `focus` / `gain` / `version` off the element at every answer, and the region called `observe` / `advance` / `orient` / `attended` on it | the regulator is a peer (`MRegulator`). It announces itself with `regulator-up {snapshot}` (bubbling; the nearest aperture binds to it and stops it, and the membrane stops it too) and answers `regulate {op, …}` requests fired on its aperture (`bubbles: false`), each with `{changed, snapshot}`. The region keeps the snapshots as a `RegulatorMirror` in `this.aperture`, which the gate reads synchronously as before. |
+| `observe(source, candidate)` handed the regulator the `PerceptCandidate` instance, with its materializer | the change header only: `{kind: "change", candidateId, changeKey, changeMagnitude, occurredAt}`, the key already hashed. The regulator refuses any other kind, as `Aperture` refuses `EdgeEvidence` by type. |
+| the region checked the port by reading fields and methods on the element (`regulator is missing attended`), after waiting on `whenDefined` for its tag | the regulator checks itself at connect, with the same message. A tag that is never defined never comes up: the aperture stays unbound, so its gate never answers and candidates on its path are `gate-missing`. |
+| `allows(source, powers)` was part of the port, used to skip broadcasts, while the gate read `state` and `focus` through `decideGate` | `allows` left the port. The mirror applies the gate's own reading (`apertureAllows`), so the broadcast skip and the verdict cannot disagree. |
+| — | every op carries its `now`, so delivery latency does not shift the dynamics. A snapshot carries `seq` and an older one is not applied (M5). A regulator silent past `regulateDeadline` (2 s) changed nothing (M6). |
+
+With a substituted regulator, `orient()` and `onBoundary()` return a Promise (the
+`orient` responder awaits it). The built-in `Aperture` is a plain object the region
+owns, not a component, so it stays in place and synchronous: that is the rule's one
+exception, and the dozens of tests that set `aperture.changedAt` or read
+`aperture.state` right after `orient()` still hold.
 
 ## How the tree is held to it
 

@@ -207,10 +207,13 @@ can serve as an agent tool and a mind's hand with only its harness differing.
 
 Two different substitutions, both through wiring. Neither needs a kernel change.
 
-- **Contact dynamics.** Place a child that `provides` `regulator` inside the
-  aperture (`allows`, `observe`, `advance`, `orient`, `attended`, plus the readable
-  `state` / `focus` / `deficit` / `gain` / `version`). Zero children → the built-in
-  `Aperture` policy. A missing method throws at connect by name.
+- **Contact dynamics.** Place a child that extends `MRegulator`
+  (`src/mindComponents/shared/regulators.js`) inside the aperture. It keeps
+  `state` / `focus` / `deficit` / `gain` / `version` and writes `observe`,
+  `advance`, `orient` and `attended`, each returning whether the aperture changed
+  (a Promise is fine). The region talks to it by message and mirrors what it
+  answers. Zero children → the built-in `Aperture` policy. A missing method throws
+  at connect by name.
 - **The gate itself.** A class that `provides` `aperture` (and usually `faculty`)
   replaces `m-region[modality]`. Inner senses find it by role, not tag. The
   executable contract is C1 in

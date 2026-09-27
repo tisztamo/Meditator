@@ -12,6 +12,7 @@ import { delay } from './setup.js';
 import { loadMindComponents } from '../../../src/startup/loadMindComponents.js';
 import { MMind } from '../../../src/mindComponents/mind/mMind.js';
 import { MBaseComponent } from '../../../src/mindComponents/shared/mBaseComponent.js';
+import { MRegulator, RegulatorMirror } from '../../../src/mindComponents/shared/regulators.js';
 import { Percept } from '../../../src/infrastructure/percept.js';
 import { AttentionBid } from '../../../src/infrastructure/attentionBid.js';
 import { Aperture } from '../../../src/infrastructure/aperture.js';
@@ -43,8 +44,7 @@ if (!customElements.get('x-mind')) {
 
 /** Test-only contact regulator: same horizon as the fixture, lower reflex threshold.
  * Defined before mount so part('regulator') sees it when the region connects. */
-class XFastRegulator extends MBaseComponent {
-    static provides = { regulator: true }
+class XFastRegulator extends MRegulator {
     state = 'closed'
     focus = null
     deficit = 0
@@ -52,10 +52,6 @@ class XFastRegulator extends MBaseComponent {
     updatedAt = Date.now()
     lastContactAt = -Infinity
     get gain() { return this.state === 'soft' ? 0.5 : 1 }
-    allows(sourceName, powers = {}) {
-        return powers.bypassAperture || (this.state !== 'closed'
-            && (this.state !== 'narrow' || sourceName === this.focus));
-    }
     observe() {}
     advance(now, { awake = true, arousal = 1 } = {}) {
         const elapsed = Math.max(0, now - this.updatedAt);
@@ -83,14 +79,12 @@ class XFastRegulator extends MBaseComponent {
     }
 }
 
-class XIncompleteRegulator extends MBaseComponent {
-    static provides = { regulator: true }
+class XIncompleteRegulator extends MRegulator {
     state = 'open'
     focus = null
     deficit = 0
     version = 0
     get gain() { return 1 }
-    allows() { return true }
     observe() {}
     advance() { return false }
     orient() { return false }
@@ -684,8 +678,10 @@ test('15. Regulator substitution: faster reflex, gate and receipts unchanged', a
     const source = mind.querySelector('[name="mock"]');
     const global = mind.querySelector('[name="attention"]');
     const regulator = mind.querySelector('x-fast-regulator');
-    expect(region.aperture).toBe(regulator);
-    expect(region.aperture).not.toBeInstanceOf(Aperture);
+    // A message peer: the region mirrors its answers, it never holds the element.
+    expect(region.aperture).toBeInstanceOf(RegulatorMirror);
+    expect(region.aperture).not.toBe(regulator);
+    expect(region.aperture.state).toBe(regulator.state);
 
     const events = watchGates(region);
     const bids = [];
@@ -722,8 +718,9 @@ test('15. Regulator substitution: faster reflex, gate and receipts unchanged', a
         credited.push(occurredAt);
         return origAttended(occurredAt, now);
     };
-    region.onBoundary(t + 2000);
+    await region.onBoundary(t + 2000);
     expect(regulator.state).toBe('soft');
+    expect(region.aperture.state).toBe('soft');
     await delay(5);
     expect(renders).toBe(1);
     expect(bids).toHaveLength(1);
@@ -731,6 +728,7 @@ test('15. Regulator substitution: faster reflex, gate and receipts unchanged', a
     expect(bidIds(pending)).toEqual(bidIds(bids));
     const fired = interceptFire(mind);
     await MMind.prototype.assembleFrame.call(mind, pending);
+    await delay(5);
     expect(credited).toHaveLength(1);
     const attended = fired.find(f => f.name === 'percepts-attended');
     expect(attended).toBeTruthy();
@@ -750,11 +748,11 @@ test('15. Nested apertures keep their own regulator; outer still uses Aperture',
     const inner = mind.querySelector('m-region[name="outside"]');
     const regulator = mind.querySelector('x-fast-regulator');
     expect(outer.aperture).toBeInstanceOf(Aperture);
-    expect(inner.aperture).toBe(regulator);
+    expect(inner.aperture).toBeInstanceOf(RegulatorMirror);
     expect(outer.part('regulator')).toEqual([regulator]);
 
     const t = Date.now();
-    inner.onBoundary(t + 2000);
+    await inner.onBoundary(t + 2000);
     expect(inner.aperture.state).toBe('soft');
     expect(outer.aperture.state).toBe('closed');
 
@@ -764,6 +762,49 @@ test('15. Nested apertures keep their own regulator; outer still uses Aperture',
     const result = await offer(header('nested-closed'), () => { renders++; return WITHHELD; });
     expect(result).toBeNull();
     expect(renders).toBe(0);
+});
+
+test('15. Regulator ops cross as plain data: a change header, never the text', async () => {
+    const mind = await mount(FAST_REGION);
+    const region = mind.querySelector('m-region[name="outside"]');
+    const source = mind.querySelector('[name="mock"]');
+    const asked = [];
+    region.addEventListener('regulate', e => asked.push(e.detail));
+    const offer = region.registerSource(source, () => {});
+    await offer({ ...header(PREIMAGE), reason: TEXT, caption: TEXT }, () => TEXT);
+    await region.onBoundary(Date.now() + 2000);
+    expect(asked.map(d => d.op)).toEqual(['observe', 'advance']);
+    for (const detail of asked) {
+        const json = JSON.stringify(detail);
+        expect(JSON.parse(json)).toEqual(detail);
+        expect(json).not.toContain(PREIMAGE);
+        expect(json).not.toContain(TEXT);
+        expect(enumerableValues(detail).some(v => typeof v === 'function')).toBe(false);
+    }
+    expect(asked[0].change.kind).toBe('change');
+    expect(asked[0].change.changeKey).toMatch(/^[0-9a-f]{64}$/);
+    expect(asked[0].source).toBe('mock');
+});
+
+test('15. A silent regulator changes nothing: the aperture stays as last answered', async () => {
+    const tag = `x-silent-regulator-${Date.now()}`;
+    customElements.define(tag, class extends XFastRegulator {
+        advance() { return new Promise(() => {}) }
+    });
+    const mind = await mount(`
+          <m-region name="outside" modality="text" aperture="closed" dwell="1s" contactHorizon="10s" regulateDeadline="30ms">
+            <${tag}></${tag}>
+          </m-region>`);
+    const region = mind.querySelector('m-region[name="outside"]');
+    const changes = [];
+    region.addEventListener('aperture-change', e => changes.push(e.detail));
+    const before = region.aperture.version;
+    const t0 = Date.now();
+    await region.onBoundary(Date.now() + 60_000);
+    expect(Date.now() - t0).toBeGreaterThanOrEqual(25);
+    expect(region.aperture.state).toBe('closed');
+    expect(region.aperture.version).toBe(before);
+    expect(changes).toHaveLength(0);
 });
 
 test('15. Port-incomplete regulator throws at connect naming the missing method', async () => {
@@ -1140,14 +1181,12 @@ test('same-batch regulator binds after its tag is defined, without failing the p
     const mind = await mount(`
           <m-region name="host" modality="text" aperture="open" dwell="1s" contactHorizon="10s"></m-region>`);
     const tag = `x-deferred-regulator-${Date.now()}`;
-    class XDeferredRegulator extends MBaseComponent {
-        static provides = { regulator: true }
+    class XDeferredRegulator extends MRegulator {
         state = 'open'
         focus = null
         deficit = 0.42
         version = 0
         get gain() { return 1 }
-        allows() { return true }
         observe() {}
         advance() { return false }
         orient() { return false }
@@ -1178,7 +1217,7 @@ test('same-batch regulator binds after its tag is defined, without failing the p
     expect(region.aperture).toBeFalsy();
     customElements.define(tag, XDeferredRegulator);
     await delay(20);
-    expect(region.aperture).toBe(child);
+    expect(region.aperture).toBeInstanceOf(RegulatorMirror);
     expect(region.aperture.deficit).toBe(0.42);
 });
 

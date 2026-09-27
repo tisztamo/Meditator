@@ -9,7 +9,7 @@ import { reflectProvides, reflectBoundary, enclosingOf, enclosingAllOf, membrane
 export { enclosingOf, enclosingAllOf, membraneOf, part, providesOf } from "./enclosure.js"
 
 /** Events a membrane stops: what is fired inside it never reaches the society. */
-const MEMBRANE_LOCAL_EVENTS = ["percept-candidate", "aperture-register", "compare", ...APERTURE_REQUESTS]
+const MEMBRANE_LOCAL_EVENTS = ["percept-candidate", "aperture-register", "regulator-up", "compare", ...APERTURE_REQUESTS]
 
 /**
  * Base component class for all mind components.
