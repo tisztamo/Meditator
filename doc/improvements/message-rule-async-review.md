@@ -452,7 +452,11 @@ existing seam, none rewrites a mind's behaviour.
    by sender. The bidder followed the same day: the owner asks its owner-local
    bidder with a `bid` request (`MBidder`, `shared/bidders.js`), admits the
    answer by id and issues it again over its own percept, and refuses a silent
-   bidder at `bidDeadline`. See [message-rule.md](../architecture/message-rule.md).*
+   bidder at `bidDeadline`. Controllers followed: m-orient and m-search ask the
+   apertures by name (`orient`, `control`, `aperture-contract`,
+   `aperture-sources`) and m-orient asks `search-start`
+   (`shared/apertureRequests.js`); `edge-evidence` crosses as data. See
+   [message-rule.md](../architecture/message-rule.md).*
 9. **Decoupling cleanups** (independent of async, can interleave): `stats`
    topic + generic `m-ws` walk (§2.1); producers emit `backstage`, memory drops
    per-feature handlers (§2.2); per-membrane usage attribution (§2.3);

@@ -457,12 +457,26 @@ function freezeEdgeProvenance(provenance) {
  * replay a stale score to a later search. */
 export const EDGE_EVIDENCE_EVENT = 'edge-evidence';
 
+/** An EdgeEvidence as it crosses (message-rule.md, M2): its plain fields. The
+ * constructor is deterministic, so a receiver rebuilds it with `new
+ * EdgeEvidence(data)` (edgeEvidenceFrom), which validates it again. */
+export function edgeEvidenceData(evidence) {
+    return JSON.parse(JSON.stringify(evidence));
+}
+
+/** Rebuild a received EdgeEvidence, or null when the data is not one. */
+export function edgeEvidenceFrom(data) {
+    if (data instanceof EdgeEvidence) return data;
+    if (data == null || typeof data !== 'object') return null;
+    try { return new EdgeEvidence(data); } catch { return null; }
+}
+
 export function fireEdgeEvidence(host, evidence) {
     if (!(evidence instanceof EdgeEvidence)) throw new Error('fireEdgeEvidence publishes an EdgeEvidence');
     if (host == null || typeof host.fire !== 'function') {
         throw new Error('edge-evidence uses fire(), not pub()');
     }
-    return host.fire(EDGE_EVIDENCE_EVENT, evidence);
+    return host.fire(EDGE_EVIDENCE_EVENT, edgeEvidenceData(evidence));
 }
 
 /** Authoritative frame-assembly receipt, credited by percept id. Optional

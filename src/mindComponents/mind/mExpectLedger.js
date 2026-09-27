@@ -11,7 +11,7 @@ import {
 import {
     SEARCH_TARGET_EVENT, SEARCH_OUTCOME_EVENT,
 } from '../../infrastructure/predictionContracts.js'
-import { receiptsFrom, EdgeEvidence, EDGE_EVIDENCE_EVENT } from '../../infrastructure/perceptionContracts.js'
+import { receiptsFrom, EDGE_EVIDENCE_EVENT, edgeEvidenceFrom } from '../../infrastructure/perceptionContracts.js'
 import { mindHome } from '../../infrastructure/memoryVault.js'
 
 /**
@@ -144,8 +144,8 @@ export class MExpectLedger extends MBaseComponent {
     }
 
     _onEdgeEvidence = event => {
-        const evidence = event.detail
-        if (!(evidence instanceof EdgeEvidence)) return
+        const evidence = sentByComponent(event) ? edgeEvidenceFrom(event.detail) : null
+        if (!evidence) return
         this._append({
             kind: 'edge-score',
             targetId: evidence.targetId,

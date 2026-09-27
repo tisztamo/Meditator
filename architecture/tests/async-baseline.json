@@ -49,7 +49,6 @@
     "architecture/tests/wiring/perceptual-membrane.test.js > receipts credit by percept id once; a rebuilt equal credits; a replay does not",
     "architecture/tests/wiring/perceptual-membrane.test.js > threshold rejection and crowd-out do not clear debt or enter the typed index",
     "architecture/tests/wiring/perceptual-membrane.test.js > trusted human bypass crosses closure and preempts; a source payload cannot grant it",
-    "architecture/tests/wiring/phase-3b-b5.test.js > 25. target publication precedes the first attempt, which precedes source sampling",
     "architecture/tests/wiring/senses.test.js > feed-style ambient bid stays in the ambient band",
     "architecture/tests/wiring/senses.test.js > first daylight reading is a salient External band change",
     "architecture/tests/wiring/senses.test.js > second daylight reading is ambient with fresh prose",
@@ -57,10 +56,7 @@
     "architecture/tests/wiring/studio-command.test.js > roster: Force confirms first, then dispatches a force command",
     "architecture/tests/wiring/studio-command.test.js > roster: clicking a live card dispatches a focus command",
     "architecture/tests/wiring/studio-command.test.js > roster: the Sleep button dispatches a sleep command for that mind",
-    "architecture/tests/wiring/studio-command.test.js > speak: Send dispatches a command the hub forwards as input",
-    "architecture/tests/wiring/tier1-search.test.js > a CLOSED aperture search reports found on a tier-1 score, and no candidate text crosses",
-    "architecture/tests/wiring/tier1-search.test.js > a score below the threshold is a comparable non-match, not absence and not a match",
-    "architecture/tests/wiring/tier1-search.test.js > the tier-1 score never reaches the contact regulator as a change header"
+    "architecture/tests/wiring/studio-command.test.js > speak: Send dispatches a command the hub forwards as input"
   ],
   "violations": {
     "fire|aperture-register|function": {
@@ -77,15 +73,6 @@
       ],
       "paths": [
         "sample"
-      ]
-    },
-    "fire|edge-evidence|instance:EdgeEvidence": {
-      "senders": [
-        "m-grounded-sense",
-        "m-stereotic-news"
-      ],
-      "paths": [
-        "(root)"
       ]
     },
     "fire|interrupt-request|instance:InterruptRecord": {

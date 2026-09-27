@@ -1,9 +1,7 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
-import { part, providesOf } from "../shared/enclosure.js"
-import {
-    OrientationRequest, SearchTarget, MAX_SEARCH_LIFETIME_MS,
-} from '../../infrastructure/predictionContracts.js'
-import { parseTime } from '../../config/timeParser.js'
+import { providesOf } from "../shared/enclosure.js"
+import { OrientationRequest } from '../../infrastructure/predictionContracts.js'
+import { apertureNames, askOrientation, askSearchStart, askSources } from "../shared/apertureRequests.js"
 import { logger } from '../../infrastructure/logger.js'
 
 const log = logger('mOrient.js')
@@ -18,12 +16,20 @@ const FELT = "When the world grows loud or far, you can let a channel recede, tu
  *
  * The felt line names world-facing affordances and never exposes modality ids,
  * aperture states, thresholds, or control mechanics.
+ *
+ * Messages (message-rule.md, shared/apertureRequests.js): the apertures are asked
+ * by name — `orient` to change one, `aperture-sources` for the voices the schema
+ * offers — and the search controller with `search-start`. The aperture names come
+ * from a walk at offer time (addresses); the source names are the last answer,
+ * so the first offer may list none and a re-offer follows the answer.
  */
 export class MOrient extends MBaseComponent {
     _host = null
+    _sources = new Map()   // aperture name → its source names, as last answered
 
     onConnect() {
         this._register()
+        this._askSources()
         const mind = this.membrane()
         this._host = mind
         // Capture phase sees every aperture-register before the nearest aperture stops it.
@@ -40,6 +46,18 @@ export class MOrient extends MBaseComponent {
     _onApertureRegister = event => {
         if (!providesOf(event.target, 'aperture')) return
         this._refreshSchema()
+        this._askSources()
+    }
+
+    /** Ask every aperture for its sources; offer again if the answer changed the
+     *  schema. The walk can race a later aperture, which asks again on its own
+     *  aperture-register. */
+    async _askSources() {
+        const before = JSON.stringify([...this._sources])
+        const answered = await askSources(this)
+        if (!this.isConnected) return
+        this._sources = answered
+        if (JSON.stringify([...answered]) !== before) this._refreshSchema()
     }
 
     _register() {
@@ -98,49 +116,11 @@ export class MOrient extends MBaseComponent {
     }
 
     _apertureNames() {
-        const mind = this.membrane()
-        if (!mind) return []
-        const names = []
-        const walk = node => {
-            for (const el of part(node, 'aperture')) {
-                names.push(el.getAttribute('name') || el.localName)
-                walk(el)
-            }
-        }
-        walk(mind)
-        return names
+        return apertureNames(this.membrane())
     }
 
     _sourceNames() {
-        const mind = this.membrane()
-        if (!mind) return []
-        const names = []
-        const walk = node => {
-            for (const el of part(node, 'aperture')) {
-                if (typeof el.sourceNames === 'function') {
-                    for (const n of el.sourceNames()) if (n) names.push(n)
-                }
-                walk(el)
-            }
-        }
-        walk(mind)
-        return [...new Set(names)]
-    }
-
-    _apertureNamed(name) {
-        const mind = this.membrane()
-        if (!mind || !name) return null
-        let found = null
-        const walk = node => {
-            for (const el of part(node, 'aperture')) {
-                const n = el.getAttribute('name') || el.localName
-                if (n === name) { found = el; return }
-                walk(el)
-                if (found) return
-            }
-        }
-        walk(mind)
-        return found
+        return [...new Set([...this._sources.values()].flat())]
     }
 
     async _orient({ aperture, state, source, reason } = {}, ctx = {}) {
@@ -153,48 +133,22 @@ export class MOrient extends MBaseComponent {
             source: src,
             reason: (typeof reason === 'string' && reason.trim()) ? reason.trim() : 'look',
         })
-        const mind = this.membrane()
-        let accepted = false
-        for (const el of part(mind, 'aperture')) {
-            if (typeof el.requestOrientation !== 'function') continue
-            if (el.requestOrientation(request)) {
-                accepted = true
-                break
-            }
-        }
+        const accepted = await askOrientation(this, request)
         if (!accepted) log.debug(`orientation refused: ${aperture} ${state}`)
 
         const template = typeof ctx.template === 'string' ? ctx.template.trim() : ''
         if (template) {
-            const search = part(mind, 'search')[0]
-            if (search && typeof search.start === 'function') {
-                const routes = this._routesFor(aperture, src)
-                if (routes.length) {
-                    const budget = Number(search.attr?.('sampleBudget') || search.getAttribute?.('sampleBudget') || 6)
-                    const horizon = parseTime(search.attr?.('deadline') || search.getAttribute?.('deadline') || '2m')
-                    const ms = Math.min(
-                        Number.isFinite(horizon) && horizon > 0 ? horizon : 120000,
-                        MAX_SEARCH_LIFETIME_MS,
-                    )
-                    search.start(new SearchTarget({
-                        owner: search.attr?.('name') || search.getAttribute?.('name') || 'search',
-                        scopeId: mind.getAttribute('name') || mind.localName || 'mind',
-                        actId: ctx.actId ?? null,
-                        template,
-                        routes,
-                        sampleBudget: Number.isFinite(budget) && budget > 0 ? budget : 6,
-                        deadline: new Date(Date.now() + ms).toISOString(),
-                    }))
-                }
-            }
+            const routes = await this._routesFor(aperture, src)
+            if (routes.length) await askSearchStart(this, { template, routes, actId: ctx.actId ?? null })
         }
         // No experience: orienting is not a sensation.
         return {}
     }
 
-    _routesFor(aperture, source) {
-        const el = this._apertureNamed(aperture)
-        const names = typeof el?.sourceNames === 'function' ? el.sourceNames() : []
+    /** The routes a search may take: the named voice, or every voice of the
+     *  aperture, from the aperture's own answer. */
+    async _routesFor(aperture, source) {
+        const names = (await askSources(this)).get(aperture) || []
         if (source) {
             if (names.length && !names.includes(source)) return []
             return [{ aperture, source }]

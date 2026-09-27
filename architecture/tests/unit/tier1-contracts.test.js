@@ -87,7 +87,10 @@ describe('EdgeEvidence', () => {
         const evidence = new EdgeEvidence(base);
         fireEdgeEvidence(host, evidence);
         expect(fired[0][0]).toBe('edge-evidence');
-        expect(fired[0][1]).toBe(evidence);
+        // It crosses as plain data (message-rule.md), which rebuilds to the same score.
+        expect(fired[0][1]).not.toBeInstanceOf(EdgeEvidence);
+        expect(fired[0][1]).toEqual(JSON.parse(JSON.stringify(evidence)));
+        expect(new EdgeEvidence(fired[0][1])).toEqual(evidence);
         expect(() => fireEdgeEvidence({ pub() {} }, evidence)).toThrow(/fire\(\)/);
         expect(() => fireEdgeEvidence(host, { score: 1 })).toThrow(/EdgeEvidence/);
     });

@@ -1,15 +1,17 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
 import { part } from "../shared/enclosure.js"
 import {
-    ControlRequest, CONTROL_RESULT_EVENT, EdgeEvidence, EDGE_EVIDENCE_EVENT,
+    ControlRequest, CONTROL_RESULT_EVENT, EDGE_EVIDENCE_EVENT, edgeEvidenceFrom,
 } from '../../infrastructure/perceptionContracts.js'
 import {
     SearchTarget, SearchAttempt, SearchOutcome,
     fireSearchTarget, fireSearchOutcome,
-    EVALUATION_COMMIT_EVENT, SEARCH_OUTCOME_STATUSES,
+    EVALUATION_COMMIT_EVENT, SEARCH_OUTCOME_STATUSES, MAX_SEARCH_LIFETIME_MS,
 } from '../../infrastructure/predictionContracts.js'
 import { Evaluation } from '../../infrastructure/perceptionContracts.js'
 import { parseTime } from '../../config/timeParser.js'
+import { askContract, askControl, serveSearchStart } from '../shared/apertureRequests.js'
+import { sentByComponent } from '../../infrastructure/messageOrigin.js'
 import { logger } from '../../infrastructure/logger.js'
 
 const log = logger('mSearch.js')
@@ -34,6 +36,12 @@ const log = logger('mSearch.js')
  *    closed. The score is never fed to the contact regulator as a change header
  *    (perceptual-membrane.md#processing-tiers).
  *
+ * Messages (message-rule.md): m-orient asks `search-start {template, routes,
+ * actId}` and this controller applies its own budget and deadline. Each attempt
+ * asks the route's aperture by name: `aperture-contract` for the source's tier,
+ * then `control` with the request (the template only for a grounded route).
+ * Evidence arrives as the region's `evaluation-commit`, keyed by the attempt id.
+ *
  * Attributes: sampleBudget, deadline, attemptTimeout, matchThreshold (0.7).
  */
 export class MSearch extends MBaseComponent {
@@ -55,6 +63,7 @@ export class MSearch extends MBaseComponent {
         mind.addEventListener(CONTROL_RESULT_EVENT, this._onControlResult)
         mind.addEventListener(EVALUATION_COMMIT_EVENT, this._onCommit)
         mind.addEventListener(EDGE_EVIDENCE_EVENT, this._onEdgeEvidence)
+        this._unserveStart = serveSearchStart(this, mind, d => this._startFromRequest(d))
         // Sleep is the membrane's retained `sleeping` topic (message-rule.md).
         this.sub('!scope/sleeping', sleeping => { if (sleeping) this._onSleeping() }).catch(() => {})
     }
@@ -68,7 +77,27 @@ export class MSearch extends MBaseComponent {
             this._host.removeEventListener(EVALUATION_COMMIT_EVENT, this._onCommit)
             this._host.removeEventListener(EDGE_EVIDENCE_EVENT, this._onEdgeEvidence)
         }
+        this._unserveStart?.()
+        this._unserveStart = null
         this._host = null
+    }
+
+    /** A `search-start` request: the target is built here, from this controller's
+     *  own budget and deadline, so the asker needs to know neither. */
+    _startFromRequest({ template, routes, actId = null } = {}) {
+        const mind = this._host
+        const budget = Number(this.attr('sampleBudget') || 6)
+        const horizon = parseTime(this.attr('deadline') || '2m')
+        const ms = Math.min(Number.isFinite(horizon) && horizon > 0 ? horizon : 120000, MAX_SEARCH_LIFETIME_MS)
+        return this.start(new SearchTarget({
+            owner: this.attr('name') || 'search',
+            scopeId: mind?.getAttribute('name') || mind?.localName || 'mind',
+            actId,
+            template,
+            routes,
+            sampleBudget: Number.isFinite(budget) && budget > 0 ? budget : 6,
+            deadline: new Date(Date.now() + ms).toISOString(),
+        }))
     }
 
     start(target) {
@@ -129,11 +158,35 @@ export class MSearch extends MBaseComponent {
             ordinal: live.attemptedSamples,
             deadline: new Date(attemptDeadlineMs).toISOString(),
         })
-        const aperture = this._apertureNamed(route.aperture)
-        // The template travels only to a source that declared it can ground it.
-        // A tier-0 source is told nothing about what is sought — that is the
-        // control arm and the no-leak guarantee both.
-        const grounded = this._groundedRoute(aperture, route.source)
+        this._attempt = {
+            record: attempt,
+            state: 'issued',
+            evidenceTaken: false,
+            grounded: false,
+            edge: null,
+        }
+        this._clearTimer()
+        const wait = Math.max(1, attemptDeadlineMs - Date.now())
+        const gen = live.generation
+        const current = () => this._live?.generation === gen
+            && this._attempt?.record.id === attempt.id && this._attempt.state === 'issued'
+        this._timer = setTimeout(() => {
+            if (current()) this._completeAttempt('timed-out')
+        }, wait)
+        this._deliverAttempt(attempt, route, attemptDeadlineMs, current).catch(() => {
+            if (current()) this._completeAttempt('refused')
+        })
+    }
+
+    /** Ask the route's aperture, by name: its source's contract first, then the
+     *  control request. The template travels only to a source that declared it can
+     *  ground it; a tier-0 source is told nothing about what is sought — that is
+     *  the control arm and the no-leak guarantee both. */
+    async _deliverAttempt(attempt, route, attemptDeadlineMs, current) {
+        const live = this._live
+        const grounded = await this._groundedRoute(route.aperture, route.source)
+        if (!current()) return
+        this._attempt.grounded = grounded
         const request = new ControlRequest({
             id: attempt.id,
             kind: 'focus',
@@ -145,36 +198,15 @@ export class MSearch extends MBaseComponent {
             deadline: attemptDeadlineMs,
             template: grounded ? live.target.template : null,
         })
-        this._attempt = {
-            record: attempt,
-            state: 'issued',
-            evidenceTaken: false,
-            grounded,
-            edge: null,
-        }
-        const delivered = aperture && typeof aperture.requestControl === 'function'
-            ? aperture.requestControl(request)
-            : false
-        if (!delivered) {
-            this._completeAttempt('refused')
-            return
-        }
-        this._clearTimer()
-        const wait = Math.max(1, attemptDeadlineMs - Date.now())
-        const gen = live.generation
-        this._timer = setTimeout(() => {
-            if (!this._live || this._live.generation !== gen) return
-            if (!this._attempt || this._attempt.record.id !== attempt.id) return
-            if (this._attempt.state !== 'issued') return
-            this._completeAttempt('timed-out')
-        }, wait)
+        const delivered = await askControl(this, route.aperture, request)
+        if (!delivered && current()) this._completeAttempt('refused')
     }
 
     /** A route is edge-grounded when its source's own contract says so: tier 1
-     * plus a decider. Read from the frozen SourceContract through the aperture,
-     * never from the element. */
-    _groundedRoute(aperture, source) {
-        const contract = typeof aperture?.contractFor === 'function' ? aperture.contractFor(source) : null
+     * plus a decider. Asked of the aperture (its frozen SourceContract), never
+     * read from the element. */
+    async _groundedRoute(aperture, source) {
+        const contract = await askContract(this, aperture, source)
         return contract?.tier === 1 && !!contract.decider
     }
 
@@ -186,10 +218,11 @@ export class MSearch extends MBaseComponent {
     /** A tier-1 score for the live attempt. The number decides the route; the
      * source's text never arrives and is never asked for. */
     _onEdgeEvidence = event => {
-        const evidence = event.detail
+        // Plain data, from a component (the source that made the score).
+        const evidence = sentByComponent(event) ? edgeEvidenceFrom(event.detail) : null
         const live = this._live
         const attempt = this._attempt
-        if (!(evidence instanceof EdgeEvidence) || !live || !attempt) return
+        if (!evidence || !live || !attempt) return
         if (attempt.state !== 'issued') return
         if (evidence.requestId !== attempt.record.id) return
         if (evidence.sourceName !== attempt.record.route.source) return
@@ -226,7 +259,7 @@ export class MSearch extends MBaseComponent {
         this._issueNext()
     }
 
-    _noteEvidence(requestId, evidenceId, evaluations) {
+    _noteEvidence(requestId, evidenceId, evaluations, evaluationIds = null) {
         const live = this._live
         const attempt = this._attempt
         if (!live || !attempt || attempt.record.id !== requestId) return
@@ -236,6 +269,10 @@ export class MSearch extends MBaseComponent {
         if (evidenceId) live.evidenceIds.push(evidenceId)
         for (const evaluation of list) {
             if (evaluation instanceof Evaluation) live.evaluationIds.push(evaluation.id)
+        }
+        // From a commit: the ids it carries (its evaluations stay with the region).
+        if (Array.isArray(evaluationIds)) {
+            for (const id of evaluationIds) if (typeof id === 'string' && id) live.evaluationIds.push(id)
         }
         const targetVerdicts = list
             .filter(e => e?.subject?.kind === 'target' && e.subject.id === live.target.id)
@@ -278,7 +315,7 @@ export class MSearch extends MBaseComponent {
             subject: { kind: 'target', id: live.target.id },
             verdict,
         }))
-        this._noteEvidence(commit.requestId, commit.evidenceId, evaluations)
+        this._noteEvidence(commit.requestId, commit.evidenceId, evaluations, commit.evaluationIds)
     }
 
     _onSleeping = () => {
@@ -308,22 +345,6 @@ export class MSearch extends MBaseComponent {
         fireSearchOutcome(this, outcome)
         log.debug(`search ${status} coverage=${coverage.toFixed(2)} samples=${live.attemptedSamples}`)
         return outcome
-    }
-
-    _apertureNamed(name) {
-        const mind = this.membrane()
-        if (!mind || !name) return null
-        let found = null
-        const walk = node => {
-            for (const el of part(node, 'aperture')) {
-                const n = el.getAttribute('name') || el.localName
-                if (n === name) { found = el; return }
-                walk(el)
-                if (found) return
-            }
-        }
-        walk(mind)
-        return found
     }
 
     _clearTimer() {

@@ -223,9 +223,10 @@ test('32. a closed tier-0 route leaks no template and cannot be searched through
     earth.line = 'hello item'
     const outcomes = []
     mind.addEventListener(SEARCH_OUTCOME_EVENT, e => outcomes.push(e.detail))
-    search.start(target({ template: 'hello item', sampleBudget: 2 }))
-    await waitFor(() => outcomes.length)
-    expect(outcomes[0].status).toBe('found')
+    // The first search's outcome may still be on its way: correlate by id (M5).
+    const id = search.start(target({ template: 'hello item', sampleBudget: 2 }))
+    const outcome = await waitFor(() => outcomes.find(o => o.targetId === id))
+    expect(outcome.status).toBe('found')
 })
 
 test('33. with no search controller, a standalone focus remains accepted and changes no aperture state', async () => {
@@ -250,7 +251,7 @@ test('ControlRequest.template is null on every request this phase issues', async
         return orig(req)
     }
     search.start(target())
-    await delay(40)
+    await waitFor(() => templates.length)      // the attempt is asked for by message
     expect(templates.length).toBeGreaterThan(0)
     expect(templates.every(t => t == null)).toBe(true)
 })

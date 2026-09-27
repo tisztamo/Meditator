@@ -6,7 +6,8 @@
 > reported to the supervisor; agent governance, the step round trip and the
 > perception gate are request/reply with a quorum; the stream's output filters
 > are asked, stage by stage; the comparator and the bidder are asked, and a
-> request can be cancelled (2026-09-27).**
+> request can be cancelled; controllers ask the apertures by name
+> (2026-09-27).**
 > The analysis behind it is
 > [message-rule-async-review.md](../improvements/message-rule-async-review.md).
 > This page states the rule, the one exception, and how the tree is held to it.
@@ -293,6 +294,25 @@ message hops separate the prediction from the sample's compare. Two tests
 
 Two bidders under one owner still throw, as before.
 
+**Controllers and apertures (review §7 step 8, third part, 2026-09-27).** Built in
+`src/mindComponents/shared/apertureRequests.js`:
+
+| Before | Now |
+|---|---|
+| m-orient walked the membrane's apertures and called `requestOrientation(request)` on each top-level one, which recursed into its children until the named aperture took it | an `orient {request}` request, heard on the membrane. Every aperture, nested ones included, binds there at connect and answers only when the request names it (`{accepted}`). Aperture names are unique within a membrane, so one answers. |
+| m-search looked up the route's aperture element, read `contractFor(source)` from it to decide whether the template may travel, and called `requestControl(request)` | two requests by the aperture's name: `aperture-contract {aperture, source}` → `{contract}` (the frozen policy fields, no text), then `control {aperture, request}` → `{delivered}`. The template is in the second only for a grounded source, so a tier-0 route is still told nothing, on the wire too. The attempt's timer now covers the asking. |
+| m-orient built the `SearchTarget` itself, reading m-search's `sampleBudget` / `deadline` attributes, and called `search.start(target)` | `search-start {template, routes, actId}` → `{targetId}`. m-search builds the target from its own attributes. |
+| m-orient called `sourceNames()` on every aperture for its schema and its routes | `aperture-sources {}` asked of the aperture roster (`requestAll`, `rosterAnswered`) → `{aperture, sources}`. The schema lists the sources of the last answer and is offered again when an answer changes it. |
+| m-region handed its evaluations to `search.observe({requestId, evidenceId, evaluations})` after its `evaluation-commit` | nothing is handed over. m-search already heard the commit on the membrane (and in sync dispatch, before the call). It now also takes the commit's evaluation ids, so an outcome's `evaluationIds` are filled, where the call's `Evaluation` instances had never arrived. |
+| `edge-evidence` carried an `EdgeEvidence` instance (dropped by `instanceof` on the json wire) | its plain fields (`edgeEvidenceData`); m-search and m-expect-ledger rebuild it (`edgeEvidenceFrom`) only when a component sent it |
+
+The membrane stops all five requests, and `search-start` carries the template.
+The region's `requestOrientation()` / `requestControl()` / `contractFor()` stay as
+the implementation the responders run, which the tests still drive and stub.
+Inside one aperture tree a parent still forwards control to its child apertures by
+call, reads their `contactPressure` and calls its parent's `_publishAperture()`.
+That tree, the regulator and the aggregator are the next part.
+
 ## How the tree is held to it
 
 The rule is enforced by measurement rather than by audit list.
@@ -437,6 +457,16 @@ violation kinds, 60 role-port calls. The bidder's method call survived chaos in 
 heap, so nothing turned green and nothing regressed. What changed is that the call
 is a message now. One test was added (a silent bidder is refused at its deadline),
 and it passes under every delivery mode.
+
+**After controllers and apertures (2026-09-27).** 54 of 1166 fail (4 fixed: the
+three tier-1 search tests, whose score now crosses the json wire, and B5 test 25),
+2 violation kinds (`fire|edge-evidence|instance:EdgeEvidence` is gone), 60
+role-port calls. All 38 contracts pass. The B5 and tier-1 search tests pass on
+10 of 10 `jitter` seeds. Before this step, B5 test 32 and the tier-1 tests failed
+under `jitter`. Test 32 now correlates the outcome it waits for by target id,
+because the previous search's outcome could arrive after the next search started.
+One B5 test waited a fixed 40 ms for an attempt that is now two round trips away,
+and it waits for the attempt instead.
 
 ## What it does not change
 

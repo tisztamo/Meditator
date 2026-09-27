@@ -1,5 +1,5 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
-import { enclosingOf, enclosingAllOf, isMembrane, providesOf, isCustomElementDefined, part } from "../shared/enclosure.js"
+import { enclosingOf, enclosingAllOf, isMembrane, providesOf, isCustomElementDefined } from "../shared/enclosure.js"
 import { Aperture } from '../../infrastructure/aperture.js'
 import { Percept, PerceptCandidate } from '../../infrastructure/percept.js'
 import { SourceContract, AnnotatedCandidate, decideGate, GateVerdict, ControlRequest, RenditionRequest, receiptsFrom, pushGainTrail, fireControlResult } from '../../infrastructure/perceptionContracts.js'
@@ -12,6 +12,7 @@ import { CompareBudget, CommitOrder, evaluationIdsOf, verdictsOf } from '../../i
 import { runEvidenceCase } from '../../infrastructure/evidenceCase.js'
 import { comparatorOf, askComparator } from '../shared/comparators.js'
 import { bidderOf, issueBid } from '../shared/bidders.js'
+import { serveApertureRequests } from '../shared/apertureRequests.js'
 import { evaluationCommitPayload, fireEvaluationCommit } from '../../infrastructure/predictionContracts.js'
 import { OrientationRequest } from '../../infrastructure/predictionContracts.js'
 import { logger } from '../../infrastructure/logger.js'
@@ -168,6 +169,9 @@ export class MRegion extends MBaseComponent {
         // re-attach it in another phase and so disconnect can remove it.
         this._onPerceptCandidate = respond(this, 'percept-candidate', (detail, event) => this._gateAnswer(detail, event))
         this.addEventListener('aperture-register', this._onApertureRegister)
+        // Controllers (m-orient, m-search) ask this aperture by name, through the
+        // membrane (shared/apertureRequests.js).
+        this._unserveApertureRequests = serveApertureRequests(this, mind)
         this._bindAperture()
     }
 
@@ -178,6 +182,8 @@ export class MRegion extends MBaseComponent {
         }
         this._compareAborts?.clear()
         this._unlistenPercepts?.()
+        this._unserveApertureRequests?.()
+        this._unserveApertureRequests = null
         if (this._onPerceptCandidate) this.removeEventListener('percept-candidate', this._onPerceptCandidate)
         this.removeEventListener('aperture-register', this._onApertureRegister)
         if (this.aperture) this.aperture.version++
@@ -547,6 +553,8 @@ export class MRegion extends MBaseComponent {
         const subjects = evaluations
             .filter(e => e?.subject?.kind && e.verdict)
             .map(e => ({ kind: e.subject.kind, verdict: e.verdict }))
+        // The search controller hears this commit on the membrane (its request id,
+        // evidence id, evaluation ids and verdicts): nothing else is handed to it.
         fireEvaluationCommit(this, evaluationCommitPayload({
             evaluationIds: evaluationIdsOf(evaluations),
             verdicts: verdictsOf(evaluations),
@@ -556,15 +564,6 @@ export class MRegion extends MBaseComponent {
             requestId: percept.requestId,
             subjects,
         }))
-        const mind = this._mind()
-        const search = mind ? part(mind, 'search')[0] : null
-        if (search && typeof search.observe === 'function' && percept.requestId) {
-            search.observe({
-                requestId: percept.requestId,
-                evidenceId: percept.id,
-                evaluations,
-            })
-        }
     }
 
     /**
@@ -718,6 +717,20 @@ export class MRegion extends MBaseComponent {
             if (entry.source === name) return entry.contract
         }
         return null
+    }
+
+    /** An `orient` request's plain request, rebuilt (shared/apertureRequests.js). */
+    _orientFromRequest(data) {
+        let request
+        try { request = new OrientationRequest(data) } catch { return false }
+        return this.requestOrientation(request)
+    }
+
+    /** A `control` request's plain request, rebuilt with its id (the attempt's). */
+    _controlFromRequest(data) {
+        let request
+        try { request = new ControlRequest(data) } catch { return false }
+        return this.requestControl(request)
     }
 
     requestOrientation(request) {
