@@ -840,10 +840,13 @@ test('M7. Outer untargeted requestControl reaches a source registered on the inn
         received = request;
     });
     const request = sampleRequest();
-    outer.requestControl(request);
+    await outer.requestControl(request);
     await delay(5);
     expect(hits).toBe(1);
-    expect(received).toBe(request);
+    // Forwarded by message: the inner rebuilds the request, same id and fields.
+    expect(received).not.toBe(request);
+    expect(received).toEqual(request);
+    expect(received.id).toBe(request.id);
 });
 
 test('M7. Targeted request is delivered once by the nearest owner; first sibling in tree order wins', async () => {
@@ -867,7 +870,7 @@ test('M7. Targeted request is delivered once by the nearest owner; first sibling
     left.registerSource(garden, () => { called.push('left-garden'); });
     left.registerSource(pond, () => { called.push('pond'); });
     right.registerSource(siblingGarden, () => { called.push('right-garden'); });
-    outer.requestControl(sampleRequest('garden'));
+    await outer.requestControl(sampleRequest('garden'));
     await delay(5);
     expect(called).toEqual(['left-garden']);
 });
@@ -887,11 +890,11 @@ test('M7. Untargeted respects each provider\'s allows(); targeted from outer sti
     expect(inner.aperture.state).toBe('closed');
     expect(outer.aperture.state).toBe('open');
 
-    outer.requestControl(sampleRequest());
+    await outer.requestControl(sampleRequest());
     await delay(5);
     expect(hits).toBe(0);
 
-    outer.requestControl(sampleRequest('mock'));
+    await outer.requestControl(sampleRequest('mock'));
     await delay(5);
     expect(hits).toBe(1);
 });
@@ -915,7 +918,7 @@ test('M7. Child aperture appended after the parent has connected still forwards'
     inner.appendChild(source);
     let hits = 0;
     inner.registerSource(source, () => { hits++; });
-    outer.requestControl(sampleRequest());
+    await outer.requestControl(sampleRequest());
     await delay(5);
     expect(hits).toBe(1);
 });
@@ -1157,7 +1160,7 @@ test('targeted control at a detached nearest owner does not fall through to a si
     left.registerSource(garden, () => { called.push('left-garden'); });
     right.registerSource(siblingGarden, () => { called.push('right-garden'); });
     garden.remove();
-    outer.requestControl(sampleRequest('garden'));
+    await outer.requestControl(sampleRequest('garden'));
     await delay(5);
     expect(called).toEqual([]);
 });

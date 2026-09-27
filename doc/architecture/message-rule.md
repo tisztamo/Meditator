@@ -7,8 +7,8 @@
 > perception gate are request/reply with a quorum; the stream's output filters
 > are asked, stage by stage; the comparator and the bidder are asked, and a
 > request can be cancelled; controllers ask the apertures by name; a substituted
-> contact regulator is a message peer, and contact pressure is heard, not read
-> (2026-09-27).**
+> contact regulator is a message peer, contact pressure is heard, not read, and
+> an aperture asks its child apertures by name (2026-09-27).**
 > The analysis behind it is
 > [message-rule-async-review.md](../improvements/message-rule-async-review.md).
 > This page states the rule, the one exception, and how the tree is held to it.
@@ -312,8 +312,7 @@ The region's `requestOrientation()` / `requestControl()` / `contractFor()` stay 
 the implementation the responders run, which the tests still drive and stub.
 Inside one aperture tree a parent still forwards control to its child apertures by
 call, reads their `contactPressure` and calls its parent's `_publishAperture()`.
-That tree, the regulator and the aggregator were the next part (below; the
-forwarding is still a call).
+That tree, the regulator and the aggregator were the next part (below).
 
 **The contact regulator (review §7 step 8, fourth part, 2026-09-27).** Built in
 `src/mindComponents/shared/regulators.js`:
@@ -348,6 +347,18 @@ behind the aperture's. A mind's contact pressure moves over seconds to minutes (
 global mix is a 60 s exponential mean), so that lag is not a behaviour change.
 The tests that read the parent's fold right after a child's publish now wait for
 the delivery.
+
+**The aperture tree (review §7 step 8, sixth part, 2026-09-27).**
+
+| Before | Now |
+|---|---|
+| `requestControl` forwarded to each child aperture by calling `child.requestControl(request)` (after `customElements.upgrade(child)` and a method check) | a `control {aperture, request}` request to the child by name, the same one m-search sends. A named target goes to one child at a time in tree order, so the first owner takes it and a later sibling is never asked; an untargeted request goes to all at once. With children the result is a Promise, and the `control` responder awaits it. The child's source receives a rebuilt `ControlRequest` with the same id, no longer the parent's instance. |
+| `requestOrientation` for a nested name recursed into `child.requestOrientation(request)` | an `orient` request by name (only for an aperture inside this one); m-orient already addressed every aperture that way, so this branch is only the test and demo door |
+| `_versionsHold` read `gate.aperture.version` off every enclosing aperture element | each aperture publishes a retained `gateVersions` (its own version, then its enclosing gates' as it heard them) and mirrors its nearest enclosing aperture's. The hold compares the recorded versions with its own and with that mirror, over the current path's ids. A gate that left the path, or never bound, fails the hold, as before. Only versions travel down and only pressure travels up, so the two topics cannot loop. |
+
+The source registration (`aperture-register`'s `sample` callback, one of the two
+plain-data violation kinds left) and the candidate/materialize handshake between a
+source and its aperture are still in-process calls: the next step.
 
 ## How the tree is held to it
 

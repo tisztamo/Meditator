@@ -77,11 +77,12 @@ function req(over = {}) {
     })
 }
 
-test('17. a named request reaches a nested substitute aperture once; another membrane cannot satisfy it', () => {
+test('17. a named request reaches a nested substitute aperture once; another membrane cannot satisfy it', async () => {
     const hits = []
     const orig = inner.orient.bind(inner)
     inner.orient = (...args) => { hits.push(args); return orig(...args) }
-    expect(region.requestOrientation(req({ state: 'soft' }))).toBe(true)
+    // The outer asks the nested aperture by name (a message): the answer is awaited.
+    expect(await region.requestOrientation(req({ state: 'soft' }))).toBe(true)
     expect(hits).toHaveLength(1)
     expect(inner.aperture.state).toBe('soft')
 
@@ -90,7 +91,7 @@ test('17. a named request reaches a nested substitute aperture once; another mem
     const otherRegion = sibling.querySelector('m-region')
     const before = otherRegion.aperture?.state ?? null
     inner.aperture.changedAt = Date.now() - 1000
-    region.requestOrientation(req({ aperture: 'inner', state: 'closed' }))
+    await region.requestOrientation(req({ aperture: 'inner', state: 'closed' }))
     expect(otherRegion.aperture?.state ?? null).toBe(before)
 })
 

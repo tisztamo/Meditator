@@ -12,7 +12,7 @@ import { CompareBudget, CommitOrder, evaluationIdsOf, verdictsOf } from '../../i
 import { runEvidenceCase } from '../../infrastructure/evidenceCase.js'
 import { comparatorOf, askComparator } from '../shared/comparators.js'
 import { bidderOf, issueBid } from '../shared/bidders.js'
-import { serveApertureRequests, apertureRef } from '../shared/apertureRequests.js'
+import { serveApertureRequests, apertureRef, askControl, askOrientation } from '../shared/apertureRequests.js'
 import { REGULATOR_UP, RegulatorMirror, askRegulator, changeHeader } from '../shared/regulators.js'
 import { evaluationCommitPayload, fireEvaluationCommit } from '../../infrastructure/predictionContracts.js'
 import { OrientationRequest } from '../../infrastructure/predictionContracts.js'
@@ -105,7 +105,9 @@ function andThen(value, f) {
  * one is registered and grounds its own candidates (see MSense.ground). Its
  * scores never enter this provider: they are not candidates and never become
  * change headers.
- * Topics: contactPressure, apertureState (retained); perceptDecision (non-semantic
+ * Topics: contactPressure, apertureState, gateVersions (retained: this gate's
+ *   version and every enclosing gate's, as last heard, for a child's version hold);
+ *   perceptDecision (non-semantic
  *   gate verdicts); events: aperture-change (backstage); percept-candidate (a request,
  *   message-rule.md: plain data {stage, candidateId, contract, gates}, sent twice by
  *   the issuing aperture — acquisition then awareness — bubbling through every aperture
@@ -157,6 +159,10 @@ export class MRegion extends MBaseComponent {
         this._children = []
         this._childPressure = new Map()
         this._childSubs = new Map()
+        // The enclosing gates' versions, heard from the nearest enclosing aperture's
+        // retained `gateVersions` (its own and its ancestors'): what a version hold
+        // compares against, never another gate's element.
+        this._pathVersions = new Map()
         // At most 32 issued percept ids awaiting credit — same order as the
         // per-region source cap. WeakSet was wrong: a rebuilt record with the
         // same id must still credit. Evict the oldest issuedAt if the map is full.
@@ -212,6 +218,7 @@ export class MRegion extends MBaseComponent {
         this._children = []
         this._childPressure?.clear()
         this._childSubs?.clear()
+        this._pathVersions?.clear()
         this._issued?.clear()
         // The enclosing aperture and the arbiter hear this as "no pressure here now"
         // (a moved aperture publishes again when it binds). Amanita drops this
@@ -494,6 +501,10 @@ export class MRegion extends MBaseComponent {
     _adoptAperture(aperture) {
         if (this.aperture) return
         this.aperture = aperture
+        if (this.enclosing('aperture')) {
+            // `..` leaves this element, so the closest aperture is the enclosing one.
+            this.sub('../..[provides~="aperture"]/gateVersions', list => this._onPathVersions(list)).catch(() => {})
+        }
         this._publishAperture()
         this._assertUniqueApertureId()
         this._scanInterior()
@@ -577,6 +588,29 @@ export class MRegion extends MBaseComponent {
         this._childPressure.delete(el)
         sub?.then(desc => { if (desc) this.unsub(desc) })
         this._publishAperture()
+    }
+
+    /** The enclosing aperture's `gateVersions`: mirror them, and pass the path on
+     *  (own version first) to this aperture's own children. */
+    _onPathVersions(list) {
+        this._pathVersions = new Map()
+        for (const entry of Array.isArray(list) ? list : []) {
+            if (typeof entry?.gate === 'string' && Number.isFinite(entry.version)) {
+                this._pathVersions.set(entry.gate, entry.version)
+            }
+        }
+        this._publishGateVersions()
+    }
+
+    /** This gate's version and every enclosing gate's, as last heard. Only the
+     *  versions travel down: a parent's publish never makes a child publish its
+     *  pressure back up, so the two topics cannot loop. */
+    _publishGateVersions() {
+        if (!this.aperture) return
+        this.pub('gateVersions', [
+            { gate: this._gateId(), version: this.aperture.version },
+            ...[...this._pathVersions].map(([gate, version]) => ({ gate, version })),
+        ])
     }
 
     /** Linked children in tree order. Stale entries (disconnected) drop out
@@ -750,22 +784,20 @@ export class MRegion extends MBaseComponent {
     }
 
     /**
-     * Re-check every recorded `{ gate, version }` against that gate's live version.
-     * Resolve by id on the current enclosing aperture path, not a provider
-     * back-reference: AnnotatedCandidate freezes enumerable `{ gate, version }`
-     * only, and a gate that has left the tree must be a failed hold (drop), not
-     * permission — looking it up and not finding it needs no extra case.
+     * Re-check every recorded `{ gate, version }` against that gate's live version:
+     * this gate's own, and the enclosing gates' as last heard (`gateVersions`, M1).
+     * The path is resolved by id on the current enclosing apertures (a structural
+     * lookup yielding names): a gate that has left the tree, or never bound and so
+     * never published, is a failed hold (drop), not permission.
      */
     _versionsHold(annotated) {
         const recorded = annotated.versions
-        if (!recorded.length) return false
-        const path = enclosingAllOf(this, 'aperture')
-        if (!path.includes(this)) path.unshift(this)
-        const live = new Map()
-        for (const el of path) live.set(gateIdOf(el), el)
+        if (!recorded.length || !this.aperture) return false
+        const own = this._gateId()
+        const path = new Set(enclosingAllOf(this, 'aperture').map(gateIdOf))
         return recorded.every(entry => {
-            const gate = live.get(entry.gate)
-            return gate?.aperture != null && entry.version === gate.aperture.version
+            if (entry.gate === own) return entry.version === this.aperture.version
+            return path.has(entry.gate) && entry.version === this._pathVersions.get(entry.gate)
         })
     }
 
@@ -808,16 +840,24 @@ export class MRegion extends MBaseComponent {
             if (!this.aperture) return false
             return this.orient(request.state, request.source ?? null, Date.now(), { actId: request.actId })
         }
-        for (const child of this._childProviders()) {
-            if (!child.isConnected) continue
-            customElements.upgrade(child)
-            if (typeof child.requestOrientation !== 'function') continue
-            // Names are unique in a membrane: a child's pending answer is the answer.
-            const accepted = child.requestOrientation(request)
-            if (accepted instanceof Promise) return accepted
-            if (accepted) return true
+        // An aperture inside this one is asked by name, as a controller would ask it
+        // (names are unique in a membrane, so only it answers). Resolves to whether
+        // it oriented. Anything outside this aperture is not reached from here.
+        if (!this._interiorApertureNames().includes(request.aperture)) return false
+        return askOrientation(this, request)
+    }
+
+    /** Every aperture inside this one, nested ones too: names, not handles (M4). */
+    _interiorApertureNames() {
+        const names = []
+        const walk = node => {
+            for (const el of node.part ? node.part('aperture') : []) {
+                names.push(gateIdOf(el))
+                walk(el)
+            }
         }
-        return false
+        walk(this)
+        return names
     }
 
     /** Whether the aperture changed: a boolean with the built-in policy, a Promise
@@ -868,7 +908,8 @@ export class MRegion extends MBaseComponent {
      * target is delivered once by the nearest owner and not forwarded further.
      * If two sibling providers both own the name, first in tree order wins.
      * Owning a detached or sleeping source still claims the name — dropping is
-     * not an error and must not fall through to a later sibling. */
+     * not an error and must not fall through to a later sibling. Children are
+     * asked by message (_forwardControl): with any, the result is a Promise. */
     requestControl(request) {
         if (!(request instanceof ControlRequest)) throw new Error('requestControl requires a ControlRequest')
         if (!this.aperture) return false
@@ -889,16 +930,27 @@ export class MRegion extends MBaseComponent {
             if (targeted) break
         }
         if (targeted && owned) return true
-        for (const child of this._childProviders()) {
-            if (!child.isConnected) continue
-            customElements.upgrade(child)
-            if (typeof child.requestControl !== 'function') continue
-            if (child.requestControl(request)) {
-                delivered = true
-                if (targeted) return true
+        const children = this._childProviders().map(gateIdOf)
+        if (!children.length) return delivered
+        return this._forwardControl(children, request, delivered)
+    }
+
+    /**
+     * Forward to the child apertures, each asked by name with a `control` request
+     * (shared/apertureRequests.js), as any controller would ask it. A named target
+     * goes to one child at a time in tree order, so the first that owns it takes it
+     * and a later sibling is never asked. An untargeted request goes to all of them
+     * at once. A child silent past the deadline delivered nothing (M6).
+     */
+    async _forwardControl(children, request, delivered) {
+        if (request.target != null) {
+            for (const child of children) {
+                if (await askControl(this, child, request)) return true
             }
+            return delivered
         }
-        return delivered
+        const answers = await Promise.all(children.map(child => askControl(this, child, request)))
+        return delivered || answers.some(Boolean)
     }
 
     /** Snapshot this request around the sample callback so a second control in
@@ -993,6 +1045,7 @@ export class MRegion extends MBaseComponent {
         this.pub('apertureState', { state: this.aperture.state, focus: this.aperture.focus,
             contactPressure: pressure, gain: this.aperture.gain })
         // The enclosing aperture (only the nearest: tree, not graph) is subscribed.
+        this._publishGateVersions()
     }
 
     _publishDecision(verdict, annotated) {

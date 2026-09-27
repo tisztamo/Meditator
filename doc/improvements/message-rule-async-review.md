@@ -462,8 +462,10 @@ existing seam, none rewrites a mind's behaviour.
    region's own synchronous state. Contact pressure followed: a parent aperture
    and the arbiters hear it from the retained `contactPressure` topics instead
    of reading it off the elements, and the aggregator is a peer (`MAggregator`,
-   `shared/aggregators.js`) asked when a pressure changes. See
-   [message-rule.md](../architecture/message-rule.md).*
+   `shared/aggregators.js`) asked when a pressure changes. Inside the tree a
+   parent asks its child apertures by name (`control`, `orient`), and version
+   holds read a retained `gateVersions` mirror instead of the enclosing
+   elements. See [message-rule.md](../architecture/message-rule.md).*
 9. **Decoupling cleanups** (independent of async, can interleave): `stats`
    topic + generic `m-ws` walk (§2.1); producers emit `backstage`, memory drops
    per-feature handlers (§2.2); per-membrane usage attribution (§2.3);

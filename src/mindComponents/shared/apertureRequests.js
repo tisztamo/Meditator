@@ -22,8 +22,8 @@
 //
 // What stays a method: the region's requestOrientation / requestControl /
 // contractFor are the implementation the responder runs (tests still drive and
-// stub them), and inside one aperture tree a parent still forwards control to
-// its child apertures by call. That tree is the next step.
+// stub them). Inside one aperture tree a parent forwards to its child apertures
+// with these same requests, by the child's name.
 
 import { respond, responderName, rosterAnswered } from "../../infrastructure/requestReply.js"
 import { sentByComponent } from "../../infrastructure/messageOrigin.js"
@@ -123,9 +123,10 @@ export function serveApertureRequests(region, mind) {
             // A substituted regulator answers by message: the orientation is a Promise.
             return { accepted: (await region._orientFromRequest(d.request)) === true }
         }, { on: mind })],
-        [CONTROL_REQUEST, respond(region, CONTROL_REQUEST, (d, e) => {
+        [CONTROL_REQUEST, respond(region, CONTROL_REQUEST, async (d, e) => {
             if (!fromComponent(e) || d?.aperture !== mine()) return undefined
-            return { delivered: region._controlFromRequest(d.request) === true }
+            // Forwarding to child apertures is itself asked: the delivery is a Promise.
+            return { delivered: (await region._controlFromRequest(d.request)) === true }
         }, { on: mind })],
         [CONTRACT_REQUEST, respond(region, CONTRACT_REQUEST, (d, e) => {
             if (!fromComponent(e) || d?.aperture !== mine()) return undefined
