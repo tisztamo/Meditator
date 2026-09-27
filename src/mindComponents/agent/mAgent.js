@@ -3,6 +3,9 @@ import { MBaseComponent } from "../shared/mBaseComponent.js"
 import { validateAgainstSchema } from "../shared/toolSchema.js"
 import { HandRegistry } from "../shared/hands.js"
 import { providesOf } from "../shared/enclosure.js"
+import { proposeCall, DEFAULT_GOVERN_DEADLINE_MS } from "../shared/governance.js"
+import { responderName, rosterAnswered } from "../../infrastructure/requestReply.js"
+import { parseTime } from "../../config/timeParser.js"
 import { logger } from "../../infrastructure/logger.js"
 
 const log = logger("mAgent.js")
@@ -34,8 +37,11 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
  *     to a mind's hands offering to m-act); m-agent catches them anywhere in its
  *     subtree, republishes the schema set as a retained `tools` topic, and runs a tool
  *     with a `call` request the tool answers (shared/hands.js).
- *   - Observers (loop guard, …) subscribe to `step` and bubble `nudge` / `halt`
- *     events up; a nudge folds into the next `user` turn, a halt is a stop condition.
+ *   - Monitors (the loop guard, …) answer the `step` request with {nudge?, halt?}, and
+ *     the next turn waits for them; a nudge folds into the next `user` turn, a halt is
+ *     a stop condition. Other parts may still bubble `nudge` / `halt` events at any
+ *     time (m-jobs' "a background job finished"); those apply to the next turn.
+ *   - Governors answer a `proposal` request before each tool call (the GOVERN seam).
  *   - m-agent publishes `status` and `transcript` for the Studio / a report port.
  *
  * Because m-reason is a separate, swappable component, the reasoning strategy can be
@@ -62,13 +68,19 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
  * Subscriptions (all optional, auto-discovered children): "reason/reply",
  *   "<context>/restore" {messages, step}, "<context>/compacted" {summarizeCount, summary}.
  * Events consumed (bubbling): "capability", "nudge", "halt", "task".
+ * Requests (shared/governance.js, infrastructure/requestReply.js):
+ *   - "proposal" {agent, name, args} before each tool call, answered by every `governor`
+ *     part (deadline `governDeadline`, default 60s; a silent governor denies).
+ *   - "step" {index, assistantText, calls, observations} at each step boundary, answered
+ *     by every `monitor` part (deadline `stepDeadline`, default 5s; a silent one is skipped).
  * Topics published:
  *   - "turn": {system, messages, tools} — the assembled request for this step.
  *   - "status": {state, step, maxSteps, done, answer?, reason?} — for the Studio / m-report.
  *   - "transcript": the working message array (a copy) — for the Studio / m-context.
  *   - "tools": the tool schema set — for the Studio.
  * Events fired:
- *   - "step": {index, assistantText, calls, observations} — the boundary of one step.
+ *   - "step": {index, assistantText, calls, observations} — the boundary of one step
+ *     (a request to the monitors; observers hear it as a plain event).
  *   - "done": {answer, steps, reason, error?} — a task ended (fires once per task).
  */
 export class MAgent extends MBaseComponent {
@@ -130,8 +142,9 @@ export class MAgent extends MBaseComponent {
         this._toolRegistry.listen()
 
         // Observer seams (agent-loop.md §3, §9): a `nudge` becomes a note on the next
-        // user turn; a `halt` is a stop condition. Pure observers wire onto these with
-        // no change to the kernel. stopPropagation so a signal is claimed by the NEAREST
+        // user turn; a `halt` is a stop condition. A monitor answers the `step` request
+        // instead, so its signal is tied to that step (_consultMonitors); these events
+        // are for signals with no step to answer (m-jobs). stopPropagation so a signal is claimed by the NEAREST
         // agent: a background sub-agent nested in another <m-agent> (agent-loop.md §16) has
         // its own observers whose nudge/halt must not leak up and derail the parent's loop.
         this.addEventListener("nudge", e => { e.stopPropagation(); const t = e?.detail?.text; if (t) this._nudges.push(String(t)) })
@@ -397,8 +410,9 @@ export class MAgent extends MBaseComponent {
         this.pub("transcript", [...this._messages])
 
         // The step boundary — a transient event, the twin of m-stream's `boundary`.
-        // Observers (m-repeat-guard, m-todo, the Studio) watch it (agent-loop.md §3, §9).
-        this.fire("step", {
+        // Observers (m-context, m-report, the Studio) watch it (agent-loop.md §3, §9);
+        // monitors (m-repeat-guard) answer it, and the next turn waits for them.
+        await this._consultMonitors({
             index: this._step,
             assistantText: text,
             calls: calls.map(c => ({ id: c.id, name: c.function?.name, args: safeArgs(c.function?.arguments) })),
@@ -417,6 +431,32 @@ export class MAgent extends MBaseComponent {
         }
         if (this._sleeping || this._done) return
         this._publishTurn()
+    }
+
+    /** Fire the `step` boundary as a request to this agent's MONITORS: parts providing
+     *  the `monitor` role (m-repeat-guard), counted by name. Each answers
+     *  {nudge?, halt?} for THIS step (the requestId correlates it, M5), and the next
+     *  turn is not issued until every monitor has answered or `stepDeadline` (default
+     *  5s) passed. A nudge folds into the next turn; a halt stops the loop before it.
+     *  A monitor is advisory: one that misses the deadline is skipped (M6), and only
+     *  this agent's own monitors are heard (a step bubbles, so an enclosing agent's
+     *  guard hears it too, and its answer is not this loop's to take). Observers that
+     *  never answer (m-context, m-report, m-ws) hear the same event, unchanged. */
+    async _consultMonitors(step) {
+        const roster = this.part("monitor").map(responderName)
+        const { status, replies } = await this.requestAll("step", step, {
+            until: rosterAnswered(roster),
+            deadline: this._deadline("stepDeadline", DEFAULT_STEP_DEADLINE_MS),
+        })
+        for (const reply of replies) {
+            if (reply.status !== "ok" || !roster.includes(reply.from)) continue
+            const { nudge, halt } = reply.data || {}
+            if (nudge) this._nudges.push(String(nudge))
+            if (halt && !this._halt) this._halt = String(halt)
+        }
+        if (status === "timeout" && roster.length) {
+            log.warn(`"${this.attr("name") || "agent"}" step ${step.index}: a monitor did not answer in time; continuing without it`)
+        }
     }
 
     /** Run every tool call the model returned. They are independent, so execute them
@@ -733,32 +773,25 @@ export class MAgent extends MBaseComponent {
 
     /**
      * The GOVERN seam (agent-loop.md §6, §11) — the checkpoint between reason and act. A
-     * governor (an <m-norm>, a permission policy) subscribes to the bubbling `proposal`
-     * event and may VETO the call (proposal.deny(reason)) or MODIFY it (mutate/replace
-     * proposal.args). A deterministic governor decides synchronously; an async one (e.g. an
-     * LLM policy that needs a model call) registers its decision with proposal.hold(promise)
-     * and we await it before proceeding — so world-changing actions can be gated with real
-     * deliberation, not only pattern matches. With NO governor wired the event bubbles away
-     * unheard and the call proceeds unchanged: a bare agent is ungoverned, and the safe
-     * per-surface defaults (deny world-changing, permit read-only) are a norm's concern,
-     * handed off to design-agents-norms-codex.md. This doc stops at the seam.
+     * governor (an <m-norm>, a permission policy) is a part providing the `governor`
+     * role; the agent asks with a `proposal` request {agent, name, args}, and each
+     * governor answers permit, deny (a veto) or modify (a patch over the args). An async
+     * policy (an LLM norm) simply answers later. The agent waits for every governor,
+     * or the first deny, for at most `governDeadline` (default 60s); a governor that
+     * has not answered by then denies (shared/governance.js). With NO governor wired the
+     * call proceeds unchanged: a bare agent is ungoverned, and the safe per-surface
+     * defaults (deny world-changing, permit read-only) are a norm's concern, handed off
+     * to design-agents-norms-codex.md. This doc stops at the seam.
      */
-    async _govern(name, args) {
-        let denied = null
-        const holds = []
-        const proposal = {
-            agent: this.attr("name") || "agent",
-            name,
-            args,
-            deny(reason) { denied = reason || "denied by a governing norm" },
-            hold(p) { if (p && typeof p.then === "function") holds.push(p) },
-        }
-        this.fire("proposal", proposal)
-        if (holds.length) {
-            try { await Promise.all(holds) }
-            catch (error) { denied = denied || `governor error: ${error?.message || error}` }
-        }
-        return { denied, args: proposal.args }
+    _govern(name, args) {
+        return proposeCall(this, { name, args }, { deadline: this._deadline("governDeadline", DEFAULT_GOVERN_DEADLINE_MS) })
+    }
+
+    /** A deadline attribute in parseTime form ("60s", "500ms"), else the fallback. */
+    _deadline(attrName, fallbackMs) {
+        const raw = this.attr(attrName)
+        if (!raw) return fallbackMs
+        try { return parseTime(raw) } catch { return fallbackMs }
     }
 
     /** Accept a task (a `user` turn) arriving over the membrane. Before wake completes it
@@ -849,6 +882,7 @@ export class MAgent extends MBaseComponent {
 }
 
 const FINISH_TOOL = "finish"
+const DEFAULT_STEP_DEADLINE_MS = 5000
 
 /** The agent-facing text a tool returns to the model (agent-loop.md §4): its
  *  `observation`. Falls back to a mind-only tool's `experience`, then a structured

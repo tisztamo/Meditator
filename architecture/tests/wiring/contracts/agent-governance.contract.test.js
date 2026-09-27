@@ -4,9 +4,9 @@
 // quorum/deadline).
 //
 // Parties: the REAL <m-agent> (the proposer, under test) and a governor wired into the
-// agent's archml the way an <m-norm> would be — a child that subscribes to the agent's
-// `proposal` boundary with the "!scope/@proposal" ref (the same idiom m-repeat-guard
-// uses for `step`). No governor component exists in src yet (the norm subsystem is
+// agent's archml the way an <m-norm> would be — a `governor` part that answers the
+// agent's `proposal` request through the "!scope/@proposal" ref (the same idiom
+// m-repeat-guard uses for `step`). No governor component exists in src yet (the norm subsystem is
 // handed off to design-agents-norms-codex.md), so the policy side is a minimal
 // component defined here; the agent, its dry reasoner and its dry m-terminal are real.
 //
@@ -26,6 +26,7 @@
 import { test, expect, beforeAll, afterAll, afterEach } from "bun:test";
 import { waitFor, quiet, delay } from "./helpers.js";
 import { MBaseComponent } from "../../../../src/mindComponents/shared/mBaseComponent.js";
+import { governProposals } from "../../../../src/mindComponents/shared/governance.js";
 import { loadMindComponents } from "../../../../src/startup/loadMindComponents.js";
 import { resetBackendProbe } from "../../../../src/infrastructure/sandbox.js";
 
@@ -54,21 +55,25 @@ afterAll(() => {
 //   hold     ms to deliberate before deciding (an async policy — e.g. an LLM norm)
 //   script   rewrite the governed call's `script` arg to this (a modify)
 //   badpatch rewrite `script` to a non-string (a modify the schema must reject)
+//
+// Rewritten for the message rule (review §7 step 6): the governor answers the proposal
+// with a decision (shared/governance.js) instead of calling deny()/hold() and mutating
+// args on the event. It is the other party to the protocol, not the outcome under
+// test; the four pinned outcomes below are unchanged.
 class ContractGovernor extends MBaseComponent {
+    static provides = { governor: true };
     onConnect() {
-        this.sub("!scope/@proposal", e => this._govern(e?.detail)).catch(() => {});
+        governProposals(this, p => this._govern(p)).catch(() => {});
     }
-    _govern(p) {
-        if (!p || p.name !== this.attr("tool")) return;
+    async _govern(p) {
+        if (!p || p.name !== this.attr("tool")) return undefined;
         const reason = this.attr("deny");
         const holdMs = Number(this.attr("hold") || 0);
-        if (reason && holdMs > 0) {
-            p.hold(delay(holdMs).then(() => p.deny(reason)));
-        } else if (reason) {
-            p.deny(reason);
-        }
-        if (this.attr("script") != null) p.args.script = this.attr("script");
-        if (this.attr("badpatch") != null) p.args.script = 12345;
+        if (holdMs > 0) await delay(holdMs);
+        if (reason) return { decision: "deny", reason };
+        if (this.attr("script") != null) return { decision: "modify", patch: { script: this.attr("script") } };
+        if (this.attr("badpatch") != null) return { decision: "modify", patch: { script: 12345 } };
+        return undefined;
     }
 }
 if (!customElements.get("t-contract-governor")) customElements.define("t-contract-governor", ContractGovernor);

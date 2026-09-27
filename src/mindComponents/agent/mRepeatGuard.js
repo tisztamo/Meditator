@@ -21,10 +21,11 @@ const signature = (call) => `${call?.name}(${stableStringify(call?.args ?? {})})
  *     the agent reads on its next turn), and
  *   - if the rut persists to `haltAt` → it ESCALATES to a HALT (a stop condition).
  *
- * It is a PURE OBSERVER: added and removed by editing one line of archml, with no change
- * to m-agent, m-reason, or the tools. m-agent already listens for the bubbling
- * `nudge`/`halt` events (mAgent.onConnect) — a nudge folds into the next `user` turn, a
- * halt ends the loop.
+ * It is a MONITOR: added and removed by editing one line of archml, with no change
+ * to m-agent, m-reason, or the tools. m-agent asks its `monitor` parts about each step
+ * (a `step` request) and waits for their answers before the next turn — a nudge folds
+ * into that turn, a halt ends the loop before it (message-rule.md: the answer is a reply
+ * to that step, so it can neither land a turn late nor be read back from the event).
  *
  * @interface
  * Attributes:
@@ -35,16 +36,18 @@ const signature = (call) => `${call?.name}(${stableStringify(call?.args ?? {})})
  *   - haltAt: repeats that escalate to a halt (default 5)
  */
 export class MRepeatGuard extends MBaseComponent {
+    static provides = { monitor: true }
+
     _recent = []       // ring buffer of recent action signatures
     _halted = false    // fire the halt once
 
     onConnect() {
-        // Subscribe to the agent's `step` BOUNDARY. m-agent FIRES it (this.fire("step", …)),
-        // so it is a DOM event, addressed with the "@" form and read from e.detail — NOT a
-        // retained topic. Explicit .catch() (never an auto-sub field) so a guard placed
+        // Answer the agent's `step` BOUNDARY. m-agent sends it as a request (a DOM event
+        // carrying a requestId), addressed with the "@" form — NOT a retained topic — and
+        // waits for this reply. Explicit .catch() (never an auto-sub field) so a guard placed
         // outside an <m-agent> fails quietly instead of leaking an unhandled ref rejection.
         const stepSrc = this.attr("stepSrc") || "!scope/@step"
-        this.sub(stepSrc, e => this._onStep(e?.detail)).catch(() => {
+        this.respond("step", step => this._onStep(step), { src: stepSrc }).catch(() => {
             log.warn("m-repeat-guard found no <m-agent>/@step to watch — it must sit inside an <m-agent>")
         })
         this._window  = Number(this.attr("window")  || 6)
@@ -52,28 +55,31 @@ export class MRepeatGuard extends MBaseComponent {
         this._haltAt  = Number(this.attr("haltAt")  || 5)
     }
 
+    /** The answer for one step: {halt}, {nudge, severity}, or {} (nothing to say). */
     _onStep(step) {
         for (const call of step?.calls || []) this._recent.push(signature(call))
         this._recent = this._recent.slice(-this._window)
 
         const last = this._recent.at(-1)
-        if (!last) return
+        if (!last) return {}
         const repeats = this._recent.filter(s => s === last).length
 
         if (repeats >= this._haltAt) {
-            if (this._halted) return
+            if (this._halted) return {}
             this._halted = true
             log.warn(`repeat-guard halting: "${last}" ×${repeats}`)
-            this.fire("halt", { reason: `Repeated the same action ${repeats}× with no new result.` })
-        } else if (repeats >= this._nudgeAt) {
+            return { halt: `Repeated the same action ${repeats}× with no new result.` }
+        }
+        if (repeats >= this._nudgeAt) {
             log.info(`repeat-guard nudging: "${last}" ×${repeats}`)
-            this.fire("nudge", {
-                text: `You have now run essentially the same action ${repeats} times and gotten the same result. `
+            return {
+                nudge: `You have now run essentially the same action ${repeats} times and gotten the same result. `
                     + `Stop repeating it: re-examine your assumptions, inspect something you have not looked at yet, `
                     + `or try a genuinely different approach.`,
                 severity: repeats,
-            })
+            }
         }
+        return {}
     }
 }
 

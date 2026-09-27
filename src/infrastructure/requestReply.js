@@ -58,12 +58,14 @@ function requestDetail(data, requestId) {
 }
 
 /**
- * Collect replies to one request. Resolves when `expect` replies arrived or the
- * deadline passed: {status: "ok" | "timeout", requestId, replies}. `expect`
- * defaults to Infinity (collect until the deadline). Replies are
- * {status: "ok", data, from} or {status: "error", error, from}.
+ * Collect replies to one request. Resolves when `expect` replies arrived, when
+ * `until(replies)` holds, or when the deadline passed: {status: "ok" |
+ * "timeout", requestId, replies}. `expect` defaults to Infinity (collect until
+ * the deadline). `until` is the quorum for a known roster of responders, which
+ * a count cannot express (every named gate answered, or one refused). Replies
+ * are {status: "ok", data, from} or {status: "error", error, from}.
  */
-export function requestAll(el, name, data, { expect = Infinity, deadline = DEFAULT_DEADLINE_MS, bubbles = true } = {}) {
+export function requestAll(el, name, data, { expect = Infinity, until = null, deadline = DEFAULT_DEADLINE_MS, bubbles = true } = {}) {
     const requestId = newRequestId()
     const pending = pendingFor(el)
     return new Promise(resolve => {
@@ -78,13 +80,14 @@ export function requestAll(el, name, data, { expect = Infinity, deadline = DEFAU
         pending.set(requestId, {
             onReply(reply) {
                 replies.push({ status: reply.status, data: reply.data ?? null, error: reply.error, from: reply.from ?? null })
-                if (replies.length >= expect) settle("ok")
+                if (met()) settle("ok")
             },
         })
-        timer = setTimeout(() => settle(replies.length >= expect ? "ok" : "timeout"), Math.max(0, deadline))
-        // An expectation of zero is already met; still send, so listeners hear it.
+        const met = () => replies.length >= expect || (typeof until === "function" && !!until(replies))
+        timer = setTimeout(() => settle(met() ? "ok" : "timeout"), Math.max(0, deadline))
+        // An expectation already met (zero, an empty roster) still sends, so listeners hear it.
         send(el, name, requestDetail(data, requestId), bubbles)
-        if (expect <= 0) settle("ok")
+        if (met()) settle("ok")
     })
 }
 
@@ -121,10 +124,33 @@ export function respond(el, name, handler, { src, on } = {}) {
         } catch (error) {
             reply = { requestId: detail.requestId, status: "error", error: String(error?.message || error) }
         }
-        reply.from = el.getAttribute?.("name") || el.localName || null
+        reply.from = responderName(el)
         target?.dispatchEvent(new CustomEvent(REPLY_EVENT, { detail: reply, bubbles: false }))
     }
     if (src) return el.sub(src, listener)
     ;(on || el).addEventListener(name, listener)
     return listener
+}
+
+/** The name a responder's replies carry as `from`: its `name` attribute, else its tag. */
+export function responderName(el) {
+    return el?.getAttribute?.("name") || el?.localName || null
+}
+
+/**
+ * An `until` for a known roster of responders (their responderName()s): met when
+ * every one has replied (a name listed twice needs two replies), or as soon as
+ * one reply satisfies `decides` (a refusal that settles the question anyway).
+ * Replies from outside the roster count only through `decides`.
+ */
+export function rosterAnswered(names, decides = null) {
+    return replies => {
+        if (decides && replies.some(decides)) return true
+        const left = new Map()
+        for (const n of names) left.set(n, (left.get(n) || 0) + 1)
+        for (const r of replies) {
+            if (left.get(r.from) > 0) left.set(r.from, left.get(r.from) - 1)
+        }
+        return [...left.values()].every(v => v === 0)
+    }
 }

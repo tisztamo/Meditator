@@ -125,8 +125,8 @@ export class MBaseComponent extends A(HTMLElement) {
         return requestOf(this, name, data, opts)
     }
 
-    /** Ask and collect until `expect` replies or the deadline:
-     *  {status: "ok" | "timeout", replies}. opts: {expect, deadline, bubbles}. */
+    /** Ask and collect until `expect` replies, `until(replies)`, or the deadline:
+     *  {status: "ok" | "timeout", replies}. opts: {expect, until, deadline, bubbles}. */
     requestAll(name, data, opts) {
         return requestAllOf(this, name, data, opts)
     }

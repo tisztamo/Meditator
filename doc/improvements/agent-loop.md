@@ -133,7 +133,11 @@ intent flows up as bubbling events.** Refs are entity-relative
   subtree and republishes the schema set as a retained `tools` topic.
 - **Observers** (loop guard, etc.) subscribe to `step` and bubble **`nudge`** /
   **`halt`** events up to `m-agent`, which folds a nudge into the next `user`
-  turn and treats a halt as a stop condition.
+  turn and treats a halt as a stop condition. *(Message rule, 2026-09-27: a
+  guard that steers is a `monitor` part that answers the `step` request with
+  `{nudge?, halt?}`, and the next turn waits for it; the bubbling events remain
+  for signals with no step to answer, such as m-jobs' completion nudge. See
+  [message-rule.md](../architecture/message-rule.md).)*
 - **`m-agent` publishes** `status` and `transcript` for the Studio / a `report`
   port.
 
@@ -468,7 +472,9 @@ Wire it in — again, one line, no core change:
 ```
 
 `m-agent` already listens for bubbling `nudge`/`halt` (§3). A `nudge` becomes a
-`user` message on the next turn ("[note] …"); a `halt` is a stop condition. Note
+`user` message on the next turn ("[note] …"); a `halt` is a stop condition.
+*(As built under the message rule, the guard answers the `step` request instead
+of firing these events; the sketch above is the original design.)* Note
 what did *not* change: not `m-agent`, not `m-reason`, not the tools. The detector
 is a pure observer, added and removed by editing one line of archml — the same
 way `m-loop-detector`, `m-resurface`, and `m-associate` are optional observers on
@@ -569,10 +575,12 @@ doc deliberately stops at the seam and leaves norms to that doc.
 > whole loop and returns the answer as a first-person sensation (m-act journals the deed
 > and re-enters it as an External `Sense-<name>`; the terminal, file tools, etc. register
 > with the *subagent*, not the mind, because the nearest entity owns its tool). The govern
-> seam is a `proposal` event `mAgent` fires before every tool call: a governor subscribes
-> and calls `proposal.deny(reason)` (veto), mutates/replaces `proposal.args` (modify,
-> re-validated), or `proposal.hold(promise)` (decide asynchronously — e.g. an LLM policy —
-> which the loop awaits). No governor ⇒ the call proceeds unchanged. Both live in
+> seam is a `proposal` request `mAgent` sends before every tool call: each `governor`
+> part answers permit, deny (veto) or modify (a patch, re-validated), and may answer
+> later (an LLM policy); the loop waits for every governor or the first deny, and a
+> governor silent past `governDeadline` denies (`shared/governance.js`; before the
+> message rule it called `proposal.deny()` / `proposal.hold()` on the event). No
+> governor ⇒ the call proceeds unchanged. Both live in
 > `mAgent.js` alone; `architecture/lab/researcher.archml` is the living §11 mind. The
 > DECIDE-stage intent rides all the way into the consequence — m-act forwards its gist as
 > `ctx.intent`, `_runAsHand` holds it, and `_handConsequence` weaves it in — so the mind
@@ -705,9 +713,10 @@ doc deliberately stops at the seam and leaves norms to that doc.
    order every hand relies on (a parent m-act is upgraded, and its listener attached in
    onConnect, before a child offers; loadMindComponents defines tags in document order with
    no awaits). **The govern seam (§6, §11):**
-   before each tool runs, `_runOne` calls `_govern(name, args)`, which fires a bubbling
-   `proposal` event a governor may VETO (`proposal.deny(reason)`) or MODIFY (mutate/replace
-   `proposal.args`), synchronously or asynchronously (`proposal.hold(promise)`, awaited); a
+   before each tool runs, `_runOne` calls `_govern(name, args)`, which sends a `proposal`
+   request each `governor` part answers with a VETO (`deny`) or a MODIFY (a `patch`), now
+   or later (the message rule, 2026-09-27; it used to be `proposal.deny()` /
+   `proposal.hold(promise)` on the event, see `shared/governance.js`); a
    deny returns a `refused:` observation, and a modify is re-validated against the schema
    before execution. With no governor wired the call proceeds unchanged — the seam a
    `<m-norm>` attaches to, with the norm subsystem left to the codex doc. The §11 mind is

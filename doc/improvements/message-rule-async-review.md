@@ -427,6 +427,11 @@ existing seam, none rewrites a mind's behaviour.
    [message-rule.md](../architecture/message-rule.md).*
 6. **Gates and governance.** `percept-candidate` verdicts and `proposal` holds
    as replies with quorum + deadline; `halt`/`nudge` carry `turnIndex`.
+   *Governance and the step round trip done 2026-09-27: `proposal` and `step`
+   are requests answered by the agent's `governor` and `monitor` parts, with a
+   quorum by roster and a deadline (a silent governor denies, a silent monitor
+   is skipped). The step reply's requestId stands in for `turnIndex`. See
+   [message-rule.md](../architecture/message-rule.md).*
 7. **Stream filters as a pipeline.** `stream-filter` becomes ordered `chunk`
    stages; `m-provenance-filter` is the first port.
 8. **Comparator / bidder / regulator / orientation / control** ports as

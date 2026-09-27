@@ -4,7 +4,7 @@
 // same holds when delivery is deferred through a JSON wire, as across a process.
 import { test, expect, afterEach } from "bun:test";
 import A from "amanita";
-import { request, requestAll, respond, REPLY_EVENT } from "../../../src/infrastructure/requestReply.js";
+import { request, requestAll, respond, rosterAnswered, REPLY_EVENT } from "../../../src/infrastructure/requestReply.js";
 import { configureDelivery, isolateDeliveryRegistry } from "../../../src/infrastructure/deliveryChaos.js";
 
 let restore = null, restoreRegistry = null;
@@ -75,6 +75,30 @@ test("requestAll collects to quorum, or reports what arrived at the deadline", a
     const three = await requestAll(child, "vote", {}, { expect: 3, deadline: 30 });
     expect(three.status).toBe("timeout");
     expect(three.replies).toHaveLength(2);           // a missing voter is visible, not assumed
+});
+
+test("a roster quorum waits for every named responder, or settles early on a deciding reply", async () => {
+    const outer = document.createElement("div");
+    outer.setAttribute("name", "outer");
+    const { parent, child } = tree();
+    outer.appendChild(parent);
+    document.body.appendChild(outer);
+    respond(parent, "vote", () => ({ yes: true }));
+    respond(outer, "vote", () => new Promise(r => setTimeout(() => r({ yes: false }), 20)));
+    const both = await requestAll(child, "vote", {}, { until: rosterAnswered(["gate", "outer"]), deadline: 500 });
+    expect(both.status).toBe("ok");
+    expect(both.replies.map(r => r.from).sort()).toEqual(["gate", "outer"]);
+    // A name listed twice needs two replies: one voter cannot stand in for two.
+    const twice = await requestAll(child, "vote", {}, { until: rosterAnswered(["gate", "gate"]), deadline: 40 });
+    expect(twice.status).toBe("timeout");
+    // A deciding reply settles before the rest of the roster answers.
+    const early = await requestAll(child, "vote", {}, {
+        until: rosterAnswered(["gate", "outer"], r => r.data?.yes === true), deadline: 500,
+    });
+    expect(early.status).toBe("ok");
+    expect(early.replies.map(r => r.from)).toEqual(["gate"]);
+    // An empty roster is met at once.
+    expect((await requestAll(child, "vote", {}, { until: rosterAnswered([]), deadline: 500 })).replies).toHaveLength(0);
 });
 
 test("an event of the same name without a requestId is not a request", async () => {

@@ -15,23 +15,10 @@
     "architecture/tests/wiring/act-prediction.test.js > trusted conversion uses one Percept id as AttentionBid.evidence",
     "architecture/tests/wiring/act-prediction.test.js > untrusted plain-object consequences are not claimed for lineage",
     "architecture/tests/wiring/act-terminal.test.js > the DEED is journaled backstage (⌁) and never touches the tail; the CONSEQUENCE is perceived (⟂)",
-    "architecture/tests/wiring/agent-govern.test.js > MODIFY into an invalid shape is caught by the post-patch re-validation",
-    "architecture/tests/wiring/agent-govern.test.js > asynchronous VETO: a governor may hold(promise) to decide, and m-agent awaits it",
-    "architecture/tests/wiring/agent-govern.test.js > synchronous MODIFY: a governor can rewrite the args, and the patch is re-validated",
-    "architecture/tests/wiring/agent-govern.test.js > synchronous VETO: a governor that denies a tool refuses it before it runs",
-    "architecture/tests/wiring/agent-repeat-guard.test.js > a repeated action nudges at nudgeAt, and m-agent folds it into the next user turn",
-    "architecture/tests/wiring/agent-repeat-guard.test.js > the action signature is argument-order-independent (stable stringify)",
-    "architecture/tests/wiring/agent-repeat-guard.test.js > the same action escalating to haltAt halts once, and m-agent records the stop",
     "architecture/tests/wiring/agent-service.test.js > a task arriving mid-run folds into the running task as a user note (not a second loop)",
     "architecture/tests/wiring/aperture-conformance.test.js > C1 S1 m-test-aperture: same table; loaded from a components/ dir",
     "architecture/tests/wiring/aperture-conformance.test.js > C1 baseline m-region: veto, nearest-credits, id receipt, fold, forwarding, control",
     "architecture/tests/wiring/aperture-conformance.test.js > S1: m-test-aperture receipts are identical to the baseline m-region",
-    "architecture/tests/wiring/contracts/agent-governance.contract.test.js > a MODIFY into an invalid shape is re-validated and never runs",
-    "architecture/tests/wiring/contracts/agent-governance.contract.test.js > a MODIFY is what runs, and the agent is told its call was adjusted",
-    "architecture/tests/wiring/contracts/agent-governance.contract.test.js > a governor's DENY keeps the tool from running; the agent observes the refusal",
-    "architecture/tests/wiring/contracts/agent-governance.contract.test.js > an ASYNC decision (hold, then deny) still vetoes: the tool waits for the governor",
-    "architecture/tests/wiring/contracts/agent-step.contract.test.js > reaching haltAt stops the loop at that step: no further tool call, done names the guard",
-    "architecture/tests/wiring/contracts/agent-step.contract.test.js > the guard's nudge for step N is folded into turn N+1 — the next thing the model reads",
     "architecture/tests/wiring/contracts/perception-gate.contract.test.js > permit: every gate answers yes → rendered once, exactly one bid reaches the mind's arbiter",
     "architecture/tests/wiring/contracts/perception-gate.contract.test.js > veto: an enclosing gate that refuses keeps the percept out, and the refusal is its own",
     "architecture/tests/wiring/contracts/sleep-fanout.contract.test.js > a compare in flight at sleep is aborted before memory commits; its late completion lands nowhere",
@@ -242,15 +229,6 @@
       ],
       "paths": [
         "(root)"
-      ]
-    },
-    "fire|proposal|function": {
-      "senders": [
-        "m-agent"
-      ],
-      "paths": [
-        "deny",
-        "hold"
       ]
     },
     "fire|search-outcome|instance:SearchOutcome": {

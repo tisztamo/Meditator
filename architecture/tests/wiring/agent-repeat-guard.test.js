@@ -1,12 +1,16 @@
-// <m-repeat-guard> as a pure observer on an agent (agent-loop.md §9): it watches the
-// `step` boundary and, when the SAME action recurs, first NUDGES then HALTS — and
-// m-agent folds a nudge into the next user turn and treats a halt as a stop condition,
-// with NO change to the kernel.
+// <m-repeat-guard> as a monitor on an agent (agent-loop.md §9): it answers the `step`
+// boundary and, when the SAME action recurs, first NUDGES then HALTS — and m-agent
+// folds a nudge into the next user turn and treats a halt as a stop condition, with NO
+// change to the kernel.
 //
-// This also pins the events-refactor fix: the guard subscribes to the agent's `step`
-// with the "@" event ref (!scope/@step) and reads e.detail. If that ref were wrong
-// (the stale pre-refactor "/step" topic form the design doc showed), the guard would
-// never hear a step and NO nudge would ever fire — so every assertion below would fail.
+// Under the message rule the step is a request and the guard's signal is its reply
+// (doc/architecture/message-rule.md): these tests ask the way m-agent does and read the
+// answer, never a `nudge` / `halt` event read back after the fire.
+//
+// This also pins the events-refactor fix: the guard answers the agent's `step` through
+// the "@" event ref (!scope/@step). If that ref were wrong (the stale pre-refactor
+// "/step" topic form the design doc showed), the guard would never hear a step and
+// never answer — so every assertion below would fail.
 import "./setup.js";
 import { test, expect, beforeAll, afterAll } from "bun:test";
 import { delay } from "./setup.js";
@@ -20,8 +24,8 @@ afterAll(() => {
     if (savedDry === undefined) delete process.env.MEDITATOR_DRY_RUN; else process.env.MEDITATOR_DRY_RUN = savedDry;
 });
 
-// A bare agent with just the guard (no <m-reason> → the real loop never starts; we drive
-// synthetic `step` events ourselves, which is exactly what m-agent fires between steps).
+// A bare agent with just the guard (no <m-reason> → the real loop never starts; we send
+// synthetic `step` requests ourselves, which is exactly what m-agent sends between steps).
 async function makeGuardedAgent(attrs = `nudgeAt="2" haltAt="3"`) {
     document.body.innerHTML = `
       <m-agent name="guarded" toolSettleMs="60">
@@ -30,59 +34,71 @@ async function makeGuardedAgent(attrs = `nudgeAt="2" haltAt="3"`) {
       </m-agent>`;
     await loadMindComponents(document);
     const agent = document.querySelector("m-agent");
-    const nudges = [], halts = [];
-    agent.addEventListener("nudge", e => nudges.push(e.detail));
-    agent.addEventListener("halt", e => halts.push(e.detail));
     await delay(120);   // let the guard's async sub bind to !scope/@step
-    return { agent, nudges, halts };
+    return { agent };
 }
 
 let seq = 0;
-const fireStep = (agent, name, args = {}) =>
-    agent.fire("step", { index: ++seq, assistantText: "", calls: [{ id: "c" + seq, name, args }], observations: [] });
+const stepOf = (name, args) => ({ index: ++seq, assistantText: "", calls: [{ id: "c" + seq, name, args }], observations: [] });
+// Ask the guard about one step; resolves to its answer ({} when it has nothing to say).
+async function askStep(agent, name, args = {}) {
+    const reply = await agent.request("step", stepOf(name, args), { deadline: 1000 });
+    expect(reply.status).toBe("ok");
+    expect(reply.from).toBe("m-repeat-guard");
+    return reply.data;
+}
 
 test("a repeated action nudges at nudgeAt, and m-agent folds it into the next user turn", async () => {
-    const { agent, nudges } = await makeGuardedAgent();
-    fireStep(agent, "terminal", { language: "bash", script: "make test" });
-    expect(nudges.length).toBe(0);                       // first occurrence — quiet
+    const { agent } = await makeGuardedAgent();
+    expect(await askStep(agent, "terminal", { language: "bash", script: "make test" })).toEqual({});   // first — quiet
 
-    fireStep(agent, "terminal", { language: "bash", script: "make test" });
-    expect(nudges.length).toBe(1);                       // second → nudge (the ref resolved!)
-    expect(nudges[0].text).toMatch(/same action 2 times/);
-    expect(nudges[0].severity).toBe(2);
-    // m-agent's own handler folded it — it will become a [note] on the next turn.
-    expect(agent._nudges.length).toBe(1);
-    expect(agent._nudges[0]).toMatch(/genuinely different approach/);
+    const second = await askStep(agent, "terminal", { language: "bash", script: "make test" });
+    expect(second.nudge).toMatch(/same action 2 times/);   // second → nudge (the ref resolved!)
+    expect(second.severity).toBe(2);
+    expect(second.halt).toBeUndefined();
+
+    // m-agent consults its monitors the same way at a real step boundary and folds the
+    // answer — it will become a [note] on the next turn.
+    await agent._consultMonitors(stepOf("terminal", { language: "bash", script: "make test" }));
+    expect(agent._halt).toMatch(/Repeated the same action 3/);   // the third is the halt
+    expect(agent._nudges).toHaveLength(0);
 });
 
-test("the same action escalating to haltAt halts once, and m-agent records the stop", async () => {
-    const { agent, nudges, halts } = await makeGuardedAgent();
-    fireStep(agent, "terminal", { language: "bash", script: "make test" });
-    fireStep(agent, "terminal", { language: "bash", script: "make test" });
-    fireStep(agent, "terminal", { language: "bash", script: "make test" });   // 3rd → halt
-    expect(halts.length).toBe(1);
-    expect(halts[0].reason).toMatch(/Repeated the same action 3/);
-    expect(agent._halt).toMatch(/Repeated the same action/);   // m-agent's stop condition is armed
+test("m-agent folds a monitor's nudge into its pending notes", async () => {
+    const { agent } = await makeGuardedAgent(`nudgeAt="2" haltAt="9"`);
+    await agent._consultMonitors(stepOf("terminal", { script: "ls" }));
+    expect(agent._nudges).toHaveLength(0);
+    await agent._consultMonitors(stepOf("terminal", { script: "ls" }));
+    expect(agent._nudges).toHaveLength(1);
+    expect(agent._nudges[0]).toMatch(/genuinely different approach/);
+    expect(agent._halt).toBeNull();
+});
 
-    fireStep(agent, "terminal", { language: "bash", script: "make test" });   // 4th
-    expect(halts.length).toBe(1);                              // the halt fires only once
-    expect(nudges.length).toBe(1);                             // (one nudge on the 2nd, then halt)
+test("the same action escalating to haltAt halts once", async () => {
+    const { agent } = await makeGuardedAgent();
+    const answers = [];
+    for (let i = 0; i < 4; i++) answers.push(await askStep(agent, "terminal", { language: "bash", script: "make test" }));
+    expect(answers[0]).toEqual({});
+    expect(answers[1].nudge).toBeTruthy();                       // one nudge on the 2nd…
+    expect(answers[2].halt).toMatch(/Repeated the same action 3/);   // …then the halt on the 3rd
+    expect(answers[3]).toEqual({});                              // the halt is answered only once
 });
 
 test("distinct actions never trip the guard", async () => {
-    const { agent, nudges, halts } = await makeGuardedAgent();
-    fireStep(agent, "read_file", { path: "a.js" });
-    fireStep(agent, "read_file", { path: "b.js" });
-    fireStep(agent, "edit", { path: "a.js", old: "x", new: "y" });
-    fireStep(agent, "terminal", { language: "bash", script: "ls" });
-    expect(nudges.length).toBe(0);
-    expect(halts.length).toBe(0);
+    const { agent } = await makeGuardedAgent();
+    const answers = [
+        await askStep(agent, "read_file", { path: "a.js" }),
+        await askStep(agent, "read_file", { path: "b.js" }),
+        await askStep(agent, "edit", { path: "a.js", old: "x", new: "y" }),
+        await askStep(agent, "terminal", { language: "bash", script: "ls" }),
+    ];
+    for (const a of answers) expect(a).toEqual({});
 });
 
 test("the action signature is argument-order-independent (stable stringify)", async () => {
-    const { agent, nudges } = await makeGuardedAgent();
+    const { agent } = await makeGuardedAgent();
     // Same call, arguments serialized in a different key order → the SAME signature.
-    fireStep(agent, "terminal", { language: "bash", script: "ls" });
-    fireStep(agent, "terminal", { script: "ls", language: "bash" });
-    expect(nudges.length).toBe(1);
+    await askStep(agent, "terminal", { language: "bash", script: "ls" });
+    const second = await askStep(agent, "terminal", { script: "ls", language: "bash" });
+    expect(second.nudge).toBeTruthy();
 });

@@ -3,7 +3,8 @@
 > **Status: adopted as the target, measured; the request/reply seam is built and
 > piloted on sleep and frame ordering; hands and attention payloads are messages
 > (2026-09-26); sleep is asked for, not called, and an unconfirmed commit is
-> reported to the supervisor (2026-09-27).**
+> reported to the supervisor; agent governance and the step round trip are
+> request/reply with a quorum (2026-09-27).**
 > The analysis behind it is
 > [message-rule-async-review.md](../improvements/message-rule-async-review.md).
 > This page states the rule, the one exception, and how the tree is held to it.
@@ -184,6 +185,28 @@ passes on 10 of 10 after it, without editing the test. m-mind still exposes
 `sleep()` as the method the `put-to-sleep` responder runs, and the contract tests
 still call it as their trigger. What changed is that no component calls it.
 
+**Agent governance and the step round trip (review §7 step 6, first part, 2026-09-27).**
+
+| Before | Now |
+|---|---|
+| m-agent fired `proposal {agent, name, args, deny(), hold()}`; a governor called `deny(reason)`, `hold(promise)` or mutated `args`, and `_govern` read all three back when `fire` returned | a `proposal` request with plain data (`shared/governance.js`). A governor is a part providing the `governor` role; it answers `{decision: "permit" \| "deny" \| "modify", reason?, patch?}` through `governProposals(el, decide)`, and an async policy simply answers later. |
+| any number of governors, all heard inside one dispatch | a quorum by roster: the agent names its `governor` parts when it proposes (M4: names, never handles) and waits for every one, or the first deny, via `requestAll(…, {until: rosterAnswered(names, deny)})`. A governor silent past `governDeadline` (default 60 s) or one that throws **denies** (monotone authority: a missing norm is not permission). No governor: the call proceeds at once. |
+| several governors mutated the same `args` object in dispatch order | patches compose over the proposed args in the governors' tree order, whatever order the replies arrive in, and the result is re-validated against the tool's schema as before |
+| m-agent fired `step` and published the next turn on the next line; m-repeat-guard's `nudge` / `halt` had to land inside that fire | `step` is a request to the agent's `monitor` parts (m-repeat-guard provides the role). Each answers `{nudge?, halt?}` for that step, correlated by the requestId (M5), and the next turn waits for every monitor or `stepDeadline` (default 5 s). A monitor is advisory, so a silent one is skipped, not a stop. Only the agent's own monitors are heard: a step still bubbles, so an enclosing agent's guard hears it, and its answer is not this loop's. |
+
+The review planned for `halt` / `nudge` to carry a `turnIndex`. A reply to the
+step request already carries its step through the requestId, so a monitor's
+signal can neither land a turn late nor apply to the wrong turn. The bubbling
+`nudge` / `halt` events stay for signals that answer no step (m-jobs' "a
+background job finished"), and they apply to the next turn, as before.
+Observers that never steer (m-context, m-report, m-ws) hear `step` as the same
+plain event.
+
+The governance contract's governor is the policy side of the protocol, defined
+inside the test, and it called `deny()` / `hold()` on the event. It was
+rewritten to answer with decisions. Its four pinned outcomes were not edited.
+The step contract was not edited at all.
+
 ## How the tree is held to it
 
 The rule is enforced by measurement rather than by audit list.
@@ -275,6 +298,14 @@ pass under chaos), 10 violation kinds, 61 role-port calls; the baseline did not
 change, because the sleep-notice hazard showed only under `jitter`, which is not
 the baseline mode. The in-flight compare at sleep stays red: its precondition
 rides the perception gate (step 6).
+
+**After agent governance and the step round trip (2026-09-27).** 132 of 1160
+fail (13 fixed), 9 violation kinds (`fire|proposal|function` is gone), 61
+role-port calls. The four agent-governance and two agent-step contracts turned
+green, and all 19 agent governance and step tests pass on 10 of 10 `jitter`
+seeds. 3 of 38 contracts are still red: the perception gate (permit and veto)
+and the in-flight compare at sleep, whose precondition rides the perception
+gate.
 
 ## What it does not change
 
