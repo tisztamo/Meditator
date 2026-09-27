@@ -110,6 +110,8 @@ export class MAgent extends MBaseComponent {
     onConnect() {
         // Retained, like a mind's: parts below abort in-flight work on it (message-rule.md).
         this.pub("sleeping", false)
+        // Sleep is asked for with `put-to-sleep` (the process's shutdown), like a mind's.
+        this.respond("put-to-sleep", () => this.sleep())
         // COMPOSITION (agent-loop.md §11): an <m-agent role="subagent"> nested inside a
         // mind's <m-act> is used as a single HAND — the mind wonders, m-act hands it a
         // task, the agent runs its whole tool-calling loop BACKSTAGE, and only the OUTCOME
@@ -829,10 +831,11 @@ export class MAgent extends MBaseComponent {
      * self to close, so this is quiet: stop the loop and report. Transcript persistence
      * (so a restarted service resumes mid-task) is owned by <m-context>, which writes on
      * every change — the last working set is already on disk — so there is nothing to
-     * flush here. Idempotent.
+     * flush here. Idempotent. Resolves to {status: "no-memory"}: there is no
+     * narrative memory to commit, so nothing is claimed saved.
      */
     async sleep() {
-        if (this._sleeping) return
+        if (this._sleeping) return { status: "no-memory" }
         this._sleeping = true
         this.pub("sleeping", true)
         // Unblock anything waiting on this agent so a mind's m-act (or a hand call in
@@ -841,6 +844,7 @@ export class MAgent extends MBaseComponent {
         this._resolveHand({ answer: null, reason: "asleep" })
         this.pub("status", { state: "asleep", step: this._step, maxSteps: this._maxSteps(), done: this._done })
         log.info(`"${this.attr("name") || "agent"}" put to sleep after ${this._step} step(s).`)
+        return { status: "no-memory" }
     }
 }
 

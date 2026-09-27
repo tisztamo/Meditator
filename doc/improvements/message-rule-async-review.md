@@ -420,6 +420,11 @@ existing seam, none rewrites a mind's behaviour.
    its stream to `hush` before perceiving, which fixed §9 bug 1. See
    [message-rule.md](../architecture/message-rule.md).*
 5. **Sleep as request/reply**, with the Covenant's "not confirmed" outcome.
+   *Done 2026-09-27: ports fire `sleep-requested` and the process sleeps every
+   mind (`putToSleep`, a `put-to-sleep` request per membrane, found by role);
+   an unconfirmed commit exits 3 and the Studio reports it; the sleep frame
+   hushes the stream first. See
+   [message-rule.md](../architecture/message-rule.md).*
 6. **Gates and governance.** `percept-candidate` verdicts and `proposal` holds
    as replies with quorum + deadline; `halt`/`nudge` carry `turnIndex`.
 7. **Stream filters as a pipeline.** `stream-filter` becomes ordered `chunk`
@@ -517,5 +522,6 @@ bridge lost its ↪ mark. The mind now asks its stream to `hush` before it
 perceives. Under `jitter` (not the baseline mode), the sleep-notice contract
 fails on 6 of 10 seeds, and did on 7 of 10 before this step. So it is a
 pre-existing ordering hazard of the sleep frame, which is built without a hush.
-It belongs to the sleep step (§7 step 5).
+It belongs to the sleep step (§7 step 5). **Fixed there:** the sleep frame hushes
+the stream first, and the contract passes on 10 of 10 seeds.
 

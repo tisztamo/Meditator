@@ -10,7 +10,7 @@ import { tierOf, findRetiredBundle } from "../infrastructure/manifest.js";
 import { StudioStore, parseDataUrl } from "./store.js";
 import { voiceInfo, ttsHandler, sttHandler } from "./voice.js";
 import { logger } from "../infrastructure/logger.js";
-import { registerGracefulShutdown } from "../infrastructure/gracefulShutdown.js";
+import { registerGracefulShutdown, SLEEP_UNCONFIRMED_EXIT } from "../infrastructure/gracefulShutdown.js";
 import { parseArchitecture, parseArchitectureTree } from "./architectureSurface.js";
 
 // The supervisor IS the Meditator runtime, so its own model config lives in THIS
@@ -807,15 +807,20 @@ function onChildExit(m, code, signal) {
   usedPorts.delete(m.port);
   try { m.upstream && m.upstream.close(); } catch {}
   m.upstream = null;
-  const graceful = m.state === "sleeping" || code === 0;
+  // The child's exit code says whether its sleep was confirmed (Covenant: a commit
+  // nobody confirmed is reported as such, never as "memory committed").
+  const unconfirmed = code === SLEEP_UNCONFIRMED_EXIT;
+  const graceful = m.state === "sleeping" || code === 0 || unconfirmed;
   // A deliberate Force is a stop, not a crash — but it skipped the ritual, so
   // memory wasn't finalized. Only an unexpected non-zero exit is a "crash".
   m.state = (graceful || m.forced) ? "exited" : "crashed";
   if (m._replayTimer) { clearTimeout(m._replayTimer); m._replayTimer = null; }
   flushPending(m);                                     // seal any in-progress run
   try { store.endSession(m.sessionId, { endedAt: new Date().toISOString(), endState: m.forced ? "forced" : m.state }); } catch {}
-  const detail = graceful ? "asleep — memory committed" :
-    m.forced ? "force-stopped — memory was not finalized" :
+  const detail = m.forced ? "force-stopped — memory was not finalized" :
+    unconfirmed ? "asleep — memory commit NOT confirmed (see the mind's log)" :
+    graceful && code === 0 ? "asleep — memory committed" :
+    graceful ? `exited while sleeping (code ${code}${signal ? `, ${signal}` : ""}) — memory commit not confirmed` :
     `exited (code ${code}${signal ? `, ${signal}` : ""})${m.stderrTail.length ? `: ${m.stderrTail[m.stderrTail.length - 1]}` : ""}`;
   log.log(`${m.id} ${m.state}: ${detail}`);
   broadcastLifecycle(m, m.state, detail);

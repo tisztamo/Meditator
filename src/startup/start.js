@@ -7,6 +7,7 @@ import { loadModelConfig } from "../modelAccess/modelConfig.js";
 import { isDryRun } from "../modelAccess/llm.js";
 import { logger } from '../infrastructure/logger';
 import { registerGracefulShutdown } from '../infrastructure/gracefulShutdown.js';
+import { putToSleep } from './sleepRitual.js';
 import { registerCrashHandlers } from '../infrastructure/crashHandlers.js';
 
 initializeDebugMode();
@@ -43,15 +44,19 @@ loadMindComponents(document).then((components) => {
     }
     log.log("Meditating... Ctrl+C (or typing /sleep) puts the mind to sleep gracefully.\n");
 
-    registerGracefulShutdown({
+    const { shutdown } = registerGracefulShutdown({
         label: "Runtime",
-        sleepAll: async () => {
-            // Sleep EVERY mind AND agent in the architecture — a society runs several
-            // minds at once, and an <m-agent> root sleeps/persists on Ctrl-C too
-            // (agent-loop.md §5) — in parallel, under one shared deadline.
-            const entities = Array.from(document.querySelectorAll("m-mind, m-agent"));
-            await Promise.all(entities.map(m => Promise.resolve(m?.sleep?.())));
-        },
+        // Sleep EVERY mind AND agent in the architecture — a society runs several
+        // minds at once, and an <m-agent> root sleeps/persists on Ctrl-C too
+        // (agent-loop.md §5) — in parallel, under one shared deadline. Each is
+        // asked with a `put-to-sleep` request and replies with its outcome.
+        sleepAll: ({ deadline }) => putToSleep(document, { deadline }),
+    });
+    // A port's `/sleep` (m-console, m-ws control) is an intent it fires, not a
+    // call on its mind: the process owns ending itself, so it takes the same path
+    // as Ctrl-C, and every mind in it sleeps before the exit, not only the port's.
+    document.addEventListener("sleep-requested", e => {
+        shutdown(`Sleep requested (${e.detail?.by || "a port"})`);
     });
     setInterval(() => {}, 1000);
 }).catch(error => {

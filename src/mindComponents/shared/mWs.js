@@ -303,15 +303,11 @@ export class MWs extends MBaseComponent {
       return;
     }
     if (action === "sleep") {
+      // An intent, not a call on the minds (message-rule.md M1): the process
+      // hears it and runs the sleep ritual for every mind in it, then exits; the
+      // exit code says whether the sleep was confirmed (the supervisor reads it).
       log.log("Sleep requested via websocket control.");
-      const minds = this._controlScopeMinds();
-      try {
-        await Promise.all(minds.map(mind => Promise.resolve(mind && mind.sleep && mind.sleep())));
-      } catch (error) {
-        log.warn("Sleep ritual error:", error.message);
-      }
-      log.log("Asleep. Goodbye.");
-      process.exit(0);
+      this.fire("sleep-requested", { by: "ws" });
     }
   }
 
@@ -377,8 +373,9 @@ export class MWs extends MBaseComponent {
     return false;
   }
 
-  /** A control socket inside a society is the society's public membrane. Sleeping
-   *  it should settle the whole population, not only the member that owns m-ws. */
+  /** A control socket inside a society is the society's public membrane, so it
+   *  waits for the whole population to come up, not only the member that owns
+   *  m-ws. (Its sleep control needs no list: the process sleeps every mind.) */
   _controlScopeMinds() {
     const society = this.closest("m-society");
     if (society) {

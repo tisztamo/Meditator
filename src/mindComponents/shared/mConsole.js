@@ -11,7 +11,8 @@ const log = logger('mConsole.js');
  * Enter — it arrives as an urgent external stimulus, superseding the current
  * burst. There is no "reply"; you hear the mind think about what you said.
  *
- * Events dispatched (bubbling): "interrupt-request" (urgent, salience 1)
+ * Events dispatched (bubbling): "interrupt-request" (urgent, salience 1);
+ * "sleep-requested" {by: "console"} on `/sleep` (start.js ends the process).
  */
 export class MConsole extends MBaseComponent {
     _rl = null
@@ -28,11 +29,11 @@ export class MConsole extends MBaseComponent {
             const text = line.trim()
             if (!text) return
             if (text === "/sleep") {
+                // An intent, not a call on the mind (message-rule.md M1): the
+                // process hears it and runs the sleep ritual for every mind in
+                // it, then exits, reporting whether the sleep was confirmed.
                 log.log("Sleep requested from console.")
-                const mind = this.closest('m-mind')
-                Promise.resolve(mind?.sleep?.())
-                    .catch(error => log.warn("Sleep ritual error:", error.message))
-                    .finally(() => { log.log("Asleep. Goodbye."); process.exit(0) })
+                this.fire("sleep-requested", { by: "console" })
                 return
             }
             // Raw words in `reason`, the mind's companion as `from`, the mind's

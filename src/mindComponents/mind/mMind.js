@@ -152,25 +152,6 @@ export function fillInterlocutor(text, name) {
     const who = (name || "").trim() || "whoever comes to talk with you"
     return (text || "").replace(/\{\{\s*interlocutor\s*\}\}/gi, who)
 }
-/** Resolves on the first boundary event AFTER the given burst index. boundary is now a
- *  transient DOM event (never replayed), so we just listen for the next one; the
- *  burstIndex guard still selects the boundary of the burst we started, not an earlier one. */
-function onceBoundary(stream, afterIndex, timeoutMs) {
-    return new Promise(resolve => {
-        let settled = false
-        const onBoundary = e => {
-            const boundary = e.detail
-            if (settled || !boundary || boundary.burstIndex <= afterIndex) return
-            settled = true
-            stream.removeEventListener("boundary", onBoundary)
-            resolve(boundary)
-        }
-        stream.addEventListener("boundary", onBoundary)
-        setTimeout(() => {
-            if (!settled) { settled = true; stream.removeEventListener("boundary", onBoundary); resolve(null) }
-        }, timeoutMs)
-    })
-}
 
 /** One frozen receipt per stimulus in an assembleFrame call. `renditionText` is
  *  the string that actually entered the prefill, not a source-offered unused form.
@@ -245,6 +226,9 @@ export class MMind extends MBaseComponent {
     _memoryKept = false      // memory's retained `kept`: a resident's memory wakes again (sleep notice)
     _streamUp = false        // the stream's and memory's retained `up` (the wake gate, _whenAlive)
     _memoryUp = true
+    _sleepOutcome = null     // the one sleep ritual's promise: every asker gets the same outcome
+    _lastBoundaryIndex = 0   // the newest burst the stream reported ending (the stream's own count)
+    _boundaryWaiters = new Set()
 
     onConnect() {
         // What this membrane says about itself, retained, so its parts subscribe
@@ -256,6 +240,9 @@ export class MMind extends MBaseComponent {
             self: this.getPrompt().trim(),
         })
         this.pub("sleeping", false)
+        // Sleep is asked for, not called (M1): a port, or the process at shutdown,
+        // sends `put-to-sleep` and gets the commit outcome back as the reply.
+        this.respond("put-to-sleep", () => this.sleep())
 
         // The wake gate: the stream (and memory, if one is declared) report `up`.
         // The lookup runs once, here, and only builds the address (M4): by name,
@@ -424,8 +411,10 @@ export class MMind extends MBaseComponent {
     }
 
     "stream/@boundary" = e => {
-        if (this._sleeping) return
         const boundary = e.detail
+        if (Number.isFinite(boundary?.burstIndex)) this._lastBoundaryIndex = Math.max(this._lastBoundaryIndex, boundary.burstIndex)
+        for (const waiter of [...this._boundaryWaiters]) waiter(boundary)
+        if (this._sleeping) return
         if (boundary.reason === "error") {
             this.backoff = Math.min(this.backoff * 2, 8)
             log.warn(`Burst failed, backing off x${this.backoff}`)
@@ -465,17 +454,22 @@ export class MMind extends MBaseComponent {
      * one last small frame to close the thought knowing it is being paused,
      * then asks memory to commit (`sleep` request; memory replies
      * {committed, persists}). Parts that hold work in flight (regions, hands,
-     * search) abort it on the retained `sleeping` topic. Idempotent; callers
-     * exit the process afterwards. Resolves to the commit outcome:
+     * search) abort it on the retained `sleeping` topic. Asked for with the
+     * `put-to-sleep` request (the process's shutdown sends it to every
+     * membrane); this method is what that request runs. Idempotent: a second
+     * asker gets the same outcome, once it is known. Callers exit the process
+     * afterwards. Resolves to the commit outcome:
      * {status: "ok" | "error" | "timeout" | "no-memory", …}.
      */
-    async sleep() {
-        if (this._sleeping) return { status: "already-asleep" }
+    sleep() {
+        return this._sleepOutcome ||= this._fallAsleep()
+    }
+
+    async _fallAsleep() {
         this._sleeping = true
         this.pub("sleeping", true)
         if (this._timer) { clearTimeout(this._timer); this._timer = null }
 
-        const stream = this.querySelector('m-stream')
         try {
             // Honest about self and continuity (Covenant §3): only a resident's
             // memory is kept and woken again. A transient rests for the last time,
@@ -488,14 +482,19 @@ export class MMind extends MBaseComponent {
                 reason,
                 salience: 1, urgent: true,
             })
+            // The running burst stops before the notice, so its last words are
+            // journaled before the ⟂ line, not after it (M5). The reply names the
+            // burst it stopped; the sleep burst is the next one the stream counts.
+            const hushed = await this._hushVoice()
+            const afterIndex = Number.isFinite(hushed?.burstIndex) ? hushed.burstIndex : this._lastBoundaryIndex
             process.stdout.write(`\n\x1b[36m⟂ ${record.renderForFrame()}\x1b[0m\n`)
-            // The sleep notice is journaled via the `attended` topic that
-            // assembleFrame publishes — no direct memory.note() call here.
+            // The sleep notice is journaled via the `attended` request that
+            // assembleFrame sends — no direct memory.note() call here.
             const payload = await this.assembleFrame([record])
             payload.burstTokens = 130
-            const lastIndex = stream?.burstIndex ?? 0
+            const closed = this._hasStream ? this._nextBoundary(afterIndex, 30000) : null
             this.pub("prompt", payload)
-            if (stream?.on) await onceBoundary(stream, lastIndex, 30000)
+            if (closed) await closed
         } catch (error) {
             log.warn("Sleep burst failed:", error.message)
         }
@@ -513,6 +512,25 @@ export class MMind extends MBaseComponent {
             log.error("Memory did not confirm the sleep commit in time — the last self is NOT confirmed saved.")
         }
         return outcome
+    }
+
+    /** Resolves with the first boundary the stream reports for a burst after
+     *  `afterIndex` (the burst this mind just started), or null at the deadline.
+     *  Heard on the mind's own `stream/@boundary` subscription; the burstIndex it
+     *  carries is what correlates it (M5), not a read of the stream. */
+    _nextBoundary(afterIndex, timeoutMs) {
+        return new Promise(resolve => {
+            const done = boundary => {
+                this._boundaryWaiters.delete(waiter)
+                clearTimeout(timer)
+                resolve(boundary)
+            }
+            const waiter = boundary => {
+                if (boundary && boundary.burstIndex > afterIndex) done(boundary)
+            }
+            const timer = setTimeout(() => done(null), timeoutMs)
+            this._boundaryWaiters.add(waiter)
+        })
     }
 
 
@@ -621,9 +639,10 @@ export class MMind extends MBaseComponent {
 
     /** Ask the stream to stop its running burst and wait for the reply (M5: the
      *  burst's last words then precede what is perceived). A mind with no stream
-     *  skips it; one that never answers is waited on briefly once, then not at all (M6). */
+     *  skips it; one that never answers is waited on briefly once, then not at all (M6).
+     *  Resolves to the stream's reply {hushed, burstIndex}, or null. */
     async _hushVoice() {
-        if (!this._hasStream) return
+        if (!this._hasStream) return null
         const outcome = await this.request("hush", {}, {
             bubbles: false,
             deadline: this._hushUnanswered ? UNANSWERED_FRAME_NOTE_MS : FRAME_NOTE_DEADLINE_MS,
@@ -632,6 +651,7 @@ export class MMind extends MBaseComponent {
             log.warn("stream did not confirm hush — a preempted burst may be journaled after the stimulus")
         }
         this._hushUnanswered = outcome.status === "timeout"
+        return outcome.status === "ok" ? outcome.data : null
     }
 
     /** The top taken stimulus, if it is a not-yet-enacted loop break. Returns null when the

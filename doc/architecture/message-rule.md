@@ -2,7 +2,8 @@
 
 > **Status: adopted as the target, measured; the request/reply seam is built and
 > piloted on sleep and frame ordering; hands and attention payloads are messages
-> (2026-09-26).**
+> (2026-09-26); sleep is asked for, not called, and an unconfirmed commit is
+> reported to the supervisor (2026-09-27).**
 > The analysis behind it is
 > [message-rule-async-review.md](../improvements/message-rule-async-review.md).
 > This page states the rule, the one exception, and how the tree is held to it.
@@ -120,10 +121,10 @@ The topic is `up`, not `ready`, because Amanita stores a published topic as a
 property on the element and `ready()` is m-sense's subclass hook. The same
 hazard applies to any new retained topic: its name must not shadow a member.
 
-Still handle calls, left for later steps: `mind.sleep()` itself (start.js,
-m-ws, m-console, the Studio supervisor), and the mind's reads of the stream
-(`burstIndex`, `onceBoundary` listening on the stream element,
-`getRecentOutput`). Sleep fan-out ordering is carried by the sleep burst's
+Still handle calls after the pilot: `mind.sleep()` itself (start.js, m-ws,
+m-console) and the mind's reads of the stream (`burstIndex`, `onceBoundary`
+listening on the stream element, `getRecentOutput`). The sleep step (below)
+removed all but `getRecentOutput`. Sleep fan-out ordering is carried by the sleep burst's
 latency, not by a reply: a mind with no stream asks memory to commit in the same
 tick the parts learn `sleeping`.
 
@@ -167,6 +168,21 @@ call of several seconds. The hush also fixed review §9 bug 1:
 the provenance stop no longer loses the mind's last clean words, in any delivery mode,
 because the corrective frame is built after the hush reply and no longer inside the
 arbiter's dispatch.
+
+**Sleep (review §7 step 5, 2026-09-27).**
+
+| Before | Now |
+|---|---|
+| start.js, m-console and m-ws called `mind.sleep()` on looked-up elements; m-console and m-ws then called `process.exit(0)` | a port fires the intent `sleep-requested {by}`. The process hears it on the document and takes the same path as Ctrl-C (`registerGracefulShutdown(...).shutdown`), so every mind in the process sleeps before the exit, not only the port's own (m-console used to exit a society after sleeping one member). |
+| sleepAll awaited `m.sleep()` on every `m-mind, m-agent` (by tag), raced against the grace, and exited 0 whatever happened | `putToSleep(root, {deadline})` (`src/startup/sleepRitual.js`) finds the membranes by role (`mind`, `agent`) and sends each a `put-to-sleep` request, which it answers with its commit outcome. `ok` and `no-memory` are confirmed. Anything else, including silence by the deadline and a grace that runs out, is logged as NOT confirmed, and the process exits with `SLEEP_UNCONFIRMED_EXIT` (3). |
+| the Studio said "asleep — memory committed" for any child that exited while sleeping, even after a Force | exit 0 is "memory committed"; exit 3 is "memory commit NOT confirmed"; any other exit while sleeping says it was not confirmed; a Force says so first |
+| `sleep()` on an asleep mind returned `already-asleep` at once, before the first ritual had committed | `sleep()` returns the one ritual's promise, so every asker gets the real outcome |
+| the sleep frame was built while the running burst kept streaming | the mind asks its stream to `hush` first, as it does before perceiving. The hush reply names the burst it stopped, and the mind waits for the next burst's boundary on its own `stream/@boundary` subscription (M5: the `burstIndex` correlates it). No read of `stream.burstIndex` and no listener on the stream element. |
+
+The sleep-notice contract failed on 6 of 10 `jitter` seeds before this step and
+passes on 10 of 10 after it, without editing the test. m-mind still exposes
+`sleep()` as the method the `put-to-sleep` responder runs, and the contract tests
+still call it as their trigger. What changed is that no component calls it.
 
 ## How the tree is held to it
 
@@ -253,6 +269,12 @@ formerly `test.failing` (review §9 bug 1), was flipped to `test` as its comment
 asked. 9 of 38 contracts are still red: agent governance and the step round trip
 (step 6), the perception gate (step 6), and the in-flight compare at sleep,
 whose precondition rides the perception gate.
+
+**After sleep (2026-09-27).** 145 of 1151 fail (the four new sleep-request tests
+pass under chaos), 10 violation kinds, 61 role-port calls; the baseline did not
+change, because the sleep-notice hazard showed only under `jitter`, which is not
+the baseline mode. The in-flight compare at sleep stays red: its precondition
+rides the perception gate (step 6).
 
 ## What it does not change
 
