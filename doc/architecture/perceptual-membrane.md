@@ -90,10 +90,11 @@ The first thresholds and time constants are provisional experiment settings. No
 thought content is inspected.
 
 Acquisition and awareness are two named stages, each a real `GateVerdict`. Every
-aperture provider on the path answers a cancelable `percept-candidate` event;
-permission is the conjunction, fail-closed if a gate is missing. Awareness is a
-second composed pass of the same event after materialization, not a capture-phase
-veto on `interrupt-request`. At tier 0 every gate records `reason: 'tier-0-mirror'`.
+aperture provider on the path answers a `percept-candidate` request from the
+issuing aperture with its verdict (plain data, [message-rule.md](message-rule.md));
+permission is the conjunction, fail-closed if a gate is missing (one that has not
+answered by `gateDeadline` denies). Awareness is a second composed request after
+materialization, not a capture-phase veto on `interrupt-request`. At tier 0 every gate records `reason: 'tier-0-mirror'`.
 The regulator still accepts only a `PerceptCandidate` header; `EdgeEvidence` is a typed
 refusal, and nothing produces one. Scores cannot enter the deficit. Verdicts are
 published on the non-semantic `perceptDecision` topic (stage, source, permitted,
@@ -464,7 +465,7 @@ dropping an already-rendered bid at the outer arbiter is too late. Scope or poli
 changes also invalidate pending work that no longer has permission to complete.
 This composition is implemented (membrane phase 2).
 [Enclosure by role](../improvements/enclosure-by-role.md) is the mechanism
-(role-resolved enclosure, a cancelable `percept-candidate` event whose gates
+(role-resolved enclosure, a `percept-candidate` request whose gates' replies
 compose by conjunction, nearest-provider debt credit, and a pressure fold). The
 full `membrane()` / `part()` / `..[provides~="mind"]` sweep is still that note's
 own phase 1, not this work.

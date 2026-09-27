@@ -6,7 +6,7 @@ import { issueOwnerBid } from '../../infrastructure/bidderPolicy.js'
 import { SourceContract, AnnotatedCandidate, decideGate, GateVerdict, ControlRequest, RenditionRequest, receiptsFrom, pushGainTrail, fireControlResult } from '../../infrastructure/perceptionContracts.js'
 import { InterruptRecord } from '../../infrastructure/interruptRecord.js'
 import { bidData } from '../../infrastructure/attentionBid.js'
-import { dispatchOnBehalf } from '../../infrastructure/messageOrigin.js'
+import { dispatchOnBehalf, sentByComponent } from '../../infrastructure/messageOrigin.js'
 import { parseTime } from '../../config/timeParser.js'
 import { projectEvidenceView } from '../../infrastructure/evidenceView.js'
 import { CompareBudget, CommitOrder, evaluationIdsOf, verdictsOf } from '../../infrastructure/compareContinuation.js'
@@ -14,10 +14,13 @@ import { runEvidenceCase } from '../../infrastructure/evidenceCase.js'
 import { evaluationCommitPayload, fireEvaluationCommit } from '../../infrastructure/predictionContracts.js'
 import { OrientationRequest } from '../../infrastructure/predictionContracts.js'
 import { logger } from '../../infrastructure/logger.js'
+import { respond } from '../../infrastructure/requestReply.js'
 
 const log = logger('mRegion.js')
 
 /** Stable id for a gate: `name` attribute, else the tag. Unique among apertures in a membrane. */
+const DEFAULT_GATE_DEADLINE_MS = 500
+
 export function gateIdOf(el) {
     return el?.getAttribute?.('name') || el?.localName
 }
@@ -58,6 +61,8 @@ export function gateIdOf(el) {
  *     confirmation policy. The issuing (nearest) provider owns the floor; nested
  *     apertures do not fold or max it.
  *   - compareDeadline: wall-clock budget for a live comparison (default "2s")
+ *   - gateDeadline: how long an issued candidate waits for every gate on its path
+ *     (default "500ms"); a gate that has not answered by then denies (gate-missing)
  * Interior role: `regulator` — contact dynamics (debt, habituation, reflex).
  *   Resolved at connect via part('regulator'), then kept only if
  *   enclosingOf(el, 'aperture') === this, so a nested aperture's regulator is
@@ -86,9 +91,12 @@ export function gateIdOf(el) {
  * scores never enter this provider: they are not candidates and never become
  * change headers.
  * Topics: contactPressure, apertureState (retained); perceptDecision (non-semantic
- *   gate verdicts); events: aperture-change (backstage); percept-candidate (cancelable,
- *   bubbling, twice — acquisition then awareness — conjunction of every aperture on
- *   the path, stopped at the membrane); aperture-register (bubbling, nearest aperture
+ *   gate verdicts); events: aperture-change (backstage); percept-candidate (a request,
+ *   message-rule.md: plain data {stage, candidateId, contract, gates}, sent twice by
+ *   the issuing aperture — acquisition then awareness — bubbling through every aperture
+ *   on the path and stopped at the membrane; each gate replies {verdict, version?, gain?},
+ *   and the issuer composes the conjunction: every gate answered and none refused, else
+ *   the refusal, else gate-missing); aperture-register (bubbling, nearest aperture
  *   stops it — not conjunction). Credits `percepts-attended` by percept id
  *   against a bounded issued-id map — never by object identity. Awareness is the
  *   second pass of the same event after materialization, not a capture-phase veto
@@ -113,7 +121,8 @@ export class MRegion extends MBaseComponent {
     // Always an attention scope; with `modality` it is also a sensory gate.
     // Predicates see the raw element and may read only attributes (they exist
     // before upgrade). Nearest aperture still owns registration and observe();
-    // every aperture on the path gates acquisition and awareness via percept-candidate.
+    // every aperture on the path gates acquisition and awareness: it answers the
+    // issuer's percept-candidate request with its verdict (_askGates / _gateAnswer).
     static provides = { faculty: true, aperture: el => el.hasAttribute('modality') }
 
     onConnect() {
@@ -152,7 +161,10 @@ export class MRegion extends MBaseComponent {
             this.sub('!scope/economy/arousal', value => { this._arousal = value }).catch(() => {})
         }
         this._requestedFloor()
-        this.addEventListener('percept-candidate', this._onPerceptCandidate)
+        // Every aperture on a candidate's path answers the issuer's request with its
+        // verdict (message-rule.md). respond() returns the listener, kept so a test can
+        // re-attach it in another phase and so disconnect can remove it.
+        this._onPerceptCandidate = respond(this, 'percept-candidate', (detail, event) => this._gateAnswer(detail, event))
         this.addEventListener('aperture-register', this._onApertureRegister)
         this._bindAperture()
     }
@@ -164,7 +176,7 @@ export class MRegion extends MBaseComponent {
         }
         this._compareAborts?.clear()
         this._unlistenPercepts?.()
-        this.removeEventListener('percept-candidate', this._onPerceptCandidate)
+        if (this._onPerceptCandidate) this.removeEventListener('percept-candidate', this._onPerceptCandidate)
         this.removeEventListener('aperture-register', this._onApertureRegister)
         if (this.aperture) this.aperture.version++
         this._sources?.clear()
@@ -212,27 +224,18 @@ export class MRegion extends MBaseComponent {
             this.aperture.observe(contract.name, candidate, now)
             this._publishAperture()
 
-            const detail = {
-                stage: 'acquisition',
-                header: candidate,
-                origin: element,
-                contract,
-                verdicts: [],
-                versions: [],
-                gainTrail: [],
-            }
-            // Snapshot the path before dispatch: a gate removed mid-flight must not
-            // look like permission. Walk from the source so the issuer is included.
+            // Snapshot the path before asking: a gate removed mid-flight must not look
+            // like permission. Walk from the source so the issuer is included.
             const expectedGates = enclosingAllOf(element, 'aperture')
             if (!expectedGates.includes(this)) expectedGates.unshift(this)
-            const event = new CustomEvent('percept-candidate', { bubbles: true, cancelable: true, detail })
-            element.dispatchEvent(event)
-
+            const gates = expectedGates.map(gateIdOf)
+            const asked = await this._askGates('acquisition', candidate, contract, gates)
             const annotated = new AnnotatedCandidate({
                 candidate, contract,
-                versions: detail.versions,
+                versions: asked.versions,
             })
-            const acquisition = this._composedGate(event, expectedGates)
+            const acquisition = asked.verdict
+            if (!attached() || this._membraneSleeping) return null
             // A source already materializing is dropped exactly as before, but the
             // published record must say so: a `permitted: true` acquisition with no
             // awareness verdict and no percept following it left an unterminated
@@ -326,21 +329,10 @@ export class MRegion extends MBaseComponent {
             // an acquisition privilege; tier 0 awareness mirrors decideGate's permitted
             // bit, including that bypass. Fresh verdicts; do not rewrite acquisition
             // versions or push the gain trail again.
-            const awarenessDetail = {
-                stage: 'awareness',
-                header: candidate,
-                origin: element,
-                contract,
-                verdicts: [],
-            }
-            const awarenessEvent = new CustomEvent('percept-candidate', {
-                bubbles: true, cancelable: true, detail: awarenessDetail,
-            })
-            element.dispatchEvent(awarenessEvent)
-            const awareness = this._composedGate(awarenessEvent, expectedGates)
+            const awareness = (await this._askGates('awareness', candidate, contract, gates)).verdict
             if (awareness.permitted && (!attached() || this._membraneSleeping
                 || !this._versionsHold(annotated))) {
-                this._publishDecision(this._gateMissingVerdict(awarenessDetail), annotated)
+                this._publishDecision(this._gateMissingVerdict('awareness', contract), annotated)
                 return null
             }
             const percept = new Percept({
@@ -362,7 +354,7 @@ export class MRegion extends MBaseComponent {
                 bidder: this._liveBidder(),
                 evidence: percept,
                 evaluations,
-                gainTrail: detail.gainTrail,
+                gainTrail: asked.gainTrail,
                 requestedFloor: this._requestedFloor(),
             })
             if (!bid) {
@@ -600,57 +592,102 @@ export class MRegion extends MBaseComponent {
         }
     }
 
-    /** Every aperture on the path answers. Nobody but the membrane stops this event. */
-    _onPerceptCandidate = event => {
-        const detail = event.detail
-        if (!detail || (detail.stage !== 'acquisition' && detail.stage !== 'awareness')) return
-        if (!this.aperture) return
-        if (!(detail.contract instanceof SourceContract)) {
-            event.preventDefault()
-            return
+    /**
+     * Ask every gate on the path about one candidate (message-rule.md). The request
+     * is plain data — the stage, the candidate's id, the frozen contract, the gate
+     * ids — sent from this aperture, the source's nearest: every other gate on the
+     * path encloses it, so the request bubbles through all of them and the membrane
+     * stops it. Each gate replies with its verdict (at acquisition also its version
+     * and gain factor). Collection ends when every gate has answered, one has
+     * refused, or `gateDeadline` (default 500ms) passes. A gate that has not answered
+     * denies: the composed verdict is `gate-missing` (monotone authority, M6).
+     * Resolves to {verdict, versions, gainTrail}; never rejects.
+     */
+    async _askGates(stage, candidate, contract, gates) {
+        const inPath = reply => reply.status === 'ok' && gates.includes(reply.from)
+            && reply.data?.verdict?.gate === reply.from
+        const refuses = reply => inPath(reply) && reply.data.verdict.permitted === false
+        const { replies } = await this.requestAll('percept-candidate', {
+            stage,
+            candidateId: candidate.id,
+            contract: { ...contract, powers: { ...contract.powers } },
+            gates: [...gates],
+        }, {
+            deadline: this._gateDeadline(),
+            until: got => got.some(refuses) || gates.every(g => got.some(r => inPath(r) && r.from === g)),
+        })
+        // One answer per gate, in path order (inner first), rebuilt from plain data.
+        const answers = []
+        for (const gate of gates) {
+            const reply = replies.find(r => inPath(r) && r.from === gate)
+            if (!reply) continue
+            let verdict
+            try { verdict = new GateVerdict(reply.data.verdict) } catch { continue }
+            if (verdict.stage !== stage) continue
+            answers.push({ gate, verdict, version: reply.data.version, gain: reply.data.gain })
         }
-        const path = enclosingAllOf(detail.origin, 'aperture')
-        if (!path.includes(this)) return
+        const versions = []
+        const gainTrail = []
+        if (stage === 'acquisition') {
+            for (const a of answers) {
+                if (Number.isFinite(a.version)) versions.push({ gate: a.gate, version: a.version })
+                // Enclosure may attenuate, never amplify: pushGainTrail throws on a
+                // factor > 1, and that gate's answer then counts as missing.
+                try { pushGainTrail(gainTrail, a.gate, a.gain) } catch { a.invalid = true }
+            }
+        }
+        const valid = answers.filter(a => !a.invalid)
+        const refused = valid.find(a => !a.verdict.permitted)
+        let verdict
+        if (refused) verdict = refused.verdict
+        else if (gates.every(g => valid.some(a => a.gate === g))) {
+            verdict = valid.find(a => a.gate === this._gateId())?.verdict
+                || this._gateMissingVerdict(stage, contract)
+        } else verdict = this._gateMissingVerdict(stage, contract)
+        return { verdict, versions, gainTrail }
+    }
 
+    _gateDeadline() {
+        const raw = this.attr('gateDeadline')
+        if (!raw) return DEFAULT_GATE_DEADLINE_MS
+        try { return parseTime(raw) } catch { return DEFAULT_GATE_DEADLINE_MS }
+    }
+
+    /**
+     * This gate's answer to a candidate on its path, or undefined (abstain) when it
+     * is not on the path, has no aperture yet, or the request did not come from an
+     * aperture component. The contract is rebuilt from the request's plain data —
+     * the frozen snapshot taken at registration, never the source's attributes now.
+     */
+    _gateAnswer(detail, event) {
+        if (!detail || (detail.stage !== 'acquisition' && detail.stage !== 'awareness')) return undefined
+        if (!this.aperture) return undefined
+        if (!Array.isArray(detail.gates) || !detail.gates.includes(this._gateId())) return undefined
+        // Authority comes from the sender (messageOrigin.js): only an aperture asks.
+        if (!sentByComponent(event) || !providesOf(event.target, 'aperture')) return undefined
+        let contract
+        try { contract = new SourceContract(detail.contract) } catch {
+            return { verdict: { ...this._gateMissingVerdict(detail.stage, null), reason: 'invalid-contract' } }
+        }
         // Call the named permit* so a test (or a later policy) can stub one stage.
+        const annotated = { stage: detail.stage, candidateId: detail.candidateId, contract }
         const verdict = detail.stage === 'awareness'
-            ? this.permitAwareness(detail)
-            : this.permitAcquisition(detail)
-        if (!Array.isArray(detail.verdicts)) detail.verdicts = []
-        detail.verdicts.push(verdict)
+            ? this.permitAwareness(annotated)
+            : this.permitAcquisition(annotated)
+        const answer = { verdict: { ...verdict } }
         if (detail.stage === 'acquisition') {
-            detail.versions.push({ gate: verdict.gate, version: this.aperture.version })
-            const factor = detail.contract.powers.bypassAperture ? 1 : this.aperture.gain
-            pushGainTrail(detail.gainTrail, verdict.gate, factor)
+            answer.version = this.aperture.version
+            answer.gain = contract.powers.bypassAperture ? 1 : this.aperture.gain
         }
-        if (!verdict.permitted) event.preventDefault()
+        return answer
     }
 
-    _everyGateAnswered(detail, expectedGates) {
-        const answered = new Set((detail.verdicts || []).map(v => v.gate))
-        return expectedGates.every(el => answered.has(gateIdOf(el)))
-    }
-
-    _composedGate(event, expectedGates) {
-        const detail = event.detail
-        const refused = (detail.verdicts || []).find(v => v.permitted === false)
-        const permitted = !event.defaultPrevented
-            && this._everyGateAnswered(detail, expectedGates)
-            && !refused
-        if (permitted) {
-            return detail.verdicts.find(v => v.gate === this._gateId())
-                || this._gateMissingVerdict(detail)
-        }
-        if (refused) return refused
-        return this._gateMissingVerdict(detail)
-    }
-
-    _gateMissingVerdict(detail) {
+    _gateMissingVerdict(stage, contract) {
         return new GateVerdict({
-            stage: detail?.stage === 'awareness' ? 'awareness' : 'acquisition',
+            stage: stage === 'awareness' ? 'awareness' : 'acquisition',
             permitted: false,
             reason: 'gate-missing',
-            bypass: detail?.contract?.powers?.bypassAperture === true,
+            bypass: contract?.powers?.bypassAperture === true,
             apertureState: this.aperture.state,
             gate: this._gateId(),
         })

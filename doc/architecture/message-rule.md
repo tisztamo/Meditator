@@ -3,8 +3,8 @@
 > **Status: adopted as the target, measured; the request/reply seam is built and
 > piloted on sleep and frame ordering; hands and attention payloads are messages
 > (2026-09-26); sleep is asked for, not called, and an unconfirmed commit is
-> reported to the supervisor; agent governance and the step round trip are
-> request/reply with a quorum (2026-09-27).**
+> reported to the supervisor; agent governance, the step round trip and the
+> perception gate are request/reply with a quorum (2026-09-27).**
 > The analysis behind it is
 > [message-rule-async-review.md](../improvements/message-rule-async-review.md).
 > This page states the rule, the one exception, and how the tree is held to it.
@@ -207,6 +207,24 @@ inside the test, and it called `deny()` / `hold()` on the event. It was
 rewritten to answer with decisions. Its four pinned outcomes were not edited.
 The step contract was not edited at all.
 
+**The perception gate (review §7 step 6, second part, 2026-09-27).**
+
+| Before | Now |
+|---|---|
+| m-region dispatched a cancelable `percept-candidate` on the source element carrying the `PerceptCandidate` (with its materializer), the source element as `origin`, the `SourceContract` instance and three empty arrays; each aperture on the path pushed its verdict, version and gain factor into them, called `preventDefault()` to refuse, and the issuer read it all back when `dispatchEvent` returned | a `percept-candidate` request with plain data `{stage, candidateId, contract, gates}`. `contract` is the frozen registration snapshot as data, and `gates` are the ids of the apertures on the path, taken before asking. Each gate replies `{verdict, version?, gain?}` (the last two at acquisition). The issuer rebuilds each `GateVerdict` and composes the conjunction, the versions and the gain trail in path order. |
+| the issuer walked from the source, so the event passed any node between the source and its aperture | the request is sent from the issuing aperture itself. It is the source's nearest aperture, so every other gate on the path encloses it and the request still reaches all of them, and no element crosses. |
+| the conjunction counted verdicts pushed during one dispatch; a gate that did not run was `gate-missing` | the quorum is the gate roster: collection ends when every gate on the path has answered or one has refused, and a gate silent past `gateDeadline` (default 500 ms) is `gate-missing`. A gate answers only for itself (its verdict's `gate` must be the replier), and a gain factor above 1 makes that answer count as missing (enclosure never amplifies). |
+| a gate trusted the payload because `contract instanceof SourceContract` | a gate answers only a request **sent by an aperture component** (`sentByComponent` and the sender provides `aperture`), and rebuilds the contract from the request's data, so policy still comes from the registration snapshot, never from the source's attributes now |
+
+The perception-gate contract's missing-gate case now waits out the deadline
+instead of missing at once. Its two red cases (permit, and a veto heard as the
+gate's own) and the in-flight compare at sleep turned green without editing
+them. The old-API
+tests that read `detail.verdicts`, `detail.versions` and `detail.gainTrail`
+now read the gates' replies. Three tests that changed the world "while
+materializing" first wait for the materializer to start, because acquisition
+is no longer synchronous.
+
 ## How the tree is held to it
 
 The rule is enforced by measurement rather than by audit list.
@@ -306,6 +324,25 @@ green, and all 19 agent governance and step tests pass on 10 of 10 `jitter`
 seeds. 3 of 38 contracts are still red: the perception gate (permit and veto)
 and the in-flight compare at sleep, whose precondition rides the perception
 gate.
+
+**After the perception gate (2026-09-27).** 79 of 1160 fail (54 fixed, one
+moved in; see below), 6 violation kinds (the three `fire|percept-candidate|…`
+kinds are gone), 61 role-port calls. **All 38 contract tests pass under
+`macrotask` + `json`.** The perception-gate, nested-gating and sleep-fanout
+contracts pass on 10 of 10 `jitter` seeds. What is left red is later steps'
+protocols: stream filters (step 7), the comparator, bidder, regulator,
+orientation, control and search ports (step 8), and the remaining payloads
+(`sample` in `aperture-register`, `Prediction`, `EdgeEvidence`,
+`SearchTarget` / `SearchOutcome`).
+
+Once percepts crossed the json wire, tests that were failing fast at the gate
+reached those ports instead. One (`phase-3b-b5` test 29) then passed or failed
+by a race: its three attempts timed out at exactly its 1200 ms wait. The test now
+waits past the attempt timeouts and pins `reason: "insufficient"` (the samples
+were compared, not abandoned), so it fails deterministically under chaos and
+stays in the baseline for step 8. Separately, `agent-loop`'s finish-tool
+conversational test fails on about 1 run in 12 under `macrotask` + `json`, on
+this commit and before step 6 alike. It is noted here, not diagnosed.
 
 ## What it does not change
 

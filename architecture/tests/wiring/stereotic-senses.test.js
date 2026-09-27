@@ -211,11 +211,9 @@ test('the pre-admission header carries no market content', async () => {
     await delay(40);
     expect(headers.length).toBeGreaterThan(0);
     for (const detail of headers) {
-        // The candidate is the part that crosses before admission; the event's
-        // `contract` holds live element references and is not serializable.
-        // `header` is the part that crosses before admission; the event's `contract`
-        // holds live element references and is not serializable.
-        const serialized = JSON.stringify(detail.header);
+        // The gate request is what crosses before admission, and it is plain data
+        // (message-rule.md): the whole of it must be free of market content.
+        const serialized = JSON.stringify(detail);
         expect(serialized).not.toContain('BTC');
         expect(serialized).not.toContain('Bitcoin');
         expect(serialized).not.toContain('60000');

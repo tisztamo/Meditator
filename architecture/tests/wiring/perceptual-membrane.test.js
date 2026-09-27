@@ -49,6 +49,16 @@ afterEach(async () => {
 });
 
 function allowOrientation() { region.aperture.changedAt = Date.now() - 2000; }
+
+// The gates answer by message (message-rule.md), so a materializer starts a little
+// after offer() is called: wait for it before changing the world under it.
+async function until(check, ms = 1000) {
+    const t0 = Date.now();
+    while (!check()) {
+        if (Date.now() - t0 > ms) throw new Error('until: timed out');
+        await delay(2);
+    }
+}
 const frame = stimuli => MMind.prototype.assembleFrame.call(mind, stimuli);
 const header = key => ({ changeMagnitude: 0.9, changeKey: key, occurredAt: Date.now() });
 
@@ -258,6 +268,7 @@ test('an in-flight materializer cannot deliver after voluntary closure', async (
     const offer = region.registerSource(source);
     let finish;
     const rendering = offer(header('slow'), () => new Promise(resolve => { finish = resolve; }));
+    await until(() => finish);
     allowOrientation();
     region.orient('closed');
     finish('This render arrived too late.');
@@ -316,6 +327,7 @@ test('moving a source invalidates both in-flight work and its old adapter', asyn
     const offer = region.registerSource(source);
     let finish;
     const rendering = offer(header('slow'), () => new Promise(resolve => { finish = resolve; }));
+    await until(() => finish);
     mind.appendChild(source);
     finish('An obsolete observation.');
     expect(await rendering).toBeNull();
@@ -490,6 +502,7 @@ test('an in-flight materializer is dropped by re-checking the recorded version l
     const offer = region.registerSource(source);
     let finish;
     const rendering = offer(header('slow'), () => new Promise(resolve => { finish = resolve; }));
+    await until(() => finish);
     const recordedAt = region.aperture.version;
     allowOrientation();
     region.orient('closed');
@@ -767,14 +780,14 @@ test('receipts credit by percept id once; a rebuilt equal credits; a replay does
         requestId: evidence.requestId,
     });
     expect(rebuilt).not.toBe(percept);
-    mind.dispatchEvent(new CustomEvent('percepts-attended', { detail: [rebuilt] }));
+    mind.dispatchEvent(new CustomEvent('percepts-attended', { detail: [{ ...rebuilt }] }));
     expect(region.contactPressure).toBeLessThan(debt);
 
     const afterCredit = region.contactPressure;
-    mind.dispatchEvent(new CustomEvent('percepts-attended', { detail: [rebuilt] }));
+    mind.dispatchEvent(new CustomEvent('percepts-attended', { detail: [{ ...rebuilt }] }));
     expect(region.contactPressure).toBe(afterCredit);
     const clone = cloneReceipt(rebuilt);
-    mind.dispatchEvent(new CustomEvent('percepts-attended', { detail: [clone] }));
+    mind.dispatchEvent(new CustomEvent('percepts-attended', { detail: [{ ...clone }] }));
     expect(region.contactPressure).toBe(afterCredit);
 
     await frame([percept]);

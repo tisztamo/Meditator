@@ -159,8 +159,12 @@ test('29. repeating one route spends budget without increasing distinct-route co
         sampleBudget: 3,
         routes: [{ aperture: 'world', source: 'earth' }],
     }))
-    await waitFor(() => outcomes.length, 1200)
+    // Longer than three attempt timeouts (3 × 400ms), so an attempt that times out
+    // shows as the wrong reason below rather than as a race with this wait.
+    await waitFor(() => outcomes.length, 3000)
     expect(outcomes[0].status).toBe('budget-exhausted')
+    // Each sample was observed and compared (insufficient), not given up on.
+    expect(outcomes[0].reason).toBe('insufficient')
     expect(outcomes[0].attemptedSamples).toBe(3)
     expect(outcomes[0].coverage).toBe(0)
     expect(outcomes[0].inspectedRoutes).toHaveLength(0)

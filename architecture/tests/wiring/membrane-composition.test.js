@@ -236,6 +236,30 @@ function interceptFire(el) {
     return fired;
 }
 
+// The gate protocol as messages (message-rule.md): every percept-candidate request the
+// issuing aperture sends, with the replies its gates sent back to it.
+function watchGates(issuer) {
+    const rounds = [];
+    const byId = new Map();
+    issuer.addEventListener('percept-candidate', e => {
+        if (e.target !== issuer || typeof e.detail?.requestId !== 'string') return;
+        const round = { ...e.detail, replies: [] };
+        byId.set(e.detail.requestId, round);
+        rounds.push(round);
+    });
+    issuer.addEventListener('request-reply', e => byId.get(e.detail?.requestId)?.replies.push(e.detail));
+    return rounds;
+}
+const verdictsIn = round => round.replies.map(r => r.data.verdict);
+
+async function until(check, ms = 1000) {
+    const t0 = Date.now();
+    while (!check()) {
+        if (Date.now() - t0 > ms) throw new Error('until: timed out');
+        await delay(2);
+    }
+}
+
 function enumerableValues(value, seen = new Set()) {
     if (value == null || typeof value !== 'object') return [value];
     if (seen.has(value)) return [];
@@ -311,8 +335,7 @@ test('W2 identity aperture: an outer open gate changes no receipts; only telemet
     fs.rmSync(journalDir, { recursive: true, force: true });
 
     const nestedMind = await mount(W2_REGION);
-    const details = [];
-    nestedMind.addEventListener('percept-candidate', e => details.push(e.detail));
+    const details = watchGates(nestedMind.querySelector('m-region[name="outside"]'));
     const nested = await driveOpenOffer(nestedMind);
     expect(nested.pending).toEqual(baseline.pending);
     expect(nested.attended).toEqual(baseline.attended);
@@ -322,16 +345,16 @@ test('W2 identity aperture: an outer open gate changes no receipts; only telemet
     expect(details.map(d => d.stage)).toEqual(['acquisition', 'awareness']);
     const acquisition = details[0];
     const awareness = details[1];
-    expect(acquisition.verdicts.map(v => v.gate).sort()).toEqual(['outside', 'shell']);
-    expect(acquisition.versions.map(v => v.gate).sort()).toEqual(['outside', 'shell']);
-    expect(acquisition.verdicts.every(v => v.permitted)).toBe(true);
-    expect(acquisition.gainTrail.every(g => g.factor <= 1)).toBe(true);
-    expect(awareness.verdicts.map(v => v.gate).sort()).toEqual(['outside', 'shell']);
-    expect(awareness.verdicts.every(v => v.stage === 'awareness')).toBe(true);
-    expect(awareness.verdicts.every(v => v.reason === 'tier-0-mirror')).toBe(true);
-    expect(awareness.verdicts.every(v => v.permitted)).toBe(true);
-    expect(awareness.versions).toBeUndefined();
-    expect(awareness.gainTrail).toBeUndefined();
+    expect(acquisition.gates.sort()).toEqual(['outside', 'shell']);
+    expect(verdictsIn(acquisition).map(v => v.gate).sort()).toEqual(['outside', 'shell']);
+    expect(acquisition.replies.every(r => Number.isFinite(r.data.version))).toBe(true);
+    expect(verdictsIn(acquisition).every(v => v.permitted)).toBe(true);
+    expect(acquisition.replies.every(r => r.data.gain <= 1)).toBe(true);
+    expect(verdictsIn(awareness).map(v => v.gate).sort()).toEqual(['outside', 'shell']);
+    expect(verdictsIn(awareness).every(v => v.stage === 'awareness')).toBe(true);
+    expect(verdictsIn(awareness).every(v => v.reason === 'tier-0-mirror')).toBe(true);
+    expect(verdictsIn(awareness).every(v => v.permitted)).toBe(true);
+    expect(awareness.replies.every(r => r.data.version === undefined && r.data.gain === undefined)).toBe(true);
 });
 
 test('W3 outer closed over inner open: no materializer, no bids, no journal, no withheld text', async () => {
@@ -455,6 +478,7 @@ test('versions across gates: outer orientation during materialization drops the 
     const offer = inner.registerSource(source);
     let finish;
     const rendering = offer(header('slow'), () => new Promise(resolve => { finish = resolve; }));
+    await until(() => finish);   // the gates answered and materialization is in flight
     const recordedInner = inner.aperture.version;
     const recordedOuter = outer.aperture.version;
     allowOrientation(outer);
@@ -631,27 +655,20 @@ test('test 18: percept-candidate carries no content, materializer, or un-hashed 
         expect(json).not.toContain(PREIMAGE);
         expect(json).not.toContain('secret');
         expect(json).not.toMatch(/materialize/i);
-        const walked = enumerableValues({
-            header: event.detail.header,
-            contract: event.detail.contract,
-            verdicts: event.detail.verdicts,
-            versions: event.detail.versions,
-            gainTrail: event.detail.gainTrail,
-        });
-        const blob = walked.map(v => typeof v === 'string' ? v : '').join(' ');
+        const blob = enumerableValues(event.detail).map(v => typeof v === 'string' ? v : '').join(' ');
         expect(blob).not.toContain(TEXT);
         expect(blob).not.toContain(PREIMAGE);
-        expect(Object.keys(event.detail.header)).not.toContain('materialize');
-        expect(Object.prototype.hasOwnProperty.call(event.detail.header, 'materialize')).toBe(false);
+        // Plain data: nothing callable, no header object, not even the hashed key.
+        expect(enumerableValues(event.detail).some(v => typeof v === 'function')).toBe(false);
+        expect(Object.keys(event.detail)).not.toContain('header');
+        expect(json).not.toMatch(/changeKey/);
     });
     const offer = inner.registerSource(source);
     await offer({ ...header(PREIMAGE), reason: TEXT, caption: TEXT }, () => TEXT);
     expect(seen).toHaveLength(2);
     expect(seen.map(d => d.stage)).toEqual(['acquisition', 'awareness']);
-    expect(typeof seen[0].header.changeKey).toBe('string');
-    expect(seen[0].header.changeKey).not.toBe(PREIMAGE);
-    expect(seen[0].header.changeKey).toHaveLength(64);
-    expect(seen[1].header.changeKey).toBe(seen[0].header.changeKey);
+    expect(typeof seen[0].candidateId).toBe('string');
+    expect(seen[1].candidateId).toBe(seen[0].candidateId);
 });
 
 const FAST_REGION = `
@@ -670,8 +687,7 @@ test('15. Regulator substitution: faster reflex, gate and receipts unchanged', a
     expect(region.aperture).toBe(regulator);
     expect(region.aperture).not.toBeInstanceOf(Aperture);
 
-    const events = [];
-    mind.addEventListener('percept-candidate', e => events.push(e.detail));
+    const events = watchGates(region);
     const bids = [];
     mind.addEventListener('interrupt-request', e => bids.push(e.detail));
     const published = interceptPub(region);
@@ -689,7 +705,7 @@ test('15. Regulator substitution: faster reflex, gate and receipts unchanged', a
     expect(bids).toHaveLength(0);
     expect(events).toHaveLength(1);
     expect(events[0].stage).toBe('acquisition');
-    expect(events[0].verdicts.some(v => v.reason === 'closed' && v.permitted === false)).toBe(true);
+    expect(verdictsIn(events[0]).some(v => v.reason === 'closed' && v.permitted === false)).toBe(true);
     const decisions = published.filter(p => p.topic === 'perceptDecision');
     expect(decisions).toHaveLength(1);
     expect(decisions[0].data.reason).toBe('closed');

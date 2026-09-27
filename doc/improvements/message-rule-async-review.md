@@ -430,7 +430,10 @@ existing seam, none rewrites a mind's behaviour.
    *Governance and the step round trip done 2026-09-27: `proposal` and `step`
    are requests answered by the agent's `governor` and `monitor` parts, with a
    quorum by roster and a deadline (a silent governor denies, a silent monitor
-   is skipped). The step reply's requestId stands in for `turnIndex`. See
+   is skipped). The step reply's requestId stands in for `turnIndex`. The
+   perception gate followed the same day: `percept-candidate` is a plain-data
+   request from the issuing aperture, each gate on the path replies with its
+   verdict, and a gate silent past `gateDeadline` is `gate-missing`. See
    [message-rule.md](../architecture/message-rule.md).*
 7. **Stream filters as a pipeline.** `stream-filter` becomes ordered `chunk`
    stages; `m-provenance-filter` is the first port.

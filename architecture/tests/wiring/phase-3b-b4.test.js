@@ -162,7 +162,7 @@ test('21. opening changes state and requests the present but does not clear debt
         renditionText: bid.evidence.renderForFrame(),
         policy: { privacy: 'resident-private' },
     })
-    mind.dispatchEvent(new CustomEvent('percepts-attended', { detail: [receipt] }))
+    mind.dispatchEvent(new CustomEvent('percepts-attended', { detail: [{ ...receipt }] }))
     await delay(10)
     expect(inner.aperture.deficit).toBeLessThan(before)
 })

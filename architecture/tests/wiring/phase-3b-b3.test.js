@@ -103,7 +103,8 @@ test('19. an attended feed receipt reduces contactPressure; a refused candidate 
         perceptId: bid.evidence.id,
         occurredAt: Date.now(),
     }]
-    // Credit the way the mind does: fire percepts-attended with a real receipt shape.
+    // Credit the way the mind does: fire percepts-attended with a real receipt shape,
+    // as plain data (m-mind sends `{ ...receipt }`; message-rule.md M2).
     const { PerceptReceipt } = await import('../../../src/infrastructure/perceptionContracts.js')
     const receipt = new PerceptReceipt({
         perceptId: bid.evidence.id,
@@ -118,7 +119,7 @@ test('19. an attended feed receipt reduces contactPressure; a refused candidate 
         renditionText: bid.evidence.renderForFrame(),
         policy: { privacy: 'resident-private' },
     })
-    mind.dispatchEvent(new CustomEvent('percepts-attended', { detail: [receipt] }))
+    mind.dispatchEvent(new CustomEvent('percepts-attended', { detail: [{ ...receipt }] }))
     await delay(10)
     expect(region.contactPressure).toBeLessThan(afterOffer)
 
