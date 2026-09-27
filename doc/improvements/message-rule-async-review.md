@@ -445,6 +445,11 @@ existing seam, none rewrites a mind's behaviour.
    [message-rule.md](../architecture/message-rule.md).*
 8. **Comparator / bidder / regulator / orientation / control** ports as
    request/reply with cancellation messages.
+   *Comparator done 2026-09-27: owners ask `compare {view, deadline}` and the
+   comparator (`MComparator`, `shared/comparators.js`) replies with plain
+   evaluations; the seam gained `request-cancel {requestId}` (a `signal` on
+   `request()`); predictions and search targets cross as plain records trusted
+   by sender. See [message-rule.md](../architecture/message-rule.md).*
 9. **Decoupling cleanups** (independent of async, can interleave): `stats`
    topic + generic `m-ws` walk (§2.1); producers emit `backstage`, memory drops
    per-feature handlers (§2.2); per-membrane usage attribution (§2.3);

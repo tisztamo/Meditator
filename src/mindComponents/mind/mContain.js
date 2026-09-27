@@ -1,52 +1,13 @@
-import { MBaseComponent } from "../shared/mBaseComponent.js"
+import { MComparator } from "../shared/comparators.js"
 import { Evaluation } from '../../infrastructure/perceptionContracts.js'
-import {
-    PREDICTION_EVENT, PREDICTION_SETTLED_EVENT,
-} from '../../infrastructure/predictionContracts.js'
-import { isEvidenceView, normalizeCompareText } from '../../infrastructure/evidenceView.js'
-import { createLivePredictionIndex } from '../../infrastructure/livePredictionIndex.js'
-import { part } from "../shared/enclosure.js"
+import { normalizeCompareText } from '../../infrastructure/evidenceView.js'
 
 /**
  * Match-only containment comparator. Match when the normalized expectation
  * (≤ 6 tokens) occurs in the normalized evidence text; otherwise insufficient.
  * Never mismatch. Optional B2 condition — skip unless expect is a short phrase.
  */
-export class MContain extends MBaseComponent {
-    static provides = { comparator: true }
-
-    _index = createLivePredictionIndex()
-    _bindGen = 0
-    _host = null
-
-    onConnect() {
-        super.onConnect()
-        this._bindGen = (this._bindGen || 0) + 1
-        const mind = this.membrane()
-        this._host = mind
-        if (!mind) return
-        const others = part(mind, 'comparator').filter(el => el !== this)
-        if (others.length) {
-            throw new Error('a mind may have only one comparator')
-        }
-        mind.addEventListener(PREDICTION_EVENT, this._onPrediction)
-        mind.addEventListener(PREDICTION_SETTLED_EVENT, this._onSettled)
-    }
-
-    onDisconnect() {
-        this._bindGen = (this._bindGen || 0) + 1
-        if (this._host) {
-            this._host.removeEventListener(PREDICTION_EVENT, this._onPrediction)
-            this._host.removeEventListener(PREDICTION_SETTLED_EVENT, this._onSettled)
-        }
-        this._host = null
-        this._index.clear()
-    }
-
-    accepts(evidenceView) {
-        return isEvidenceView(evidenceView)
-    }
-
+export class MContain extends MComparator {
     evaluate(evidenceView, { now = Date.now(), deadline, signal } = {}) {
         try {
             if (signal?.aborted) return []
@@ -83,7 +44,4 @@ export class MContain extends MBaseComponent {
             basisAt: now,
         })
     }
-
-    _onPrediction = event => this._index.onPrediction(event)
-    _onSettled = event => this._index.onSettled(event)
 }

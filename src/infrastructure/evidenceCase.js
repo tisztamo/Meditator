@@ -1,28 +1,26 @@
 /** Shared comparison choreography for evidence owners (m-act, m-region).
  *
- * The runner owns: budget reservation, deadline and abort timer, evaluate under
- * `awaitUntilAbort`, budget release, ordered wait, the deadline/abort re-check
- * that zeroes evaluations, comparator-loss admission (empty evaluations, still
- * commit), finally cleanup.
+ * The runner owns: budget reservation, deadline and abort timer, the `compare`
+ * request (shared/comparators.js) with a cancel on abort, budget release, ordered
+ * wait, the deadline/abort re-check that zeroes evaluations, comparator-loss
+ * admission (empty evaluations, still commit), finally cleanup.
  *
  * Owners keep: claiming, view construction, awareness (region), percept
  * construction, and dispatch. `revalidate` is the owner's attachment/sleep/
- * version check after the wait — false drops the case (no commit). Comparator
- * rebinding is not a drop: it admits with no evaluations, like timeout.
+ * version check after the wait — false drops the case (no commit). A comparator
+ * that left or was replaced during the wait is not a drop: it admits with no
+ * evaluations, like timeout.
  */
 
-import { Evaluation } from './perceptionContracts.js'
-import {
-    asEvaluations, compareDeadlineMs, awaitUntilAbort, DEFAULT_COMPARE_DEADLINE_MS,
-} from './compareContinuation.js'
+import { compareDeadlineMs, DEFAULT_COMPARE_DEADLINE_MS } from './compareContinuation.js'
 
 /**
  * @param {object} opts
- * @param {object} opts.owner            for isConnected / deadline attr
+ * @param {object} opts.owner            asks (request) and carries the deadline attr
  * @param {object} opts.view             projected evidence view (private)
- * @param {object|null} opts.comparator  resolved by the owner; required here
- * @param {number} [opts.comparatorGen]
- * @param {() => object|null} [opts.liveComparator]
+ * @param {string|null} opts.comparator  the comparator's name (comparatorOf); required here
+ * @param {() => string|null} [opts.liveComparator]  its name now, after the wait
+ * @param {(owner, comparator, view, {deadline, signal}) => Promise<object[]>} opts.ask
  * @param {object} opts.budget           CompareBudget
  * @param {object} opts.order            per-lane CommitOrder
  * @param {Set} opts.aborts              owner's live AbortController set
@@ -34,8 +32,8 @@ export async function runEvidenceCase({
     owner,
     view,
     comparator,
-    comparatorGen,
     liveComparator,
+    ask,
     budget,
     order,
     aborts,
@@ -58,14 +56,10 @@ export async function runEvidenceCase({
 
     try {
         let evaluations = []
-        if (reserved && typeof comparator.accepts === 'function' && comparator.accepts(view)) {
+        if (reserved) {
             try {
-                const raw = await awaitUntilAbort(comparator.evaluate(view, {
-                    now: Date.now(), deadline, signal: controller.signal,
-                }), controller.signal)
-                if (!controller.signal.aborted && Date.now() < deadline) {
-                    evaluations = asEvaluations(raw, Evaluation)
-                }
+                const answered = await ask(owner, comparator, view, { deadline, signal: controller.signal })
+                if (!controller.signal.aborted && Date.now() < deadline) evaluations = answered
             } catch {
                 evaluations = []
             }
@@ -77,7 +71,7 @@ export async function runEvidenceCase({
         await ticket.wait()
         if (typeof revalidate === 'function' && !revalidate()) return null
         const live = typeof liveComparator === 'function' ? liveComparator() : comparator
-        if (live !== comparator || live?._bindGen !== comparatorGen) evaluations = []
+        if (live !== comparator) evaluations = []
         if (controller.signal.aborted || Date.now() >= deadline) evaluations = []
         commit?.(evaluations)
         return evaluations

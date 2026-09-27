@@ -23,6 +23,7 @@ import {
     CompareBudget, CommitOrder, evaluationIdsOf, verdictsOf,
 } from '../../infrastructure/compareContinuation.js';
 import { runEvidenceCase } from '../../infrastructure/evidenceCase.js';
+import { comparatorOf, askComparator } from './comparators.js';
 import { part, bidOwnerOf, isCustomElementDefined } from "./enclosure.js";
 import { mindHome } from '../../infrastructure/memoryVault.js';
 import { parseTime } from '../../config/timeParser.js';
@@ -684,20 +685,23 @@ export class MAct extends MObserver {
         const actId = detail.actId
         if (typeof actId !== "string" || !actId || !this._liveAct(actId)) return false
         const percept = Percept.fromInterrupt(detail, { trusted: true })
-        const comparator = this._liveComparator()
+        const comparator = comparatorOf(this)
         if (!comparator) {
             this._dispatchOwnerBid(percept, [])
             return true
         }
         const bindGen = this._compareBindGen
-        const comparatorGen = comparator._bindGen
         const view = projectEvidenceFromPercept(percept)
+        // The act's own prediction travels on another channel than this request;
+        // naming it lets the comparator wait for it (M5, shared/comparators.js).
+        const predictionId = this._liveAct(actId)?.prediction?.id
+        const expects = predictionId ? [predictionId] : null
         runEvidenceCase({
             owner: this,
             view,
             comparator,
-            comparatorGen,
-            liveComparator: () => this._liveComparator(),
+            liveComparator: () => comparatorOf(this),
+            ask: (owner, name, v, opts) => askComparator(owner, name, v, { ...opts, expects }),
             budget: this._compareBudget,
             order: this._orderForAct(actId),
             aborts: this._compareAborts,
@@ -742,23 +746,6 @@ export class MAct extends MObserver {
     /** The finished bid, as data, from m-act itself; its own listener lets bids pass. */
     _redispatchBid(bid) {
         this.fire("interrupt-request", bidData(bid))
-    }
-
-    _liveComparator() {
-        const mind = this.membrane()
-        if (!mind) return null
-        const found = part(mind, "comparator")
-        if (found.length > 1) {
-            if (!this._warnedDuplicateComparator) {
-                this._warnedDuplicateComparator = true
-                log.warn("a mind may have only one comparator; comparison is skipped")
-            }
-            return null
-        }
-        const el = found[0]
-        if (!el) return null
-        if (typeof el.accepts !== "function" || typeof el.evaluate !== "function") return null
-        return el
     }
 
     /** Owner-local: a bidder under this act, not under a sibling region. */

@@ -1,5 +1,5 @@
 import { Evaluation } from './perceptionContracts.js'
-import { Prediction } from './predictionContracts.js'
+import { predictionRecord } from './predictionContracts.js'
 import { normalizeCompareText, isEvidenceView } from './evidenceView.js'
 
 function targetMatches(target, view) {
@@ -31,10 +31,12 @@ export function evaluationsForEvidence(predictions, view, {
     const list = Array.isArray(predictions) ? predictions : []
     const incomplete = !view.archivalText.trim()
     const out = []
-    for (const prediction of list) {
+    for (const item of list) {
         const t = Date.now()
         if (timedOut({ now: t, deadline, signal })) return []
-        if (!(prediction instanceof Prediction)) continue
+        // An instance or its plain record (what the index keeps); anything else is skipped.
+        const prediction = predictionRecord(item)
+        if (!prediction) continue
         if (!prediction.actId || view.actId !== prediction.actId) continue
         if (!targetMatches(prediction.target, view)) continue
         const expired = Date.parse(prediction.validUntil) <= now

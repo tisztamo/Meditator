@@ -4,12 +4,12 @@ import { MBaseComponent } from "../shared/mBaseComponent.js"
 import { AttentionBid, isBidData } from '../../infrastructure/attentionBid.js'
 import { renderStimulus } from '../../infrastructure/interruptRecord.js'
 import { sentByComponent } from '../../infrastructure/messageOrigin.js'
-import { Prediction } from '../../infrastructure/predictionContracts.js'
+import { predictionRecord, searchTargetRecord, searchOutcomeRecord } from '../../infrastructure/predictionContracts.js'
 import {
     PREDICTION_EVENT, PREDICTION_SETTLED_EVENT, EVALUATION_COMMIT_EVENT,
 } from '../../infrastructure/predictionContracts.js'
 import {
-    SEARCH_TARGET_EVENT, SEARCH_OUTCOME_EVENT, SearchTarget, SearchOutcome,
+    SEARCH_TARGET_EVENT, SEARCH_OUTCOME_EVENT,
 } from '../../infrastructure/predictionContracts.js'
 import { receiptsFrom, EdgeEvidence, EDGE_EVIDENCE_EVENT } from '../../infrastructure/perceptionContracts.js'
 import { mindHome } from '../../infrastructure/memoryVault.js'
@@ -70,8 +70,9 @@ export class MExpectLedger extends MBaseComponent {
     }
 
     _onPrediction = event => {
-        const prediction = event.detail
-        if (!(prediction instanceof Prediction)) return
+        // Plain records from a component (message-rule.md): the class does not cross.
+        const prediction = sentByComponent(event) ? predictionRecord(event.detail) : null
+        if (!prediction) return
         this._append({
             kind: 'prediction',
             id: prediction.id,
@@ -114,8 +115,8 @@ export class MExpectLedger extends MBaseComponent {
      * cost) and without the candidate text it was made from — the ledger sees
      * exactly what crossed the closed aperture, which is the point of recording it. */
     _onSearchTarget = event => {
-        const target = event.detail
-        if (!(target instanceof SearchTarget)) return
+        const target = sentByComponent(event) ? searchTargetRecord(event.detail) : null
+        if (!target) return
         this._append({
             kind: 'search-target',
             targetId: target.id,
@@ -129,8 +130,8 @@ export class MExpectLedger extends MBaseComponent {
     }
 
     _onSearchOutcome = event => {
-        const outcome = event.detail
-        if (!(outcome instanceof SearchOutcome)) return
+        const outcome = sentByComponent(event) ? searchOutcomeRecord(event.detail) : null
+        if (!outcome) return
         this._append({
             kind: 'search-outcome',
             targetId: outcome.targetId,

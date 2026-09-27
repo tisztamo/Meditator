@@ -4,7 +4,7 @@
 // same holds when delivery is deferred through a JSON wire, as across a process.
 import { test, expect, afterEach } from "bun:test";
 import A from "amanita";
-import { request, requestAll, respond, rosterAnswered, REPLY_EVENT } from "../../../src/infrastructure/requestReply.js";
+import { request, requestAll, respond, rosterAnswered, REPLY_EVENT, CANCEL_EVENT } from "../../../src/infrastructure/requestReply.js";
 import { configureDelivery, isolateDeliveryRegistry } from "../../../src/infrastructure/deliveryChaos.js";
 
 let restore = null, restoreRegistry = null;
@@ -146,4 +146,68 @@ test("the round trip survives deferred delivery through a JSON wire", async () =
     respond(parent, "ask", d => ({ echo: d.q, at: "parent" }));
     const reply = await request(child, "ask", { q: "x" });
     expect(reply).toMatchObject({ status: "ok", data: { echo: "x", at: "parent" } });
+});
+
+test("an aborted signal cancels: the request settles at once and the responder's signal aborts", async () => {
+    const { parent, child } = tree();
+    let heard = null;
+    respond(parent, "slow", (d, e, { signal }) => new Promise(resolve => {
+        heard = signal;
+        signal.addEventListener("abort", () => resolve({ aborted: true }));
+    }));
+    const controller = new AbortController();
+    const pending = request(child, "slow", {}, { deadline: 5000, signal: controller.signal });
+    for (let i = 0; i < 20 && !heard; i++) await new Promise(r => setTimeout(r, 1));
+    expect(heard?.aborted).toBe(false);
+    const t0 = Date.now();
+    controller.abort();
+    const reply = await pending;
+    expect(reply.status).toBe("cancelled");           // settled by the requester, not by a reply
+    expect(Date.now() - t0).toBeLessThan(50);
+    for (let i = 0; i < 20 && !heard.aborted; i++) await new Promise(r => setTimeout(r, 1));
+    expect(heard.aborted).toBe(true);                 // the cancel reached the responder
+});
+
+test("a signal aborted before asking sends nothing", async () => {
+    const { parent, child } = tree();
+    let asked = 0, cancels = 0;
+    respond(parent, "ask", () => { asked++; return {}; });
+    parent.addEventListener(CANCEL_EVENT, () => cancels++);
+    const controller = new AbortController();
+    controller.abort();
+    const reply = await request(child, "ask", {}, { signal: controller.signal });
+    expect(reply.status).toBe("cancelled");
+    await new Promise(r => setTimeout(r, 5));
+    expect([asked, cancels]).toEqual([0, 0]);
+});
+
+test("a cancel that overtakes its request starts the request already aborted (M5)", async () => {
+    // FIFO delivery, whatever mode the suite runs in: the arrival order is the
+    // dispatch order below, so the test (not the transport) decides it.
+    restore = configureDelivery({ mode: "macrotask" });
+    const { parent, child } = tree();
+    let aborted = null;
+    respond(parent, "ask", (d, e, { signal }) => { aborted = signal.aborted; return {}; });
+    // The cancel arrives first, as a reordering transport may deliver it.
+    child.dispatchEvent(new CustomEvent(CANCEL_EVENT, { detail: { requestId: "rq-early" }, bubbles: true }));
+    child.dispatchEvent(new CustomEvent("ask", { detail: { requestId: "rq-early" }, bubbles: true }));
+    await new Promise(r => setTimeout(r, 10));
+    expect(aborted).toBe(true);
+});
+
+test("cancellation survives deferred delivery through a JSON wire", async () => {
+    restore = configureDelivery({ mode: "macrotask", wire: "json", check: "report" });
+    restoreRegistry = isolateDeliveryRegistry();
+    const { parent, child } = tree();
+    let aborted = false;
+    respond(parent, "slow", (d, e, { signal }) => new Promise(resolve => {
+        signal.addEventListener("abort", () => { aborted = true; resolve({}); });
+    }));
+    const controller = new AbortController();
+    const pending = request(child, "slow", {}, { deadline: 5000, signal: controller.signal });
+    await new Promise(r => setTimeout(r, 10));
+    controller.abort();
+    expect((await pending).status).toBe("cancelled");
+    await new Promise(r => setTimeout(r, 10));
+    expect(aborted).toBe(true);
 });

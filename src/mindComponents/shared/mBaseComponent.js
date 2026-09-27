@@ -55,10 +55,12 @@ export class MBaseComponent extends A(HTMLElement) {
         // is A(HTMLElement), which wiring tests often use for <m-mind>).
         // aperture-register is nearest-only: a region must not register with a
         // society, and the membrane is the backstop if no aperture stopped it.
+        // `compare` carries the evidence's private text (shared/comparators.js).
         if (isMembrane(this) && !this._stopsPerceptCandidate) {
             this._stopsPerceptCandidate = true
             this.addEventListener("percept-candidate", event => event.stopPropagation())
             this.addEventListener("aperture-register", event => event.stopPropagation())
+            this.addEventListener("compare", event => event.stopPropagation())
         }
         this._spaceInit()
         super.connectedCallback()
@@ -119,21 +121,24 @@ export class MBaseComponent extends A(HTMLElement) {
     // ------------------------------------------------------- request / reply
 
     /** Ask once; the first reply wins. Resolves to {status: "ok", data, from},
-     *  {status: "error", error, from} or {status: "timeout"} — never rejects.
-     *  `data` is a plain object; opts: {deadline (ms), bubbles}. */
+     *  {status: "error", error, from}, {status: "timeout"} or {status: "cancelled"}
+     *  — never rejects. `data` is a plain object; opts: {deadline (ms), bubbles,
+     *  signal} (an aborting signal cancels: a `request-cancel` follows the request). */
     request(name, data, opts) {
         return requestOf(this, name, data, opts)
     }
 
     /** Ask and collect until `expect` replies, `until(replies)`, or the deadline:
-     *  {status: "ok" | "timeout", replies}. opts: {expect, until, deadline, bubbles}. */
+     *  {status: "ok" | "timeout" | "cancelled", replies}. opts: {expect, until,
+     *  deadline, bubbles, signal}. */
     requestAll(name, data, opts) {
         return requestAllOf(this, name, data, opts)
     }
 
     /** Answer requests named `name`: on myself (a descendant's bubbling request),
      *  or through `opts.src`, an `@event` ref (e.g. "!scope/@sleep"). The handler
-     *  returns the reply data (or a Promise); `undefined` abstains. */
+     *  returns the reply data (or a Promise); `undefined` abstains. Its third
+     *  argument is `{signal}`, aborted when the requester cancels. */
     respond(name, handler, opts) {
         return respondOf(this, name, handler, opts)
     }

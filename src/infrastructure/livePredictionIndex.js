@@ -1,7 +1,10 @@
 /** Shared live-prediction index for comparators behind the `comparator` port.
- * Indexes `prediction` / `prediction-settled` (fire, never pub). Capped. */
+ * Indexes `prediction` / `prediction-settled` (fire, never pub). Capped.
+ * A prediction arrives as its plain record (message-rule.md, M2) and is kept only
+ * when a component sent it: authority is the sender, not the payload's class. */
 
-import { Prediction, MAX_LIVE_PREDICTIONS } from './predictionContracts.js'
+import { predictionRecord, MAX_LIVE_PREDICTIONS } from './predictionContracts.js'
+import { sentByComponent } from './messageOrigin.js'
 
 export function createLivePredictionIndex({ max = MAX_LIVE_PREDICTIONS } = {}) {
     const live = new Map()
@@ -10,8 +13,9 @@ export function createLivePredictionIndex({ max = MAX_LIVE_PREDICTIONS } = {}) {
         values() { return [...live.values()] },
         clear() { live.clear() },
         onPrediction(event) {
-            const prediction = event.detail
-            if (!(prediction instanceof Prediction)) return
+            if (!sentByComponent(event)) return
+            const prediction = predictionRecord(event.detail)
+            if (!prediction) return
             while (live.size >= max) {
                 const oldest = live.keys().next().value
                 live.delete(oldest)

@@ -5,7 +5,8 @@
 > (2026-09-26); sleep is asked for, not called, and an unconfirmed commit is
 > reported to the supervisor; agent governance, the step round trip and the
 > perception gate are request/reply with a quorum; the stream's output filters
-> are asked, stage by stage (2026-09-27).**
+> are asked, stage by stage; the comparator is asked, and a request can be
+> cancelled (2026-09-27).**
 > The analysis behind it is
 > [message-rule-async-review.md](../improvements/message-rule-async-review.md).
 > This page states the rule, the one exception, and how the tree is held to it.
@@ -87,7 +88,12 @@ exposed as `request()` / `requestAll()` / `respond()` on `MBaseComponent`):
   rejects silently and never hangs. Callers map it to abstain, skip or degrade.
   For sleep it is reported as "not confirmed" (Covenant).
 - **Payloads** obey M2. `requestId`s are plain strings, and cancellation is a
-  `cancel {requestId}` message (not built yet; the comparator step needs it).
+  `request-cancel {requestId}` message (built with the comparator step): a
+  requester passes `signal`, and when it aborts the request settles as
+  `{status: "cancelled"}` and the cancel follows the request's own path. A
+  responder bound on an element gets `{signal}` as its handler's third argument.
+  A cancel can overtake its request under reordering delivery, so the responder
+  remembers the last 64 cancelled ids and starts such a request already aborted.
 - **Abstaining.** A responder handler returning `undefined` sends no reply (a
   gate that does not cover this percept). A throw becomes
   `{status: "error", error}`. An event of the same name without a `requestId`
@@ -252,6 +258,29 @@ contract's governor, it was changed to extend `MStreamFilter` so that it is serv
 and its behaviour and all four pinned outcomes were not edited. Its header comment
 still says the chain is method calls; by rule it was not edited.
 
+**The comparator (review §7 step 8, first part, 2026-09-27).** Built in
+`src/mindComponents/shared/comparators.js`:
+
+| Before | Now |
+|---|---|
+| m-region and m-act looked up the membrane's comparator per case, called `accepts(view)` and `evaluate(view, {signal})` on it, and filtered the returned `Evaluation` instances | the owner asks: a `compare {view, deadline}` request that bubbles from the owner, answered `{evaluations}` as plain records, which the owner rebuilds (`evaluationsFrom`, keeping the comparator's ids). The comparator answers from a listener bound on its membrane at connect, and only for a component inside that membrane. The membrane stops `compare`, because the view carries the evidence's private text. |
+| the owner's `AbortController` signal was passed into `evaluate()` (sleep, disconnect, the deadline aborted it in place) | the owner's signal cancels the request, and a `request-cancel {requestId}` reaches the comparator, whose own signal then aborts, so a model call in flight (m-judge) is abandoned on the comparator's side too |
+| the owner held the comparator element and compared its `_bindGen` after the wait (a rebound comparator admitted with no evaluations) | the owner holds the comparator's **name** (`comparatorOf`: a lookup that yields a name, M4) and compares it after the wait. A comparator that disconnects answers every compare in flight with no evaluations. Both still admit the evidence with empty evaluations. |
+| m-compare, m-judge and m-contain each repeated the connect, index and teardown code | they extend `MComparator`, which serves `compare` and keeps the indexes. `accepts()` / `evaluate()` are unchanged, so tests that stub `compare.evaluate` still drive the real port. |
+| comparators and m-expect-ledger indexed `prediction` / `search-target` / `search-outcome` only as `Prediction` / `SearchTarget` / `SearchOutcome` instances (dropped on the json wire) | the events carry frozen plain records (`predictionRecord`, `searchTargetRecord`, `searchOutcomeRecord` keep the issuer's ids and clocks). A receiver keeps one only when a component sent it (`sentByComponent`), which is the authority `instanceof` stood for. |
+
+The prediction m-act fires before it runs a hand and the `compare` request for
+the hand's consequence travel on different channels. Under `jitter` the request
+reached the judge first, and the consequence was compared against no prediction.
+So m-act names the act's prediction in the request (`expects: [predictionId]`,
+M5), and the comparator waits for it to be indexed, until the deadline or a
+cancel. The region path has the same race when a sample follows a prediction
+within one tick. A region does not know the prediction's id (its `ControlRequest`
+carries only the `actId`), so it is not fixed here. In a live mind, several
+message hops separate the prediction from the sample's compare. One test pins it
+(membrane-compare 16, which predicts and samples in one tick), and it fails on
+1 of 10 `jitter` seeds.
+
 ## How the tree is held to it
 
 The rule is enforced by measurement rather than by audit list.
@@ -378,6 +407,18 @@ pass, and the stream-filter contract passes on 10 of 10 `jitter` seeds. A dry mi
 with `m-provenance-filter` ran its bursts through the chain under `jitter` + `json`
 delivery with no stage dropped. Left red: the comparator, bidder, regulator,
 orientation, control and search ports (step 8), and the remaining payloads.
+
+**After the comparator (2026-09-27).** 58 of 1165 fail (16 fixed), 3 violation
+kinds (`fire|prediction|instance:Prediction` and the two `search-*` kinds are
+gone), 60 role-port calls (`evaluate` 4 → 3). All 38 contracts still pass. The
+fixed tests are the membrane-compare, judge (B2), expect-ledger (B1) and search
+(B5) tests that needed a prediction or a search target to cross the json wire.
+Three of them read a bid synchronously and now wait for its delivery. Their
+assertions are unchanged. Under `jitter`, membrane-compare 12 (two bids from one
+source keep their commit order) fails on 3 to 6 of 10 seeds, because the owner
+dispatches the bids in commit order but the transport reorders them on the way to
+the arbiter. The attention channel carries no per-source sequence number, so this
+is noted, not fixed.
 
 ## What it does not change
 

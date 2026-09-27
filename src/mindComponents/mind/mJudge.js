@@ -1,17 +1,10 @@
-import { MBaseComponent } from "../shared/mBaseComponent.js"
+import { MComparator } from "../shared/comparators.js"
 import { Evaluation } from '../../infrastructure/perceptionContracts.js'
-import {
-    PREDICTION_EVENT, PREDICTION_SETTLED_EVENT,
-} from '../../infrastructure/predictionContracts.js'
-import { isEvidenceView } from '../../infrastructure/evidenceView.js'
-import { createLivePredictionIndex } from '../../infrastructure/livePredictionIndex.js'
-import { createLiveSearchIndex } from '../../infrastructure/liveSearchIndex.js'
 import { judgePrompt, parseJudgeReply, JUDGE_MAX_TOKENS, JUDGE_VERDICTS } from '../../infrastructure/judgeCompare.js'
 import { complete } from '../../modelAccess/llm.js'
 import { decide, verdictChoice, readChoice } from '../../modelAccess/decide.js'
 import { resolveModelRef } from '../../modelAccess/modelConfig.js'
 import { logger } from '../../infrastructure/logger.js'
-import { part } from "../shared/enclosure.js"
 
 const log = logger('mJudge.js')
 
@@ -35,53 +28,13 @@ const log = logger('mJudge.js')
  * bidder and the ledger cannot tell which one spoke — which is the point: the
  * seam was built for this replacement. See doc/research/expect-study.md §2.7–2.8.
  */
-export class MJudge extends MBaseComponent {
-    static provides = { comparator: true }
-
-    _index = createLivePredictionIndex()
-    _targets = createLiveSearchIndex()
-    _bindGen = 0
-    _host = null
-
+export class MJudge extends MComparator {
     /** Provenance of the last judgement: which engine answered, the version the
      * endpoint pinned, how long it took. Not part of the Evaluation contract
      * (that is frozen and carries no provenance field) — it is read by tests and
      * written to the process log, which is where a study picks the trace up. */
     lastJudgement = null
 
-
-    onConnect() {
-        super.onConnect()
-        this._bindGen = (this._bindGen || 0) + 1
-        const mind = this.membrane()
-        this._host = mind
-        if (!mind) return
-        const others = part(mind, 'comparator').filter(el => el !== this)
-        if (others.length) {
-            throw new Error('a mind may have only one comparator')
-        }
-        mind.addEventListener(PREDICTION_EVENT, this._onPrediction)
-        mind.addEventListener(PREDICTION_SETTLED_EVENT, this._onSettled)
-        mind.addEventListener(this._targets.events.target, this._onTarget)
-        mind.addEventListener(this._targets.events.outcome, this._onTargetOutcome)
-    }
-
-    onDisconnect() {
-        this._bindGen = (this._bindGen || 0) + 1
-        if (this._host) {
-            this._host.removeEventListener(PREDICTION_EVENT, this._onPrediction)
-            this._host.removeEventListener(PREDICTION_SETTLED_EVENT, this._onSettled)
-            this._host.removeEventListener(this._targets.events.target, this._onTarget)
-            this._host.removeEventListener(this._targets.events.outcome, this._onTargetOutcome)
-        }
-        this._host = null
-        this._index.clear()
-        this._targets.clear()
-    }
-
-    accepts(evidenceView) {
-        return isEvidenceView(evidenceView)
-    }
 
     async evaluate(evidenceView, { now = Date.now(), deadline, signal } = {}) {
         try {
@@ -264,9 +217,4 @@ export class MJudge extends MBaseComponent {
             basisAt: now,
         })
     }
-
-    _onPrediction = event => this._index.onPrediction(event)
-    _onSettled = event => this._index.onSettled(event)
-    _onTarget = event => this._targets.onTarget(event)
-    _onTargetOutcome = event => this._targets.onOutcome(event)
 }

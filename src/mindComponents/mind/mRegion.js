@@ -11,6 +11,7 @@ import { parseTime } from '../../config/timeParser.js'
 import { projectEvidenceView } from '../../infrastructure/evidenceView.js'
 import { CompareBudget, CommitOrder, evaluationIdsOf, verdictsOf } from '../../infrastructure/compareContinuation.js'
 import { runEvidenceCase } from '../../infrastructure/evidenceCase.js'
+import { comparatorOf, askComparator } from '../shared/comparators.js'
 import { evaluationCommitPayload, fireEvaluationCommit } from '../../infrastructure/predictionContracts.js'
 import { OrientationRequest } from '../../infrastructure/predictionContracts.js'
 import { logger } from '../../infrastructure/logger.js'
@@ -268,8 +269,7 @@ export class MRegion extends MBaseComponent {
             if (!acquisition.permitted) return null
 
             const regionGen = this._bindGen
-            const comparator = this._liveComparator()
-            const comparatorGen = comparator?._bindGen
+            const comparator = comparatorOf(this)
 
             entry.busy = true
             let text
@@ -312,8 +312,8 @@ export class MRegion extends MBaseComponent {
                     owner: this,
                     view,
                     comparator,
-                    comparatorGen,
-                    liveComparator: () => this._liveComparator(),
+                    liveComparator: () => comparatorOf(this),
+                    ask: askComparator,
                     budget: this._compareBudget,
                     order: this._orderFor(contract.name),
                     aborts: this._compareAborts,
@@ -526,24 +526,6 @@ export class MRegion extends MBaseComponent {
         for (const controller of this._compareAborts || []) {
             try { controller.abort() } catch { /* cooperative */ }
         }
-    }
-
-    _liveComparator() {
-        const mind = this._mind()
-        if (!mind) return null
-        const found = part(mind, 'comparator')
-        if (found.length > 1) {
-            if (!this._warnedDuplicateComparator) {
-                this._warnedDuplicateComparator = true
-                log.warn('a mind may have only one comparator; comparison is skipped')
-            }
-            return null
-        }
-        const el = found[0]
-        if (!el) return null
-        if (isCustomElementDefined(el)) customElements.upgrade(el)
-        if (typeof el.accepts !== 'function' || typeof el.evaluate !== 'function') return null
-        return el
     }
 
     /** Owner-local: a bidder under this region, not under a nested aperture or m-act. */

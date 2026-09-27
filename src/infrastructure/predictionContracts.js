@@ -152,13 +152,41 @@ export function cancelPrediction(prediction, { reason = 'cancelled' } = {}) {
     return predictionSettlement(prediction, { status: 'cancelled', evaluationIds: [], reason });
 }
 
-/** Tiny publisher: always `host.fire`, never `host.pub`. Not attached to m-act. */
+/** A Prediction as it crosses (message-rule.md, M2): a frozen plain record with
+ * the issuer's id and clocks kept. It validates the same fields the class does,
+ * so it also rebuilds a received plain object, and returns null for anything that
+ * is not a prediction. Authority is not in it: a receiver trusts a prediction
+ * only when a component sent it (messageOrigin.js). */
+export function predictionRecord(data) {
+    if (data == null || typeof data !== 'object') return null;
+    try {
+        if ((data.kind ?? PREDICTION_KIND) !== PREDICTION_KIND) return null;
+        return Object.freeze({
+            id: requireText('Prediction.id', data.id),
+            producer: requireText('Prediction.producer', data.producer),
+            scopeId: requireText('Prediction.scopeId', data.scopeId),
+            actId: optionalId('Prediction.actId', data.actId),
+            kind: PREDICTION_KIND,
+            target: freezeTarget(data.target),
+            representation: freezeRepresentation(data.representation),
+            basis: freezeBasis(data.basis),
+            basisAt: toIso(data.basisAt, 'basisAt'),
+            validFrom: toIso(data.validFrom, 'validFrom'),
+            validUntil: toIso(data.validUntil, 'validUntil'),
+        });
+    } catch {
+        return null;
+    }
+}
+
+/** Tiny publisher: always `host.fire`, never `host.pub`. Not attached to m-act.
+ * The event carries the prediction's record, never the instance. */
 export function firePrediction(host, prediction) {
     if (!(prediction instanceof Prediction)) throw new Error('firePrediction publishes a Prediction');
     if (host == null || typeof host.fire !== 'function') {
         throw new Error('prediction events use fire(), not pub()');
     }
-    return host.fire(PREDICTION_EVENT, prediction);
+    return host.fire(PREDICTION_EVENT, predictionRecord(prediction));
 }
 
 export function firePredictionSettlement(host, settlement) {
@@ -351,12 +379,62 @@ export class SearchOutcome {
     }
 }
 
+/** A SearchTarget as it crosses: a frozen plain record, the issuer's id and clocks
+ * kept, or null when the data is not a search target (see predictionRecord). */
+export function searchTargetRecord(data) {
+    if (data == null || typeof data !== 'object') return null;
+    try {
+        if (!Array.isArray(data.routes) || !data.routes.length) return null;
+        const budget = Number(data.sampleBudget);
+        if (!Number.isFinite(budget) || budget <= 0) return null;
+        return Object.freeze({
+            id: requireText('SearchTarget.id', data.id),
+            owner: requireText('SearchTarget.owner', data.owner),
+            scopeId: requireText('SearchTarget.scopeId', data.scopeId),
+            actId: optionalId('SearchTarget.actId', data.actId),
+            template: requireText('SearchTarget.template', data.template),
+            routes: Object.freeze(data.routes.map(freezeRoute)),
+            sampleBudget: budget,
+            createdAt: toIso(data.createdAt, 'SearchTarget.createdAt'),
+            deadline: toIso(data.deadline, 'SearchTarget.deadline'),
+        });
+    } catch {
+        return null;
+    }
+}
+
+/** A SearchOutcome as it crosses: a frozen plain record, or null. */
+export function searchOutcomeRecord(data) {
+    if (data == null || typeof data !== 'object') return null;
+    try {
+        if (!SEARCH_OUTCOME_STATUSES.includes(data.status)) return null;
+        const samples = Number(data.attemptedSamples);
+        const coverage = Number(data.coverage);
+        if (!Number.isFinite(samples) || samples < 0) return null;
+        if (!Number.isFinite(coverage) || coverage < 0 || coverage > 1) return null;
+        return Object.freeze({
+            id: requireText('SearchOutcome.id', data.id),
+            targetId: requireText('SearchOutcome.targetId', data.targetId),
+            status: data.status,
+            evidenceIds: freezeIdList('evidenceIds', data.evidenceIds ?? []),
+            evaluationIds: freezeIdList('evaluationIds', data.evaluationIds ?? []),
+            inspectedRoutes: Object.freeze((data.inspectedRoutes || []).map(freezeRoute)),
+            attemptedSamples: samples,
+            coverage,
+            settledAt: toIso(data.settledAt, 'SearchOutcome.settledAt'),
+            reason: data.reason == null || data.reason === '' ? null : requireText('SearchOutcome.reason', data.reason),
+        });
+    } catch {
+        return null;
+    }
+}
+
 export function fireSearchTarget(host, target) {
     if (!(target instanceof SearchTarget)) throw new Error('fireSearchTarget publishes a SearchTarget');
     if (host == null || typeof host.fire !== 'function') {
         throw new Error('search-target events use fire(), not pub()');
     }
-    return host.fire(SEARCH_TARGET_EVENT, target);
+    return host.fire(SEARCH_TARGET_EVENT, searchTargetRecord(target));
 }
 
 export function fireSearchOutcome(host, outcome) {
@@ -364,5 +442,5 @@ export function fireSearchOutcome(host, outcome) {
     if (host == null || typeof host.fire !== 'function') {
         throw new Error('search-outcome events use fire(), not pub()');
     }
-    return host.fire(SEARCH_OUTCOME_EVENT, outcome);
+    return host.fire(SEARCH_OUTCOME_EVENT, searchOutcomeRecord(outcome));
 }

@@ -46,11 +46,6 @@ export class CommitOrder {
     }
 }
 
-export function asEvaluations(result, Evaluation) {
-    if (!Array.isArray(result)) return []
-    return result.filter(item => item instanceof Evaluation)
-}
-
 export function compareDeadlineMs(host, fallback = DEFAULT_COMPARE_DEADLINE_MS) {
     const raw = typeof host?.attr === 'function'
         ? host.attr('compareDeadline')

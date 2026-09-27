@@ -13,6 +13,7 @@ import {
     Prediction, firePrediction, PREDICTION_SETTLED_EVENT, EVALUATION_COMMIT_EVENT,
 } from '../../../src/infrastructure/predictionContracts.js'
 import { offerFixtureHand } from './fixtureHand.js'
+import { askComparator } from '../../../src/mindComponents/shared/comparators.js'
 import { heardBid } from "./attentionProbe.js";
 
 const FIXTURE = 'the screen answers 42'
@@ -75,7 +76,7 @@ test('13. m-judge returns [] for progress, empty text, and unmatched actId', asy
     expect(await judge.evaluate({ ...view, progress: true, actId: 'x' })).toEqual([])
 })
 
-test('13. one complete call per evidence; abort → insufficient', async () => {
+test('13. one complete call per evidence; a cancelled compare aborts the model call', async () => {
     await offerFixtureHand(act, {
         name: 'probe',
         description: 'fixture',
@@ -98,7 +99,6 @@ test('13. one complete call per evidence; abort → insufficient', async () => {
     expect(calls).toBe(1)
     expect(bids[0].signals.predictionMatch).toBe(1)
 
-    const controller = new AbortController()
     const pred = new Prediction({
         producer: 'hands', scopeId: 'hands', actId: 'act-abort',
         target: { eventType: 'Sense-probe' },
@@ -107,22 +107,29 @@ test('13. one complete call per evidence; abort → insufficient', async () => {
         validUntil: horizon(),
     })
     firePrediction(act, pred)
-    judge._index.onPrediction({ detail: pred })
+    while (Date.now() - start < 800 && !judge._index.values().some(p => p.id === pred.id)) await delay(5)
+    let started = false
+    let sawAbort = false
     stubJudge(async ({ signal }) => {
+        started = true
         await new Promise((_, reject) => {
-            const fail = () => reject(new Error('aborted'))
+            const fail = () => { sawAbort = true; reject(new Error('aborted')) }
             if (signal?.aborted) return fail()
             signal?.addEventListener('abort', fail)
         })
     })
-    const pending = judge.evaluate({
+    // The owner's side of the port: ask, then cancel (sleep, a disconnect).
+    const controller = new AbortController()
+    const pending = askComparator(act, 'judge', {
         id: 'e-abort', archivalText: FIXTURE, actId: 'act-abort', progress: false,
         sourceId: 'probe', eventType: 'Sense-probe',
-    }, { signal: controller.signal })
+    }, { deadline: Date.now() + 5000, signal: controller.signal })
+    while (Date.now() - start < 1200 && !started) await delay(5)
+    expect(started).toBe(true)
     controller.abort()
-    const aborted = await pending
-    expect(aborted).toHaveLength(1)
-    expect(aborted[0].verdict).toBe('insufficient')
+    expect(await pending).toEqual([])                  // no evaluation reaches the owner
+    while (Date.now() - start < 1600 && !sawAbort) await delay(5)
+    expect(sawAbort).toBe(true)                        // the cancel reached the judge's model call
 })
 
 test('14. with complete stubbed, m-judge matches exact fixture text on the act path', async () => {

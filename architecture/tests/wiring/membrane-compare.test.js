@@ -263,6 +263,7 @@ test('12. faster later comparison does not overtake earlier commit from the same
     expect(order).not.toContain('alpha-fast');
     blockers.get('alpha-slow')();
     await Promise.all([a1, a2, b1]);
+    await waitUntil(() => order.includes('alpha-fast') && order.includes('alpha-slow'));   // delivered, not returned
     const aIndexSlow = order.indexOf('alpha-slow');
     const aIndexFast = order.indexOf('alpha-fast');
     expect(aIndexSlow).toBeGreaterThanOrEqual(0);
@@ -431,7 +432,7 @@ test('act-path comparison uses the same Percept id through commit and bid', asyn
     expect(settlements.some(s => s.status === 'matched')).toBe(true);
 });
 
-test('act-path without comparator stays synchronous A2 redispatch', async () => {
+test('act-path without comparator redispatches the A2 bid at once, with no compare wait', async () => {
     compare.remove();
     await offerFixtureHand(act, {
         name: 'sync-probe',
@@ -446,7 +447,7 @@ test('act-path without comparator stays synchronous A2 redispatch', async () => 
         { function: { name: 'sync-probe', arguments: JSON.stringify({ q: 'sky', expect: EXPECT_PHRASE }) } },
         { gist: 'look' },
     );
-    const bid = seen.find(d => d instanceof AttentionBid);
+    const bid = await waitUntil(() => seen.find(d => d instanceof AttentionBid), { timeout: 100 });
     expect(bid).toBeDefined();
     expect(bid.evaluationIds).toEqual([]);
     expect(bid.evidence.renderForFrame()).toContain('grey');

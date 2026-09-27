@@ -1,8 +1,10 @@
 /** Shared live-search-target index for comparators behind the `comparator` port.
  * Indexes `search-target` / `search-outcome` (fire, never pub). One active target
- * is the first controller's rule; the index still caps. */
+ * is the first controller's rule; the index still caps. A target arrives as its
+ * plain record and is kept only when a component sent it (as livePredictionIndex). */
 
-import { SearchTarget, SEARCH_TARGET_EVENT, SEARCH_OUTCOME_EVENT } from './predictionContracts.js'
+import { searchTargetRecord, SEARCH_TARGET_EVENT, SEARCH_OUTCOME_EVENT } from './predictionContracts.js'
+import { sentByComponent } from './messageOrigin.js'
 
 const MAX_LIVE_TARGETS = 8
 
@@ -13,8 +15,9 @@ export function createLiveSearchIndex({ max = MAX_LIVE_TARGETS } = {}) {
         values() { return [...live.values()] },
         clear() { live.clear() },
         onTarget(event) {
-            const target = event.detail
-            if (!(target instanceof SearchTarget)) return
+            if (!sentByComponent(event)) return
+            const target = searchTargetRecord(event.detail)
+            if (!target) return
             while (live.size >= max) {
                 const oldest = live.keys().next().value
                 live.delete(oldest)
