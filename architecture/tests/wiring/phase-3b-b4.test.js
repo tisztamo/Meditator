@@ -178,9 +178,14 @@ test('22. voluntary closure cannot outlast the reflex', () => {
 })
 
 test('23. a bypassAperture source still crosses an aperture the mind closed itself', async () => {
+    const alarm = inner.querySelector('[name="alarm"]')
+    // Closing samples the sources it still lets through (a message to the source):
+    // let that sample's own bid land first, or this offer may meet it materializing
+    // and be dropped as busy, whichever order delivery happens to take.
+    const sampled = new Promise(resolve => alarm.addEventListener('interrupt-request', resolve, { once: true }))
     inner.requestOrientation(req({ state: 'closed' }))
     expect(inner.aperture.state).toBe('closed')
-    const alarm = inner.querySelector('[name="alarm"]')
+    await sampled
     const bid = await alarm.perceive('alarm tone', { salience: 0.8, changeKey: 'alarm tone' })
     expect(bid).not.toBeNull()
     expect(bid.evidence.renderForFrame()).toBe('alarm tone')

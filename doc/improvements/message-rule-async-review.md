@@ -465,7 +465,11 @@ existing seam, none rewrites a mind's behaviour.
    `shared/aggregators.js`) asked when a pressure changes. Inside the tree a
    parent asks its child apertures by name (`control`, `orient`), and version
    holds read a retained `gateVersions` mirror instead of the enclosing
-   elements. See [message-rule.md](../architecture/message-rule.md).*
+   elements. Sources followed: registration is plain data, and the aperture
+   asks its source `sample` and `materialize` while the source sends its
+   candidate as an `offer` answered with the bid (`shared/sources.js`);
+   lineage comes only from a control the aperture armed, by id. See
+   [message-rule.md](../architecture/message-rule.md).*
 9. **Decoupling cleanups** (independent of async, can interleave): `stats`
    topic + generic `m-ws` walk (§2.1); producers emit `backstage`, memory drops
    per-feature handlers (§2.2); per-membrane usage attribution (§2.3);

@@ -59,22 +59,6 @@
     "architecture/tests/wiring/studio-command.test.js > speak: Send dispatches a command the hub forwards as input"
   ],
   "violations": {
-    "fire|aperture-register|function": {
-      "senders": [
-        "m-feed",
-        "m-fixture-sense",
-        "m-grounded-sense",
-        "m-market-outcome",
-        "m-nested-sense",
-        "m-perception-sense",
-        "m-stereotic-market",
-        "m-stereotic-news",
-        "m-stereotic-prices"
-      ],
-      "paths": [
-        "sample"
-      ]
-    },
     "fire|interrupt-request|instance:InterruptRecord": {
       "senders": [
         "m-mind",

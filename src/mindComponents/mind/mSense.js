@@ -4,6 +4,7 @@ import { ControlRequest, EdgeEvidence, fireEdgeEvidence } from '../../infrastruc
 import { decide } from '../../modelAccess/decide.js';
 import { logger } from '../../infrastructure/logger.js';
 import { parseTime } from '../../config/timeParser.js';
+import { SourcePort } from '../shared/sources.js';
 
 const log = logger('mSense.js');
 
@@ -38,8 +39,11 @@ const log = logger('mSense.js');
  *   - override the `defaultTimeout` / `defaultSigma` getters for the natural cadence.
  *   - new lazy sources call candidate(header, () => archivalText) inside an
  *     enclosing aperture (found by role, not tag). The header is non-semantic;
- *     text is produced only after aperture admission.
- *     If a control request is in flight, its id rides the candidate as requestId —
+ *     text is produced only after aperture admission. Both cross as messages
+ *     (shared/sources.js): the header as an `offer`, the text when the aperture
+ *     asks `materialize`; the aperture's samples arrive as `sample` requests.
+ *     If a control request is in flight, its id rides the offer, and the aperture
+ *     takes lineage from a control it armed itself —
  *     acquisition lineage, not causal attribution. Existing feel() sources remain
  *     the eager compatibility path. Migrated senses call perceive() instead: lazy
  *     under an enclosing aperture, eager feel() otherwise. Sources declare `tier`
@@ -69,6 +73,7 @@ export class MSense extends MBaseComponent {
     static provides = { source: true }
 
     _timer = null
+    _port = null
     _lastKey = null
     _gateState = null
 
@@ -78,14 +83,12 @@ export class MSense extends MBaseComponent {
     onConnect() {
         this.timeoutMs = parseTime(this.attr("timeout") || this.defaultTimeout)
         this.sigmaMs = parseTime(this.attr("sigma") || this.defaultSigma)
-        // Protocol: nearest aperture records the source. candidate() still calls
-        // registerSource (idempotent) so the test/demo door and the lazy offer path
-        // stay the same. No enclosing aperture → the membrane stops the event.
-        if (this.enclosing('aperture')) {
-            this.dispatchEvent(new CustomEvent('aperture-register', {
-                bubbles: true,
-                detail: { sample: request => this.onSense(request) },
-            }))
+        // Protocol (shared/sources.js): the nearest aperture records the source from
+        // a plain `aperture-register`, then asks it by message — `sample` for a
+        // control request, `materialize` for an offer's text. No enclosing aperture →
+        // the membrane stops the event.
+        if (this._sourcePort()) {
+            this.dispatchEvent(new CustomEvent('aperture-register', { bubbles: true, detail: {} }))
             // The gate's state, for the record a tier-1 score carries: heard from the
             // aperture's retained topic, never read off the element.
             this.sub('..[provides~="aperture"]/apertureState', value => {
@@ -98,25 +101,32 @@ export class MSense extends MBaseComponent {
 
     onDisconnect() {
         if (this._timer) clearTimeout(this._timer)
+        this._port?.close()
+        this._port = null
     }
 
-    // Nearest aperture owns registration; every gate on the path answers the event.
-    _modalityRegion() { return this.enclosing('aperture') }
+    /** The port to the nearest enclosing aperture (found by role), bound once per
+     *  aperture: a moved source binds to its new one. Null outside any aperture. */
+    _sourcePort() {
+        const aperture = this.enclosing('aperture')
+        if (this._port?.aperture === aperture) return this._port
+        this._port?.close()
+        this._port = aperture ? new SourcePort(this, aperture) : null
+        return this._port
+    }
 
     /** Subclass hooks. `request` is optional; timer-driven rounds pass none. */
     ready() { return true }
     async onSense(request) {}
 
+    /** Offer a lazy candidate to the enclosing aperture (an `offer` message): the
+     *  header now, the text only when the aperture asks for it. Resolves to the
+     *  issued AttentionBid or null. While a sample is in flight its control id
+     *  rides the offer; the aperture honours only ids it sent this source. */
     candidate(header, materialize) {
-        const region = this._modalityRegion()
-        if (!region?.registerSource) throw new Error('A lazy sense needs an enclosing aperture')
-        // The region already resolves lineage itself, from the same in-flight
-        // `entry.control` it sets before calling this callback and clears once the
-        // callback's returned promise settles — the same window `candidate()` runs
-        // in. A parallel copy here could never supply a value the region lacks,
-        // so this callback only forwards the request.
-        const offer = region.registerSource(this, request => this.onSense(request))
-        return offer(header, materialize)
+        const port = this._sourcePort()
+        if (!port) throw new Error('A lazy sense needs an enclosing aperture')
+        return port.offer(header, materialize)
     }
 
     _nextDelay() {

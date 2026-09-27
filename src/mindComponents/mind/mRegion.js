@@ -18,6 +18,7 @@ import { evaluationCommitPayload, fireEvaluationCommit } from '../../infrastruct
 import { OrientationRequest } from '../../infrastructure/predictionContracts.js'
 import { logger } from '../../infrastructure/logger.js'
 import { respond, responderName } from '../../infrastructure/requestReply.js'
+import { OFFER_REQUEST, askSample, askMaterialize } from '../shared/sources.js'
 
 const log = logger('mRegion.js')
 
@@ -90,7 +91,13 @@ function andThen(value, f) {
  *   Gate policy (decideGate, percept-candidate) is not this port. Substituting
  *   the aperture provider is a class that `provides` `aperture`; C1 is the
  *   contract (architecture/tests/wiring/aperture-conformance.test.js).
- * Methods: registerSource(element, sample) → offer(header, lazyText); orient(state, source);
+ * Sources are messages (shared/sources.js): a plain `aperture-register`, then
+ *   `sample {source, request}` asked of the source, `offer {offerId, controlId,
+ *   header}` from it (answered with the bid as data), and `materialize {source,
+ *   offerId, rendition}` asked after acquisition. Attributes sampleDeadline (30s)
+ *   and materializeDeadline (10s): a silent source sampled or rendered nothing.
+ * Methods: registerSource(element, sample?) → offer(header, lazyText) is the
+ *   in-process test/demo door (a callback sample is called, not asked); orient(state, source);
  *   requestControl(ControlRequest) is the one door for sample / focus / detail —
  *   focus is accepted and changes no policy. Untargeted requests fan out to child
  *   providers; a named target is delivered once by the nearest owner (first in
@@ -193,6 +200,9 @@ export class MRegion extends MBaseComponent {
         // re-attach it in another phase and so disconnect can remove it.
         this._onPerceptCandidate = respond(this, 'percept-candidate', (detail, event) => this._gateAnswer(detail, event))
         this.addEventListener('aperture-register', this._onApertureRegister)
+        // A source's candidate arrives as an `offer` (shared/sources.js): the nearest
+        // aperture answers it with the issued bid, as data.
+        this._onOffer = respond(this, OFFER_REQUEST, (detail, event) => this._offerAnswer(detail, event))
         this.addEventListener(REGULATOR_UP, this._onRegulatorUp)
         // Controllers (m-orient, m-search) ask this aperture by name, through the
         // membrane (shared/apertureRequests.js).
@@ -211,6 +221,7 @@ export class MRegion extends MBaseComponent {
         this._unserveApertureRequests = null
         if (this._onPerceptCandidate) this.removeEventListener('percept-candidate', this._onPerceptCandidate)
         this.removeEventListener('aperture-register', this._onApertureRegister)
+        if (this._onOffer) this.removeEventListener(OFFER_REQUEST, this._onOffer)
         this.removeEventListener(REGULATOR_UP, this._onRegulatorUp)
         if (this.aperture) this.aperture.version++
         this._sources?.clear()
@@ -239,19 +250,28 @@ export class MRegion extends MBaseComponent {
      * Absent `modality`, the only implemented kind is text. */
     _sourceModality() { return this.attr('modality') || 'text' }
 
-    /** Architecture-owned adapter: payloads cannot choose identity or policy. */
-    registerSource(element, sample) {
+    /** Architecture-owned adapter: payloads cannot choose identity or policy.
+     * Without `sample` the source is asked by message (`sample`, shared/sources.js),
+     * as every registered sense is; a callback is the test/demo door. The returned
+     * `offer(header, materialize)` is the in-process door to the offer path. */
+    registerSource(element, sample = null) {
         if (!this.aperture || this._modalityRegion(element) !== this) throw new Error('Source needs its modality region')
         if (this._sources.has(element)) return this._sources.get(element).offer
         if (this._sources.size >= 32) throw new Error('Too many sources in one modality region')
         const contract = SourceContract.fromElement(element, { modality: this._sourceModality() })
         if ([...this._sources.values()].some(s => s.source === contract.name)) throw new Error('Sensory source names must be unique within a region')
-        const entry = { source: contract.name, sample, busy: false, contract, control: null, controlStack: [] }
-        entry.offer = async (header, materialize) => {
+        const entry = {
+            source: contract.name, sample: typeof sample === 'function' ? sample : null,
+            busy: false, contract, control: null, controlStack: [], armed: new Map(),
+        }
+        // `control` is given by the `offer` message path (a control this region armed,
+        // or none); the door reads the stack of callback samples in flight.
+        entry.offer = async (header, materialize, { control: given } = {}) => {
             const attached = () => this.isConnected && element.isConnected
                 && this._modalityRegion(element) === this && this._sources.get(element) === entry
             if (!attached() || this._membraneSleeping) return null
-            const control = entry.controlStack[entry.controlStack.length - 1] ?? entry.control ?? null
+            const control = given !== undefined ? given
+                : entry.controlStack[entry.controlStack.length - 1] ?? entry.control ?? null
             const requestId = control?.id ?? header.requestId ?? null
             // Act lineage comes only from a trusted ControlRequest, never a source header.
             const actId = control?.actId ?? null
@@ -529,12 +549,8 @@ export class MRegion extends MBaseComponent {
             this._linkChild(el)
             return
         }
-        if (providesOf(el, 'source') && enclosingOf(el, 'aperture') === this) {
-            const sample = typeof event.detail?.sample === 'function'
-                ? event.detail.sample
-                : (typeof el.onSense === 'function' ? request => el.onSense(request) : undefined)
-            if (typeof sample === 'function') this.registerSource(el, sample)
-        }
+        // A source is asked by message from now on (`sample`, shared/sources.js).
+        if (providesOf(el, 'source') && enclosingOf(el, 'aperture') === this) this.registerSource(el)
     }
 
     /** Interior scan so connect order does not matter (Law 1, both directions).
@@ -547,11 +563,9 @@ export class MRegion extends MBaseComponent {
         }
         for (const el of this.part('source')) {
             if (enclosingOf(el, 'aperture') !== this) continue
-            customElements.upgrade(el)
             // Spans used in tests have no source role and stay on explicit
-            // registerSource. Do not invent sample callbacks for them.
-            if (typeof el.onSense !== 'function') continue
-            this.registerSource(el, request => el.onSense(request))
+            // registerSource. A source is asked by message (shared/sources.js).
+            this.registerSource(el)
         }
     }
 
@@ -953,10 +967,25 @@ export class MRegion extends MBaseComponent {
         return delivered || answers.some(Boolean)
     }
 
-    /** Snapshot this request around the sample callback so a second control in
-     * the same turn cannot overwrite A's lineage with B's. `offer` reads the
-     * stack top, not a single shared slot. */
+    /** Ask the source to sample. A source registered by message is asked with a
+     * `sample` request, and the control is armed by id until the source has answered
+     * and every offer it counted under it arrived (_controlForOffer). A callback
+     * source (the door) gets the request snapshotted around the call so a second
+     * control in the same turn cannot overwrite A's lineage with B's: `offer` reads
+     * the stack top, not a single shared slot. */
     _armControl(entry, request) {
+        if (!entry.sample) {
+            const armed = { request, seen: 0, expected: null }
+            if (entry.armed.size >= 16) entry.armed.delete(entry.armed.keys().next().value)
+            entry.armed.set(request.id, armed)
+            // Deferred as the callback door is: requestControl returns before any
+            // source is sampled.
+            Promise.resolve().then(() => askSample(this, entry.source, request)).then(offers => {
+                armed.expected = offers
+                this._settleArmed(entry, request.id, armed)
+            })
+            return
+        }
         Promise.resolve().then(async () => {
             entry.controlStack.push(request)
             entry.control = request
@@ -968,6 +997,41 @@ export class MRegion extends MBaseComponent {
                 entry.control = entry.controlStack[entry.controlStack.length - 1] ?? null
             }
         }).catch(() => {})
+    }
+
+    _settleArmed(entry, id, armed) {
+        if (armed.expected != null && armed.seen >= armed.expected && entry.armed.get(id) === armed) {
+            entry.armed.delete(id)
+        }
+    }
+
+    /** The control an offer names, only if this region armed it for that source. */
+    _controlForOffer(entry, controlId) {
+        const armed = typeof controlId === 'string' ? entry.armed.get(controlId) : null
+        if (!armed) return null
+        armed.seen += 1
+        this._settleArmed(entry, controlId, armed)
+        return armed.request
+    }
+
+    /**
+     * A source's `offer` (shared/sources.js): the nearest aperture answers and stops
+     * it. The source is registered on first offer if its announcement has not landed
+     * yet (a refused registration is the error reply). The materializer stays with
+     * the source: the text is asked for by `offerId` only after acquisition.
+     */
+    async _offerAnswer(detail, event) {
+        const el = event.target
+        if (el === this || !el || el.nodeType !== 1) return undefined
+        if (!providesOf(el, 'source') || enclosingOf(el, 'aperture') !== this) return undefined
+        event.stopPropagation()
+        if (!sentByComponent(event) || typeof detail?.offerId !== 'string') return undefined
+        const offer = this.registerSource(el)
+        const entry = this._sources.get(el)
+        const control = this._controlForOffer(entry, detail.controlId)
+        const materialize = (kinds, rendition) => askMaterialize(this, entry.source, detail.offerId, rendition)
+        const bid = await offer(detail.header || {}, materialize, { control })
+        return { bid: bid ? bidData(bid) : null }
     }
 
     _transition(from, reason, actId = null) {

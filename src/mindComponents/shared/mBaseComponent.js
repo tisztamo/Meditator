@@ -4,12 +4,13 @@ import { checkPayload } from "../../infrastructure/deliveryChaos.js"
 import { request as requestOf, requestAll as requestAllOf, respond as respondOf } from "../../infrastructure/requestReply.js"
 import { offerHand, withdrawHands } from "./hands.js"
 import { APERTURE_REQUESTS } from "./apertureRequests.js"
+import { OFFER_REQUEST } from "./sources.js"
 import { reflectProvides, reflectBoundary, enclosingOf, enclosingAllOf, membraneOf, part as partsOf, providesOf, isMembrane } from "./enclosure.js"
 
 export { enclosingOf, enclosingAllOf, membraneOf, part, providesOf } from "./enclosure.js"
 
 /** Events a membrane stops: what is fired inside it never reaches the society. */
-const MEMBRANE_LOCAL_EVENTS = ["percept-candidate", "aperture-register", "regulator-up", "aggregate", "aggregator-up", "compare", ...APERTURE_REQUESTS]
+const MEMBRANE_LOCAL_EVENTS = ["percept-candidate", "aperture-register", "regulator-up", "aggregate", "aggregator-up", "compare", OFFER_REQUEST, ...APERTURE_REQUESTS]
 
 /**
  * Base component class for all mind components.
@@ -59,7 +60,8 @@ export class MBaseComponent extends A(HTMLElement) {
         // is A(HTMLElement), which wiring tests often use for <m-mind>).
         // aperture-register is nearest-only: a region must not register with a
         // society, and the membrane is the backstop if no aperture stopped it.
-        // The rest are requests addressed inside the membrane: `compare` carries
+        // The rest are requests addressed inside the membrane: a source's `offer`
+        // goes to its nearest aperture (shared/sources.js), `compare` carries
         // the evidence's private text (shared/comparators.js), the controllers'
         // requests name its apertures, and `search-start` carries the search
         // template (shared/apertureRequests.js).

@@ -7,8 +7,9 @@
 > perception gate are request/reply with a quorum; the stream's output filters
 > are asked, stage by stage; the comparator and the bidder are asked, and a
 > request can be cancelled; controllers ask the apertures by name; a substituted
-> contact regulator is a message peer, contact pressure is heard, not read, and
-> an aperture asks its child apertures by name (2026-09-27).**
+> contact regulator is a message peer, contact pressure is heard, not read, an
+> aperture asks its child apertures by name, and a source is sampled, offers and
+> renders by message (2026-09-27).**
 > The analysis behind it is
 > [message-rule-async-review.md](../improvements/message-rule-async-review.md).
 > This page states the rule, the one exception, and how the tree is held to it.
@@ -356,9 +357,21 @@ the delivery.
 | `requestOrientation` for a nested name recursed into `child.requestOrientation(request)` | an `orient` request by name (only for an aperture inside this one); m-orient already addressed every aperture that way, so this branch is only the test and demo door |
 | `_versionsHold` read `gate.aperture.version` off every enclosing aperture element | each aperture publishes a retained `gateVersions` (its own version, then its enclosing gates' as it heard them) and mirrors its nearest enclosing aperture's. The hold compares the recorded versions with its own and with that mirror, over the current path's ids. A gate that left the path, or never bound, fails the hold, as before. Only versions travel down and only pressure travels up, so the two topics cannot loop. |
 
-The source registration (`aperture-register`'s `sample` callback, one of the two
-plain-data violation kinds left) and the candidate/materialize handshake between a
-source and its aperture are still in-process calls: the next step.
+**Sources (review §7 step 8, seventh part, 2026-09-27).** Built in
+`src/mindComponents/shared/sources.js`:
+
+| Before | Now |
+|---|---|
+| a sense announced itself with `aperture-register {sample}`, a callback the region kept and called for every control request (the `fire\|aperture-register\|function` violation); a region scanning its interior called `el.onSense` directly | `aperture-register {}` is plain. The region registers the element by its contract, then asks `sample {source, request}` of it (fired on the aperture, `bubbles: false`; the source answers from a listener bound on its nearest aperture at connect, only when the request names it). The source runs `onSense` with a rebuilt `ControlRequest` and replies `{offers}`, how many candidates it sent under that control. |
+| `candidate()` looked up the enclosing aperture, called `region.registerSource(this, …)` for an `offer` closure and called it with the materializer, so the region held the source's function | `candidate()` sends `offer {offerId, controlId, header}`. It bubbles to the nearest aperture, which answers and stops it (the membrane stops it too), and the reply is the issued bid as data (`bidData`), which the source rebuilds. The materializer stays with the source. After acquisition the aperture asks `materialize {source, offerId, rendition}` → `{text}`. An offer id is used once. |
+| lineage was the region's stack of control requests around the sample callback: an offer made while one was in flight took its id and actId | the source keeps that stack and names its top as `controlId`. The aperture takes lineage only from a control it armed for that source, by id. A forged or stale id gets none, and actId still never rides the header. The aperture forgets an armed control once the sample's reply has arrived and every offer it counted has too, in whichever order they arrive (M5). |
+| — | `sampleDeadline` (30 s) and `materializeDeadline` (10 s) on the aperture: a source silent on a sample offered nothing, and one silent on materialize is a `materializationFailure`. `offerDeadline` (60 s, the whole offer path) on the source: no answer is a null bid (M6). |
+
+`registerSource(element, sample)` stays the test and demo door: a source registered
+with a callback is still called, and the returned `offer(header, materialize)` still
+runs the offer path in process. Sampling stays one microtask behind
+`requestControl`, as the callback always was, so a control request returns before
+any source is sampled.
 
 ## How the tree is held to it
 
@@ -514,6 +527,18 @@ under `jitter`. Test 32 now correlates the outcome it waits for by target id,
 because the previous search's outcome could arrive after the next search started.
 One B5 test waited a fixed 40 ms for an attempt that is now two round trips away,
 and it waits for the attempt instead.
+
+**After the regulator, contact pressure, the aperture tree and sources
+(2026-09-27).** 54 of 1173 fail, 1 violation kind, 60 role-port calls. The
+regulator, pressure and tree steps changed no ratchet entry: those calls survived
+chaos in one heap. Sources removed `fire|aperture-register|function`. The kind
+left, `fire|interrupt-request|instance:InterruptRecord`, is sent only by test code
+(stub minds, spans, the frame-ordering contract's source). Under `jitter`, B4 test
+23 raced the closing's own sample of its bypass source: that sample's offer could
+reach acquisition first, and the test's offer was then dropped as `busy`. The test
+now lets that sample's bid land first. The five new source tests
+(`source-messages.test.js`) pass on 10 of 10 `jitter` seeds. Nearly all of the 54
+are tests that read a bid or a queue synchronously right after an offer.
 
 ## What it does not change
 
