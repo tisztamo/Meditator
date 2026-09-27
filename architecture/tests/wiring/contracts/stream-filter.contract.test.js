@@ -48,13 +48,16 @@ import path from "node:path";
 import { waitFor, quiet } from "./helpers.js";
 import { loadMindComponents } from "../../../../src/startup/loadMindComponents.js";
 import { MMind } from "../../../../src/mindComponents/mind/mMind.js";
+import { MStreamFilter } from "../../../../src/mindComponents/shared/streamFilters.js";
 
 // The prompting mind, reduced to a membrane (provides `mind`, so `!scope` refs resolve to it).
 if (!customElements.get("t-sf-host")) customElements.define("t-sf-host", class extends A(HTMLElement) { static provides = { mind: true } });
 
 // The first stage of the chain: what the model "said" this burst. Passes text on
 // verbatim (recording it); when `author` is set, appends that text on its 3rd feed.
-class TSfModel extends A(HTMLElement) {
+// A filter is served to its stream by MStreamFilter (it answers the stream's `filter`
+// requests); the fixture's behaviour is unchanged.
+class TSfModel extends MStreamFilter {
     static provides = { "stream-filter": true }
     author = null
     fed = []

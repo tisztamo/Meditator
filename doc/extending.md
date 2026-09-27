@@ -140,15 +140,18 @@ its owner (`m-region` or `m-act`), not at the mind.
 
 ## Filtering the stream's output
 
-`stream-filter` is a role port on `m-stream`. Unlike the other ports it is a **chain**,
-not a singleton: every provider inside the stream runs, in tree order, on the model's
-text **before** it is emitted. That means before it reaches the `chunk` topic, the tail
-or the journal. Only model-authored text is filtered. The mechanism's `prefix` bypasses
-the chain.
+`m-stream` runs a **filter chain**. Every part inside the stream that provides
+`stream-filter` runs, in tree order, on the model's text **before** it is emitted. That
+means before it reaches the `chunk` topic, the tail or the journal. Only model-authored
+text is filtered. The mechanism's `prefix` bypasses the chain.
+
+A filter extends `MStreamFilter` (`src/mindComponents/shared/streamFilters.js`), which
+provides the role and serves the filter to its stream. Write any of four methods:
 
 ```js
-export class MNoShouting extends MBaseComponent {
-    static provides = { "stream-filter": true }
+import { MStreamFilter } from "../shared/streamFilters.js"
+
+export class MNoShouting extends MStreamFilter {
     begin(ctx) { /* {burstIndex, prefill, prefix, payload} — reset per-burst state */ }
     feed(text) { return { emit: text.replace(/!+/g, ".") } }    // pass / rewrite / hold ("")
     flush()    { return { emit: "" } }                          // release held text at burst end
@@ -156,14 +159,21 @@ export class MNoShouting extends MBaseComponent {
 }
 ```
 
+The stream never calls these methods itself. It asks each stage by name with a `filter`
+request (`{op: "begin" | "feed" | "flush"}`), and the base class answers from them
+(doc/architecture/message-rule.md). So `feed` may be async, and the reply must be plain
+data. Give two filters in one stream distinct `name`s: a stage is addressed by its name,
+and a repeated name runs only once.
+
 Return `{ emit, signal }` from `feed` or `flush` to **stop** the burst. The stream emits
-what you passed, aborts, supersedes (no boundary, so the mind neither reschedules nor
-backs off), and only then calls your `react()`. Because of that ordering, `react()` can
-safely fire `interrupt-request` to redirect the mind. A throwing or malformed filter
-degrades to no filter; it never kills the burst. To leave a mechanism trail, fire a
-bubbling `backstage` event `{text?, kind?, record?}`. Memory journals `text` as a ⌁ note
-and appends `record` to `journal/<kind>.jsonl`. `m-provenance-filter` is the worked
-example:
+what the chain passed, aborts, supersedes (no boundary, so the mind neither reschedules
+nor backs off), and only then fires `filter-stopped`, which calls your `react()`. Because
+of that ordering, `react()` can safely fire `interrupt-request` to redirect the mind. A
+throwing or malformed filter degrades to no filter; it never kills the burst. A filter
+that stays silent past the stream's `filterDeadline` (default `2s`) is dropped for the
+rest of that burst. To leave a mechanism trail, fire a bubbling `backstage` event
+`{text?, kind?, record?}`. Memory journals `text` as a ⌁ note and appends `record` to
+`journal/<kind>.jsonl`. `m-provenance-filter` is the worked example:
 
 ```xml
 <m-stream name="stream">

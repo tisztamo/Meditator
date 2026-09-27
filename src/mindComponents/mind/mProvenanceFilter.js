@@ -1,4 +1,4 @@
-import { MBaseComponent } from "../shared/mBaseComponent.js"
+import { MStreamFilter } from "../shared/streamFilters.js"
 import { ENERGY } from "../shared/infoton.js"
 import { makePhrasebook } from "../shared/i18n.js"
 import { stimulus } from '../../infrastructure/interruptRecord.js'
@@ -20,11 +20,12 @@ const PROVENANCE_PHRASES = {
 /**
  * <m-provenance-filter> — catches a confabulated sense before it lands.
  *
- * A `stream-filter` (see m-stream's role port): mounted inside <m-stream>, it runs the
+ * A stream filter (shared/streamFilters.js): mounted inside <m-stream>, it runs the
  * model's own text through the provenance gate (provenanceGate.js). A `> ⟂` line the
  * MODEL authors that matches no percept the mind actually attended is a confabulated
  * sense; the gate holds it back, so it never reaches the tail or the journal, and
- * signals the stream to stop the burst. Then, in react():
+ * signals the stream to stop the burst. Then, in react() (on the stream's
+ * `filter-stopped`, once the burst has stopped):
  *   - it raises the corrective sense as a REAL urgent stimulus (`interrupt-request`),
  *     so the mind perceives the correction as a genuine `> ⟂` line and continues from it;
  *   - it leaves the mechanism's ⌁ trail through the generic `backstage` channel (a note
@@ -47,9 +48,7 @@ const PROVENANCE_PHRASES = {
  *   - attendedSrc (default "!scope/@attended"): where perceived lines arrive
  *   - recall (default 16): how many recently-attended lines stay allowed
  */
-export class MProvenanceFilter extends MBaseComponent {
-    static provides = { "stream-filter": true }
-
+export class MProvenanceFilter extends MStreamFilter {
     _recent = []        // recently-attended `> ⟂` lines, newest first
     _carried = ""       // the tail the last burst carried (a prefill-less burst keeps it)
     _gate = null        // this burst's gate

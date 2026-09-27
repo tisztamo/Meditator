@@ -437,6 +437,12 @@ existing seam, none rewrites a mind's behaviour.
    [message-rule.md](../architecture/message-rule.md).*
 7. **Stream filters as a pipeline.** `stream-filter` becomes ordered `chunk`
    stages; `m-provenance-filter` is the first port.
+   *Done 2026-09-27, as a request per stage rather than a topic pipeline: the
+   stream asks each filter by name (`filter {op: begin|feed|flush}` →
+   `{emit, signal?}`), fires `filter-stopped` after it stopped, and drops a
+   stage silent past `filterDeadline`. Filters extend `MStreamFilter`
+   (`shared/streamFilters.js`). See
+   [message-rule.md](../architecture/message-rule.md).*
 8. **Comparator / bidder / regulator / orientation / control** ports as
    request/reply with cancellation messages.
 9. **Decoupling cleanups** (independent of async, can interleave): `stats`

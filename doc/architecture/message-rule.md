@@ -4,7 +4,8 @@
 > piloted on sleep and frame ordering; hands and attention payloads are messages
 > (2026-09-26); sleep is asked for, not called, and an unconfirmed commit is
 > reported to the supervisor; agent governance, the step round trip and the
-> perception gate are request/reply with a quorum (2026-09-27).**
+> perception gate are request/reply with a quorum; the stream's output filters
+> are asked, stage by stage (2026-09-27).**
 > The analysis behind it is
 > [message-rule-async-review.md](../improvements/message-rule-async-review.md).
 > This page states the rule, the one exception, and how the tree is held to it.
@@ -225,6 +226,32 @@ now read the gates' replies. Three tests that changed the world "while
 materializing" first wait for the materializer to start, because acquisition
 is no longer synchronous.
 
+**The stream's output filters (review §7 step 7, 2026-09-27).** Built in
+`src/mindComponents/shared/streamFilters.js`:
+
+| Before | Now |
+|---|---|
+| m-stream found its `stream-filter` parts per burst with `part()` and called `begin()` / `feed()` / `flush()` on each, reading `{emit, signal}` back from the call | each stage is **asked**: a `filter` request `{op: "begin" \| "feed" \| "flush", stage, burstIndex, text?}` fired on the stream (`bubbles: false`), answered `{emit, signal?}`. A filter extends `MStreamFilter`, which provides the role, binds its responder on the nearest `filter-chain` (m-stream) at connect, and answers from the same four methods, so a filter's authoring surface is unchanged and `feed` may now be async. |
+| the stream called the stopping filter's `react()` after it had stopped the burst | after it stopped, the stream fires `filter-stopped {stage, signal, burstIndex, burstChars}`, and the filter's `react()` runs on it. The stop-first ordering holds, because the event is sent after the abort. |
+| a stage was an element in hand | a stage is a **name** (`responderName`: the `name` attribute, else the tag), taken in tree order per burst (M4). A name repeated in one stream runs once, with a warning. A filter answers only for its own stage, and only while it is inside that stream. |
+| a filter without `feed()` was skipped; one that threw passed its text through | a missing `feed` passes text through and a missing `flush` releases nothing. A filter that throws passes that text through, as before. A filter silent past `filterDeadline` (default 2 s) is **dropped for the rest of the burst** (M6): its late reply cannot be used, and its held text must not come back at flush. |
+| a filter defined before its stream (same batch) would find no stream | it waits for its undefined ancestors (`whenDefined`) and binds then |
+
+The review sketched this step as a pipeline of `chunk` topics, each filter
+publishing its own. A request per stage was chosen instead. The chain has two
+orderings: a stop further down on text passed before an upstream stop wins, and
+flush releases held text through the stages below before flushing them. With a
+request per stage both stay in one place, the pure `feedChain` / `flushChain`
+composition, and the awaits carry them (M5). A topic pipeline would need an
+in-band end marker and a reorder buffer in every filter. The `chunk` topic
+itself is unchanged, a string per fragment.
+
+The stream-filter contract's stub "model" filter (a bare element with `begin` /
+`feed` methods) is the filter side of the protocol. As with the governance
+contract's governor, it was changed to extend `MStreamFilter` so that it is served,
+and its behaviour and all four pinned outcomes were not edited. Its header comment
+still says the chain is method calls; by rule it was not edited.
+
 ## How the tree is held to it
 
 The rule is enforced by measurement rather than by audit list.
@@ -343,6 +370,14 @@ were compared, not abandoned), so it fails deterministically under chaos and
 stays in the baseline for step 8. Separately, `agent-loop`'s finish-tool
 conversational test fails on about 1 run in 12 under `macrotask` + `json`, on
 this commit and before step 6 alike. It is noted here, not diagnosed.
+
+**After the stream's output filters (2026-09-27).** 74 of 1161 fail (5 fixed:
+the old-API stream-filter and provenance-gate tests, rewritten against the
+`filter` messages), 6 violation kinds, 61 role-port calls. All 38 contracts still
+pass, and the stream-filter contract passes on 10 of 10 `jitter` seeds. A dry mind
+with `m-provenance-filter` ran its bursts through the chain under `jitter` + `json`
+delivery with no stage dropped. Left red: the comparator, bidder, regulator,
+orientation, control and search ports (step 8), and the remaining payloads.
 
 ## What it does not change
 

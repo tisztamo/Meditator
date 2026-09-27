@@ -8,14 +8,16 @@
 // generic `backstage` channel and (2) raises the corrective sense as a REAL urgent
 // stimulus through the arbiter, so the mind perceives it and continues FROM it.
 //
-// We drive the stream's chain + stop directly (a fake burst/context) so the test needs no
-// LLM. The REAL m-stream / m-memory / m-interrupts / m-provenance-filter are registered by
+// We drive the stream's chain (the same `filter` requests a burst sends) and its stop
+// directly (a fake burst/context), so the test needs no LLM. The REAL m-stream / m-memory / m-interrupts / m-provenance-filter are registered by
 // loadMindComponents; m-mind is the suite's shared bare stub (no auto-start).
 import "./setup.js";
 import { test, expect, beforeAll, beforeEach } from "bun:test";
 import { delay } from "./setup.js";
 import A from "amanita";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
+import { FilterChain, chainStages } from "../../../src/mindComponents/shared/streamFilters.js";
+import { waitFor } from "./contracts/helpers.js";
 
 let mind, stream, memory, filter;
 const notes = [];
@@ -49,45 +51,47 @@ beforeAll(async () => {
 beforeEach(() => { notes.length = 0; interruptDetail = null; });
 
 // One burst through the stream's real chain, as _startBurst runs it.
-function burst(text, { prefill = "" } = {}) {
-    const filters = stream._filters();
-    for (const f of filters) stream._callFilter(f, "begin", { burstIndex: 1, prefill });
-    const fed = stream._feedChain(filters, text);
-    return fed.signal ? fed : (r => ({ ...r, emit: fed.emit + r.emit }))(stream._flushChain(filters));
+async function burst(text, { prefill = "" } = {}) {
+    const chain = await FilterChain.open(stream, { burstIndex: 1, prefill });
+    const fed = await chain.feed(text);
+    return fed.signal ? fed : (r => ({ ...r, emit: fed.emit + r.emit }))(await chain.flush());
 }
 
-test("the filter is found as the stream's stream-filter", () => {
-    expect(stream._filters()).toEqual([filter]);
+test("the filter is named as the stream's stream-filter", () => {
+    expect(chainStages(stream)).toEqual(["prov"]);
 });
 
-test("a confabulated `> ⟂` line is held back and stops the burst", () => {
-    const r = burst("the air is warm\n> ⟂ 71.3°\nand I feel it\n");
+test("a confabulated `> ⟂` line is held back and stops the burst", async () => {
+    const r = await burst("the air is warm\n> ⟂ 71.3°\nand I feel it\n");
     expect(r.emit).toBe("the air is warm\n");
     expect(r.signal).toEqual({ kind: "provenance", line: "> ⟂ 71.3°" });
-    expect(r.by).toBe(filter);
+    expect(r.by).toBe("prov");
 });
 
-test("a line the mind just perceived (via @attended) passes", () => {
+test("a line the mind just perceived (via @attended) passes", async () => {
     // The frame's `attended {lines, requestId}` request to memory; the filter only listens.
     mind.fire("attended", { lines: ["a door closes"], requestId: "rq-test-1" });
-    const r = burst("I heard\n> ⟂ a door closes\nit was far\n");
+    await waitFor(() => filter._recent.length > 0, 1000);
+    const r = await burst("I heard\n> ⟂ a door closes\nit was far\n");
     expect(r.signal).toBeNull();
     expect(r.emit).toContain("> ⟂ a door closes");
 });
 
-test("a `> ⟂` line already in the carried prefill passes", () => {
-    const r = burst("> ⟂ rain on glass\n", { prefill: "earlier\n\n> ⟂ rain on glass\n\n" });
+test("a `> ⟂` line already in the carried prefill passes", async () => {
+    const r = await burst("> ⟂ rain on glass\n", { prefill: "earlier\n\n> ⟂ rain on glass\n\n" });
     expect(r.signal).toBeNull();
 });
 
-test("the stop raises the corrective as a real urgent stimulus and leaves a ⌁ trail", () => {
+test("the stop raises the corrective as a real urgent stimulus and leaves a ⌁ trail", async () => {
     const fake = { aborted: false, abort() { this.aborted = true; } };
     const context = { superseded: false, burst: fake };
-    stream._stopBurst(context, filter, { kind: "provenance", line: "> ⟂ 71.3°" }, { burstIndex: 1, burstChars: 10 });
+    const chain = await FilterChain.open(stream, { burstIndex: 1 });
+    stream._stopBurst(context, chain, "prov", { kind: "provenance", line: "> ⟂ 71.3°" }, { burstIndex: 1, burstChars: 10 });
     // Stopped first: superseded (no boundary) and aborted.
     expect(context.superseded).toBe(true);
     expect(fake.aborted).toBe(true);
     // The corrective reached the mind through the arbiter.
+    expect(await waitFor(() => interruptDetail && notes.length, 2000)).toBeTruthy();
     expect(interruptDetail?.type).toBe("Provenance");
     expect(interruptDetail?.reason).toContain("You do not need to come up with a sense");
     // The mechanism's trail went through memory's generic backstage channel.
