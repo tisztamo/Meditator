@@ -25,7 +25,7 @@ beforeEach(async () => {
         <m-mind name="membrane-test" imagePerceptSrc="off">
           <m-stream name="stream"></m-stream>
           <m-memory name="memory" persist="off" journal="${journalDir}"
-                    imageSrc="off" spokenSrc="off" filedSrc="off" actedSrc="off"></m-memory>
+                    imageSrc="off" spokenSrc="off"></m-memory>
           <m-interrupts name="attention" threshold="0.35" rateLimit="0s" keep="1"></m-interrupts>
           <m-region name="outside" modality="text" aperture="closed" dwell="1s" contactHorizon="10s">
             <m-interrupts name="local" threshold="0.3" rateLimit="0s"></m-interrupts>

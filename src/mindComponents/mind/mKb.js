@@ -19,9 +19,10 @@ const log = logger('mKb.js');
  *
  * The scribe reaches into no other component: its context comes from topics it
  * subscribes to (its own rolling stream window for the verbatim recent thought,
- * and memory's `compressed` topic for the summary), and it announces its work by
- * publishing `filed` — a memory journals that itself. So the scribe never names
- * memory, and memory can be replaced or doubled without touching the scribe.
+ * and memory's `compressed` topic for the summary), and it leaves its work as a
+ * `backstage` trail in its own words — any memory journals it as a ⌁ note. So the
+ * scribe never names memory, and memory can be replaced or doubled without
+ * touching the scribe, or learning what a scribe is.
  *
  * @interface
  * Attributes:
@@ -34,8 +35,9 @@ const log = logger('mKb.js');
  *   - compressedSrc (default: the mind's m-memory `<name>/compressed`, auto-discovered;
  *     "off" disables): the compressed "recently" summary folded into the distill prompt
  *
- * Topics published:
- *   - "filed": {files} after a successful distillation (a memory journals it)
+ * Events fired:
+ *   - "backstage": {text} after a successful distillation (a memory journals it ⌁)
+ *   - telemetry scribe/filed {files}
  */
 export class MKb extends MBaseComponent {
     _count = 0
@@ -118,14 +120,15 @@ Rules: group related ideas into topic files (e.g. attention/interruption.md); ev
             else await fs.appendFile(safe, `\n\n${op.content}`)
             log.info(`Scribe ${op.kind}: ${path.join(dir, op.file)}`)
         }
-        if (ops.length) {
-            // Fire the filing as a transient `filed` event and stop there. The scribe
-            // is subconscious — the mind never perceives its filing — so a memory
-            // subscribes (`@filed`) and journals it as an unseen (⌁) backstage note
-            // itself, rather than the scribe reaching in to write that note.
-            this.fire("filed", { files: ops.map(o => o.file) })
-            telemetry(this, "scribe", "filed", { files: ops.map(o => o.file) })
-        }
+        if (ops.length) this._announceFiled(ops.map(o => o.file))
+    }
+
+    // The scribe is subconscious — the mind never perceives its filing — so the
+    // filing is a backstage (⌁) trail, in the scribe's own words, that whichever
+    // memory listens journals (review §2.2).
+    _announceFiled(files) {
+        this.fire("backstage", { text: `The scribe filed thoughts into: ${files.join(", ")}` })
+        telemetry(this, "scribe", "filed", { files })
     }
 
     _safePath(dir, file) {

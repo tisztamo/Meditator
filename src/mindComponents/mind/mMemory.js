@@ -46,14 +46,6 @@ const log = logger('mMemory.js');
  *   - spokenSrc (default "!scope/voice/@spoken"; "off" disables): an aloud utterance
  *     is recorded by subscribing here, not by the voice calling spoke() in — so memory
  *     is swappable and several can listen at once.
- *   - filedSrc (default "!scope/scribe/@filed"; "off" disables): the scribe's filings,
- *     journaled as a backstage note by subscribing here rather than the scribe calling
- *     note() in.
- *   - actedSrc (default "!scope/hands/@acted"; "off" disables): a DEED the hands performed
- *     (efference.md §5.3), journaled as a
- *     backstage (⌁) note — the mind never saw it reach. Its CONSEQUENCE arrives
- *     separately as an External stimulus and is journaled perceived (⟂) via
- *     `attended`. Deed ⌁, consequence ⟂. Exactly mirrors `filedSrc` for the scribe.
  *   - attendedSrc (default "!scope/@attended"; "off" disables): the stimuli that
  *     entered each frame, journaled as perceived (⟂) notes by answering the mind's
  *     `attended {lines}` request rather than the mind calling note() in — AND
@@ -71,19 +63,24 @@ const log = logger('mMemory.js');
  *     `sleep {reason}` request. Memory finalizes (journal marker, final persist,
  *     vault commit) and replies {committed, persists}; a failed final write replies
  *     an error, so the mind can report the self as not confirmed.
- *   - backstageSrc (default "!scope/@backstage"; "off" disables): the GENERIC mechanism
+ *   - backstageSrc (default "!scope/@backstage"; "off" disables): the ONE mechanism
  *     trail. Any component fires a bubbling `backstage` event {text?, kind?, record?}:
  *     `text` is journaled as a ⌁ note, and `kind` (a slug) + `record` (an object) are
- *     appended as one typed line to journal/<kind>.jsonl. A new mechanism leaves its
- *     trail here instead of needing its own handler in memory.
+ *     appended as one typed line to journal/<kind>.jsonl. Each producer owns its prose
+ *     — the scribe's filings, the hands' deeds (efference.md §5.3; the CONSEQUENCE
+ *     arrives separately and is journaled perceived via `attended`: deed ⌁,
+ *     consequence ⟂), aperture changes, the arbiter's mufflings, the provenance
+ *     catch — so memory has no handler per producer (review §2.2).
+ *   The channels that remain named each change the TAIL or answer a request, which a
+ *   trail line cannot: spoken, image, attended, bridge, clear-tail, sleep.
  *
  * Journal marks: ⟂ perceived (a stimulus the mind actually saw this frame), ⌁ backstage
  * (a subconscious/mechanism event the mind never saw), ↪ bridge (a harness-written
  * transition), 🗣 aloud, 🖼 image. The ⟂/⌁ pair is the honesty ledger: every strong
  * intervention is double-recorded — what the mind FELT (⟂ or the seamless stream) and the
  * MECHANISM behind it (⌁), so the mind's experience stays whole while the record stays true.
- * Typed frame receipts from @percepts-attended are appended to journal/percepts.jsonl;
- * aperture-change events are backstage notes. journal="off" disables these too.
+ * Typed frame receipts from @percepts-attended are appended to journal/percepts.jsonl.
+ * journal="off" disables these too.
  *
  * Topics published:
  *   - "tail": the verbatim tail, on every change (retained; the frame mirrors it)
@@ -197,12 +194,6 @@ export class MMemory extends MBaseComponent {
         if (this.attr("spokenSrc") !== "off") {
             this.sub(this.attr("spokenSrc") || "!scope/voice/@spoken", this._onSpoken).catch(() => {})
         }
-        if (this.attr("filedSrc") !== "off") {
-            this.sub(this.attr("filedSrc") || "!scope/scribe/@filed", this._onFiled).catch(() => {})
-        }
-        if (this.attr("actedSrc") !== "off") {
-            this.sub(this.attr("actedSrc") || "!scope/hands/@acted", this._onActed).catch(() => {})
-        }
 
         // The mind fires the stimuli that entered each frame as an `@attended` event;
         // we journal them as perceived (⟂) notes here, rather than the mind reaching
@@ -228,10 +219,6 @@ export class MMemory extends MBaseComponent {
         if (this.attr("backstageSrc") !== "off") {
             this.sub(this.attr("backstageSrc") || "!scope/@backstage", this._onBackstage)
         }
-        this.sub('!scope/@aperture-change', e => {
-            const { from, to, reason } = e.detail || {}
-            if (from && to) this.note(`Attention aperture: ${from} → ${to} (${reason}).`, { perceived: false })
-        })
 
         // A BRIDGE — the utility-model transition sentence m-mind injects on a redirect —
         // arrives as its transient `@bridge` event. It physically rides the tail via the
@@ -250,15 +237,6 @@ export class MMemory extends MBaseComponent {
         // set it: the cut then rides our existing `tail` channel to everyone who watches it.
         if (this.attr("clearTailSrc") !== "off") {
             this.respond("clear-tail", this._onClearTail, { src: this.attr("clearTailSrc") || "!scope/@clear-tail" })
-        }
-
-        // A MUFFLING: the arbiter dropped a stimulus a rested mind would have taken, because
-        // low arousal raised its threshold (m-interrupts arousalSensitivity). It bubbles a
-        // backstage `muffled` event, which we journal as a ⌁ trail so a tired mind's growing
-        // isolation has a recorded cause it is never told about — it never perceived the
-        // stimulus, so there is nothing to feel, only to record (finding 7). Off-able.
-        if (this.attr("muffledSrc") !== "off") {
-            this.sub(this.attr("muffledSrc") || "!scope/@muffled", this._onMuffled)
         }
 
         // Snapshot the architecture that is waking this mind into its home, so the
@@ -434,30 +412,6 @@ export class MMemory extends MBaseComponent {
         this.spoke(s.text)
     }
 
-    // The scribe's filings, arriving as its transient `@filed` event rather than a
-    // note() call into us. The scribe is subconscious, so this is a backstage (⌁) note
-    // the mind never perceives.
-    _onFiled = e => {
-        const f = e.detail
-        if (!f || !f.files || !f.files.length) return
-        this.note(`The scribe filed thoughts into: ${f.files.join(", ")}`, { perceived: false })
-    }
-
-    // A deed the hands performed, arriving as m-act's transient `@acted` event rather
-    // than a note() call into us. The hands are subconscious — the mind never saw the
-    // reaching — so this is a backstage (⌁) note. The deed records THAT it reached and
-    // with which hand; the consequence (the experience) returns separately and is
-    // journaled perceived (⟂).
-    _onActed = e => {
-        const a = e.detail
-        if (!a || !a.capability) return
-        const intent = a.intent ? `: “${a.intent}”` : ""
-        const note = a.ok
-            ? `The hands reached out into the world via ${a.capability}${intent}.`
-            : `The hands reached out via ${a.capability} but it slipped${intent}.`
-        this.note(note, { perceived: false })
-    }
-
     // The stimuli that entered a frame, arriving as the mind's transient `@attended`
     // event rather than a note() call per stimulus. Each is a perceived (⟂) note in the
     // journal AND a `> ⟂ …` block appended to the verbatim tail — at the honest position,
@@ -566,21 +520,6 @@ export class MMemory extends MBaseComponent {
         this._persist()
         this.pub("tail", this.tail)
         return { reseeded: true }
-    }
-
-    // A muffling: low arousal raised the interrupt threshold and dropped a stimulus a rested
-    // mind would have taken (m-interrupts arousalSensitivity). Journaled as a backstage (⌁) note
-    // only — the mind never perceived the stimulus, so there is nothing for it to feel; the
-    // record simply gains the reason for a tired mind's withdrawal (finding 7). Never touches
-    // the tail or a frame.
-    _onMuffled = e => {
-        if (this._finalized) return
-        const m = e?.detail || {}
-        const a = typeof m.arousal === "number" ? m.arousal.toFixed(2) : "low"
-        this.note(
-            `Tired (arousal ${a}), the bar on what reaches me has risen; something I would have taken when rested passed unfelt.`,
-            { perceived: false }
-        )
     }
 
     // The `sleep` request's answer. A failed final write throws out of finalize()

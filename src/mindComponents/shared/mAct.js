@@ -68,9 +68,9 @@ const log = logger('mAct.js');
  *           the hand a `call` request → it replies { experience, salience?, data? }.
  *
  * Then the split that the whole design exists for:
- *   - the DEED (the realizer ran, the hand executed) is fired as `acted` and a
- *     memory journals it as a BACKSTAGE (⌁) note the mind never sees — exactly like
- *     the scribe's filings (m-memory's `actedSrc`, twin of `filedSrc`);
+ *   - the DEED (the realizer ran, the hand executed) is fired as `acted`, and its
+ *     prose as a `backstage` trail a memory journals as a ⌁ note the mind never
+ *     sees — exactly like the scribe's filings;
  *   - the CONSEQUENCE re-enters as an `External` `interrupt-request` through the
  *     arbiter into the frame, journaled PERCEIVED (⟂) via the ordinary `attended`
  *     path — because the mind genuinely does perceive it. It is the capability's
@@ -142,9 +142,10 @@ const log = logger('mAct.js');
  *
  * Events fired (bubbling):
  *   - "acted": {intent, capability, args, ok, experience, data, actId?, predictionId?}
- *     — a deed, journaled backstage (⌁) by a memory subscribing via `actedSrc`
- *     (an `@acted` event ref). `args` are the stripped hand arguments; envelope text
- *     never appears. The two ids are additive lineage, not content.
+ *     — a deed, as data (the expectation ledger reads it). `args` are the stripped
+ *     hand arguments; envelope text never appears. The two ids are additive lineage,
+ *     not content.
+ *   - "backstage": {text} — the same deed in words, journaled ⌁ by a memory.
  *
  * Topics published (for memory + Studio):
  *   - "intent": {salience, gist, accepted, reason} — every decide, for observability
@@ -538,6 +539,7 @@ export class MAct extends MObserver {
             actId: predictionOn ? actId : null,
             predictionId: predictionOn ? predictionId : null,
         }, { energy: ENERGY.deed })
+        this.fire("backstage", { text: deedNote(name, decision.gist, ok) })
         telemetry(this, "act", "acted", {
             capability: name, intent: decision.gist || null, ok: !!ok,
             experience: experience || null, args: deedArgs,
@@ -1020,6 +1022,15 @@ function targetForCapability(cap, handArgs = {}) {
         return { eventType: cap.consequenceType }
     }
     return { eventType: `Sense-${cap.name}` }
+}
+
+/** The deed's backstage (⌁) line: THAT the hands reached, and with which hand. The
+ *  consequence is the experience and returns separately, perceived (⟂). Pure. */
+function deedNote(capability, intent, ok) {
+    const said = intent ? `: “${intent}”` : ""
+    return ok
+        ? `The hands reached out into the world via ${capability}${said}.`
+        : `The hands reached out via ${capability} but it slipped${said}.`
 }
 
 /** Clip a kept note to a length that grounds without flooding the realize frame. Pure. */

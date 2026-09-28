@@ -495,6 +495,18 @@ existing seam, none rewrites a mind's behaviour.
    minds and streams by tag (§2.6). The Studio's `nByTag` / `nodeTag` are
    untouched. `wiring/telemetry.test.js` pins a faculty m-ws has never heard of,
    the membrane stop, the replay and a member's tagged records.*
+   *Backstage done 2026-09-28 (§2.2): the scribe, the hands, the region and the
+   arbiter write their own trail prose and fire `backstage {text}`, like the
+   provenance filter already did. Memory lost `filedSrc`, `actedSrc`,
+   `muffledSrc` and its `aperture-change` listener, and journals every trail
+   through its one `backstageSrc` handler. `acted` and `aperture-change` stay,
+   as data, because the expectation ledger and the membrane tests read their
+   fields. `filed` and `muffled` had no reader besides memory and are gone
+   (the Studio's `scribe/filed` is telemetry). The channels memory still names
+   each change the tail or answer a request (spoken, image, attended, bridge,
+   clear-tail, sleep), which a trail line cannot. The journal text is unchanged.
+   `wiring/kb-memory.test.js` pins that a bare structured event leaves no note
+   and that an unknown producer's trail is journaled.*
 
 ---
 

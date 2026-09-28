@@ -1,8 +1,9 @@
 // The scribe↔memory wires live in the architecture, not in either component:
 // the scribe (m-kb) reads its context from topics (its own stream window + memory's
-// `compressed`) and announces work as a transient `filed` event; a memory subscribes
-// to `@filed` and journals it. Neither names the other, so memory can be replaced or
-// doubled freely. An event is never replayed, so memory needs no dedupe.
+// `compressed`) and leaves its filing as a `backstage` trail in its own words; a memory
+// journals whatever trail it hears. Neither names the other, and memory has no scribe
+// handler, so memory can be replaced or doubled freely (review §2.2). An event is never
+// replayed, so memory needs no dedupe.
 import { test, expect, beforeAll, afterAll } from "bun:test";
 import A from "amanita";
 import os from "node:os";
@@ -51,8 +52,8 @@ test("the scribe reads context from topics, not by reaching into memory", async 
     expect(scribe._recent.includes("boredom and patience")).toBe(true); // summary, via topic
 });
 
-test("a filing is journaled by memory via the `filed` event (note inversion)", async () => {
-    scribe.fire("filed", { files: ["attention/slow.md", "self/values.md"] });
+test("a filing is journaled by memory via the scribe's backstage trail (note inversion)", async () => {
+    scribe._announceFiled(["attention/slow.md", "self/values.md"]);
     await delay(40);
     const day = new Date().toISOString().slice(0, 10);
     const journal = fs.readFileSync(path.join(journalDir, `${day}.md`), "utf8");
@@ -60,17 +61,37 @@ test("a filing is journaled by memory via the `filed` event (note inversion)", a
     expect(journal.includes("⌁")).toBe(true); // the backstage (unseen) marker
 });
 
-test("the filed event is transient — a late subscriber is not replayed", async () => {
-    scribe.fire("filed", { files: ["past/filing.md"] });
+test("the filing trail is transient — a late subscriber is not replayed", async () => {
+    scribe._announceFiled(["past/filing.md"]);
     await delay(10);
     // A listener attached only now must not receive the past filing: an event, unlike
     // a topic, has no retained value to replay — which is exactly why memory needs no
     // dedupe guard against a re-subscribe. It does receive a genuinely new filing.
     let replays = 0;
-    scribe.addEventListener("filed", () => { replays++; });
+    scribe.addEventListener("backstage", () => { replays++; });
     await delay(20);
     expect(replays).toBe(0);
-    scribe.fire("filed", { files: ["new/filing.md"] });
+    scribe._announceFiled(["new/filing.md"]);
     await delay(10);
     expect(replays).toBe(1);
+});
+
+test("memory journals trails, not producers: a structured event alone leaves no note (review §2.2)", async () => {
+    const day = new Date().toISOString().slice(0, 10);
+    const file = path.join(journalDir, `${day}.md`);
+    const read = () => (fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "");
+    const before = read();
+    // The events memory used to have one handler each for. Their producers now say
+    // it in their own words, so the bare record is not memory's to narrate.
+    scribe.fire("filed", { files: ["ghost/filing.md"] });
+    scribe.fire("acted", { capability: "terminal", intent: "a ghost deed", ok: true });
+    scribe.fire("aperture-change", { from: "open", to: "soft", reason: "ghost" });
+    scribe.fire("muffled", { arousal: 0.1 });
+    // ...and a trail from a producer memory has never heard of is journaled.
+    scribe.fire("backstage", { text: "An unheard-of mechanism left a trail." });
+    await delay(40);
+    await memory._journalQueue;
+    const added = read().slice(before.length);
+    expect(added).toContain("⌁ An unheard-of mechanism left a trail.");
+    expect(added).not.toMatch(/ghost/);
 });

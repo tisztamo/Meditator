@@ -76,10 +76,10 @@ have).
   so a standing wish is felt once, not every cadence — otherwise it would defeat the dedup it
   rides on.
 
-- **arousalSensitivity** (`mInterrupts._noteMuffled`; `mMemory._onMuffled`). When low arousal
+- **arousalSensitivity** (`mInterrupts._noteMuffled`). When low arousal
   alone drops a stimulus (it clears the base threshold but not the arousal-raised one), the
-  global arbiter fires a bubbling backstage `muffled` event, throttled to `rateLimit`. m-memory
-  journals a ⌁ trail ("Tired (arousal 0.xx), the bar on what reaches me has risen; something I
+  global arbiter fires a bubbling `backstage` trail, throttled to `rateLimit` (a `muffled`
+  event memory handled until 2026-09-28, review §2.2). m-memory journals it as a ⌁ note ("Tired (arousal 0.xx), the bar on what reaches me has risen; something I
   would have taken when rested passed unfelt"). The mind is told nothing — it never perceived
   the stimulus, so there is nothing to feel — but its withdrawal gains a recorded cause. The
   same change hardened the arbiter's arousal subscription with the `.catch` its sibling m-act

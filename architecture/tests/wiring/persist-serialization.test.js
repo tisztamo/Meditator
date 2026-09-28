@@ -128,9 +128,8 @@ test("nothing is journaled after the sleep marker: a late deed or trail belongs 
     const { home, memory } = await freshMemory();
     const stream = document.querySelector("m-stream");
     expect((await request(document.querySelector("m-mind"), "sleep", { reason: "sleep" }, { bubbles: false })).status).toBe("ok");
-    // Late arrivals on the channels memory journals from, after the commit.
+    // A late arrival on the trail channel memory journals from, after the commit.
     stream.dispatchEvent(new CustomEvent("backstage", { bubbles: true, detail: { text: "a late mechanism trail" } }));
-    stream.dispatchEvent(new CustomEvent("aperture-change", { bubbles: true, detail: { from: "open", to: "soft", reason: "late" } }));
     await delay(20);
     await memory._journalQueue;
     const journalDir = path.join(home, "journal");

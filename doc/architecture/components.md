@@ -243,8 +243,7 @@ Three memory tiers, compression, persistence, and the journal. See
 | `src` | `..m-mind/stream/chunk` | stream source (mind-relative) |
 | `boundarySrc` | `..m-mind/stream/boundary` | boundary source |
 | `spokenSrc` | the voice's `<name>/@spoken` (auto-discovered) | aloud utterances to record; `"off"` disables |
-| `filedSrc` | the scribe's `<name>/filed` (auto-discovered) | scribe filings to journal as a backstage note; `"off"` disables |
-| `actedSrc` | the hands' `<name>/acted` (auto-discovered) | the hands' deeds (efference) journaled as a backstage (⌁) note; the consequence arrives separately and is journaled perceived (⟂); `"off"` disables |
+| `backstageSrc` | `!scope/@backstage` | the one mechanism trail: any component's `backstage {text?, kind?, record?}` — `text` journaled as a ⌁ note, `kind`+`record` appended to `journal/<kind>.jsonl`; `"off"` disables |
 | `attendedSrc` | `..m-mind/attended` | the stimuli that entered each frame, journaled as perceived (⟂) notes; `"off"` disables |
 | `bridgeSrc` | `..m-mind/@bridge` | if the optional `bridge="true"` path fires, mark that sentence as a ↪ journal line; `"off"` disables |
 
@@ -252,10 +251,16 @@ Three memory tiers, compression, persistence, and the journal. See
   load; `tail` — the verbatim tail on every change (retained, so the mind's frame
   mirrors it). The mind reads both by subscription — it never pulls.
 - **Subscribes:** the stream (`src`/`boundarySrc`), the voice's `@spoken` event
-  (`spokenSrc`), the scribe's `filed` topic (`filedSrc`), the mind's `attended`
-  topic (`attendedSrc`), and optionally `@bridge` (`bridgeSrc`) — utterances recorded, filings and perceived stimuli
-  journaled by *subscription*, not by those components calling in. Memory is swappable
-  and several can listen to one voice/scribe.
+  (`spokenSrc`), the mind's `attended` request (`attendedSrc`), optionally `@bridge`
+  (`bridgeSrc`), and every `backstage` trail (`backstageSrc`) — utterances recorded and
+  perceived stimuli journaled by *subscription*, not by those components calling in.
+  Memory is swappable and several can listen to one voice.
+- **Knows no trail producer:** the scribe's filings, the hands' deeds, aperture
+  changes, the arbiter's mufflings and the provenance catch all arrive as `backstage`
+  text their producers wrote, so a new mechanism needs no handler here and a
+  replacement memory journals them all with one. The channels memory still names each
+  change the tail or answer a request (spoken, image, attended, bridge, clear-tail,
+  sleep).
 - **Raises:** a one-time `Waking` `interrupt-request` (bubbling) on load — the wake
   stimulus enters via the attention spine, not a pull.
 - **Lifecycle API (orchestrator contract, see [decoupling.md](decoupling.md)):**
@@ -314,7 +319,7 @@ Registered source elements (never payload fields) declare:
 - **Interior roles:** `regulator` — contact dynamics (debt, habituation, reflex), resolved with `part('regulator')`; zero → constructed `Aperture` (the reference policy, not the provider). `aggregator` lives on the mind, not here; this provider publishes `fold(own, children)` (default `max`).
 - **API:** `registerSource(element, sample)` → `offer(header, lazyText)`; `orient(state, source)`; `requestOrientation(OrientationRequest) → boolean` (role port — match `name`, else forward to child providers); `requestControl(ControlRequest)` is the one door for `sample` / `detail` / `focus` (`focus` is accepted and changes no policy). Untargeted requests fan out to child providers; a named `target` is delivered once by the nearest owner. A named target reaches its source even while the aperture refuses it — that is the controller's decision, and the acquisition gate still decides disclosure; an untargeted broadcast skips sources the aperture already refuses.
 - **Publishes:** `contactPressure` (the fold), `apertureState` (retained); `perceptDecision` (non-semantic gate verdicts — no text; includes `candidateId` and `requestId`); `bidRefusal` when a bound bidder's output is rejected.
-- **Events:** `aperture-change` (backstage); `percept-candidate` (a request, twice — acquisition then awareness — bubbling from the issuing aperture through every aperture on the path, stopped at the membrane; each gate replies with its verdict and the issuer composes the conjunction, a gate silent past `gateDeadline` (500ms) denying); `aperture-register` (bubbling, nearest aperture stops it); `control-result` (transient, id-only: a requested candidate's acquisition refusal or acceptance). Providers form a tree, not a graph. Credits `percepts-attended` **by percept id**. The offer path issues an `AttentionBid` wrapping a frozen `Percept`.
+- **Events:** `aperture-change` `{from, to, reason, actId}`, with its `backstage` trail ("Attention aperture: from → to (reason)."); `percept-candidate` (a request, twice — acquisition then awareness — bubbling from the issuing aperture through every aperture on the path, stopped at the membrane; each gate replies with its verdict and the issuer composes the conjunction, a gate silent past `gateDeadline` (500ms) denying); `aperture-register` (bubbling, nearest aperture stops it); `control-result` (transient, id-only: a requested candidate's acquisition refusal or acceptance). Providers form a tree, not a graph. Credits `percepts-attended` **by percept id**. The offer path issues an `AttentionBid` wrapping a frozen `Percept`.
 - **Attributes (membrane):** `compareDeadline` (default `2s`) bounds comparison after materialization; `gateDeadline` (default `500ms`) bounds how long a candidate waits for the gates on its path.
 - Only registered lazy sources pass this aperture; eager `feel()` and legacy interrupts do not. Migrated senses call `perceive()` (lazy under an enclosing aperture, eager `feel()` otherwise). Currently `m-feed` is migrated; `m-weather` and `m-daylight` still `feel()`.
 
@@ -561,8 +566,9 @@ Plus all `m-observer` attributes.
   never wanders into its domain on its own (efference.md §Embodiment).
 - **Publishes:** `intent` — `{salience, gist, accepted, reason}` for every decide
   (observability, like speech's `impulse`); `acted` — `{intent, capability, args, ok,
-  experience, data}` for each deed, which a memory journals as a backstage (⌁) note
-  via its `actedSrc`; `embodiment` — the assembled body schema (above).
+  experience, data}` for each deed, as data (the expectation ledger reads it); the same
+  deed in words as a `backstage` trail a memory journals as a ⌁ note; `embodiment` —
+  the assembled body schema (above).
 - **Dispatches (DOM, bubbling):** the **consequence** as an `External`,
   non-urgent `interrupt-request` (`type: Sense-<capability>`) — so it flows through
   the arbiter into the frame and is journaled perceived (⟂) via `attended`, exactly
@@ -1101,9 +1107,10 @@ See [Memory & the vault](memory.md).
 - **Reads context from topics, not from memory:** the verbatim recent thought is the
   scribe's own rolling stream `window`; the compressed summary arrives on the memory's
   `compressed` topic (`compressedSrc`). The scribe never names memory.
-- **Publishes:** `filed` — `{files}` after a successful distillation. A memory
-  subscribes (via its `filedSrc`) and journals it as a backstage (⌁) note; the scribe
-  no longer calls `m-memory.note()` itself.
+- **Fires:** `backstage {text}` after a successful distillation ("The scribe filed
+  thoughts into: …"), which any memory journals as a ⌁ note, and telemetry
+  `scribe/filed {files}`. The scribe never calls `m-memory.note()`, and memory has no
+  scribe handler.
 
 ## `m-console`
 

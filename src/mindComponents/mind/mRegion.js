@@ -115,7 +115,7 @@ function andThen(value, f) {
  * Topics: contactPressure, apertureState, gateVersions (retained: this gate's
  *   version and every enclosing gate's, as last heard, for a child's version hold);
  *   perceptDecision (non-semantic
- *   gate verdicts); events: aperture-change (backstage); percept-candidate (a request,
+ *   gate verdicts); events: aperture-change (+ its backstage trail); percept-candidate (a request,
  *   message-rule.md: plain data {stage, candidateId, contract, gates}, sent twice by
  *   the issuing aperture — acquisition then awareness — bubbling through every aperture
  *   on the path and stopped at the membrane; each gate replies {verdict, version?, gain?},
@@ -1044,6 +1044,7 @@ export class MRegion extends MBaseComponent {
     _transition(from, reason, actId = null) {
         this._publishAperture()
         this.fire('aperture-change', { from, to: this.aperture.state, reason, actId: actId ?? null })
+        if (from) this.fire('backstage', { text: `Attention aperture: ${from} → ${this.aperture.state} (${reason}).` })
         // Ask the sources for the present. No candidate or suppressed content is queued.
         // ControlRequest.template stays null — a semantic template must not enter the detector.
         this.requestControl(new ControlRequest({

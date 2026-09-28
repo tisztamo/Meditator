@@ -58,8 +58,8 @@ const log = logger('mInterrupts.js');
  *     (default 1; <1 makes a faculty matter less, >1 more)
  *   - arousalSensitivity: if >0 (global only), the effective threshold rises as
  *     arousal falls — a tired mind is harder to interrupt (default 0, off). Each drop it
- *     causes (a stimulus that clears the base bar but not the raised one) is announced as a
- *     backstage `muffled` event so a memory can journal the withdrawal (finding 7).
+ *     causes (a stimulus that clears the base bar but not the raised one) leaves a
+ *     `backstage` trail so a memory can journal the withdrawal (finding 7).
  *   - contactSensitivity: threshold reduction at full contact pressure (default 0.25).
  *     Inactive without modality regions. Global pressure follows a 60s exponential
  *     mean of `part(mind, 'aperture')` — top-level providers only, each already
@@ -119,8 +119,8 @@ const log = logger('mInterrupts.js');
  *   - dispatches (global only): "accepted" {bid} (bubbling) for each admitted bid;
  *     "withdrawn" {bidIds, why} (bubbling) when a queued bid is crowded out
  *   - dispatches: "interrupt" (bubbling) with the bid, for urgent stimuli — global only
- *   - dispatches: "muffled" (bubbling) when low arousal alone dropped a stimulus — global
- *     only, throttled to rateLimit; a record-only signal the mind never perceives
+ *   - dispatches: "backstage" {text} (bubbling) when low arousal alone dropped a stimulus —
+ *     global only, throttled to rateLimit; a record-only trail the mind never perceives
  */
 export class MInterrupts extends MBaseComponent {
     static provides = { arbiter: true }
@@ -273,7 +273,7 @@ export class MInterrupts extends MBaseComponent {
                 // raised one — leave a backstage trail (finding 7): otherwise a tired mind grows
                 // isolated with no felt or recorded cause. The mind is told nothing (it never
                 // perceived the stimulus); only the record gains the reason. Throttled below.
-                if (sensitivity > 0 && bid.salience >= baseThreshold) this._noteMuffled(bid)
+                if (sensitivity > 0 && bid.salience >= baseThreshold) this._noteMuffled()
                 // Say WHY the bar was where it was. A bid refused against a raised
                 // bar reads as an ordinary miss in the record otherwise, and the
                 // crowding that caused it is invisible exactly when it matters.
@@ -346,17 +346,20 @@ export class MInterrupts extends MBaseComponent {
     }
 
     /** A stimulus a RESTED mind would have taken, dropped only because low arousal raised the
-     *  bar (arousalSensitivity). Announce it as a bubbling backstage `muffled` event so a memory
-     *  can leave a ⌁ trail — the honest counterpart to a tired mind quietly withdrawing from the
+     *  bar (arousalSensitivity). Leave it as a bubbling `backstage` trail so a memory journals
+     *  a ⌁ note — the honest counterpart to a tired mind quietly withdrawing from the
      *  world (philosophical-review-2026-07-02 finding 7). Throttled to the rate-limit so a
      *  low-energy stretch leaves a trail, not a flood. The event never reaches the mind's frame;
      *  it is a record-only signal, exactly like a deed's ⌁ note. */
-    _noteMuffled(record) {
+    _noteMuffled() {
         const now = Date.now()
         const rateLimitMs = parseTime(this.attr("rateLimit") || "15s")
         if (now - this._lastMuffledAt < rateLimitMs) return
         this._lastMuffledAt = now
-        this.fire("muffled", { arousal: this._arousal, type: record.type, salience: record.salience })
+        const a = typeof this._arousal === "number" ? this._arousal.toFixed(2) : "low"
+        this.fire("backstage", {
+            text: `Tired (arousal ${a}), the bar on what reaches me has risen; something I would have taken when rested passed unfelt.`,
+        })
     }
 
     /** Announces the accept/drop verdict for a stimulus, so an observer (e.g. the

@@ -389,7 +389,7 @@ Partly, and it already has most of it:
 | Topic | Payload | Consumer |
 |---|---|---|
 | `intent` | `{salience, gist, accepted, reason}` | Studio (observability), like `m-speech`'s `impulse` |
-| `acted` | `{intent, capability, args, ok, experience, data, actId?, predictionId?}` | `m-memory` (`actedSrc`) → backstage (⌁) note. `args` are the stripped hand args; envelope text is never in `acted`. |
+| `acted` | `{intent, capability, args, ok, experience, data, actId?, predictionId?}` | the expectation ledger; m-act fires the deed's prose as a `backstage` trail beside it, which `m-memory` journals as a ⌁ note. `args` are the stripped hand args; envelope text is never in `acted`. |
 
 The consequence is **not** a topic — it is an `External` `interrupt-request` so it goes
 through the arbiter into the frame and is journaled perceived (⟂) via `attended`.

@@ -117,7 +117,7 @@ filter's `interrupt-request` never re-enters a running burst. See [extending](..
 |-------|------------------|------------------------|-------|
 | voice → memory (utterance) | `m-speech` → `spoken {text, at}` | `m-memory` `spokenSrc` → `spoke()` | ✅ done |
 | voice context read | — (uses its own observer `window`) | `m-speech` reads `this.window` | ✅ done |
-| scribe → memory (filing note) | `m-kb` → `filed {files}` | `m-memory` `filedSrc` → backstage `note()` | ✅ done |
+| scribe → memory (filing note) | `m-kb` → `backstage {text}` (its own prose) | `m-memory` `backstageSrc` → ⌁ `note()`, no scribe handler | ✅ done |
 | scribe context read | `m-memory` → `compressed`; stream → `m-kb` own `window` | `m-kb` `compressedSrc` + `src` | ✅ done |
 | image → memory | `m-image` → `generated` | `m-memory` `imageSrc` → `imageGenerated()` | ✅ done |
 | mind frame: recent/story | `m-memory` → `compressed {recent, story}` (also on load) | `m-mind` `compressedSrc` | ✅ done |
