@@ -16,7 +16,7 @@ import A from "amanita";
 import { delay } from "./setup.js";
 import { waitFor } from "./contracts/helpers.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
-import { InterruptRecord } from "../../../src/infrastructure/interruptRecord.js";
+import { stimulus } from "../../../src/infrastructure/interruptRecord.js";
 
 let mind, priced, plain;
 
@@ -57,7 +57,7 @@ beforeEach(() => {
     priced._crowdAt = Date.now();
 });
 
-const fire = (salience, extra = {}) => bid(mind, new InterruptRecord({
+const fire = (salience, extra = {}) => bid(mind, stimulus({
     source: "External", type: "Sense-test", reason: "something out there", salience, ...extra,
 }));
 
@@ -78,7 +78,7 @@ test("off by default: a gate with no crowdSensitivity never raises its bar", asy
     const other = document.querySelector('m-mind[name="unpriced"]');
     plain = other.querySelector('[name="plain"]');
 
-    const shout = s => bid(other, new InterruptRecord({ source: "External", type: "T", reason: "r", salience: s }));
+    const shout = s => bid(other, stimulus({ source: "External", type: "T", reason: "r", salience: s }));
     shout(0.5);
     for (let i = 0; i < 6; i++) shout(0.5);
     await delivered();

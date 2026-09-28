@@ -8,7 +8,7 @@ import { test, expect, beforeAll, afterEach } from "bun:test";
 import A from "amanita";
 import { delay } from "./setup.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
-import { InterruptRecord } from "../../../src/infrastructure/interruptRecord.js";
+import { stimulus } from "../../../src/infrastructure/interruptRecord.js";
 
 let mind, arbiter, memory, notes;
 
@@ -39,7 +39,7 @@ afterEach(() => { notes.length = 0; arbiter._lastMuffledAt = 0; });
 // base threshold 0.35; arousal 0.2 → raised threshold = 0.35 + (1-0.2)*0.5 = 0.75.
 const fireStim = salience => mind.dispatchEvent(new CustomEvent("interrupt-request", {
     bubbles: true,
-    detail: new InterruptRecord({ source: "Observer", type: "Wander", reason: "an idle drift", salience }),
+    detail: stimulus({ source: "Observer", type: "Wander", reason: "an idle drift", salience }),
 }));
 
 test("a stimulus a rested mind would take, dropped by low arousal, leaves a ⌁ trail", async () => {

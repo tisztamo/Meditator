@@ -9,7 +9,7 @@ import { loadMindComponents } from '../../../src/startup/loadMindComponents.js';
 import { MMind } from '../../../src/mindComponents/mind/mMind.js';
 import { Percept } from '../../../src/infrastructure/percept.js';
 import { AttentionBid } from '../../../src/infrastructure/attentionBid.js';
-import { InterruptRecord } from '../../../src/infrastructure/interruptRecord.js';
+import { InterruptRecord, stimulus } from '../../../src/infrastructure/interruptRecord.js';
 import { GateVerdict, ControlRequest, RenditionRequest, PerceptReceipt } from '../../../src/infrastructure/perceptionContracts.js';
 import { takeAccepted, takeAdmitted, takeNone, acceptedBy, bidIds } from "./attentionProbe.js";
 import { waitFor, quiet } from "./contracts/helpers.js";
@@ -238,7 +238,7 @@ test('threshold rejection and crowd-out do not clear debt or enter the typed ind
     const candidate = await offer(header('second'), () => 'Crowded out globally.');
     await waitFor(() => bidIds(acceptedBy(global)).includes(candidate.id));
     mind.dispatchEvent(new CustomEvent('interrupt-request', { bubbles: true,
-        detail: new InterruptRecord({ source: 'Internal', type: 'Other', reason: 'Another bid.', salience: 1 }) }));
+        detail: stimulus({ source: 'Internal', type: 'Other', reason: 'Another bid.', salience: 1 }) }));
     // `accepted` for the newcomer and `withdrawn` for the candidate may land in either order.
     await waitFor(() => {
         const ids = bidIds(acceptedBy(global));

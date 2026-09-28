@@ -37,7 +37,7 @@ import path from "node:path";
 import { waitFor, quiet } from "./helpers.js";
 import { loadMindComponents } from "../../../../src/startup/loadMindComponents.js";
 import { MMind } from "../../../../src/mindComponents/mind/mMind.js";
-import { InterruptRecord } from "../../../../src/infrastructure/interruptRecord.js";
+import { stimulus } from "../../../../src/infrastructure/interruptRecord.js";
 
 class TFrameMind extends MMind {}
 if (!customElements.get("t-frame-mind")) customElements.define("t-frame-mind", TFrameMind);
@@ -82,7 +82,7 @@ const journal = () => {
 };
 
 function raise(reason) {
-    mind.querySelector("t-frame-source").fire("interrupt-request", new InterruptRecord({
+    mind.querySelector("t-frame-source").fire("interrupt-request", stimulus({
         source: "External", type: "Sense-world", reason, salience: 0.9, urgent: true,
     }));
 }

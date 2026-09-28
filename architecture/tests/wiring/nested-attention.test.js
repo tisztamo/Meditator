@@ -2,7 +2,7 @@
 import { test, expect, beforeAll } from "bun:test";
 import { delay } from "./setup.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
-import { InterruptRecord } from "../../../src/infrastructure/interruptRecord.js";
+import { stimulus } from "../../../src/infrastructure/interruptRecord.js";
 import { AttentionBid } from "../../../src/infrastructure/attentionBid.js";
 import { acceptedBy, takeAccepted, takeAdmitted } from "./attentionProbe.js";
 import { waitFor, quiet } from "./contracts/helpers.js";
@@ -12,7 +12,7 @@ let global, local, regionSrc, topSrc;
 function bid(el, salience, reason) {
     el.dispatchEvent(new CustomEvent("interrupt-request", {
         bubbles: true,
-        detail: new InterruptRecord({ source: "Observer", type: "Test", reason, salience }),
+        detail: stimulus({ source: "Observer", type: "Test", reason, salience }),
     }));
 }
 

@@ -3,18 +3,7 @@
   "mode": "macrotask",
   "wire": "json",
   "failures": [],
-  "violations": {
-    "fire|interrupt-request|instance:InterruptRecord": {
-      "senders": [
-        "m-mind",
-        "span",
-        "t-frame-source"
-      ],
-      "paths": [
-        "(root)"
-      ]
-    }
-  },
+  "violations": {},
   "legacyHandleCallsInTests": {
     "takePending": 0,
     "requestControl": 20,

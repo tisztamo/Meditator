@@ -18,7 +18,7 @@ import { Percept } from '../../../src/infrastructure/percept.js';
 import { AttentionBid } from '../../../src/infrastructure/attentionBid.js';
 import { Aperture } from '../../../src/infrastructure/aperture.js';
 import { GateVerdict, pushGainTrail, ControlRequest } from '../../../src/infrastructure/perceptionContracts.js';
-import { InterruptRecord } from '../../../src/infrastructure/interruptRecord.js';
+import { stimulus } from '../../../src/infrastructure/interruptRecord.js';
 import { acceptedBy, takeAccepted, takeAdmitted, bidIds } from "./attentionProbe.js";
 
 let journalDir;
@@ -1206,7 +1206,7 @@ test('invalid aggregator output fails closed: threshold stays finite', async () 
     mind.appendChild(source);
     source.dispatchEvent(new CustomEvent('interrupt-request', {
         bubbles: true,
-        detail: new InterruptRecord({ source: 'Observer', type: 'Test', reason: 'quiet', salience: 0.2 }),
+        detail: stimulus({ source: 'Observer', type: 'Test', reason: 'quiet', salience: 0.2 }),
     }));
     await delay(60);   // negative: let any stray bid land first
     expect(takeAccepted(global)).toHaveLength(0);
