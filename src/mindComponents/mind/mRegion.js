@@ -507,11 +507,18 @@ export class MRegion extends MBaseComponent {
      * its result is returned as is. With a substituted regulator, the op is asked
      * (`regulate`), the reply's snapshot updates the mirror, and the result is a
      * Promise of whether the aperture changed; a silent regulator changed nothing.
+     * Ops reach the regulator in the order they were issued: each is sent once the
+     * one before it is answered (two in flight could land in either order, M5).
      */
     _regulate(op, data, local) {
         if (!this._regulator) return local(this.aperture)
         const gen = this._bindGen
-        return askRegulator(this, this._regulator, op, data).then(({ changed, snapshot }) => {
+        const name = this._regulator
+        if (this._regulateGen !== gen) { this._regulateGen = gen; this._regulateTail = null }
+        const answered = (this._regulateTail || Promise.resolve())
+            .then(() => gen === this._bindGen ? askRegulator(this, name, op, data) : { changed: false, snapshot: null })
+        this._regulateTail = answered
+        return answered.then(({ changed, snapshot }) => {
             if (gen !== this._bindGen || !(this.aperture instanceof RegulatorMirror)) return false
             if (snapshot) this.aperture.apply(snapshot)
             return changed

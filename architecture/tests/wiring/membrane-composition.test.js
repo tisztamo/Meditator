@@ -778,9 +778,6 @@ test('15. Regulator ops cross as plain data: a change header, never the text', a
     region.addEventListener('regulate', e => asked.push(e.detail));
     const offer = region.registerSource(source, () => {});
     await offer({ ...header(PREIMAGE), reason: TEXT, caption: TEXT }, () => TEXT);
-    // `observe` is sent, not awaited, by the offer: let it land before the boundary
-    // asks `advance`, as sync delivery did (the ops carry no sequence number, M5).
-    await until(() => asked.length);
     await region.onBoundary(Date.now() + 2000);
     expect(asked.map(d => d.op)).toEqual(['observe', 'advance']);
     for (const detail of asked) {
