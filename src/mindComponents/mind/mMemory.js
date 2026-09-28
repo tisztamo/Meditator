@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { MBaseComponent } from "../shared/mBaseComponent.js"
+import { closestRole } from "../shared/enclosure.js"
 import { telemetry, onTelemetryWanted } from "../shared/telemetry.js"
 import { langOf } from "../shared/i18n.js"
 import { complete, isDryRun } from "../../modelAccess/llm.js"
@@ -140,8 +141,8 @@ export class MMemory extends MBaseComponent {
             // foreign identity (finding 2) — checked here, before the snapshot overwrites
             // its bundle and _load() inherits its self and commits into its history. The
             // claimed identity is what mindHome derives a home from (memory=, else name),
-            // read off the same m-mind/m-agent root mindHome resolves against.
-            const self = this.closest("m-mind, m-agent")
+            // read off the same mind/agent root mindHome resolves against.
+            const self = closestRole(this, "mind", "agent")
             assertIdentityMatchesHome(dir, self?.getAttribute("memory") || self?.getAttribute("name"))
         }
         // Only a resident persists to history (lifecycle.md §2). A dry or transient
@@ -256,7 +257,7 @@ export class MMemory extends MBaseComponent {
         const prevBundle = readBundleSync(this._home)
         this._snapshotArchitecture()
         this._identityDiff = diffBundles(prevBundle, readBundleSync(this._home), {
-            mindName: this.closest("m-mind")?.getAttribute("name"),
+            mindName: closestRole(this, "mind")?.getAttribute("name"),
         })
 
         this._load().finally(async () => {

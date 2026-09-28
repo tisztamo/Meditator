@@ -3,8 +3,11 @@
 **Status: 2026-09-06; mechanism decisions settled with Kris the same day
 (see [Decisions](#decisions)).** Phase 0 (roles, reflection, lookup API) landed
 with perceptual-membrane phase 2 M1. The aperture protocol (phase 2 of this note)
-and fixtures S1/C1 landed with membrane phase 2 M9 (2026-09-07). Phase 1 — the
-full `membrane()` / `part()` / `..[provides~="mind"]` sweep — is **not** done.
+and fixtures S1/C1 landed with membrane phase 2 M9 (2026-09-07). Phase 1's
+identity-root rows landed 2026-09-28 (message-rule review §2.6): no
+`closest('m-mind' | 'm-agent' | 'm-society')` is left in `src/` outside the
+build-time `startup/templating.js`; the lookups use `membrane()`, `part()` or
+`closestRole()`.
 Written after the generality review of the
 [perceptual membrane](../architecture/perceptual-membrane.md), whose first known
 issue (an open inner sensory region delivers through a closed outer one) is one
@@ -147,6 +150,7 @@ consult `customElements.get(localName)?.provides` for an element not yet reflect
 | `this.enclosing(role)` | nearest proper ancestor providing `role`, or null | `closest('m-region')`, `closest('m-region[modality]')` |
 | `this.enclosingAll(role)` | ancestors providing `role`, nearest first, stopping at the membrane | (new; composition) |
 | `this.membrane()` | nearest enclosing `mind`, `agent`, or `society` | `closest('m-mind')`, `closest('m-mind, m-agent')` |
+| `closestRole(el, ...roles)` | nearest element at or above `el` providing any of `roles`, crossing membranes | `closest('m-mind')` where the *mind* is meant from inside an agent, `closest('m-society')` |
 | `this.part(role)` / `part(root, role)` | **top-level** providers of `role` inside the membrane: those not enclosed by another provider of the same role, and not inside a nearer membrane | `mind.querySelector('m-memory[name]')`, the `_arbiter()` rule, the `m-region[modality]` scan |
 | `this.provides(role)` | whether this element provides `role` | `localName === 'm-act'` checks |
 
@@ -288,6 +292,8 @@ agent, a mind, or a society without a case list.
    the ref row, identity roots included. `_arbiter()` becomes "top-level `arbiter`
    in the membrane". Fixture W1 passes trivially; it is recorded as the baseline
    for the rest. **Not this work** — the full ~60-site sweep is still open.
+   *Identity-root lookups done 2026-09-28 (message-rule review §2.6), with
+   `closestRole()` for the lookups that cross a membrane on purpose.*
 3. **Phase 2, the aperture protocol.** `percept-candidate` with conjunction, nearest
    credits, version chain, and membrane stop; `aperture-register` and interior
    scan; id-based receipts; pressure fold; the mind-level consumer reads

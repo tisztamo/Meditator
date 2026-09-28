@@ -5,6 +5,7 @@ import fsSync from 'node:fs';
 import { logger } from './logger.js';
 import { isDryRun } from '../modelAccess/llm.js';
 import { findRetiredBundle, readManifest } from './manifest.js';
+import { closestRole } from '../mindComponents/shared/enclosure.js';
 
 const log = logger('memoryVault.js');
 
@@ -45,13 +46,14 @@ export function mindHome(el, sub) {
     // memory="slug" is a deliberate override to point an architecture at a specific
     // home. Falls back to name, then "mind". An <m-agent> root resolves the same way
     // (agent-loop.md §5 — the home generalizes past minds), so its terminal workspace
-    // and, later, its persisted transcript land under memory/<agent>/.
-    const mind = el.closest('m-mind, m-agent');
+    // and, later, its persisted transcript land under memory/<agent>/. The root is
+    // found by role, so a custom identity root that provides `mind` gets a home too.
+    const mind = closestRole(el, 'mind', 'agent');
     const slug = slugify(mind?.getAttribute('memory') || mind?.getAttribute('name')) || 'mind';
     // A mind inside an <m-society name="…"> nests its home under the society's folder:
     // memory/<society>/<mind>. One society, one folder, a subfolder per member — so a
     // multi-mind system's whole memory lives together. A lone mind is unchanged: memory/<mind>.
-    const society = mind?.closest('m-society');
+    const society = closestRole(mind, 'society');
     const societySlug = society ? (slugify(society.getAttribute('name')) || 'society') : null;
     const prefix = isDryRun() ? 'dry-' : '';
     const home = societySlug
@@ -71,9 +73,9 @@ export function mindHome(el, sub) {
  * path coupling (agent-loop.md §16 shared-workspace, the stereotic data hand).
  */
 export function mindWorkspace(el) {
-    const mind = el.closest('m-mind');
+    const mind = closestRole(el, 'mind');
     const slug = slugify(mind?.getAttribute('memory') || mind?.getAttribute('name')) || 'mind';
-    const society = mind?.closest('m-society');
+    const society = closestRole(mind, 'society');
     const societySlug = society ? (slugify(society.getAttribute('name')) || 'society') : null;
     const prefix = isDryRun() ? 'dry-' : '';
     const home = societySlug

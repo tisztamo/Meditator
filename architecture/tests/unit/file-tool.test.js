@@ -75,12 +75,22 @@ test("toolRoot resolves a relative root against cwd", () => {
 
 // A tool inside an <m-agent> would default to the AGENT's home; root="mind" instead
 // resolves to the ENCLOSING MIND's workspace (the shared desk the senses write to),
-// whatever this run is named. The mock exposes closest() the way a real element does.
+// whatever this run is named. The mind is found by role (review §2.6), so the mock is
+// a parent chain whose root carries the reflected provides="mind", as a live one does.
 function toolElInMind(mindName) {
-    const mind = { getAttribute: n => (n === "name" ? mindName : n === "memory" ? null : null), closest: () => null };
+    const attrs = { name: mindName, provides: "mind" };
+    const mind = {
+        nodeType: 1, localName: "x-self", parentElement: null,
+        hasAttribute: n => n in attrs, getAttribute: n => attrs[n] ?? null,
+    };
+    const agent = {
+        nodeType: 1, localName: "x-worker", parentElement: mind,
+        hasAttribute: n => n === "provides", getAttribute: n => (n === "provides" ? "agent hands" : null),
+    };
     return {
+        nodeType: 1, localName: "m-file", parentElement: agent,
+        hasAttribute: () => false, getAttribute: () => null,
         attr: name => (name === "root" ? "mind" : null),
-        closest: sel => (sel === "m-mind" ? mind : null),
     };
 }
 

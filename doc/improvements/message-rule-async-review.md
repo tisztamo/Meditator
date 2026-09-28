@@ -507,6 +507,20 @@ existing seam, none rewrites a mind's behaviour.
    clear-tail, sleep), which a trail line cannot. The journal text is unchanged.
    `wiring/kb-memory.test.js` pins that a bare structured event leaves no note
    and that an unknown producer's trail is journaled.*
+   *Identity roots done 2026-09-28 (§2.6): no `closest('m-mind' | 'm-agent' |
+   'm-society')` is left in `src/` outside build-time `startup/templating.js`.
+   `membrane()` alone would not do, because several lookups cross a membrane on
+   purpose (a subagent's terminal wants the mind's workspace, a member mind wants
+   its society), so `enclosure.js` gained `closestRole(el, ...roles)`, `closest()`
+   by role. The vault homes, prompt-debug dir, memory's identity check, the ear's
+   own name, the commons and speech society checks, m-facts' pinned origins, the
+   Plenum root and member ring, m-jobs' agent and its sub-agents (`part(agent,
+   'agent')`), m-terminal's mode (`enclosing('hands')` providing `agent`) and
+   m-ws's mind, society walk and layout all go by role now. m-ws's readiness
+   wait still finds each member's `m-stream` by tag, a faculty lookup and not an
+   identity root. `wiring/enclosure-by-role.test.js` pins custom-tag roots and
+   their vault homes; `wiring/telemetry.test.js`'s society test now runs on
+   custom `x-society` / `x-mind` tags.*
 
 ---
 

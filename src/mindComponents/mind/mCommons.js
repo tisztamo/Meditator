@@ -1,4 +1,5 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
+import { closestRole } from "../shared/enclosure.js"
 import { logger } from "../../infrastructure/logger.js"
 
 const log = logger("mCommons.js")
@@ -51,7 +52,7 @@ export class MCommons extends MBaseComponent {
             .filter(Boolean)
         if (explicit.length) return [...new Set(explicit)]
 
-        const society = this.closest("m-society")
+        const society = closestRole(this, "society")
         if (!society) return []
         return Array.from(society.children)
             .filter(el => el !== this)

@@ -2,6 +2,7 @@ import A from "amanita"
 import fs from "node:fs/promises"
 import path from "node:path"
 import { MBaseComponent } from "../shared/mBaseComponent.js"
+import { closestRole, part } from "../shared/enclosure.js"
 import { probeBackend } from "../../infrastructure/sandbox.js"
 import { JobRegistry } from "../../infrastructure/jobRegistry.js"
 import { isDryRun } from "../../modelAccess/llm.js"
@@ -69,6 +70,7 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
  */
 export class MJobs extends MBaseComponent {
     _backend = "none"
+    _agent = null            // the enclosing agent, found by role
     _runDir = null
     _runCount = 0
     _subagents = []          // { name, el } sub-agents this agent may spawn as background jobs
@@ -78,7 +80,8 @@ export class MJobs extends MBaseComponent {
     onConnect() {
         // <m-jobs> is an AGENT tool; it only makes sense inside an <m-agent>. (A mind reaches
         // for the world through m-act's deferred sensations, not a job handle it polls.)
-        if (this.closest("m-agent")?.localName !== "m-agent") {
+        this._agent = closestRole(this, "agent")
+        if (!this._agent) {
             log.warn("m-jobs is an agent tool and must sit inside an <m-agent>; it will not register.")
             return
         }
@@ -128,22 +131,19 @@ export class MJobs extends MBaseComponent {
         // m-ws fires a bubbling `task` event on client input (agent-loop.md §10); it bubbles
         // to the enclosing m-agent, so we listen THERE (a sibling tool never sits on the
         // event's path). It wakes any in-flight wait so the loop can attend to the message.
-        this.closest("m-agent")?.addEventListener("task", () => this._wakeWaiters())
+        this._agent.addEventListener("task", () => this._wakeWaiters())
 
         this._offerTools({ shell: hasShell, agents: hasAgents })
     }
 
     /** The enclosing agent's role="subagent" children — the ones it may spawn in the
-     *  background (agent-loop.md §16). Restricted to sub-agents whose NEAREST enclosing
-     *  agent is this tool's agent, so a sub-agent nested inside another sub-agent belongs
-     *  to that inner agent, not to this one. */
+     *  background (agent-loop.md §16). Only the agent's own parts: a sub-agent nested
+     *  inside another sub-agent belongs to that inner agent, not to this one. */
     _discoverSubagents() {
-        const parent = this.closest("m-agent")
+        const parent = this._agent
         if (!parent) return []
-        return [...parent.querySelectorAll("m-agent")]
-            .filter(el => el !== parent
-                && (el.getAttribute("role") || "").toLowerCase() === "subagent"
-                && el.parentElement?.closest("m-agent") === parent)
+        return part(parent, "agent")
+            .filter(el => (el.getAttribute("role") || "").toLowerCase() === "subagent")
             .map(el => ({ name: el.getAttribute("name") || "subagent", el }))
     }
 

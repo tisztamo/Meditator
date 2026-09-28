@@ -1,4 +1,5 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
+import { closestRole } from "../shared/enclosure.js"
 import { extractInfoton, falloff, dist } from "../shared/infoton.js"
 import { stimulus } from "../../infrastructure/interruptRecord.js"
 import { parseTime } from "../../config/timeParser.js"
@@ -55,7 +56,7 @@ export class MEar extends MBaseComponent {
         this._coupling = Math.max(0, Math.min(1, Number(this.attr("plenumCoupling") || 0)))
         this._cooldownMs = parseTime(this.attr("cooldown") || "0ms")
         this._ignoreSpeaker = this.attr("ignoreSpeaker") || (
-            this.attr("ignoreSelf") === "true" ? this.closest("m-mind")?.getAttribute("name") : null
+            this.attr("ignoreSelf") === "true" ? closestRole(this, "mind")?.getAttribute("name") : null
         )
         this._lastAt = null
         this._lastHeardAt = 0

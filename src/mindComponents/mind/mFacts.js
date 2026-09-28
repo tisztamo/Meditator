@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { MBaseComponent } from "../shared/mBaseComponent.js"
-import { part } from "../shared/enclosure.js"
+import { part, closestRole } from "../shared/enclosure.js"
 import { mindHome } from '../../infrastructure/memoryVault.js';
 import { logger } from '../../infrastructure/logger.js';
 
@@ -82,7 +82,7 @@ export class MFacts extends MBaseComponent {
             })
         }
 
-        const mind = this.closest("m-mind")
+        const mind = closestRole(this, "mind")
         if (mind) {
             for (const el of Array.from(mind.querySelectorAll("m-origin[pin], m-origin[pinned]"))) {
                 const key = (el.getAttribute("key") || el.getAttribute("name") || "origin").trim()

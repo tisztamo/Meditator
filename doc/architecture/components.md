@@ -998,7 +998,7 @@ listener by `m-ear`. See [multi-mind](multi-mind.md).
 ### `m-society`
 
 A structural container for member minds. It is mostly a marker, like [`m-region`](#m-region):
-`closest("m-society")` is the anchor for society-relative refs such as
+the nearest `society` root (`closestRole(el, "society")`, found by role, not tag) is the anchor for society-relative refs such as
 `..m-society/prover/voice/@spoken` (a peer's voice is a fired event — address it as
 `@spoken`, not the plain topic). Memory homes for member minds are nested under the
 society name (`memory/<society>/<member>/`).

@@ -5,7 +5,9 @@ import "./setup.js";
 import { test, expect, afterEach } from "bun:test";
 import { delay } from "./setup.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
-import { enclosingOf, enclosingAllOf, membraneOf, part, providesOf } from "../../../src/mindComponents/shared/enclosure.js";
+import { enclosingOf, enclosingAllOf, membraneOf, closestRole, part, providesOf } from "../../../src/mindComponents/shared/enclosure.js";
+import { mindHome, mindWorkspace } from "../../../src/infrastructure/memoryVault.js";
+import { isDryRun } from "../../../src/modelAccess/llm.js";
 import { MMind } from "../../../src/mindComponents/mind/mMind.js";
 import { MSense } from "../../../src/mindComponents/mind/mSense.js";
 
@@ -168,4 +170,41 @@ test("runtime-created m-region reflects provides in connectedCallback", async ()
     expect(rolesOf(bare)).toEqual(["faculty"]);
     expect(rolesOf(gated)).toEqual(["faculty", "aperture"]);
     expect(gated.getAttribute("provides")).toContain("aperture");
+});
+
+test("closestRole finds identity roots by role, custom tags included (review §2.6)", async () => {
+    // A custom identity root used to get no home, no society and no Plenum root,
+    // because those lookups were closest('m-mind') / closest('m-society').
+    for (const [tag, provides] of [["x-self", { mind: true }], ["x-guild", { society: true }], ["x-worker", { agent: true }]]) {
+        if (!customElements.get(tag)) customElements.define(tag, class extends HTMLElement { static provides = provides });
+    }
+    document.body.innerHTML = `
+      <x-guild name="Lab Guild">
+        <x-self name="Iris">
+          <span id="faculty"></span>
+          <x-worker name="helper"><span id="tool"></span></x-worker>
+        </x-self>
+        <x-self name="Echo" memory="echo-home"></x-self>
+      </x-guild>`;
+    const guild = document.querySelector("x-guild");
+    const [iris, echo] = document.querySelectorAll("x-self");
+    const worker = document.querySelector("x-worker");
+    const faculty = document.getElementById("faculty");
+    const tool = document.getElementById("tool");
+
+    expect(closestRole(faculty, "mind")).toBe(iris);
+    expect(closestRole(iris, "mind")).toBe(iris);
+    // It crosses membranes: from inside the agent it still finds the mind around it.
+    expect(closestRole(tool, "mind")).toBe(iris);
+    expect(closestRole(tool, "mind", "agent")).toBe(worker);
+    expect(closestRole(faculty, "society")).toBe(guild);
+    expect(closestRole(guild, "mind")).toBeNull();
+    expect(closestRole(null, "mind")).toBeNull();
+    expect(part(guild, "mind")).toEqual([iris, echo]);
+
+    const dry = isDryRun() ? "dry-" : "";
+    expect(mindHome(faculty)).toBe(`memory/${dry}lab-guild/iris`);
+    expect(mindHome(tool, "workspace")).toBe(`memory/${dry}lab-guild/helper/workspace`);
+    expect(mindWorkspace(tool)).toBe(`memory/${dry}lab-guild/iris/workspace`);
+    expect(mindHome(echo)).toBe(`memory/${dry}lab-guild/echo-home`);
 });

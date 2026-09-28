@@ -150,9 +150,9 @@ export function isMembrane(el) {
  *
  * Stopping at the membrane is the judgment: faculty / aperture / arbiter
  * must not leak into a society or a sibling mind. `enclosing('society')`
- * from inside a mind therefore returns null; that lookup is still tag
- * `closest('m-society')` until enclosure's own phase 1. `membrane()` names
- * this identity root, not the society around it.
+ * from inside a mind therefore returns null; the society around a mind is
+ * `closestRole(el, 'society')`. `membrane()` names this identity root, not
+ * the society around it.
  */
 export function enclosingOf(el, role) {
     for (let cur = el; cur && cur.nodeType === 1; cur = cur.parentElement) {
@@ -176,6 +176,20 @@ export function enclosingAllOf(el, role) {
 export function membraneOf(el) {
     for (let cur = el; cur && cur.nodeType === 1; cur = cur.parentElement) {
         if (isMembrane(cur)) return cur
+    }
+    return null
+}
+
+/**
+ * Nearest element at or above `el` providing any of `roles`: `closest()` by
+ * role instead of by tag. It crosses membranes, since identity roots are what
+ * it is for: the mind a faculty belongs to (`'mind'`), the home root a vault
+ * path hangs off (`'mind', 'agent'`), the society around a mind (`'society'`).
+ * A custom identity root that provides the role is found like the built-in one.
+ */
+export function closestRole(el, ...roles) {
+    for (let cur = el; cur && cur.nodeType === 1; cur = cur.parentElement) {
+        if (roles.some(role => providesOf(cur, role))) return cur
     }
     return null
 }

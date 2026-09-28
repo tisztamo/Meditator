@@ -28,6 +28,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { closestRole } from '../mindComponents/shared/enclosure.js';
 
 const RAW = (process.env.MEDITATOR_DEBUG_PROMPTS || '').trim();
 const OFF = new Set(['', '0', 'false', 'off', 'no']);
@@ -59,10 +60,10 @@ function getRunId() {
 let seq = 0;
 
 // Same slug rule as memoryVault.mindHome, so a mind's debug dir matches its
-// vault home name. Reads from the nearest <m-mind>; falls back to "mind".
+// vault home name. Reads from the nearest `mind` root; falls back to "mind".
 function mindSlug(el) {
   try {
-    const mind = el?.closest?.('m-mind');
+    const mind = closestRole(el, 'mind');
     const raw = mind?.getAttribute?.('memory') || mind?.getAttribute?.('name') || 'mind';
     return raw.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'mind';
   } catch {

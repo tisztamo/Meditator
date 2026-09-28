@@ -1,4 +1,5 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
+import { part } from "../shared/enclosure.js"
 import { logger } from "../../infrastructure/logger.js"
 
 const log = logger("mSociety.js")
@@ -12,7 +13,7 @@ const log = logger("mSociety.js")
  * Like m-region, it is almost pure marker — no thinking of its own. Its job is to be a
  * clean structural anchor:
  *
- *   - closest('m-society') gives any descendant its enclosing society (the third
+ *   - closestRole(el, 'society') gives any descendant its enclosing society (the third
  *     relative-ref anchor beside m-mind and m-region), so cross-mind wiring is
  *     addressed society-relative: an m-ear's from="!cluster/<member>/voice/@spoken"
  *     (voice is a FIRED event → the `@spoken` event ref, not the plain topic) resolves
@@ -39,8 +40,7 @@ export class MSociety extends MBaseComponent {
     static spacePinnedDefault = true
 
     onConnect() {
-        const members = Array.from(this.children)
-            .filter(c => (c.tagName || "").toLowerCase() === "m-mind")
+        const members = part(this, "mind")
             .map(c => c.getAttribute("name") || "?")
         log.info(`Society "${this.attr("name") || "society"}" of ${members.length} minds: ${members.join(", ")}`)
     }

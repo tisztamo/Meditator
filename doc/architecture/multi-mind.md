@@ -167,8 +167,8 @@ edge**; at boot it realizes itself as an `m-ear` inside the target.
 The recursive object the design is *about*. A marker/harness element (as `m-region`
 is mostly a marker) that:
 
-- **scopes a population** — its `<m-mind>` children are its members; `closest('m-society')`
-  gives any descendant its enclosing society, the third relative-ref anchor beside
+- **scopes a population** — the minds that are its parts (`part(society, 'mind')`) are its
+  members; `closestRole(el, 'society')` gives any descendant its enclosing society, the third relative-ref anchor beside
   `m-mind` and `m-region`.
 - **assigns the address space** — guarantees unique member names.
 - **holds the graph** — the `<m-link>`s (or generates them, §Templating).
@@ -424,7 +424,7 @@ What it took (all small):
 
 1. **`m-ear`** — the one genuinely new faculty: subscribes to a peer's voice event or relay topic and
    raises a framed, non-urgent `interrupt-request` on its own mind's arbiter.
-2. **`m-society`** — a marker container; `closest('m-society')` anchors the
+2. **`m-society`** — a marker container; the nearest `society` root anchors the
    society-relative cross-mind ref `..m-society/<member>/voice/@spoken` (members get
    unique *mind* names; component names stay generic).
 3. **`mindHome` nests under the society** — `memory/duet/{prover,checker}/`: one

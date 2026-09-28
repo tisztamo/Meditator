@@ -1,5 +1,6 @@
 import { MBaseComponent } from "./mBaseComponent.js";
 import { TELEMETRY_EVENT, TELEMETRY_WANTED } from "./telemetry.js";
+import { closestRole, part } from "./enclosure.js";
 import { stimulus, renderStimulus } from "../../infrastructure/interruptRecord.js";
 import { langOf } from "./i18n.js";
 import { logger } from "../../infrastructure/logger.js";
@@ -351,7 +352,7 @@ export class MWs extends MBaseComponent {
 
   /** The mind this websocket belongs to. */
   _mind() {
-    return this.closest("m-mind") || this.parentElement;
+    return closestRole(this, "mind") || this.parentElement;
   }
 
   /** Studio assigns one supervisor port per child process. A society may contain
@@ -362,14 +363,13 @@ export class MWs extends MBaseComponent {
     const envPort = process.env.MEDITATOR_WS_PORT;
     const ownPort = this.attr("port") || "7627";
     if (!envPort) return ownPort;
-    const society = this.closest("m-society");
+    const society = closestRole(this, "society");
     if (!society) return envPort;
     return this._isSocietyPublicSocket(society) ? envPort : ownPort;
   }
 
   _isSocietyPublicSocket(society) {
-    for (const mind of Array.from(society.children)) {
-      if ((mind.tagName || "").toLowerCase() !== "m-mind") continue;
+    for (const mind of part(society, "mind")) {
       const ws = mind.querySelector("m-ws");
       if (ws) return ws === this;
     }
@@ -380,20 +380,19 @@ export class MWs extends MBaseComponent {
    *  waits for the whole population to come up, not only the member that owns
    *  m-ws. (Its sleep control needs no list: the process sleeps every mind.) */
   _controlScopeMinds() {
-    const society = this.closest("m-society");
+    const society = closestRole(this, "society");
     if (society) {
-      const minds = Array.from(society.querySelectorAll("m-mind"))
-        .filter(m => m.closest("m-society") === society);
+      const minds = part(society, "mind");
       if (minds.length) return minds;
     }
     const mind = this._mind();
     return mind ? [mind] : [];
   }
 
-  /** True when this socket belongs to an <m-agent> rather than an <m-mind> — it is then
+  /** True when this socket belongs to an agent rather than a mind — it is then
    *  a task port, not a mind window (agent-loop.md §10). */
   _forAgent() {
-    return !!this.closest("m-agent") && !this.closest("m-mind");
+    return !!closestRole(this, "agent") && !closestRole(this, "mind");
   }
 
   /** Wait (up to ~5s) for the mind and its stream to upgrade into Amanita
@@ -403,7 +402,7 @@ export class MWs extends MBaseComponent {
     // its status topic resolves, then return.
     if (this._forAgent()) {
       for (let i = 0; i < 100; i++) {
-        const agent = this.closest("m-agent");
+        const agent = closestRole(this, "agent");
         if (agent && agent.on) return;
         await new Promise(resolve => setTimeout(resolve, 50));
       }
@@ -542,10 +541,10 @@ export class MWs extends MBaseComponent {
   }
 
   _instrumentSocietyPeers(publicMind) {
-    const society = this.closest("m-society");
+    const society = closestRole(this, "society");
     if (!society) return;
-    for (const mind of Array.from(society.querySelectorAll("m-mind"))) {
-      if (mind.closest("m-society") !== society || mind === publicMind) continue;
+    for (const mind of part(society, "mind")) {
+      if (mind === publicMind) continue;
       this._instrumentPeerMind(mind);
     }
   }
@@ -604,7 +603,7 @@ export class MWs extends MBaseComponent {
    *  otherwise the single mind). The structure is static after load. */
   _structure() {
     if (this._structureCache) return this._structureCache;
-    const root = this.closest("m-society") || this._mind();
+    const root = closestRole(this, "society") || this._mind();
     if (!root) return null;
     this._structureCache = this._serializeTree(root);
     return this._structureCache;
@@ -630,7 +629,7 @@ export class MWs extends MBaseComponent {
   /** Snapshot every positioned component in the debug scope — Camera Diserta: the
    *  god view exists only here, read from state each component owns (plenum.md §5). */
   _layout() {
-    const root = this.closest("m-society") || this._mind();
+    const root = closestRole(this, "society") || this._mind();
     if (!root) return [];
     // Mirror _serializeTree's scope exactly (m-* nesting only, no archetype
     // templates), so the viewer can pair entries with its graph nodes in order.
@@ -640,7 +639,7 @@ export class MWs extends MBaseComponent {
       if (tag === "m-archetype") return;
       if (el.pos) {
         positions.push({
-          member: el.closest("m-mind")?.getAttribute("name") || null,
+          member: closestRole(el, "mind")?.getAttribute("name") || null,
           name: el.getAttribute("name") || null,
           tag,
           pos: { x: el.pos.x, y: el.pos.y, z: el.pos.z },

@@ -1,6 +1,7 @@
 import { MObserver } from "./mObserver.js"
 import { fillInterlocutor } from "./mMind.js"
 import { ENERGY } from "../shared/infoton.js"
+import { closestRole } from "../shared/enclosure.js"
 import { telemetry } from "../shared/telemetry.js"
 import { makePhrasebook } from "../shared/i18n.js"
 import { chatStream, complete } from "../../modelAccess/llm.js"
@@ -382,7 +383,7 @@ ${book.line("decide-options")}`
         }
         if (custom) return custom.trim()
         const disposition = (this.attr("disposition")
-            || (this.closest('m-society') ? "social" : "solitary")).toLowerCase()
+            || (closestRole(this, "society") ? "social" : "solitary")).toLowerCase()
         const slot = `stance-${disposition}`
         return book.line(book.has(slot) ? slot : "stance-solitary")
     }

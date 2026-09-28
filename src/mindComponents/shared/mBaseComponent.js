@@ -6,7 +6,7 @@ import { offerHand, withdrawHands } from "./hands.js"
 import { APERTURE_REQUESTS } from "./apertureRequests.js"
 import { OFFER_REQUEST } from "./sources.js"
 import { TELEMETRY_EVENT, TELEMETRY_WANTED } from "./telemetry.js"
-import { reflectProvides, reflectBoundary, enclosingOf, enclosingAllOf, membraneOf, part as partsOf, providesOf, isMembrane } from "./enclosure.js"
+import { reflectProvides, reflectBoundary, enclosingOf, enclosingAllOf, membraneOf, closestRole, part as partsOf, providesOf, isMembrane } from "./enclosure.js"
 
 export { enclosingOf, enclosingAllOf, membraneOf, part, providesOf } from "./enclosure.js"
 
@@ -162,7 +162,7 @@ export class MBaseComponent extends A(HTMLElement) {
     _spaceInit() {
         if (this.constructor.spaceParticipates === false) return
         if (this.attr("space") === "off") return
-        const root = this.closest("m-society") || this.closest("m-mind")
+        const root = closestRole(this, "society") || closestRole(this, "mind")
         if (!root) return
         this._space = {
             root,
@@ -173,13 +173,12 @@ export class MBaseComponent extends A(HTMLElement) {
         this._spacePinned = pinnedAttr != null && pinnedAttr !== ""
             ? pinnedAttr === "true"
             : this.constructor.spacePinnedDefault === true
-        const tag = (this.tagName || "").toLowerCase()
         if (this === root) {
             this.pos = { x: 0, y: 0, z: 0 }
-        } else if (tag === "m-mind" && (root.tagName || "").toLowerCase() === "m-society"
+        } else if (providesOf(this, "mind") && providesOf(root, "society")
                    && this.parentElement === root) {
             // A society member's anchor: the runtime twin of the viewer's cluster ring.
-            const minds = Array.from(root.children).filter(c => (c.tagName || "").toLowerCase() === "m-mind")
+            const minds = Array.from(root.children).filter(c => providesOf(c, "mind"))
             this.pos = anchorOnRing(minds.indexOf(this), minds.length, this._space.td)
         } else {
             let parent = this.parentElement

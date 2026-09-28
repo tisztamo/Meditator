@@ -11,18 +11,19 @@ import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
 import { MBaseComponent } from "../../../src/mindComponents/shared/mBaseComponent.js";
 import { telemetry, onTelemetryWanted, TELEMETRY_EVENT } from "../../../src/mindComponents/shared/telemetry.js";
 
-// Own tags where m-ws allows it: the custom-element registry is shared across the
-// wiring files, and another file may already have defined `m-mind` as a plain stub.
-// The society walk in m-ws still finds its members by tag (review §2.6), so that
-// test uses `m-mind` / `m-society` whatever defined them.
+// Own tags: the custom-element registry is shared across the wiring files, and
+// another file may already have defined `m-mind` as a plain stub. m-ws finds its
+// mind and a society's members by role (review §2.6), so custom tags that provide
+// `mind` and `society` stand in for the built-in ones.
 class StubMind extends MBaseComponent { static provides = { mind: true } }
+class StubSociety extends MBaseComponent { static provides = { society: true } }
 // A memory m-ws has never heard of: it reports its state, and again when asked.
 class XMemory extends MBaseComponent {
   onConnect() {
     onTelemetryWanted(this, () => telemetry(this, "memory", "state", { tailLen: 7, recentLen: 0, storyLen: 0 }));
   }
 }
-for (const [tag, cls] of [["x-mind", StubMind], ["m-mind", class extends StubMind {}], ["x-memory", XMemory]]) {
+for (const [tag, cls] of [["x-mind", StubMind], ["x-society", StubSociety], ["x-memory", XMemory]]) {
   if (!customElements.get(tag)) customElements.define(tag, cls);
 }
 
@@ -121,16 +122,16 @@ test("telemetry stops at the membrane", async () => {
 
 test("a society member's telemetry reaches the public socket, tagged with the member", async () => {
   await mount(`
-    <m-society name="duet">
-      <m-mind name="front">
+    <x-society name="duet">
+      <x-mind name="front">
         <m-stream name="stream"></m-stream>
         <m-ws name="ws" port="0"></m-ws>
-      </m-mind>
-      <m-mind name="back">
+      </x-mind>
+      <x-mind name="back">
         <m-stream name="stream"></m-stream>
         <x-memory name="memory"></x-memory>
-      </m-mind>
-    </m-society>`);
+      </x-mind>
+    </x-society>`);
   const ws = document.querySelector("m-ws");
   const client = await attach(ws);
   await delay(50);

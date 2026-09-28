@@ -2,6 +2,7 @@ import A from "amanita"
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { MBaseComponent } from "./mBaseComponent.js"
+import { providesOf } from "./enclosure.js"
 import { stimulus } from '../../infrastructure/interruptRecord.js';
 import { probeBackend, runScript, parseSizeBytes } from '../../infrastructure/sandbox.js';
 import { isDryRun } from "../../modelAccess/llm.js"
@@ -74,15 +75,17 @@ export class MTerminal extends MBaseComponent {
         // Dual-use (agent-loop.md §4, §14): the SAME terminal serves a mind (inside
         // <m-act> — the grace-race deferred-sensation path below) or an agent (inside
         // <m-agent> — a synchronous run whose raw screen is returned as an
-        // `observation` the model reads). The nearest enclosing entity decides which.
-        this._forAgent = this.closest("m-act, m-agent")?.localName === "m-agent"
+        // `observation` the model reads). The nearest enclosing `hands` assembler decides
+        // which: an agent provides `agent` beside `hands`, m-act only `hands`.
+        const assembler = this.enclosing("hands")
+        this._forAgent = providesOf(assembler, "agent")
         // Script-file namespacing: an agent's terminal runs IN the shared workspace root, so
         // when several sub-agents share ONE workspace (a team building software together,
         // agent-loop.md §16) their .runs/run-<n> script files would collide on the per-instance
         // counter. Qualify agent-mode scripts with the enclosing agent's name so each writes
         // its own — "run-mathcore-1.py", "run-parser-1.py". A mind keeps a unique per-wake desk,
         // so it needs no tag (its filenames are unchanged).
-        this._runTag = this._forAgent ? `${this.closest("m-agent")?.getAttribute("name") || "agent"}-` : ""
+        this._runTag = this._forAgent ? `${assembler.getAttribute("name") || "agent"}-` : ""
         this._register()
     }
 
