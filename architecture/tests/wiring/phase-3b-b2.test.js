@@ -13,7 +13,7 @@ import {
     Prediction, firePrediction, PREDICTION_SETTLED_EVENT, EVALUATION_COMMIT_EVENT,
 } from '../../../src/infrastructure/predictionContracts.js'
 import { offerFixtureHand } from './fixtureHand.js'
-import { askComparator } from '../../../src/mindComponents/shared/comparators.js'
+import { askComparator, COMPARE_REQUEST } from '../../../src/mindComponents/shared/comparators.js'
 import { heardBid } from "./attentionProbe.js";
 
 const FIXTURE = 'the screen answers 42'
@@ -71,9 +71,16 @@ test('13. m-judge returns [] for progress, empty text, and unmatched actId', asy
         archivalText: 'the screen answers 42', actId: 'missing', progress: false,
         requestId: null, occurredAt: new Date().toISOString(), eventType: 'Sense-probe',
     }
-    expect(await judge.evaluate(view)).toEqual([])
-    expect(await judge.evaluate({ ...view, actId: null, archivalText: '' })).toEqual([])
-    expect(await judge.evaluate({ ...view, progress: true, actId: 'x' })).toEqual([])
+    // Asked as an owner asks (a compare request), so [] is the judge's answer, not silence.
+    const ask = async v => {
+        const reply = await act.request(COMPARE_REQUEST, { view: v, deadline: Date.now() + 2000 }, { deadline: 2000 })
+        expect(reply.status).toBe('ok')
+        expect(reply.from).toBe('judge')
+        return reply.data.evaluations
+    }
+    expect(await ask(view)).toEqual([])
+    expect(await ask({ ...view, actId: null, archivalText: '' })).toEqual([])
+    expect(await ask({ ...view, progress: true, actId: 'x' })).toEqual([])
 })
 
 test('13. one complete call per evidence; a cancelled compare aborts the model call', async () => {
