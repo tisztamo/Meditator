@@ -16,7 +16,8 @@ import { enclosingOf } from '../../../src/mindComponents/shared/enclosure.js';
 import { AttentionBid } from '../../../src/infrastructure/attentionBid.js';
 import { Percept } from '../../../src/infrastructure/percept.js';
 import { ControlRequest } from '../../../src/infrastructure/perceptionContracts.js';
-import { takeAccepted } from "./attentionProbe.js";
+import { acceptedBy, takeAccepted, takeAdmitted } from "./attentionProbe.js";
+import { waitFor, quiet } from "./contracts/helpers.js";
 
 const COMPONENTS_DIR = fileURLToPath(new URL('./components', import.meta.url));
 const TEXT = 'The simulated garden is still.';
@@ -138,9 +139,15 @@ async function driveOpenOffer(mind) {
     mind.addEventListener('interrupt-request', e => bids.push(e.detail));
     const offer = inner.registerSource(source);
     const percept = await offer(header('garden-light'), () => TEXT);
+    // The arbiter admits by message: an issued bid is taken once it has landed; a
+    // refused offer gets time for any stray bid to land.
+    if (percept) await waitFor(() => acceptedBy(global).length);
+    else await quiet();
     const pending = takeAccepted(global);
     const fired = interceptFire(mind);
     await MMind.prototype.assembleFrame.call(mind, pending);
+    // The journal hears percepts-attended by message: let it land, then flush.
+    await quiet();
     await memory._journalQueue;
     const attended = fired.find(f => f.name === 'percepts-attended');
     return {
@@ -193,6 +200,7 @@ async function runC1(mind, provider) {
         return WITHHELD;
     });
     expect(refused).toBeNull();
+    await quiet();
     expect(renders).toBe(0);
     expect(bids).toHaveLength(0);
     expect(takeAccepted(global)).toHaveLength(0);
@@ -208,7 +216,8 @@ async function runC1(mind, provider) {
     hits.length = 0;
     allowOrientation(outer);
     expect(outer.orient('open')).toBe(true);
-    await delay(5);
+    await waitFor(() => hits.length);
+    await quiet();
     expect(hits).toHaveLength(1);
     expect(hits[0].kind).toBe('sample');
 
@@ -235,11 +244,15 @@ async function runC1(mind, provider) {
         return origOuterAttended(...args);
     };
 
-    const pending = takeAccepted(global);
+    const pending = await takeAdmitted(global);
     expect(pending).toHaveLength(1);
     expect(pending[0].evidenceId).toBe(evidenceId);
     const fired = interceptFire(mind);
     await MMind.prototype.assembleFrame.call(mind, pending);
+    // The receipt is heard by the issuer: wait for its credit, then let a wrong
+    // (outer) credit land before asserting there was none.
+    await waitFor(() => inner.aperture.deficit < innerDebt && !inner._issued.has(evidenceId));
+    await quiet();
     const attended = fired.find(f => f.name === 'percepts-attended');
     expect(attended).toBeTruthy();
     expect(attended.detail).toHaveLength(1);
@@ -253,13 +266,14 @@ async function runC1(mind, provider) {
     // Control delivery: untargeted skips a closed inner; a named target is delivered once.
     allowOrientation(inner);
     expect(inner.orient('closed')).toBe(true);
-    await delay(5);
+    await quiet();
     hits.length = 0;
     outer.requestControl(sampleRequest());
-    await delay(5);
+    await quiet();
     expect(hits).toHaveLength(0);
     outer.requestControl(sampleRequest('mock'));
-    await delay(5);
+    await waitFor(() => hits.length);
+    await quiet();
     expect(hits).toHaveLength(1);
 }
 

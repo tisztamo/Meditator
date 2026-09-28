@@ -11,6 +11,7 @@ import os from "node:os";
 import fs from "node:fs";
 import path from "node:path";
 import { delay } from "./setup.js";
+import { waitFor, quiet } from "./contracts/helpers.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
 import { probeBackend, resetBackendProbe } from "../../../src/infrastructure/sandbox.js";
 import { sentByComponent } from "../../../src/infrastructure/messageOrigin.js";
@@ -94,7 +95,8 @@ test("deferred _dispatch is a plain stimulus from a component, whose urgency sur
             urgent: true,
             type: "Sense-terminal",
         });
-        await delay(5);   // a deferred delivery lands before the listener goes
+        await waitFor(() => captured.length);   // a deferred delivery lands before the listener goes
+        await quiet();                          // …and a duplicate would too
     } finally {
         terminal.removeEventListener("interrupt-request", onReq);
     }
@@ -233,6 +235,7 @@ test("the DEED is journaled backstage (⌁) and never touches the tail; the CONS
     const before = consequences.length;
     const call = { function: { name: "terminal", arguments: JSON.stringify({ language: "python", script: "print('balanced so far: 0, 22, 33')" }) } };
     await act._execute(call, { gist: "I want to actually check the small balanced n" });
+    await waitForConsequence(before);
     expect(consequences.length).toBeGreaterThan(before);
 
     // The realizer's args above deliberately omit `purpose` — yet the CONSEQUENCE still

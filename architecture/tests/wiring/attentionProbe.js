@@ -11,6 +11,7 @@
 import { AttentionQueue } from "../../../src/infrastructure/attentionQueue.js";
 import { AttentionBid, isBidData } from "../../../src/infrastructure/attentionBid.js";
 import { sentByComponent } from "../../../src/infrastructure/messageOrigin.js";
+import { waitFor, quiet } from "./contracts/helpers.js";
 
 const queues = new WeakMap();
 const queueOf = arbiter => {
@@ -46,6 +47,19 @@ export function takeAccepted(arbiter) {
         host.dispatchEvent(new CustomEvent("taken", { detail: { bidIds: taken.map(b => b.id) }, bubbles: false }));
     }
     return taken;
+}
+
+/** Admission is heard by message: wait for `n` bids `arbiter` admitted, then drain
+ *  them (the async form of takeAccepted). */
+export async function takeAdmitted(arbiter, n = 1) {
+    await waitFor(() => acceptedBy(arbiter).length >= n);
+    return takeAccepted(arbiter);
+}
+
+/** For a check that nothing was admitted: let every deferred delivery land, then drain. */
+export async function takeNone(arbiter) {
+    await quiet();
+    return takeAccepted(arbiter);
 }
 
 export const bidIds = list => list.map(b => b?.id);

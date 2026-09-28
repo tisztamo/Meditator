@@ -811,7 +811,10 @@ function dryCompleteWithTools({ tools = [], messages, debugTag } = {}) {
       };
     }
 
-    if (terminal && rounds < 2) {
+    // A marker asks the dry reasoner never to stop on its own (keep calling the terminal),
+    // so a stop condition that arrives by message — a `halt` — is the only way out.
+    const forever = (messages || []).some(m => /LOOP_FOREVER/.test(m.content || ''));
+    if (terminal && (rounds < 2 || forever)) {
       const script = rounds === 0 ? 'ls -a' : 'echo "checking" && exit 0';
       return {
         text: rounds === 0 ? 'Let me look at the workspace first.' : 'Now let me check my work.',

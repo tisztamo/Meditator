@@ -4,7 +4,8 @@ import { delay } from "./setup.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
 import { InterruptRecord } from "../../../src/infrastructure/interruptRecord.js";
 import { AttentionBid } from "../../../src/infrastructure/attentionBid.js";
-import { takeAccepted } from "./attentionProbe.js";
+import { acceptedBy, takeAccepted, takeAdmitted } from "./attentionProbe.js";
+import { waitFor, quiet } from "./contracts/helpers.js";
 
 let global, local, regionSrc, topSrc;
 
@@ -42,8 +43,9 @@ test("components upgrade and nest correctly", () => {
     expect(global._region).toBeFalsy();
 });
 
-test("region bid is re-weighted and promoted to global arbiter", () => {
+test("region bid is re-weighted and promoted to global arbiter", async () => {
     bid(regionSrc, 0.8, "a strong drift");
+    await waitFor(() => acceptedBy(global).length);
     expect(local.pending.length).toBe(0);
     const promoted = takeAccepted(global);
     expect(promoted.length).toBe(1);
@@ -54,14 +56,15 @@ test("region bid is re-weighted and promoted to global arbiter", () => {
     expect(Object.isFrozen(evidence)).toBe(true);
 });
 
-test("locally dropped bid does not leak upward", () => {
+test("locally dropped bid does not leak upward", async () => {
     bid(regionSrc, 0.3, "a faint drift below the faculty's bar");
+    await quiet();
     expect(takeAccepted(global).length).toBe(0);
 });
 
-test("top-level bid reaches global unchanged", () => {
+test("top-level bid reaches global unchanged", async () => {
     bid(topSrc, 0.7, "a direct stimulus");
-    const top = takeAccepted(global);
+    const top = await takeAdmitted(global);
     expect(top.length).toBe(1);
     expect(Math.abs(top[0].salience - 0.7)).toBeLessThan(1e-9);
 });

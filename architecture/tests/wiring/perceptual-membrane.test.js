@@ -11,7 +11,8 @@ import { Percept } from '../../../src/infrastructure/percept.js';
 import { AttentionBid } from '../../../src/infrastructure/attentionBid.js';
 import { InterruptRecord } from '../../../src/infrastructure/interruptRecord.js';
 import { GateVerdict, ControlRequest, RenditionRequest, PerceptReceipt } from '../../../src/infrastructure/perceptionContracts.js';
-import { takeAccepted, bidIds } from "./attentionProbe.js";
+import { takeAccepted, takeAdmitted, takeNone, acceptedBy, bidIds } from "./attentionProbe.js";
+import { waitFor, quiet } from "./contracts/helpers.js";
 
 let mind, region, local, global, memory, source, journalDir;
 
@@ -19,9 +20,10 @@ beforeEach(async () => {
     if (!customElements.get('m-mind')) customElements.define('m-mind', class extends A(HTMLElement) {});
     journalDir = fs.mkdtempSync(path.join(os.tmpdir(), 'med-membrane-'));
     document.body.innerHTML = `
-        <m-mind name="membrane-test">
+        <m-mind name="membrane-test" imagePerceptSrc="off">
           <m-stream name="stream"></m-stream>
-          <m-memory name="memory" persist="off" journal="${journalDir}"></m-memory>
+          <m-memory name="memory" persist="off" journal="${journalDir}"
+                    imageSrc="off" spokenSrc="off" filedSrc="off" actedSrc="off"></m-memory>
           <m-interrupts name="attention" threshold="0.35" rateLimit="0s" keep="1"></m-interrupts>
           <m-region name="outside" modality="text" aperture="closed" dwell="1s" contactHorizon="10s">
             <m-interrupts name="local" threshold="0.3" rateLimit="0s"></m-interrupts>
@@ -40,6 +42,9 @@ beforeEach(async () => {
     mind._identity = () => 'A text-only simulated world.';
     mind._landingOpener = () => 'I turn toward it, ';
 });
+// The fixture has no image, voice, scribe or hands: their default subscriptions
+// are off, or each retries ~4s after its mind is gone and its rejection lands in
+// whichever test is running then.
 
 afterEach(async () => {
     await memory?._journalQueue;
@@ -60,6 +65,14 @@ async function until(check, ms = 1000) {
     }
 }
 const frame = stimuli => MMind.prototype.assembleFrame.call(mind, stimuli);
+
+// Frame receipts reach memory as `percepts-attended`: wait for the index to hold
+// `n` entries (a line being appended may not parse yet), then for the queue.
+async function journaled(n = 1) {
+    await waitFor(() => { try { return indexEntries().length >= n; } catch { return false; } });
+    await memory._journalQueue;
+    return indexEntries();
+}
 const header = key => ({ changeMagnitude: 0.9, changeKey: key, occurredAt: Date.now() });
 
 function interceptPub(el) {
@@ -145,13 +158,13 @@ test('closed content is never rendered, dispatched, or journaled; reopening samp
     allowOrientation();
     expect(region.orient('open')).toBe(true);
     expect(region.contactPressure).toBe(debt);
-    await delay(5);
+    await waitFor(() => renders >= 1);
     expect(samples).toBe(1);
     expect(renders).toBe(1);
     expect(sampleRequest).toBeInstanceOf(ControlRequest);
     expect(sampleRequest.kind).toBe('sample');
     expect(sampleRequest.reason).toBe('orientation');
-    const pending = takeAccepted(global);
+    const pending = await takeAdmitted(global);
     expect(pending).toHaveLength(1);
     expect(pending[0].reason).toBe(present);
     const pendingEvidence = AttentionBid.evidenceOf(pending[0]);
@@ -161,6 +174,7 @@ test('closed content is never rendered, dispatched, or journaled; reopening samp
     const fired = interceptFire(mind);
     const payload = await frame(pending);
     expect(payload.prefill).toContain(`> ⟂ ${present}\n\n`);
+    await waitFor(() => region.contactPressure < debt);
     expect(region.contactPressure).toBeLessThan(debt);
     const attended = fired.find(f => f.name === 'attended');
     expect(attended.detail.lines).toEqual([present]);   // the `attended {lines}` request to memory
@@ -171,7 +185,7 @@ test('closed content is never rendered, dispatched, or journaled; reopening samp
     expect(receipt.requestId).toBe(sampleRequest.id);
     expect(receipt.tier).toBe(0);
     expect(receipt.frameId).toBeTruthy();
-    await memory._journalQueue;
+    await journaled(1);
     const entry = JSON.parse(fs.readFileSync(path.join(journalDir, 'percepts.jsonl'), 'utf8').trim());
     expect(entry.id).toBe(pendingEvidence.id);
     expect(entry.provenance).toBe('simulated');
@@ -218,19 +232,25 @@ test('threshold rejection and crowd-out do not clear debt or enter the typed ind
     const offer = region.registerSource(source);
     local.setAttribute('threshold', '0.99');
     await offer(header('first'), () => 'Rejected locally.');
-    expect(takeAccepted(global)).toHaveLength(0);
+    expect(await takeNone(global)).toHaveLength(0);
     expect(region.contactPressure).toBeGreaterThan(0);
     local.setAttribute('threshold', '0.3');
     const candidate = await offer(header('second'), () => 'Crowded out globally.');
+    await waitFor(() => bidIds(acceptedBy(global)).includes(candidate.id));
     mind.dispatchEvent(new CustomEvent('interrupt-request', { bubbles: true,
         detail: new InterruptRecord({ source: 'Internal', type: 'Other', reason: 'Another bid.', salience: 1 }) }));
+    // `accepted` for the newcomer and `withdrawn` for the candidate may land in either order.
+    await waitFor(() => {
+        const ids = bidIds(acceptedBy(global));
+        return ids.length > 0 && !ids.includes(candidate.id);
+    });
     const debt = region.contactPressure;
     const pending = takeAccepted(global);
     expect(pending).toHaveLength(1);
     expect(pending[0].id).not.toBe(candidate.id);
     await frame(pending);
+    await journaled(1);
     expect(region.contactPressure).toBe(debt);
-    await memory._journalQueue;
     const index = fs.readFileSync(path.join(journalDir, 'percepts.jsonl'), 'utf8');
     expect(index).not.toMatch(/Rejected locally|Crowded out globally/);
 });
@@ -245,8 +265,10 @@ test('trusted human bypass crosses closure and preempts; a source payload cannot
     global.setAttribute('rateLimit', '1h');
     global.lastAcceptedAt = Date.now();
     const percept = await offer({ ...header('voice'), changeMagnitude: 0.1, provenance: 'simulated' }, () => 'Hello.');
-    expect(bidIds(takeAccepted(global))).toEqual([percept.id]);
+    expect(bidIds(await takeAdmitted(global))).toEqual([percept.id]);
     expect(AttentionBid.evidenceOf(percept).provenance).toBe('physical');
+    await waitFor(() => interrupts >= 1);
+    await quiet();
     expect(interrupts).toBe(1);
     expect(region.aperture.state).toBe('closed');
 });
@@ -258,7 +280,8 @@ test('a non-preempting admission bypass crosses both gates without interrupting 
     let interrupts = 0;
     mind.addEventListener('interrupt', () => interrupts++);
     const percept = await offer({ ...header('1'), changeMagnitude: 0.01 }, () => 'A quiet protected event.');
-    expect(bidIds(takeAccepted(global))).toEqual([percept.id]);
+    expect(bidIds(await takeAdmitted(global))).toEqual([percept.id]);
+    await quiet();
     expect(interrupts).toBe(0);
 });
 
@@ -287,6 +310,7 @@ test('a second offer while the first still materializes is refused as busy, and 
     const offer = region.registerSource(source);
     let finish;
     const first = offer(header('slow'), () => new Promise(resolve => { finish = resolve; }));
+    await until(() => finish);
     const second = await offer(header('again'), () => 'Should not render while busy.');
     expect(second).toBeNull();
     const acquisitions = published.filter(p => p.topic === 'perceptDecision' && p.data.stage === 'acquisition').map(p => p.data);
@@ -318,7 +342,8 @@ test('narrow attention only materializes its selected source and honors minimum 
     await offerOther(header('elsewhere'), () => { otherRendered = true; return 'Outside the focus.'; });
     const focused = await offer(header('here'), () => 'Within the focus.');
     expect(otherRendered).toBe(false);
-    expect(bidIds(takeAccepted(global))).toEqual([focused.id]);
+    await quiet();
+    expect(bidIds(await takeAdmitted(global))).toEqual([focused.id]);
 });
 
 test('moving a source invalidates both in-flight work and its old adapter', async () => {
@@ -345,12 +370,13 @@ test('local pressure lowers admission threshold and global pressure follows more
     expect(percept).toBeInstanceOf(AttentionBid);
     expect(percept.salience).toBeCloseTo(0.45);
     expect(AttentionBid.evidenceOf(percept).salience).toBeCloseTo(0.9);
-    takeAccepted(global);
+    await takeAdmitted(global);
     region.aperture.deficit = 0.8;
     region._publishAperture();
     local.setAttribute('threshold', '0.6');
     await offer(header('second'), () => 'Pressure makes this faint contact audible.');
-    expect(takeAccepted(global)).toHaveLength(1);
+    await quiet();
+    expect(await takeAdmitted(global)).toHaveLength(1);
     global._pressureAt = Date.now() - 60000;
     global._updateContactPressure(Date.now());
     expect(global.contactPressure).toBeGreaterThan(0);
@@ -393,15 +419,14 @@ test('awareness verdict is recorded at tier 0 even when it mirrors acquisition',
         candidateId: expect.any(String), requestId: null,
     });
     assertTextAbsent(published, text, preimage);
-    expect(bidIds(takeAccepted(global))).toEqual([percept.id]);
+    expect(bidIds(await takeAdmitted(global))).toEqual([percept.id]);
     const fired = interceptFire(mind);
     await frame([percept]);
     const receipt = receiptOf(fired);
     expect(receipt).toBeInstanceOf(PerceptReceipt);
     expect(JSON.stringify(receipt)).not.toMatch(/gateTrail|secret-filename/);
     expect(receipt.percept).toBeUndefined();
-    await memory._journalQueue;
-    const entry = indexEntries()[0];
+    const entry = (await journaled(1))[0];
     expect(entry.id).toBe(evidence.id);
     expect(entry.tier).toBe(0);
     expect(entry.requestId).toBeNull();
@@ -419,9 +444,8 @@ test('percepts.jsonl entries carry the complete pre-receipt field set plus tier/
     region.orient('open');
     const offer = region.registerSource(source);
     const percept = await offer(header('policy-check'), () => 'A fully attributed light.');
-    await frame(takeAccepted(global));
-    await memory._journalQueue;
-    const entry = indexEntries().at(-1);
+    await frame(await takeAdmitted(global));
+    const entry = (await journaled(1)).at(-1);
     expect(Object.keys(entry).sort()).toEqual([
         'actId', 'attendedAt', 'frameId', 'id', 'modality', 'occurredAt', 'policy',
         'provenance', 'receivedKind', 'renditions', 'requestId', 'source', 'tier',
@@ -442,8 +466,7 @@ test('ControlRequest actId threads to percept, receipt, and index; a source head
         kind: 'sample', issuedBy: 'test', reason: 'look', target: 'mock', actId: 'act-trusted',
     });
     region.requestControl(request);
-    await delay(5);
-    const pending = takeAccepted(global);
+    const pending = await takeAdmitted(global);
     expect(pending).toHaveLength(1);
     const evidence = AttentionBid.evidenceOf(pending[0]);
     expect(evidence.requestId).toBe(request.id);
@@ -454,8 +477,7 @@ test('ControlRequest actId threads to percept, receipt, and index; a source head
     const receipt = receiptOf(fired);
     expect(receipt.actId).toBe('act-trusted');
     expect(receipt.requestId).toBe(request.id);
-    await memory._journalQueue;
-    const entry = indexEntries().at(-1);
+    const entry = (await journaled(1)).at(-1);
     expect(entry.actId).toBe('act-trusted');
     expect(entry.requestId).toBe(request.id);
 });
@@ -554,15 +576,16 @@ test('boundary reflex requests a fresh sample without preemption; sleep suppress
         return offer(header('now'), () => 'A fresh observation.');
     });
     region.onBoundary(Date.now() + 7000);
-    await delay(5);
+    await waitFor(() => samples >= 1);
     expect(region.aperture.state).toBe('soft');
     expect(samples).toBe(1);
     expect(sampleRequest).toBeInstanceOf(ControlRequest);
     expect(sampleRequest.kind).toBe('sample');
     expect(sampleRequest.reason).toBe('reopening');
-    const pending = takeAccepted(global);
+    const pending = await takeAdmitted(global);
     expect(pending).toHaveLength(1);
     expect(AttentionBid.evidenceOf(pending[0]).requestId).toBe(sampleRequest.id);
+    await quiet();
     expect(interrupts).toBe(0);
     mind.pub('sleeping', true);            // the membrane's retained topic (message-rule.md)
     await delay(0);
@@ -614,7 +637,8 @@ test('concurrent requestControl does not attach B\'s requestId to A\'s sample', 
     const b = new ControlRequest({ kind: 'sample', issuedBy: 'test', reason: 'beta-sample', target: 'mock' });
     region.requestControl(a);
     region.requestControl(b);
-    await delay(20);
+    await waitFor(() => seen.some(row => row.reason === 'alpha-sample'));
+    await quiet();
     const alphas = seen.filter(row => row.reason === 'alpha-sample');
     expect(alphas.length).toBeGreaterThan(0);
     for (const row of alphas) expect(row.requestId).toBe(a.id);
@@ -679,33 +703,34 @@ test('a detail request carries detail to the materializer and still cannot rende
         detail: { crop: 'the-door' },
     });
     region.requestControl(closed);
-    await delay(5);
+    await quiet();
     expect(renders).toBe(0);
     expect(renditionArg).toBeUndefined();
     expect(takeAccepted(global)).toHaveLength(0);
 
     allowOrientation();
     region.orient('open');
-    await delay(5);
+    await waitFor(() => renders >= 1);
     expect(renders).toBe(1);
     expect(renditionArg.detail).toBeNull();
     expect(renditionArg.requestId).toBeTruthy();
     renders = 0;
     renditionArg = undefined;
-    takeAccepted(global);
+    await takeAdmitted(global);
 
     const request = new ControlRequest({
         kind: 'detail', issuedBy: 'test', reason: 'look', target: 'mock',
         detail: { crop: 'the-door' },
     });
     region.requestControl(request);
-    await delay(5);
+    await waitFor(() => renders >= 1);
     expect(renders).toBe(1);
     expect(renditionArg).toBeInstanceOf(RenditionRequest);
     expect(renditionArg.kinds).toEqual(['text']);
     expect(renditionArg.detail).toEqual({ crop: 'the-door' });
     expect(renditionArg.requestId).toBe(request.id);
-    const pending = takeAccepted(global);
+    await quiet();
+    const pending = await takeAdmitted(global);
     expect(pending).toHaveLength(1);
     expect(AttentionBid.evidenceOf(pending[0]).requestId).toBe(request.id);
 });
@@ -721,12 +746,11 @@ test('percept id is stable from issue to journal and unique per observation', as
     const offer = region.registerSource(source);
     const first = await offer(header('first-id'), () => 'First light.');
     expect(first.evidenceId).toBeDefined();
-    await frame(takeAccepted(global));
+    await frame(await takeAdmitted(global));
     const second = await offer(header('second-id'), () => 'Second light.');
     expect(second.evidenceId).not.toBe(first.evidenceId);
-    await frame(takeAccepted(global));
-    await memory._journalQueue;
-    const entries = indexEntries();
+    await frame(await takeAdmitted(global));
+    const entries = await journaled(2);
     expect(entries).toHaveLength(2);
     expect(entries[0].id).toBe(first.evidenceId);
     expect(entries[1].id).toBe(second.evidenceId);
@@ -749,7 +773,7 @@ test('percept id survives the bid split through the pushed queue, assembleFrame,
     expect(bid.id).not.toBe(evidence.id);
     expect(Percept.fromInterrupt(bid)).toBe(evidence);
     expect(Percept.fromInterrupt(bid).id).toBe(evidence.id);
-    expect(bidIds(takeAccepted(global))).toEqual([bid.id]);
+    expect(bidIds(await takeAdmitted(global))).toEqual([bid.id]);
     const fired = interceptFire(mind);
     await frame([bid]);
     const receipt = receiptOf(fired);
@@ -762,7 +786,7 @@ test('receipts credit by percept id once; a rebuilt equal credits; a replay does
     region.orient('open');
     const offer = region.registerSource(source);
     const percept = await offer(header('same'), () => 'The same light.');
-    expect(bidIds(takeAccepted(global))).toEqual([percept.id]);
+    expect(bidIds(await takeAdmitted(global))).toEqual([percept.id]);
     const evidence = AttentionBid.evidenceOf(percept);
     const debt = region.contactPressure;
     expect(debt).toBeGreaterThan(0);
@@ -781,16 +805,20 @@ test('receipts credit by percept id once; a rebuilt equal credits; a replay does
     });
     expect(rebuilt).not.toBe(percept);
     mind.dispatchEvent(new CustomEvent('percepts-attended', { detail: [{ ...rebuilt }] }));
+    await waitFor(() => region.contactPressure < debt);
     expect(region.contactPressure).toBeLessThan(debt);
 
     const afterCredit = region.contactPressure;
     mind.dispatchEvent(new CustomEvent('percepts-attended', { detail: [{ ...rebuilt }] }));
+    await quiet();
     expect(region.contactPressure).toBe(afterCredit);
     const clone = cloneReceipt(rebuilt);
     mind.dispatchEvent(new CustomEvent('percepts-attended', { detail: [{ ...clone }] }));
+    await quiet();
     expect(region.contactPressure).toBe(afterCredit);
 
     await frame([percept]);
+    await quiet();
     expect(region.contactPressure).toBe(afterCredit);
 });
 
@@ -799,10 +827,11 @@ test('a stale receipt is refused by the aperture freshness window', async () => 
     region.orient('open');
     const offer = region.registerSource(source);
     const percept = await offer({ ...header('stale'), occurredAt: Date.now() - 31000 }, () => 'Too old to credit.');
-    expect(bidIds(takeAccepted(global))).toEqual([percept.id]);
+    expect(bidIds(await takeAdmitted(global))).toEqual([percept.id]);
     const debt = region.contactPressure;
     expect(debt).toBeGreaterThan(0);
     await frame([percept]);
+    await quiet();
     expect(region.contactPressure).toBe(debt);
 });
 
@@ -811,20 +840,20 @@ test('a coerced legacy stimulus gets a legacy-unspecified receipt and credits no
     region.orient('open');
     const offer = region.registerSource(source);
     const queued = await offer(header('queued'), () => 'Still waiting.');
-    expect(bidIds(takeAccepted(global))).toEqual([queued.id]);
+    expect(bidIds(await takeAdmitted(global))).toEqual([queued.id]);
     const debt = region.contactPressure;
     expect(debt).toBeGreaterThan(0);
     const fired = interceptFire(mind);
     const payload = await frame(['Not a registered source.']);
     expect(payload.prefill).toContain('> ⟂ Not a registered source.\n\n');
+    await quiet();
     expect(region.contactPressure).toBe(debt);
     const receipt = receiptOf(fired);
     expect(receipt).toBeInstanceOf(PerceptReceipt);
     expect(receipt.provenance).toBe('legacy-unspecified');
     expect(receipt.tier).toBeNull();
     expect(receipt.perceptId).not.toBe(queued.evidenceId);
-    await memory._journalQueue;
-    const entry = indexEntries().at(-1);
+    const entry = (await journaled(1)).at(-1);
     expect(entry.provenance).toBe('legacy-unspecified');
     expect(entry.tier).toBeNull();
     expect(entry.id).toBe(receipt.perceptId);
@@ -863,7 +892,7 @@ test('12. requested route: default floor leaves a zero-change sample inaudible',
     region.requestControl(new ControlRequest({
         kind: 'sample', issuedBy: 'test', reason: 'probe', target: 'mock',
     }));
-    await delay(5);
+    await waitFor(() => bids.length >= 1);
     expect(bids).toHaveLength(1);
     expect(bids[0].signals).toEqual({ changeMagnitude: 0, requested: true, novelty: null,
         predictionMatch: null, predictionMismatch: null,
@@ -871,7 +900,7 @@ test('12. requested route: default floor leaves a zero-change sample inaudible',
     expect(bids[0].requestedFloor).toBe(0);
     expect(bids[0].salience).toBeCloseTo(0);
     expect(AttentionBid.evidenceOf(bids[0]).salience).toBe(0);
-    expect(takeAccepted(global)).toHaveLength(0);
+    expect(await takeNone(global)).toHaveLength(0);
     const dropped = published.filter(p => p.topic === 'decision').map(p => p.data);
     expect(dropped).toHaveLength(1);
     expect(dropped[0].accepted).toBe(false);
@@ -896,7 +925,7 @@ test('12. requested route: requestedFloor 0.5 carries a zero-change sample and c
     region.requestControl(new ControlRequest({
         kind: 'sample', issuedBy: 'test', reason: 'probe', target: 'mock',
     }));
-    await delay(5);
+    await waitFor(() => bids.length >= 1);
     expect(bids).toHaveLength(1);
     expect(bids[0].signals.changeMagnitude).toBe(0);
     expect(bids[0].signals.requested).toBe(true);
@@ -906,7 +935,8 @@ test('12. requested route: requestedFloor 0.5 carries a zero-change sample and c
     expect(bids[0].requestedFloor).toBe(0.5);
     expect(bids[0].salience).toBeCloseTo(0.5);
     expect(AttentionBid.evidenceOf(bids[0]).salience).toBe(0);
-    const pending = takeAccepted(global);
+    await quiet();
+    const pending = await takeAdmitted(global);
     expect(bidIds(pending)).toEqual([bids[0].id]);
     const localDecision = localPublished.filter(p => p.topic === 'decision').map(p => p.data);
     const globalDecision = globalPublished.filter(p => p.topic === 'decision').map(p => p.data);
@@ -916,6 +946,7 @@ test('12. requested route: requestedFloor 0.5 carries a zero-change sample and c
     expect(globalDecision[0].salience).toBeCloseTo(0.5);
     const fired = interceptFire(mind);
     await frame(pending);
+    await waitFor(() => region.contactPressure < debt);
     expect(region.contactPressure).toBeLessThan(debt);
     expect(region._issued.has(bids[0].evidenceId)).toBe(false);
     expect(receiptOf(fired).perceptId).toBe(bids[0].evidenceId);
@@ -926,7 +957,7 @@ test('12. requested route: requestedFloor 0.5 carries a zero-change sample and c
         predictionMatch: null, predictionMismatch: null,
         targetMatch: null, causalAttribution: null, confidence: null });
     expect(spontaneous.salience).toBeCloseTo(0);
-    expect(takeAccepted(global)).toHaveLength(0);
+    expect(await takeNone(global)).toHaveLength(0);
 });
 
 test('nonsense requestedFloor fails at the first bid, not as unspecified', async () => {

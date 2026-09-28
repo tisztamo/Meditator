@@ -2,7 +2,7 @@
 import { test, expect, beforeAll } from "bun:test";
 import { delay } from "./setup.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
-import { takeAccepted } from "./attentionProbe.js";
+import { takeAccepted, takeAdmitted } from "./attentionProbe.js";
 
 let attention, daylight, weather, feed;
 
@@ -29,9 +29,9 @@ test("sense components upgrade; unconfigured senses stay dormant", () => {
     expect(feed._timer).toBeNull();
 });
 
-test("first daylight reading is a salient External band change", () => {
+test("first daylight reading is a salient External band change", async () => {
     daylight.onSense();
-    const q = takeAccepted(attention);
+    const q = await takeAdmitted(attention);
     const first = q[0] || {};
     expect(q.length).toBe(1);
     expect(first.source).toBe("External");
@@ -42,21 +42,21 @@ test("first daylight reading is a salient External band change", () => {
     expect(/\d\d:\d\d/.test(first.reason || "")).toBe(false);
 });
 
-test("second daylight reading is ambient with fresh prose", () => {
+test("second daylight reading is ambient with fresh prose", async () => {
     takeAccepted(attention);
     daylight.onSense();
-    const first = takeAccepted(attention)[0] || {};
+    const first = (await takeAdmitted(attention))[0] || {};
     daylight.onSense();
-    const second = takeAccepted(attention)[0] || {};
+    const second = (await takeAdmitted(attention))[0] || {};
     expect(second.salience).toBeLessThan(0.6);
     expect(second.salience).toBeGreaterThanOrEqual(0.32 - 1e-9);
     expect(second.salience).toBeLessThanOrEqual(0.48 + 1e-9);
     expect(second.reason).not.toBe(first.reason);
 });
 
-test("feed-style ambient bid stays in the ambient band", () => {
+test("feed-style ambient bid stays in the ambient band", async () => {
     feed.feel("A scrap of the world drifts past.", {});
-    const ambient = takeAccepted(attention)[0] || {};
+    const ambient = (await takeAdmitted(attention))[0] || {};
     expect(ambient.source).toBe("External");
     expect(ambient.urgent).toBe(false);
     expect(ambient.salience).toBeGreaterThanOrEqual(0.32 - 1e-9);

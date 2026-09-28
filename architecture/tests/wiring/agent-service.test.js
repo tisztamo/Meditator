@@ -6,6 +6,7 @@
 import "./setup.js";
 import { test, expect, beforeAll, afterAll } from "bun:test";
 import { delay } from "./setup.js";
+import { waitFor } from "./contracts/helpers.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
 import { resetBackendProbe } from "../../../src/infrastructure/sandbox.js";
 
@@ -84,8 +85,8 @@ test("a task arriving mid-run folds into the running task as a user note (not a 
     // A second task arrives while the first is still running → folded, not started fresh.
     agent.fire("task", { text: "Also please do this." });
     // It becomes a pending nudge folded into the next user turn (arrival-order, §open-Q3).
-    const folded = agent._nudges.some(n => /Also please do this/.test(n))
-        || agent._messages.some(m => m.role === "user" && /Also please do this/.test(m.content));
+    const folded = await waitFor(() => agent._nudges.some(n => /Also please do this/.test(n))
+        || agent._messages.some(m => m.role === "user" && /Also please do this/.test(m.content)));
     expect(folded).toBe(true);
 });
 

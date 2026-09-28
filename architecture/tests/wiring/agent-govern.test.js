@@ -10,6 +10,7 @@
 import "./setup.js";
 import { test, expect, beforeAll, afterAll } from "bun:test";
 import { delay } from "./setup.js";
+import { quiet } from "./contracts/helpers.js";
 import { MBaseComponent } from "../../../src/mindComponents/shared/mBaseComponent.js";
 import { governProposals } from "../../../src/mindComponents/shared/governance.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
@@ -65,6 +66,7 @@ async function runGoverned(governor, attrs = "") {
     const steps = [];
     agent.addEventListener("step", e => steps.push(e.detail));
     for (let i = 0; i < 160 && !agent._done; i++) await delay(25);
+    await quiet();   // the last step's observations are a message; let them land
     decide = null;
     return { agent, proposals, steps };
 }

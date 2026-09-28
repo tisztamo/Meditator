@@ -5,6 +5,7 @@
 import "./setup.js";
 import { test, expect } from "bun:test";
 import { delay } from "./setup.js";
+import { waitFor, quiet } from "./contracts/helpers.js";
 import { mountHub, detachedHub } from "./studioHarness.js";
 import "../../../src/studio/ui/studioSpeak.js";
 import "../../../src/studio/ui/studioRoster.js";
@@ -71,6 +72,7 @@ test("speak: Send dispatches a command the hub forwards as input", async () => {
   await settle();
   el.input.value = "hi there";
   el.btn.click();
+  await waitFor(() => hub.sent.length);   // the command reaches the hub as a message
   expect(hub.sent).toEqual([{ type: "input", data: { id: "m1", message: "hi there" } }]);
   expect(el.input.value).toBe("");        // cleared after sending
 });
@@ -81,6 +83,7 @@ test("roster: the Sleep button dispatches a sleep command for that mind", async 
   hub.pub("roster", [{ id: "m1", state: "awake", file: "f", port: 1, home: "h" }]);
   await settle();
   el.querySelector('button[action="sleep"]').click();
+  await waitFor(() => hub.sent.length);
   expect(hub.sent).toEqual([{ type: "sleep", data: { id: "m1" } }]);
 });
 
@@ -90,6 +93,7 @@ test("roster: clicking a live card dispatches a focus command", async () => {
   hub.pub("roster", [{ id: "m1", state: "awake", file: "f", port: 1, home: "h" }]);
   await settle();
   el.querySelector('[data-id="m1"]').click();
+  await waitFor(() => hub.sent.some(m => m.type === "focus"));
   expect(hub.sent.some(m => m.type === "focus" && m.data.id === "m1")).toBe(true);
 });
 
@@ -102,6 +106,7 @@ test("roster: Force confirms first, then dispatches a force command", async () =
     hub.pub("roster", [{ id: "m1", state: "sleeping", file: "f", port: 1, home: "h" }]);
     await settle();
     el.querySelector('button[action="force"]').click();
+    await waitFor(() => hub.sent.length);
     expect(hub.sent).toEqual([{ type: "force", data: { id: "m1" } }]);
   } finally { globalThis.confirm = orig; }
 });
@@ -115,6 +120,7 @@ test("roster: declining the Force confirmation dispatches nothing", async () => 
     hub.pub("roster", [{ id: "m1", state: "sleeping", file: "f", port: 1, home: "h" }]);
     await settle();
     el.querySelector('button[action="force"]').click();
+    await quiet();                        // a declined command must not arrive late either
     expect(hub.sent).toEqual([]);
   } finally { globalThis.confirm = orig; }
 });
@@ -123,5 +129,6 @@ test("refresh: the ⟳ control dispatches a refresh command", async () => {
   const { hub, el } = mountHub(`<studio-refresh></studio-refresh>`);
   await settle();
   el.click();
+  await waitFor(() => hub.sent.length);
   expect(hub.sent).toEqual([{ type: "refresh" }]);
 });

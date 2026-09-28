@@ -10,6 +10,7 @@ import "./setup.js";
 import { test, expect, beforeAll, afterAll } from "bun:test";
 import A from "amanita";
 import { delay } from "./setup.js";
+import { waitFor, quiet } from "./contracts/helpers.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
 import { resetBackendProbe } from "../../../src/infrastructure/sandbox.js";
 
@@ -44,6 +45,12 @@ async function runAgent(html) {
     // The loop can't finish before _whenAlive settles (toolSettleMs + a poll), so
     // attaching listeners now catches every step. Poll until the loop ends.
     for (let i = 0; i < 120 && !agent._done; i++) await delay(25);
+    // `done` and `step` are messages: they land after the loop has marked itself
+    // done, and not necessarily in the order they were sent.
+    if (agent._done) {
+        await waitFor(() => done);
+        await quiet();
+    }
     return { agent, steps, done };
 }
 
@@ -196,11 +203,11 @@ test("finish-tool mode: a conversational answer auto-finishes instead of looping
 });
 
 test("the halt seam stops the loop: a bubbling `halt` event is a stop condition", async () => {
-    // A high step budget so the dry loop would otherwise run to completion; a halt
-    // fired before it starts must end it at the next turn boundary with reason=halt.
+    // The dry loop never stops on its own (LOOP_FOREVER) and the step budget is high, so
+    // only the halt can end it: at the first turn boundary after the halt arrives.
     document.body.innerHTML = `
       <m-agent name="coder-halt" maxSteps="10" toolSettleMs="60">
-        You are a coding agent.
+        LOOP_FOREVER. You are a coding agent.
         <m-objective name="objective">Loop forever.</m-objective>
         <m-reason name="reason"></m-reason>
         <m-terminal name="terminal" network="off"></m-terminal>
@@ -209,10 +216,11 @@ test("the halt seam stops the loop: a bubbling `halt` event is a stop condition"
     const agent = document.querySelector("m-agent");
     let done = null;
     agent.addEventListener("done", e => { done = e.detail; });
-    // Fire a halt as soon as the first step starts (an observer would do this on a step
-    // event); the loop stops at the next _publishTurn.
+    // Fire a halt when the first step is heard (an observer would do this on a step
+    // event); the loop stops at the next _publishTurn after the halt lands.
     agent.addEventListener("step", () => agent.fire("halt", { reason: "stalled — same action repeated" }), { once: true });
     for (let i = 0; i < 120 && !agent._done; i++) await delay(25);
+    await waitFor(() => done);
     expect(agent._done).toBe(true);
     expect(done.halted).toBe(true);
     expect(done.reason).toMatch(/stalled/);

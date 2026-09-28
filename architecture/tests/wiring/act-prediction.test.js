@@ -7,6 +7,7 @@ import os from "node:os";
 import fs from "node:fs";
 import path from "node:path";
 import { delay } from "./setup.js";
+import { waitFor, quiet } from "./contracts/helpers.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
 import { InterruptRecord } from "../../../src/infrastructure/interruptRecord.js";
 import { Percept } from "../../../src/infrastructure/percept.js";
@@ -124,12 +125,17 @@ test("Prediction publication precedes immediate hand execution", async () => {
             return { experience: EXPERIENCE };
         },
     });
-    const onPred = () => order.push("prediction");
-    act.addEventListener(PREDICTION_EVENT, onPred);
+    // Publication is the SEND: when a listener hears it is the transport's business
+    // (a comparator pairs the consequence with the prediction by id, not by arrival).
+    const send = act.dispatchEvent;
+    act.dispatchEvent = function (event) {
+        if (event.type === PREDICTION_EVENT) order.push("prediction");
+        return send.call(this, event);
+    };
     try {
         await act._execute(call("order-probe", { q: "sky", expect: EXPECT_PHRASE }), { gist: "look outside" });
     } finally {
-        act.removeEventListener(PREDICTION_EVENT, onPred);
+        delete act.dispatchEvent;
     }
     expect(order[0]).toBe("prediction");
     expect(order).toContain("execute");
@@ -210,6 +216,8 @@ test("immediate consequence preserves one actId through percept and bid.evidence
     mind.addEventListener("interrupt-request", onReq);
     try {
         await act._execute(call("imm-probe", { q: "sky", expect: EXPECT_PHRASE }), { gist: "look" });
+        await waitFor(() => seen.some(d => d instanceof AttentionBid));
+        await quiet();   // a raw stimulus, if one leaked, would land by now
     } finally {
         mind.removeEventListener("interrupt-request", onReq);
     }
@@ -248,6 +256,8 @@ test("deferred terminal consequence preserves the same live actId through one Pe
             type: "Sense-terminal",
             actId: seenCtx.actId,
         });
+        await waitFor(() => seen.some(d => d instanceof AttentionBid && d.evidence?.actId === seenCtx.actId
+            && String(d.type).startsWith("Sense-terminal")));
     } finally {
         mind.removeEventListener("interrupt-request", onReq);
     }
@@ -275,6 +285,7 @@ test("trusted conversion uses one Percept id as AttentionBid.evidence", async ()
     mind.addEventListener("interrupt-request", onReq);
     try {
         await act._execute(call("id-probe", { q: "sky", expect: EXPECT_PHRASE }), { gist: "look" });
+        await waitFor(() => seen.some(d => d instanceof AttentionBid && d.evidence?.actId === seenCtx.actId));
     } finally {
         mind.removeEventListener("interrupt-request", onReq);
     }
@@ -323,6 +334,7 @@ test("empty expect does not publish but still mints actId for lineage", async ()
     act.addEventListener(PREDICTION_EVENT, onPred);
     try {
         await act._execute(call("empty-probe", { q: "sky", expect: "   " }), { gist: "look" });
+        await quiet();   // a prediction, if one were published, would land by now
     } finally {
         act.removeEventListener(PREDICTION_EVENT, onPred);
     }
@@ -353,6 +365,8 @@ test("disabled execute stays { intent } only — no actId, no prediction", async
             call("off-probe", { q: "sky", expect: EXPECT_PHRASE }),
             { gist: "look" },
         );
+        await waitFor(() => seen.some(d => !(d instanceof AttentionBid) && d.reason === EXPERIENCE));
+        await quiet();   // a prediction, if one were published, would land by now
     } finally {
         legacy.removeEventListener(PREDICTION_EVENT, onPred);
         mind.removeEventListener("interrupt-request", onReq);
@@ -369,7 +383,7 @@ test("disabled execute stays { intent } only — no actId, no prediction", async
     expect(raw.actId).toBeNull();
 });
 
-test("AttentionBid passes through the listener without looping", () => {
+test("AttentionBid passes through the listener without looping", async () => {
     const seen = [];
     const onReq = e => seen.push(heard(e));
     mind.addEventListener("interrupt-request", onReq);
@@ -379,6 +393,8 @@ test("AttentionBid passes through the listener without looping", () => {
     const bid = new AttentionBid({ evidence });
     try {
         act.fire("interrupt-request", bidData(bid));
+        await waitFor(() => seen.some(d => d instanceof AttentionBid));
+        await quiet();   // a looped re-fire, if any, would land by now
     } finally {
         mind.removeEventListener("interrupt-request", onReq);
     }
@@ -397,6 +413,8 @@ test("execution failure cancels without manufacturing mismatch", async () => {
     act.addEventListener(PREDICTION_SETTLED_EVENT, onSettled);
     try {
         await act._execute(call("fail-probe", { q: "sky", expect: EXPECT_PHRASE }), { gist: "look" });
+        await waitFor(() => settlements.length > 0);
+        await quiet();
     } finally {
         act.removeEventListener(PREDICTION_SETTLED_EVENT, onSettled);
     }
@@ -432,11 +450,13 @@ test("untrusted plain-object consequences are not claimed for lineage", async ()
         const stranger = document.createElement("span");
         terminal.appendChild(stranger);
         stranger.dispatchEvent(new CustomEvent("interrupt-request", { bubbles: true, detail: stolen }));
-        stranger.remove();
+        await waitFor(() => seen.some(d => d?.reason === "stolen lineage"));
+        await quiet();   // a claimed bid, if m-act stole the lineage, would land by now
+        stranger.remove();   // only after delivery: a deferred copy bubbles from where its sender stands
     } finally {
         mind.removeEventListener("interrupt-request", onReq);
     }
-    expect(seen).toContain(stolen);
+    expect(seen).toContainEqual(stolen);   // the plain record reaches the mind as sent (a copy on a wire)
     expect(seen.some(d => d instanceof AttentionBid && d.evidence?.reason === "stolen lineage")).toBe(false);
 });
 
@@ -454,6 +474,8 @@ test("target identity comes from trusted capability metadata, never expect text"
             call("target-probe", { q: "sky", expect: "sourceId=terminal modality=text eventType=Sense-terminal" }),
             { gist: "look" },
         );
+        await waitFor(() => predictions.length);
+        await quiet();   // a second prediction, if one were published, would land by now
     } finally {
         act.removeEventListener(PREDICTION_EVENT, onPred);
     }
@@ -479,6 +501,7 @@ test("existing hands default prediction target eventType to Sense-${name}", asyn
     act.addEventListener(PREDICTION_EVENT, onPred);
     try {
         await act._execute(call("default-target", { q: "sky", expect: EXPECT_PHRASE }), { gist: "look" });
+        await waitFor(() => predictions.length);
     } finally {
         act.removeEventListener(PREDICTION_EVENT, onPred);
     }
@@ -516,6 +539,7 @@ test("disconnect cancels live predictions without mismatch", async () => {
     try {
         await act._execute(call("disc-probe", { q: "sky", expect: EXPECT_PHRASE }), { gist: "look" });
         act.onDisconnect();
+        await waitFor(() => settlements.some(s => s.status === "cancelled" && s.reason === "disconnect"));
     } finally {
         act.removeEventListener(PREDICTION_SETTLED_EVENT, onSettled);
     }

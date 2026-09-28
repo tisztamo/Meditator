@@ -9,6 +9,7 @@ import "./setup.js";
 import { test, expect, beforeAll } from "bun:test";
 import A from "amanita";
 import { delay } from "./setup.js";
+import { waitFor, quiet } from "./contracts/helpers.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
 
 let mind, act, seen;
@@ -31,9 +32,11 @@ beforeAll(async () => {
     mind.addEventListener("interrupt-request", e => seen.push(e.detail));
 });
 
-test("a held reach is felt as in-motion — low-salience, External, no mechanism (One Rule)", () => {
+test("a held reach is felt as in-motion — low-salience, External, no mechanism (One Rule)", async () => {
     seen.length = 0;
     act._feelReachInMotion("run the search for balanced numbers");
+    await waitFor(() => seen.length >= 1);
+    await quiet();
     expect(seen.length).toBe(1);
     const r = seen[0];
     expect(r.source).toBe("External");                 // reaches the mind as a sensation
@@ -44,24 +47,29 @@ test("a held reach is felt as in-motion — low-salience, External, no mechanism
     expect(r.reason.toLowerCase()).not.toMatch(/cooldown|dedup|lane|tool|ledger|throttle/);
 });
 
-test("the same reach within the window is felt once, not every cadence (throttle)", () => {
+test("the same reach within the window is felt once, not every cadence (throttle)", async () => {
     seen.length = 0;
     act._feelReachInMotion("count the three-digit cases");
     act._feelReachInMotion("count the three-digit cases");
     act._feelReachInMotion("Count the three-digit cases!");   // normalizes to the same intent
+    await waitFor(() => seen.length >= 1);
+    await quiet();   // a second telling, if the throttle leaked, would land by now
     expect(seen.length).toBe(1);
 });
 
-test("a genuinely different reach is felt on its own", () => {
+test("a genuinely different reach is felt on its own", async () => {
     seen.length = 0;
     act._feelReachInMotion("look up today's weather");
     act._feelReachInMotion("set down the palindrome result");
+    await waitFor(() => seen.length >= 2);
+    await quiet();
     expect(seen.length).toBe(2);
 });
 
-test("an empty gist produces no phantom sensation", () => {
+test("an empty gist produces no phantom sensation", async () => {
     seen.length = 0;
     act._feelReachInMotion("");
     act._feelReachInMotion(null);
+    await quiet();   // a phantom, if one were fired, would land by now
     expect(seen.length).toBe(0);
 });

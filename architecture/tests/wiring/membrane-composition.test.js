@@ -19,7 +19,7 @@ import { AttentionBid } from '../../../src/infrastructure/attentionBid.js';
 import { Aperture } from '../../../src/infrastructure/aperture.js';
 import { GateVerdict, pushGainTrail, ControlRequest } from '../../../src/infrastructure/perceptionContracts.js';
 import { InterruptRecord } from '../../../src/infrastructure/interruptRecord.js';
-import { takeAccepted, bidIds } from "./attentionProbe.js";
+import { acceptedBy, takeAccepted, takeAdmitted, bidIds } from "./attentionProbe.js";
 
 let journalDir;
 
@@ -278,9 +278,15 @@ async function driveOpenOffer(mind, { text = TEXT, changeKey = 'garden-light' } 
     mind.addEventListener('interrupt-request', e => bids.push(e.detail));
     const offer = inner.registerSource(source);
     const percept = await offer(header(changeKey), () => text);
+    // The arbiter admits by message: an issued bid is taken once it has landed; a
+    // refused offer gets time for any stray bid to land.
+    if (percept) await until(() => acceptedBy(global).length);
+    else await delay(60);
     const pending = takeAccepted(global);
     const fired = interceptFire(mind);
     await MMind.prototype.assembleFrame.call(mind, pending);
+    // The journal hears percepts-attended by message: let it land, then flush.
+    await delay(60);
     await memory._journalQueue;
     const attended = fired.find(f => f.name === 'percepts-attended');
     return {
@@ -368,6 +374,7 @@ test('W3 outer closed over inner open: no materializer, no bids, no journal, no 
         return WITHHELD;
     });
     expect(result).toBeNull();
+    await delay(60);   // negative: let any stray bid land first
     expect(renders).toBe(0);
     expect(bids).toHaveLength(0);
     expect(takeAccepted(global)).toHaveLength(0);
@@ -477,6 +484,7 @@ test('versions across gates: outer orientation during materialization drops the 
     expect(outer.orient('soft')).toBe(true);
     finish('This render arrived too late.');
     expect(await rendering).toBeNull();
+    await delay(60);   // negative: let any stray bid land first
     expect(takeAccepted(global)).toHaveLength(0);
     expect(held).toBe(false);
     expect(lists).toHaveLength(1);
@@ -504,6 +512,7 @@ test('outer awareness refusal never reaches interrupt-request', async () => {
     const offer = inner.registerSource(source);
     const result = await offer(header('named'), () => { renders++; return TEXT; });
     expect(renders).toBe(1);
+    await delay(60);   // negative: let any stray bid land first
     expect(result).toBeNull();
     expect(bids).toHaveLength(0);
     expect(takeAccepted(global)).toHaveLength(0);
@@ -553,7 +562,7 @@ test('bypass: trusted bypassAperture on the source crosses two closed gates; a p
     const percept = await trusted(header('voice'), () => { trustedRenders++; return 'Hello.'; });
     expect(trustedRenders).toBe(1);
     expect(percept).toBeInstanceOf(AttentionBid);
-    expect(bidIds(takeAccepted(global))).toEqual([percept.id]);
+    expect(bidIds(await takeAdmitted(global))).toEqual([percept.id]);
 
     let payloadRenders = 0;
     const untrusted = inner.registerSource(mock);
@@ -718,14 +727,14 @@ test('15. Regulator substitution: faster reflex, gate and receipts unchanged', a
     await region.onBoundary(t + 2000);
     expect(regulator.state).toBe('soft');
     expect(region.aperture.state).toBe('soft');
-    await delay(5);
+    await until(() => bids.length && acceptedBy(global).length);
     expect(renders).toBe(1);
     expect(bids).toHaveLength(1);
     const pending = takeAccepted(global);
     expect(bidIds(pending)).toEqual(bidIds(bids));
     const fired = interceptFire(mind);
     await MMind.prototype.assembleFrame.call(mind, pending);
-    await delay(5);
+    await until(() => credited.length);
     expect(credited).toHaveLength(1);
     const attended = fired.find(f => f.name === 'percepts-attended');
     expect(attended).toBeTruthy();
@@ -769,6 +778,9 @@ test('15. Regulator ops cross as plain data: a change header, never the text', a
     region.addEventListener('regulate', e => asked.push(e.detail));
     const offer = region.registerSource(source, () => {});
     await offer({ ...header(PREIMAGE), reason: TEXT, caption: TEXT }, () => TEXT);
+    // `observe` is sent, not awaited, by the offer: let it land before the boundary
+    // asks `advance`, as sync delivery did (the ops carry no sequence number, M5).
+    await until(() => asked.length);
     await region.onBoundary(Date.now() + 2000);
     expect(asked.map(d => d.op)).toEqual(['observe', 'advance']);
     for (const detail of asked) {
@@ -909,7 +921,8 @@ test('M7. Child aperture appended after the parent has connected still forwards'
     inner.setAttribute('dwell', '1s');
     inner.setAttribute('contactHorizon', '10s');
     outer.appendChild(inner);
-    await delay(10);
+    // The child links to its parent by message: wait for the link, not a fixed 10 ms.
+    await until(() => inner.aperture && outer._childProviders().includes(inner));
     expect(inner.aperture).toBeTruthy();
 
     const source = document.createElement('span');
@@ -987,10 +1000,15 @@ test('P1: nested suppressed header — outer pressure is max fold; nearest issue
     allowOrientation(outer);
     expect(outer.orient('open')).toBe(true);
     outer._publishAperture();
+    // Each outer transition asks its child aperture to sample (a `control`
+    // request); the inner answers by its own state when the request lands, so
+    // let the still-closed inner refuse them before the inner opens.
+    await delay(60);
+    expect(renders).toBe(0);
 
     allowOrientation(inner);
     expect(inner.orient('open')).toBe(true);
-    await delay(5);
+    await until(() => renders && acceptedBy(global).length);
     expect(renders).toBe(1);
     const pending = takeAccepted(global);
     expect(pending).toHaveLength(1);
@@ -1008,6 +1026,10 @@ test('P1: nested suppressed header — outer pressure is max fold; nearest issue
     };
 
     await MMind.prototype.assembleFrame.call(mind, pending);
+    // The receipt is heard by the issuer: wait for its credit, then give a
+    // wrong (outer) credit time to land before asserting there was none.
+    await until(() => inner.aperture.deficit < innerDebt);
+    await delay(60);
     expect(inner.aperture.deficit).toBeLessThan(innerDebt);
     expect(outer.aperture.deficit).toBe(outerDebt);
     expect(outerCredits).toHaveLength(0);
@@ -1101,7 +1123,7 @@ test('nested arbiter gain 2 clamps salience to 1', async () => {
     const bid = await offer(header('loud-gain'), () => TEXT);
     // The arbiters re-weight their own copies; the region's bid is never mutated (M2).
     expect(bid.salience).toBeCloseTo(0.9);
-    expect(takeAccepted(global)[0].salience).toBeCloseTo(1);
+    expect((await takeAdmitted(global))[0].salience).toBeCloseTo(1);
 });
 
 test('awareness re-checks versions: closing a gate after its verdict does not issue', async () => {
@@ -1120,6 +1142,7 @@ test('awareness re-checks versions: closing a gate after its verdict does not is
     const offer = inner.registerSource(source);
     const result = await offer(header('late-close'), () => { renders++; return TEXT; });
     expect(renders).toBe(1);
+    await delay(60);   // negative: let any stray bid land first
     expect(result).toBeNull();
     expect(bids).toHaveLength(0);
     expect(takeAccepted(global)).toHaveLength(0);
@@ -1188,6 +1211,7 @@ test('invalid aggregator output fails closed: threshold stays finite', async () 
         bubbles: true,
         detail: new InterruptRecord({ source: 'Observer', type: 'Test', reason: 'quiet', salience: 0.2 }),
     }));
+    await delay(60);   // negative: let any stray bid land first
     expect(takeAccepted(global)).toHaveLength(0);
 });
 

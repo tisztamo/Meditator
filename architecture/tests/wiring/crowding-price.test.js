@@ -14,10 +14,25 @@ import "./setup.js";
 import { test, expect, beforeAll, beforeEach } from "bun:test";
 import A from "amanita";
 import { delay } from "./setup.js";
+import { waitFor } from "./contracts/helpers.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
 import { InterruptRecord } from "../../../src/infrastructure/interruptRecord.js";
 
 let mind, priced, plain;
+
+// Every bid is a message: the arbiter hears it on the mind, then it bubbles on to
+// the document. Counting it there is a delivery barrier — once every bid sent has
+// been heard at the top, every arbiter below has already ruled on it. Only this
+// file's senders count: a mind an earlier file left running bids here too.
+let sent = 0, heard = 0;
+const senders = new Set();
+document.addEventListener("interrupt-request", e => { if (senders.has(e.target)) heard++; });
+const bid = (target, detail) => {
+    sent++;
+    senders.add(target);
+    return target.dispatchEvent(new CustomEvent("interrupt-request", { bubbles: true, detail }));
+};
+const delivered = () => waitFor(() => heard >= sent);
 
 beforeAll(async () => {
     if (!customElements.get("m-mind")) {
@@ -42,11 +57,8 @@ beforeEach(() => {
     priced._crowdAt = Date.now();
 });
 
-const fire = (salience, extra = {}) => mind.dispatchEvent(new CustomEvent("interrupt-request", {
-    bubbles: true,
-    detail: new InterruptRecord({
-        source: "External", type: "Sense-test", reason: "something out there", salience, ...extra,
-    }),
+const fire = (salience, extra = {}) => bid(mind, new InterruptRecord({
+    source: "External", type: "Sense-test", reason: "something out there", salience, ...extra,
 }));
 
 /** Refuse `n` bids for lack of budget: accept one, then bid again inside the window. */
@@ -66,13 +78,10 @@ test("off by default: a gate with no crowdSensitivity never raises its bar", asy
     const other = document.querySelector('m-mind[name="unpriced"]');
     plain = other.querySelector('[name="plain"]');
 
-    const shout = s => other.dispatchEvent(new CustomEvent("interrupt-request", {
-        bubbles: true,
-        detail: new InterruptRecord({ source: "External", type: "T", reason: "r", salience: s }),
-    }));
+    const shout = s => bid(other, new InterruptRecord({ source: "External", type: "T", reason: "r", salience: s }));
     shout(0.5);
     for (let i = 0; i < 6; i++) shout(0.5);
-    await delay(10);
+    await delivered();
     expect(plain._crowd).toBe(0);
     expect(plain.crowdPressure).toBe(0);
     other.remove();
@@ -80,7 +89,7 @@ test("off by default: a gate with no crowdSensitivity never raises its bar", asy
 
 test("refusals for lack of budget raise the price; each one by crowdStep", async () => {
     crowd(3);
-    await delay(10);
+    await delivered();
     // Three refusals × 0.25, decayed by ~nothing across a few milliseconds.
     expect(priced._crowd).toBeGreaterThan(0.7);
     expect(priced._crowd).toBeLessThanOrEqual(0.76);
@@ -88,7 +97,7 @@ test("refusals for lack of budget raise the price; each one by crowdStep", async
 
 test("the price is capped at full pressure however long the rush lasts", async () => {
     crowd(20);
-    await delay(10);
+    await delivered();
     // Not exactly 1: the price decays continuously, so a few milliseconds of test
     // time shave a hair off it. Saturation is the claim, not a magic number.
     expect(priced._crowd).toBeGreaterThan(0.999);
@@ -97,34 +106,36 @@ test("the price is capped at full pressure however long the rush lasts", async (
 
 test("under load the gate selects by loudness, not by arrival order", async () => {
     crowd(4);                                   // price at ~1 → bar 0.35 + 0.2 ≈ 0.55
+    await delivered();
     priced.lastAcceptedAt = 0;                  // the budget window has passed
     priced.pending.length = 0;
 
     fire(0.5);                                  // would have cleared the base bar
-    await delay(10);
+    await delivered();
     expect(priced.pending.length).toBe(0);      // refused: not worth it while busy
 
     fire(0.7);                                  // worth interrupting a busy mind for
-    await delay(10);
+    await delivered();
     expect(priced.pending.length).toBe(1);
     expect(priced.pending[0].salience).toBeCloseTo(0.7, 5);
 });
 
 test("a quiet channel relaxes back to base on the half-life, with no timer", async () => {
     crowd(4);
+    await delivered();
     expect(priced._crowd).toBeGreaterThan(0.999);
 
     priced._crowdAt = Date.now() - 90_000;      // one half-life of silence
     priced.lastAcceptedAt = 0;
     fire(0.9);                                  // any bid re-reads (and so decays) the price
-    await delay(10);
+    await delivered();
     expect(priced._crowd).toBeCloseTo(0.5, 2);
 
     priced._crowdAt = Date.now() - 6 * 90_000;  // six half-lives: effectively home
     priced.lastAcceptedAt = 0;
     priced.pending.length = 0;
     fire(0.4);                                  // under the raised bar, over the base one
-    await delay(10);
+    await delivered();
     expect(priced._crowd).toBeLessThan(0.02);
     expect(priced.pending.length).toBe(1);      // audible again, unaided
 });
@@ -132,17 +143,18 @@ test("a quiet channel relaxes back to base on the half-life, with no timer", asy
 test("a salience drop does NOT feed the price — the bar must not raise itself", async () => {
     priced._crowd = 0;
     for (let i = 0; i < 6; i++) fire(0.1);      // all refused on merit, none on budget
-    await delay(10);
+    await delivered();
     expect(priced._crowd).toBe(0);
 });
 
 test("urgent bids bypass admission, so crowding can never muzzle one", async () => {
     crowd(4);
+    await delivered();
     expect(priced._crowd).toBeGreaterThan(0.999);   // bar raised to ~0.55
     priced.pending.length = 0;
 
     fire(0.2, { urgent: true });                // far under even the base bar
-    await delay(10);
+    await delivered();
     expect(priced.pending.length).toBe(1);
     expect(priced.pending[0].urgent).toBe(true);
 });
@@ -155,7 +167,7 @@ test("a garbage crowdStep falls back instead of NaN-ing the threshold", async ()
     // heals by waiting, and the house convention is to say so loudly.)
     priced.setAttribute("crowdStep", "banana");
     crowd(2);
-    await delay(10);
+    await delivered();
     expect(Number.isFinite(priced._crowd)).toBe(true);
     expect(priced._crowd).toBeGreaterThan(0);
     expect(priced._crowd).toBeLessThanOrEqual(1);

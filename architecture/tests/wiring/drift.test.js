@@ -13,9 +13,13 @@ import os from "node:os";
 import fs from "node:fs";
 import path from "node:path";
 import { delay } from "./setup.js";
+import { waitFor } from "./contracts/helpers.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
 
 let drift, notesDir, raised;
+
+// _drift() resolves once the bid is SENT; the listener hears it as a message.
+const heard = n => waitFor(() => raised.length >= n);
 
 // A SOL/whisper/stillness tail — the attractor the jev runs settle into.
 const TAIL = "The SOL price whispers. Stillness. Quiet. I wait for the numbers. "
@@ -85,6 +89,7 @@ test("arm A: a far kept thread is picked by distance and NAMED (the mind can go 
     reset(dir);
 
     await drift._drift();
+    await heard(1);
 
     expect(raised.length).toBe(1);
     const r = raised[0];
@@ -109,6 +114,7 @@ test("arm A declines when every note is too close, and arm B offers a FRESH thre
     reset(dir);
 
     await drift._drift();
+    await heard(1);
 
     expect(raised.length).toBe(1);
     const r = raised[0];
@@ -127,6 +133,7 @@ test("an empty notebook runs arm B (there is nothing set down to be far from)", 
     reset(emptyDir);
 
     await drift._drift();
+    await heard(1);
 
     expect(raised.length).toBe(1);
     expect(raised[0].reason).toMatch(/My mind turns, on its own, toward a thread I have not been carrying/i);
@@ -141,6 +148,7 @@ test("arm A does not repeat the last thread it drifted to", async () => {
     reset(dir);
 
     await drift._drift();
+    await heard(1);
     const first = raised[0].reason;
     // The fresher (tidal) note wins the first pick — its TEXT, not title, is what is named.
     expect(first).toMatch(/harbour master keeps two ledgers/i);
@@ -148,6 +156,7 @@ test("arm A does not repeat the last thread it drifted to", async () => {
     // Force the dedup: the tidal note's stamp is the later entry (T2).
     drift._lastKey = "2026-06-20T11:00:00.000Z";
     await drift._drift();
+    await heard(2);
     expect(raised.length).toBe(2);
     // The second drift must take the OTHER far note, not repeat the tidal one.
     expect(raised[1].reason).toMatch(/3-digit balanced number/i);
