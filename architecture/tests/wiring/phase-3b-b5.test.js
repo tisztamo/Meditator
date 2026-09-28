@@ -12,6 +12,7 @@ import {
     SearchTarget, SEARCH_TARGET_EVENT, SEARCH_OUTCOME_EVENT,
 } from '../../../src/infrastructure/predictionContracts.js'
 import { ControlRequest, CONTROL_RESULT_EVENT } from '../../../src/infrastructure/perceptionContracts.js'
+import { askControl } from '../../../src/mindComponents/shared/apertureRequests.js'
 
 const COMPONENTS_DIR = fileURLToPath(new URL('./components', import.meta.url))
 
@@ -232,7 +233,7 @@ test('32. a closed tier-0 route leaks no template and cannot be searched through
 test('33. with no search controller, a standalone focus remains accepted and changes no aperture state', async () => {
     search.remove()
     const before = world.aperture.state
-    const ok = world.requestControl(new ControlRequest({
+    const ok = await askControl(world, 'world', new ControlRequest({
         kind: 'focus',
         issuedBy: 'test',
         target: 'earth',

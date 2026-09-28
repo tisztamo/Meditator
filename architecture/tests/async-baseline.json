@@ -6,8 +6,8 @@
   "violations": {},
   "legacyHandleCallsInTests": {
     "takePending": 0,
-    "requestControl": 20,
-    "requestOrientation": 7,
+    "requestControl": 0,
+    "requestOrientation": 0,
     "_registerCapability": 0,
     "_updateCapability": 0,
     "getTail": 0,

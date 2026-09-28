@@ -18,6 +18,7 @@ import { Percept } from '../../../src/infrastructure/percept.js';
 import { ControlRequest } from '../../../src/infrastructure/perceptionContracts.js';
 import { acceptedBy, takeAccepted, takeAdmitted } from "./attentionProbe.js";
 import { waitFor, quiet } from "./contracts/helpers.js";
+import { askControl } from '../../../src/mindComponents/shared/apertureRequests.js';
 
 const COMPONENTS_DIR = fileURLToPath(new URL('./components', import.meta.url));
 const TEXT = 'The simulated garden is still.';
@@ -268,10 +269,10 @@ async function runC1(mind, provider) {
     expect(inner.orient('closed')).toBe(true);
     await quiet();
     hits.length = 0;
-    outer.requestControl(sampleRequest());
+    await askControl(outer, 'shell', sampleRequest());
     await quiet();
     expect(hits).toHaveLength(0);
-    outer.requestControl(sampleRequest('mock'));
+    await askControl(outer, 'shell', sampleRequest('mock'));
     await waitFor(() => hits.length);
     await quiet();
     expect(hits).toHaveLength(1);

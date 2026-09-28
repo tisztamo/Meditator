@@ -1,4 +1,4 @@
-// B4 — orientation: requestOrientation, lanes, m-orient, claim-at-execute (roadmap 17–24).
+// B4 — orientation: orient requests, lanes, m-orient, claim-at-execute (roadmap 17–24).
 import './setup.js'
 import { test, expect, beforeAll, afterAll, beforeEach, afterEach } from 'bun:test'
 import A from 'amanita'
@@ -11,6 +11,7 @@ import { loadMindComponents } from '../../../src/startup/loadMindComponents.js'
 import { OrientationRequest } from '../../../src/infrastructure/predictionContracts.js'
 import { PerceptReceipt } from '../../../src/infrastructure/perceptionContracts.js'
 import { normalizeIntent } from '../../../src/mindComponents/shared/mAct.js'
+import { askOrientation } from '../../../src/mindComponents/shared/apertureRequests.js'
 import { offerFixtureHand } from './fixtureHand.js'
 
 const COMPONENTS_DIR = fileURLToPath(new URL('./components', import.meta.url))
@@ -81,8 +82,8 @@ test('17. a named request reaches a nested substitute aperture once; another mem
     const hits = []
     const orig = inner.orient.bind(inner)
     inner.orient = (...args) => { hits.push(args); return orig(...args) }
-    // The outer asks the nested aperture by name (a message): the answer is awaited.
-    expect(await region.requestOrientation(req({ state: 'soft' }))).toBe(true)
+    // A component of the membrane asks the nested aperture by name (a message).
+    expect(await askOrientation(region, req({ state: 'soft' }))).toBe(true)
     expect(hits).toHaveLength(1)
     expect(inner.aperture.state).toBe('soft')
 
@@ -91,16 +92,16 @@ test('17. a named request reaches a nested substitute aperture once; another mem
     const otherRegion = sibling.querySelector('m-region')
     const before = otherRegion.aperture?.state ?? null
     inner.aperture.changedAt = Date.now() - 1000
-    await region.requestOrientation(req({ aperture: 'inner', state: 'closed' }))
+    expect(await askOrientation(region, req({ aperture: 'inner', state: 'closed' }))).toBe(true)
     expect(otherRegion.aperture?.state ?? null).toBe(before)
 })
 
-test('18. orientation cannot carry bypass powers, exceed configured states, or address an undeclared provider', () => {
+test('18. orientation cannot carry bypass powers, exceed configured states, or address an undeclared provider', async () => {
     expect(() => new OrientationRequest({
         issuedBy: 'test', aperture: 'inner', state: 'ajar', reason: 'x',
     })).toThrow()
-    expect(region.requestOrientation(req({ aperture: 'no-such', state: 'open' }))).toBe(false)
-    expect(inner.requestOrientation(req({ state: 'narrow', source: 'missing' }))).toBe(false)
+    expect(await askOrientation(region, req({ aperture: 'no-such', state: 'open' }))).toBe(false)
+    expect(await askOrientation(region, req({ state: 'narrow', source: 'missing' }))).toBe(false)
     expect(inner.aperture.state).not.toBe('narrow')
 })
 
@@ -124,10 +125,10 @@ test('19. the control lane does not consume read/world cooldowns and vice versa'
     expect(act._laneOpen(capOrient)).toBe(false)
 })
 
-test('20. overlapping orientation requests are first-observed/first-accepted under dwell', () => {
-    expect(inner.requestOrientation(req({ state: 'closed' }))).toBe(true)
+test('20. overlapping orientation requests are first-observed/first-accepted under dwell', async () => {
+    expect(await askOrientation(region, req({ state: 'closed' }))).toBe(true)
     expect(inner.aperture.state).toBe('closed')
-    expect(inner.requestOrientation(req({ state: 'open' }))).toBe(false)
+    expect(await askOrientation(region, req({ state: 'open' }))).toBe(false)
     expect(inner.aperture.state).toBe('closed')
 })
 
@@ -183,7 +184,7 @@ test('23. a bypassAperture source still crosses an aperture the mind closed itse
     // let that sample's own bid land first, or this offer may meet it materializing
     // and be dropped as busy, whichever order delivery happens to take.
     const sampled = new Promise(resolve => alarm.addEventListener('interrupt-request', resolve, { once: true }))
-    inner.requestOrientation(req({ state: 'closed' }))
+    expect(await askOrientation(region, req({ state: 'closed' }))).toBe(true)
     expect(inner.aperture.state).toBe('closed')
     await sampled
     const bid = await alarm.perceive('alarm tone', { salience: 0.8, changeKey: 'alarm tone' })

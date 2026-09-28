@@ -1,7 +1,7 @@
 // Membrane composition (phase 2 M2–M3, M6 regulator, M7 nested source control,
 // M8 pressure fold and aggregator): percept-candidate at acquisition and awareness.
 // Fixtures W1/W2/W3, conjunction, the version chain, a test-only regulator port,
-// requestControl through nesting, the P1 fold, and aggregator substitution.
+// control requests through nesting, the P1 fold, and aggregator substitution.
 import './setup.js';
 import { test, expect, afterEach } from 'bun:test';
 import A from 'amanita';
@@ -20,6 +20,7 @@ import { Aperture } from '../../../src/infrastructure/aperture.js';
 import { GateVerdict, pushGainTrail, ControlRequest } from '../../../src/infrastructure/perceptionContracts.js';
 import { stimulus } from '../../../src/infrastructure/interruptRecord.js';
 import { acceptedBy, takeAccepted, takeAdmitted, bidIds } from "./attentionProbe.js";
+import { askControl } from '../../../src/mindComponents/shared/apertureRequests.js';
 
 let journalDir;
 
@@ -837,7 +838,7 @@ function sampleRequest(target) {
     });
 }
 
-test('M7. Outer untargeted requestControl reaches a source registered on the inner aperture', async () => {
+test('M7. An untargeted control request to the outer reaches a source registered on the inner aperture', async () => {
     const mind = await mount(W2_REGION);
     const outer = mind.querySelector('m-region[name="shell"]');
     const inner = mind.querySelector('m-region[name="outside"]');
@@ -849,7 +850,7 @@ test('M7. Outer untargeted requestControl reaches a source registered on the inn
         received = request;
     });
     const request = sampleRequest();
-    await outer.requestControl(request);
+    await askControl(outer, 'shell', request);
     await delay(5);
     expect(hits).toBe(1);
     // Forwarded by message: the inner rebuilds the request, same id and fields.
@@ -879,7 +880,7 @@ test('M7. Targeted request is delivered once by the nearest owner; first sibling
     left.registerSource(garden, () => { called.push('left-garden'); });
     left.registerSource(pond, () => { called.push('pond'); });
     right.registerSource(siblingGarden, () => { called.push('right-garden'); });
-    await outer.requestControl(sampleRequest('garden'));
+    await askControl(outer, 'shell', sampleRequest('garden'));
     await delay(5);
     expect(called).toEqual(['left-garden']);
 });
@@ -899,11 +900,11 @@ test('M7. Untargeted respects each provider\'s allows(); targeted from outer sti
     expect(inner.aperture.state).toBe('closed');
     expect(outer.aperture.state).toBe('open');
 
-    await outer.requestControl(sampleRequest());
+    await askControl(outer, 'shell', sampleRequest());
     await delay(5);
     expect(hits).toBe(0);
 
-    await outer.requestControl(sampleRequest('mock'));
+    await askControl(outer, 'shell', sampleRequest('mock'));
     await delay(5);
     expect(hits).toBe(1);
 });
@@ -928,7 +929,7 @@ test('M7. Child aperture appended after the parent has connected still forwards'
     inner.appendChild(source);
     let hits = 0;
     inner.registerSource(source, () => { hits++; });
-    await outer.requestControl(sampleRequest());
+    await askControl(outer, 'outside', sampleRequest());
     await delay(5);
     expect(hits).toBe(1);
 });
@@ -1180,7 +1181,7 @@ test('targeted control at a detached nearest owner does not fall through to a si
     left.registerSource(garden, () => { called.push('left-garden'); });
     right.registerSource(siblingGarden, () => { called.push('right-garden'); });
     garden.remove();
-    await outer.requestControl(sampleRequest('garden'));
+    await askControl(outer, 'shell', sampleRequest('garden'));
     await delay(5);
     expect(called).toEqual([]);
 });

@@ -21,8 +21,8 @@
 // carries the search template.
 //
 // What stays a method: the region's requestOrientation / requestControl /
-// contractFor are the implementation the responder runs (tests still drive and
-// stub them). Inside one aperture tree a parent forwards to its child apertures
+// contractFor are the implementation the responder runs (tests stub them to watch
+// an attempt, and drive them by these same requests). Inside one aperture tree a parent forwards to its child apertures
 // with these same requests, by the child's name.
 
 import { respond, responderName, rosterAnswered } from "../../infrastructure/requestReply.js"
