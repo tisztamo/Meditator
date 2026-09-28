@@ -1,4 +1,5 @@
 import { MObserver } from "./mObserver.js";
+import { telemetry } from "../shared/telemetry.js";
 import { complete, generateImage } from "../../modelAccess/llm.js";
 import { resolveModelRef } from "../../modelAccess/modelConfig.js";
 import { decide, readChoice } from "../../modelAccess/decide.js";
@@ -191,12 +192,14 @@ export class MImage extends MObserver {
   }
 
   _impulse(salience, prompt, reason) {
-    this.pub("impulse", {
+    const impulse = {
       salience,
       prompt: prompt ? prompt.slice(0, 500) : null,
       accepted: !!prompt,
       reason,
-    });
+    };
+    this.pub("impulse", impulse);
+    telemetry(this, "image", "impulse", impulse);
   }
 
   /** The System-One gate: does the current thinking carry a picture worth drawing?
@@ -267,6 +270,7 @@ export class MImage extends MObserver {
     this._generating = true;
     this._lastGeneratedAt = Date.now();
     this.pub("generating", true);
+    telemetry(this, "image", "generating", { generating: true });
 
     const prompt = this._imagePrompt(decision.prompt);
     try {
@@ -295,13 +299,16 @@ export class MImage extends MObserver {
         at: new Date().toISOString(),
       };
       this.pub("generated", payload);
+      telemetry(this, "image", "generated", payload);
       log.info(`generated image (${image.model}, ${image.size}): ${prompt.slice(0, 120)}`);
     } catch (error) {
       this.pub("error", { message: error.message || String(error), prompt });
+      telemetry(this, "image", "error", { message: error.message || String(error), prompt });
       throw error;
     } finally {
       this._generating = false;
       this.pub("generating", false);
+      telemetry(this, "image", "generating", { generating: false });
     }
   }
 

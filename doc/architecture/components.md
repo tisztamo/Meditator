@@ -260,7 +260,8 @@ Three memory tiers, compression, persistence, and the journal. See
   stimulus enters via the attention spine, not a pull.
 - **Lifecycle API (orchestrator contract, see [decoupling.md](decoupling.md)):**
   `finalize(reason)` (awaited at sleep), `persists` (honest sleep wording). `getTail()`/
-  `getRecent()`/`getStory()` remain for the `m-ws` transport's telemetry. `note(text)`
+  `getRecent()`/`getStory()` remain as reads; the transport no longer calls them,
+  memory fires its `memory/state` and `memory/compressed` telemetry itself. `note(text)`
   is now self-driven by the subscriptions above.
 - **Versioning:** stamps `formatVersion` into `memory.md`'s meta and, for a resident
   (a home with a `manifest.json`), records the `runtimeSHA`/`formatVersion`/`lastWokenAt`
@@ -1121,16 +1122,25 @@ WebSocket server — the live stream and external voice. Full protocol in the
 | Attribute | Default | Meaning |
 |-----------|---------|---------|
 | `port` | `7627` | TCP port to listen on |
-| `src` | `/stream/chunk` | chunks broadcast as `thought_fragment` |
-| `stateSrc` | `/stream/state` | state changes broadcast as `status` |
+| `src` | `!scope/stream/chunk` | chunks broadcast as `thought_fragment` |
+| `stateSrc` | `!scope/stream/state` | state changes broadcast as `status` |
+| `speechSrc` | `!scope/voice/speech` | spoken fragments broadcast as `speech_fragment` (`off` for none) |
 
-- **Broadcasts (transport):** `thought_fragment` (each chunk) and `status` (state changes).
+- **Broadcasts (transport):** `thought_fragment` (each chunk), `status` (state changes)
+  and `speech_fragment` (each spoken fragment).
 - **Broadcasts (instrumentation):** on connect, `structure` (the mind's component
-  tree); then `event` messages tagging each internal signal by process — the
-  assembled `frame`, every attention `bid` / `decision` / `urgent`, burst
-  `boundary`, `memory` state/consolidation, `economy` energy, `scribe` filings,
-  `act` intent/deed (the hands), `speech` state — plus `speech_fragment` for each
-  spoken fragment. Every tap is guarded, so a minimal mind simply emits fewer events.
+  tree); then `event` messages tagging each internal signal by process. The mind's
+  own signals come from the membrane (the assembled `frame`, `pace`, every attention
+  `bid` and `urgent` win). Everything else is **telemetry a faculty fires**:
+  `telemetry {process, kind, data}` (`shared/telemetry.js`, stopped at the
+  membrane), which m-ws forwards without looking any faculty up. The built-ins
+  report the stream's `boundary`, memory `state`/`compressed`, the arbiter's
+  `decision`, the `loop` state, `economy` energy, `scribe` filings, `act`
+  intent/deed, `speech` speaking/impulse/boundary and the `image` lifecycle. A
+  substitute faculty is seen as long as it reports; a minimal mind emits fewer
+  events. Once listening, m-ws fires `telemetry-wanted` and a faculty holding state
+  from before (memory's loaded story) reports it again. A society's public socket
+  also hears each member's telemetry, tagged `member` and `public: false`.
 - **Receives:** `{type:"input", data:{message}}` → `External` urgent stimulus, salience 1.
 - **Dispatches (DOM, bubbling):** `interrupt-request`.
 

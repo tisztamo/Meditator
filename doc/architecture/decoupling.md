@@ -157,9 +157,9 @@ with a push, see [message-rule.md](message-rule.md).)
   orchestrator.
 - **`m-memory.persists`** (and `_whenAlive` reading `.on`/`.loaded`) — lifecycle
   *queries*: honest sleep wording, and a readiness gate before thinking starts.
-- **`m-ws` telemetry** (`memory.getTail().length`, `economy.paceFactor()`, …) —
-  transports are deliberately document-anchored: "the mind's external window, not
-  part of any one faculty." Could publish a `stats` topic if purity ever matters.
+- ~~**`m-ws` telemetry**~~ (`memory.getTail().length`, `economy.paceFactor`, …) —
+  replaced: each faculty fires `telemetry {process, kind, data}` and m-ws forwards
+  what it hears under its membrane (`shared/telemetry.js`, message-rule review §2.1).
 
 ## Remaining / deferred
 

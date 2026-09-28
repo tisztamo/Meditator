@@ -8,6 +8,7 @@ import { resolveModelRef } from "../../modelAccess/modelConfig.js"
 import { readKept } from "./recallSources.js"
 import { contentStems, containment } from "./loopMath.js"
 import { ENERGY } from "./infoton.js"
+import { telemetry } from "./telemetry.js"
 import { stimulus, describeStimulus } from '../../infrastructure/interruptRecord.js';
 import { sentByComponent } from '../../infrastructure/messageOrigin.js';
 import { Percept } from '../../infrastructure/percept.js';
@@ -313,12 +314,14 @@ export class MAct extends MObserver {
             }
         }
 
-        this.pub("intent", {
+        const intent = {
             salience,
             gist: parsed.say ? parsed.say.slice(0, 200) : null,
             accepted,
             reason,
-        })
+        }
+        this.pub("intent", intent)
+        telemetry(this, "act", "intent", intent)
         return accepted ? { salience, gist: parsed.say } : null
     }
 
@@ -535,6 +538,11 @@ export class MAct extends MObserver {
             actId: predictionOn ? actId : null,
             predictionId: predictionOn ? predictionId : null,
         }, { energy: ENERGY.deed })
+        telemetry(this, "act", "acted", {
+            capability: name, intent: decision.gist || null, ok: !!ok,
+            experience: experience || null, args: deedArgs,
+            data: ok && out ? (out.data ?? null) : null,
+        })
 
         // The CONSEQUENCE — re-enters as a plain External sensation through the
         // afferent bus, framed as experience, never as a result (efference.md §5.2/§5.4).

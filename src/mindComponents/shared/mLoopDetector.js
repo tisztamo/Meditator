@@ -1,5 +1,6 @@
 import A from "amanita"
 import { MObserver } from "../mind/mObserver.js"
+import { telemetry } from "./telemetry.js"
 import { complete } from "../../modelAccess/llm.js"
 import { decide, readChoice } from "../../modelAccess/decide.js"
 import { resolveModelRef } from "../../modelAccess/modelConfig.js"
@@ -242,6 +243,7 @@ export class MLoopDetector extends MObserver {
             log.debug(`no loop (score ${parsed.score.toFixed(2)})`)
         }
         this.pub("loop", signal)
+        if (signal) telemetry(this, "loop", "state", signal)
     }
 
     /** The original engine: one utility-model call, five fields parsed back out of prose. */

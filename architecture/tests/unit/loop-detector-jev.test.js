@@ -112,7 +112,7 @@ test("an out-of-range level is clamped rather than trusted", () => {
 // --- the component's engine switch -----------------------------------------
 //
 // _detect is exercised directly on a prototype-backed stand-in: only the DOM seams
-// (attr/env/pub) are faked, so the engine switch, the question build and the publish
+// (attr/env/pub/fire) are faked, so the engine switch, the question build and the publish
 // are all the component's own code, without booting amanita.
 
 const YAML = `
@@ -167,7 +167,7 @@ afterEach(() => {
 });
 
 /**
- * A stand-in for the live component: the attribute/env/pub seams the detector uses,
+ * A stand-in for the live component: the attribute/env/pub/fire seams the detector uses,
  * with the real _detect on top. Only the DOM is faked; the engine switch is the
  * component's own code.
  */
@@ -177,6 +177,7 @@ function detector(attrs = {}) {
     el.attr = name => attrs[name];
     el.env = () => null;
     el.pub = (topic, value) => { published.push({ topic, value }); };
+    el.fire = () => {};   // its telemetry (shared/telemetry.js)
     return { el, published };
 }
 

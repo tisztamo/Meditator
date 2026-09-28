@@ -1,5 +1,6 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
 import { ENERGY } from "../shared/infoton.js"
+import { telemetry } from "../shared/telemetry.js"
 import { FilterChain, CHAIN_ROLE, DEFAULT_FILTER_DEADLINE_MS } from "../shared/streamFilters.js"
 import { chatStream } from "../../modelAccess/llm.js"
 import { resolveModelRef } from "../../modelAccess/modelConfig.js"
@@ -272,6 +273,11 @@ export class MStream extends MBaseComponent {
     _finishBurst(boundary) {
         this._changeState("idle")
         process.stdout.write("\n")
+        telemetry(this, "stream", "boundary", {
+            reason: boundary.reason,
+            burstIndex: boundary.burstIndex,
+            burstChars: boundary.burstChars,
+        })
         this.fire("boundary", boundary, { energy: ENERGY.deed })
     }
 

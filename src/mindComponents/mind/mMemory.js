@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { MBaseComponent } from "../shared/mBaseComponent.js"
+import { telemetry, onTelemetryWanted } from "../shared/telemetry.js"
 import { langOf } from "../shared/i18n.js"
 import { complete, isDryRun } from "../../modelAccess/llm.js"
 import { resolveModelRef } from "../../modelAccess/modelConfig.js"
@@ -185,6 +186,10 @@ export class MMemory extends MBaseComponent {
             .catch(err => { if (this.isConnected) log.warn('memory stream bind failed:', err.message) })
         this.sub(this.attr("boundarySrc") || "!scope/stream/@boundary", this._onBoundary)
             .catch(err => { if (this.isConnected) log.warn('memory boundary bind failed:', err.message) })
+        onTelemetryWanted(this, () => {
+            this._stateTelemetry()
+            if (this.recent || this.story) this._compressedTelemetry()
+        })
 
         if (this.attr("imageSrc") !== "off") {
             this.sub(this.attr("imageSrc") || "!scope/image/generated", image => this.imageGenerated(image)).catch(() => {})
@@ -400,6 +405,24 @@ export class MMemory extends MBaseComponent {
         if (this._persists && this._boundaryCount % 25 === 0) {
             commitVault(`heartbeat: ${this._mindLabel()} after ${this._boundaryCount} boundaries`, this._home)
         }
+        this._stateTelemetry()
+    }
+
+    _stateTelemetry() {
+        telemetry(this, "memory", "state", {
+            tailLen: this.tail.length,
+            recentLen: this.recent.length,
+            storyLen: this.story.length,
+        })
+    }
+
+    _compressedTelemetry() {
+        telemetry(this, "memory", "compressed", {
+            recentLen: this.recent.length,
+            storyLen: this.story.length,
+            recentPreview: this.recent.slice(0, 400),
+            storyPreview: this.story.slice(0, 400),
+        })
     }
 
     // An utterance the voice spoke, arriving as its transient `@spoken` event rather
@@ -642,6 +665,7 @@ export class MMemory extends MBaseComponent {
                     { contextAfter: after })
             }
             this.pub("compressed", { recent: this.recent, story: this.story })
+            this._compressedTelemetry()
         } catch (error) {
             log.warn("Consolidation failed, keeping raw block for next boundary:", error.message)
             this._overflow = block + this._overflow
@@ -792,6 +816,7 @@ export class MMemory extends MBaseComponent {
             // first burst wakes up remembering without anyone pulling from us.
             this.pub("tail", this.tail)
             this.pub("compressed", { recent: this.recent, story: this.story })
+            this._compressedTelemetry()
 
             if (this.tail || this.recent || this.story) {
                 // Waking is a stimulus like any other, so raise it onto the

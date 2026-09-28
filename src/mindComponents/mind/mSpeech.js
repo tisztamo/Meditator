@@ -1,6 +1,7 @@
 import { MObserver } from "./mObserver.js"
 import { fillInterlocutor } from "./mMind.js"
 import { ENERGY } from "../shared/infoton.js"
+import { telemetry } from "../shared/telemetry.js"
 import { makePhrasebook } from "../shared/i18n.js"
 import { chatStream, complete } from "../../modelAccess/llm.js"
 import { resolveModelRef } from "../../modelAccess/modelConfig.js"
@@ -227,13 +228,15 @@ export class MSpeech extends MObserver {
         const salience = parsed.salience != null ? parsed.salience : (addressed ? 0.8 : 0.55)
         const accepted = !!parsed.say && (addressed || salience >= threshold)
 
-        this.pub("impulse", {
+        const impulse = {
             salience,
             gist: parsed.say ? parsed.say.slice(0, 200) : null,
             accepted,
             addressed: !!addressed,
             reason: parsed.say ? (accepted ? "speak" : `below ${threshold.toFixed(2)}`) : "nothing to say",
-        })
+        }
+        this.pub("impulse", impulse)
+        telemetry(this, "speech", "impulse", impulse)
         return accepted ? { salience, gist: parsed.say } : null
     }
 
@@ -243,6 +246,7 @@ export class MSpeech extends MObserver {
         this._aborted = false
         this._lastSpokeAt = Date.now()
         this.pub("speaking", true)
+        telemetry(this, "speech", "speaking", { speaking: true })
 
         const model = resolveModelRef(this.attr("model") || this.env("model"), "voice")
         const messages = [
@@ -277,8 +281,10 @@ export class MSpeech extends MObserver {
             this._burst = null
             this._speaking = false
             this.pub("speaking", false)
+            telemetry(this, "speech", "speaking", { speaking: false })
             const utterance = said.trim()
             this.pub("speech-boundary", { chars: utterance.length, reason, text: utterance })
+            telemetry(this, "speech", "boundary", { chars: utterance.length, reason, text: utterance.slice(0, 2000) })
             if (utterance && reason !== "error") {
                 // Hand the completed utterance off as a transient event, not a
                 // method call. The voice fires that it spoke and stays ignorant of

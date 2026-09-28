@@ -1,4 +1,5 @@
 import { MBaseComponent } from "./mBaseComponent.js";
+import { TELEMETRY_EVENT, TELEMETRY_WANTED } from "./telemetry.js";
 import { stimulus, renderStimulus } from "../../infrastructure/interruptRecord.js";
 import { langOf } from "./i18n.js";
 import { logger } from "../../infrastructure/logger.js";
@@ -19,8 +20,10 @@ const log = logger("mWs.js");
  *      bundled dashboard show the structure of the mind and open each process up
  *      for inspection.
  *
- * All instrumentation taps are GUARDED: a minimal mind without economy/memory/
- * speech simply emits fewer events. Multiple clients may connect at once; a
+ * The transport looks up no faculty: each one that wants to be seen fires
+ * `telemetry {process, kind, data}` (shared/telemetry.js) and m-ws forwards
+ * what it hears under its membrane, so a minimal mind simply emits fewer events
+ * and a substitute faculty is seen as long as it reports. Multiple clients may connect at once; a
  * freshly connected client is sent the structure plus the latest snapshot of
  * every signal, so it has the whole picture immediately.
  *
@@ -28,16 +31,16 @@ const log = logger("mWs.js");
  * Attributes:
  *   - port: Port to listen on for WebSocket connections (defaults to 7627)
  *   - src / stateSrc: override which topics feed thought_fragment / status
+ *   - speechSrc: the voice's fragments for speech_fragment (default
+ *     "!scope/voice/speech"; "off" for none)
  *
- * Subscriptions (transport): "!scope/stream/chunk", "!scope/stream/state"
- * Subscriptions (instrument, guarded): "!scope/prompt", "!scope/pace", "/stream/@boundary",
- *   "!scope/@interrupt-request", "!scope/@interrupt", "/<arbiter>/decision",
- *   "/<economy>/energy", "/<memory>/compressed", "/<scribe>/filed",
- *   "/<hands>/intent", "/<hands>/acted",
- *   "/<voice>/speech", "/<voice>/speaking", "/<voice>/impulse",
- *   "/<voice>/speech-boundary", "/<image>/generated"
+ * Subscriptions (transport): "!scope/stream/chunk", "!scope/stream/state", speechSrc
+ * Subscriptions (instrument): "!scope/prompt", "!scope/pace",
+ *   "!scope/@interrupt-request", "!scope/@interrupt", "!scope/@telemetry"
+ *   (a society's public socket also hears each member's "!cluster/<member>/…")
  *
  * Topics published to: "interrupt-request" (when client input is received)
+ * Events fired: "telemetry-wanted" once it listens (faculties re-announce state)
  */
 export class MWs extends MBaseComponent {
   // The camera does not gravitate: m-ws taps everything, and letting it join the
@@ -445,24 +448,6 @@ export class MWs extends MBaseComponent {
       });
     });
 
-    // Burst boundaries (a transient `@boundary` event), plus a memory snapshot taken at each.
-    this._subEvent(mind.querySelector("m-stream"), "boundary", boundary => {
-      if (!boundary) return;
-      this._emit("stream", "boundary", {
-        reason: boundary.reason,
-        burstIndex: boundary.burstIndex,
-        burstChars: boundary.burstChars,
-      });
-      const memory = mind.querySelector("m-memory");
-      if (memory && memory.getTail) {
-        this._emit("memory", "state", {
-          tailLen: memory.getTail().length,
-          recentLen: memory.getRecent ? memory.getRecent().length : 0,
-          storyLen: memory.getStory ? memory.getStory().length : 0,
-        });
-      }
-    });
-
     // The burst cadence (the fixed tick), so a viewer can pace its display —
     // slowing the reveal to fill the slack between bursts.
     this.sub("!scope/pace", pace => pace && this._emit("mind", "pace", { tickMs: pace.tickMs }));
@@ -484,61 +469,21 @@ export class MWs extends MBaseComponent {
       });
     });
 
-    // The arbiter's accept/drop verdict.
-    this._subProp(mind.querySelector("m-interrupts"), "decision",
-      d => d && this._emit("attention", "decision", d));
+    // The spoken voice, as the classic speech_fragment frame (the public
+    // conversation, like thought_fragment from the stream).
+    if (this.attr("speechSrc") !== "off") {
+      this.sub(this.attr("speechSrc") || "!scope/voice/speech", text => {
+        if (typeof text === "string") this.broadcastToClients({ type: "speech_fragment", data: { content: text } });
+      }).catch(() => {});
+    }
 
-    // The loop sense: standing state about whether the mind is circling, and on what
-    // vocabulary — published like economy/arousal, read here purely for observability.
-    this._subProp(mind.querySelector("m-loop-detector"), "loop",
-      l => l && this._emit("loop", "state", l));
-
-    // Metabolism: energy, spend, and the resulting pace multiplier.
-    const economy = mind.querySelector("m-economy");
-    this._subProp(economy, "energy", energy => this._emit("economy", "energy", {
-      energy,
-      spent: economy ? economy.spent : null,
-      paceFactor: typeof economy?.paceFactor === "number" ? economy.paceFactor : 1,
-    }));
-
-    // Memory consolidation.
-    this._subProp(mind.querySelector("m-memory"), "compressed", c => c && this._emit("memory", "compressed", {
-      recentLen: (c.recent || "").length,
-      storyLen: (c.story || "").length,
-      recentPreview: (c.recent || "").slice(0, 400),
-      storyPreview: (c.story || "").slice(0, 400),
-    }));
-
-    // The scribe filing knowledge (a transient `@filed` event, not a topic).
-    this._subEvent(mind.querySelector("m-kb"), "filed",
-      f => f && this._emit("scribe", "filed", { files: f.files || [] }));
-
-    // The hands reaching out (present only when <m-act> is in the mind). `intent`
-    // is every decide (for observability, like speech's impulse); `acted` is a deed.
-    const act = mind.querySelector("m-act");
-    this._subProp(act, "intent", i => i && this._emit("act", "intent", i));
-    this._subEvent(act, "acted", a => a && this._emit("act", "acted", {
-      capability: a.capability, intent: a.intent, ok: !!a.ok,
-      experience: a.experience, args: a.args, data: a.data,
-    }));
-
-    // The speaking voice (present only when <m-speech> is in the mind).
-    const speech = mind.querySelector("m-speech");
-    this._subProp(speech, "speech", text => {
-      if (typeof text === "string") this.broadcastToClients({ type: "speech_fragment", data: { content: text } });
-    });
-    this._subProp(speech, "speaking", speaking => this._emit("speech", "speaking", { speaking: !!speaking }));
-    this._subProp(speech, "impulse", imp => imp && this._emit("speech", "impulse", imp));
-    this._subProp(speech, "speech-boundary", b => b && this._emit("speech", "boundary", {
-      chars: b.chars, reason: b.reason, text: (b.text || "").slice(0, 2000),
-    }));
-
-    // Visual generation (present only when <m-image> is in the mind).
-    const image = mind.querySelector("m-image");
-    this._subProp(image, "generating", generating => this._emit("image", "generating", { generating: !!generating }));
-    this._subProp(image, "impulse", imp => imp && this._emit("image", "impulse", imp));
-    this._subProp(image, "generated", img => img && this._emit("image", "generated", img));
-    this._subProp(image, "error", err => err && this._emit("image", "error", err));
+    // Everything else a faculty chooses to show (shared/telemetry.js): the stream's
+    // boundaries, memory's state and folds, the arbiter's verdicts, the loop sense,
+    // metabolism, the scribe, the hands, the voice and the image. No faculty is
+    // looked up here; once listening, ask them for the state they already hold.
+    this.sub(`!scope/@${TELEMETRY_EVENT}`, e => this._relayTelemetry(e && e.detail))
+      .then(() => { if (this.isConnected) this.fire(TELEMETRY_WANTED, {}) })
+      .catch(() => {});
 
     // If this socket is the public surface of a society, also instrument the
     // private members for the Structure tree. Their events are tagged and marked
@@ -610,17 +555,6 @@ export class MWs extends MBaseComponent {
     if (!member) return;
     const emit = (process, kind, payload = {}) => this._emit(process, kind, { member, public: false, ...payload });
     const subMind = (suffix, cb) => this.sub(`!cluster/${member}/${suffix}`, cb);
-    const subProp = (el, prop, cb) => {
-      if (!el) return;
-      const name = el.getAttribute("name");
-      if (name) this.sub(`!cluster/${member}/${name}/${prop}`, cb);
-    };
-    const subEvent = (el, name, cb) => {
-      if (!el) return;
-      const elName = el.getAttribute("name");
-      if (elName) this.sub(`!cluster/${member}/${elName}/@${name}`, e => cb(e && e.detail));
-    };
-
     subMind("prompt", payload => {
       if (!payload) return;
       if (typeof payload === "string") return emit("mind", "frame", { frameKind: "raw", frame: payload.slice(0, 8000) });
@@ -646,74 +580,17 @@ export class MWs extends MBaseComponent {
       emit("attention", "urgent", { type: r.type, reason: r.reason, text: renderStimulus(r) });
     });
 
-    subEvent(mind.querySelector("m-stream"), "boundary", boundary => {
-      if (!boundary) return;
-      emit("stream", "boundary", {
-        reason: boundary.reason,
-        burstIndex: boundary.burstIndex,
-        burstChars: boundary.burstChars,
-      });
-      const memory = mind.querySelector("m-memory");
-      if (memory && memory.getTail) {
-        emit("memory", "state", {
-          tailLen: memory.getTail().length,
-          recentLen: memory.getRecent ? memory.getRecent().length : 0,
-          storyLen: memory.getStory ? memory.getStory().length : 0,
-        });
-      }
-    });
-
-    subProp(mind.querySelector("m-interrupts"), "decision", d => d && emit("attention", "decision", d));
-    subProp(mind.querySelector("m-loop-detector"), "loop", l => l && emit("loop", "state", l));
-    const economy = mind.querySelector("m-economy");
-    subProp(economy, "energy", energy => emit("economy", "energy", {
-      energy,
-      spent: economy ? economy.spent : null,
-      paceFactor: typeof economy?.paceFactor === "number" ? economy.paceFactor : 1,
-    }));
-    subProp(mind.querySelector("m-memory"), "compressed", c => c && emit("memory", "compressed", {
-      recentLen: (c.recent || "").length,
-      storyLen: (c.story || "").length,
-      recentPreview: (c.recent || "").slice(0, 400),
-      storyPreview: (c.story || "").slice(0, 400),
-    }));
-    subEvent(mind.querySelector("m-kb"), "filed", f => f && emit("scribe", "filed", { files: f.files || [] }));
-    const act = mind.querySelector("m-act");
-    subProp(act, "intent", i => i && emit("act", "intent", i));
-    subEvent(act, "acted", a => a && emit("act", "acted", {
-      capability: a.capability, intent: a.intent, ok: !!a.ok,
-      experience: a.experience, args: a.args, data: a.data,
-    }));
-    const speech = mind.querySelector("m-speech");
-    subProp(speech, "speaking", speaking => emit("speech", "speaking", { speaking: !!speaking }));
-    subProp(speech, "impulse", imp => imp && emit("speech", "impulse", imp));
-    subProp(speech, "speech-boundary", b => b && emit("speech", "boundary", {
-      chars: b.chars, reason: b.reason, text: (b.text || "").slice(0, 2000),
-    }));
+    // A member's faculties report to their own membrane; hear them there. (No
+    // telemetry-wanted here: a member's transport would ask, not the society's.)
+    subMind(`@${TELEMETRY_EVENT}`, e => this._relayTelemetry(e && e.detail, { member, public: false }));
   }
 
-  /** Subscribe to a property of a (possibly absent) named sibling component. */
-  _subProp(el, prop, cb) {
-    if (!el) return;
-    const name = el.getAttribute("name");
-    if (!name) {
-      log.debug(`Cannot instrument <${(el.tagName || "").toLowerCase()}>: no name attribute`);
-      return;
-    }
-    this.sub(`!scope/${name}/${prop}`, cb);
-  }
-
-  /** Subscribe to a transient DOM event fired by a (possibly absent) named sibling.
-   *  The callback receives the event payload (e.detail) directly, mirroring _subProp's
-   *  value — so the relay lambdas above read the same way whether topic or event. */
-  _subEvent(el, name, cb) {
-    if (!el) return;
-    const elName = el.getAttribute("name");
-    if (!elName) {
-      log.debug(`Cannot instrument <${(el.tagName || "").toLowerCase()}>: no name attribute`);
-      return;
-    }
-    this.sub(`!scope/${elName}/@${name}`, e => cb(e && e.detail));
+  /** Forward one faculty's telemetry record (shared/telemetry.js). A malformed
+   *  record is dropped; the route stays the record's own. */
+  _relayTelemetry(record, tags = null) {
+    if (!record || typeof record.process !== "string" || typeof record.kind !== "string") return;
+    const data = record.data && typeof record.data === "object" ? record.data : {};
+    this._emit(record.process, record.kind, tags ? { ...tags, ...data } : data);
   }
 
   /** Broadcast one telemetry event and remember it as the latest of its kind. */

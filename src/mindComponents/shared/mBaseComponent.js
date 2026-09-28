@@ -5,12 +5,13 @@ import { request as requestOf, requestAll as requestAllOf, respond as respondOf 
 import { offerHand, withdrawHands } from "./hands.js"
 import { APERTURE_REQUESTS } from "./apertureRequests.js"
 import { OFFER_REQUEST } from "./sources.js"
+import { TELEMETRY_EVENT, TELEMETRY_WANTED } from "./telemetry.js"
 import { reflectProvides, reflectBoundary, enclosingOf, enclosingAllOf, membraneOf, part as partsOf, providesOf, isMembrane } from "./enclosure.js"
 
 export { enclosingOf, enclosingAllOf, membraneOf, part, providesOf } from "./enclosure.js"
 
 /** Events a membrane stops: what is fired inside it never reaches the society. */
-const MEMBRANE_LOCAL_EVENTS = ["percept-candidate", "aperture-register", "regulator-up", "aggregate", "aggregator-up", "compare", OFFER_REQUEST, ...APERTURE_REQUESTS]
+const MEMBRANE_LOCAL_EVENTS = ["percept-candidate", "aperture-register", "regulator-up", "aggregate", "aggregator-up", "compare", OFFER_REQUEST, ...APERTURE_REQUESTS, TELEMETRY_EVENT, TELEMETRY_WANTED]
 
 /**
  * Base component class for all mind components.
@@ -64,7 +65,8 @@ export class MBaseComponent extends A(HTMLElement) {
         // goes to its nearest aperture (shared/sources.js), `compare` carries
         // the evidence's private text (shared/comparators.js), the controllers'
         // requests name its apertures, and `search-start` carries the search
-        // template (shared/apertureRequests.js).
+        // template (shared/apertureRequests.js). A faculty's `telemetry` is for its
+        // own mind's transport (shared/telemetry.js).
         if (isMembrane(this) && !this._stopsPerceptCandidate) {
             this._stopsPerceptCandidate = true
             for (const name of MEMBRANE_LOCAL_EVENTS) {

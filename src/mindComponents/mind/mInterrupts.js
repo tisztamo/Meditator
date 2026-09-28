@@ -1,4 +1,5 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
+import { telemetry } from "../shared/telemetry.js"
 import { part } from "../shared/enclosure.js"
 import { apertureRef } from "../shared/apertureRequests.js"
 import { responderName } from "../../infrastructure/requestReply.js"
@@ -367,7 +368,7 @@ export class MInterrupts extends MBaseComponent {
             why,
             at: Date.now(),
         }))
-        this.pub("decision", {
+        const decision = {
             source: bid.source,
             type: bid.type,
             reason: bid.reason,
@@ -376,7 +377,9 @@ export class MInterrupts extends MBaseComponent {
             urgent: !!bid.urgent,
             accepted,
             why,
-        })
+        }
+        this.pub("decision", decision)
+        telemetry(this, "attention", "decision", decision)
     }
 
     _enqueue(record) {

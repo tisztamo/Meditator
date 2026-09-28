@@ -482,6 +482,19 @@ existing seam, none rewrites a mind's behaviour.
    fails on a bound `../` or `/` ref that is not an override's default (the
    region's `../..[provides~="aperture"]` role lookup is allowed), and
    `wiring/wrap-invariance.test.js` wraps each faculty to pin it.*
+   *Telemetry done 2026-09-28 (§2.1), as a fired event rather than a retained
+   `stats` topic: most records are events (a bid, a deed, a boundary) that a
+   last-value topic would drop. A faculty fires `telemetry {process, kind, data}`
+   (`shared/telemetry.js`), the membrane stops it, and m-ws forwards whatever it
+   hears on its membrane, or on each member's for a society's public socket. The
+   `data` envelope keeps a payload's own `kind` (the loop sense's) apart from the
+   route. Because an event is gone once missed, m-ws fires `telemetry-wanted`
+   once it listens and memory reports its loaded state again. The voice's
+   fragments stay a transport subscription (`speechSrc`, like `src`). m-ws looks
+   up no faculty any more; its society walk and readiness wait still find
+   minds and streams by tag (§2.6). The Studio's `nByTag` / `nodeTag` are
+   untouched. `wiring/telemetry.test.js` pins a faculty m-ws has never heard of,
+   the membrane stop, the replay and a member's tagged records.*
 
 ---
 

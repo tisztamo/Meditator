@@ -1,4 +1,5 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
+import { telemetry } from "../shared/telemetry.js"
 import { getUsageTotals } from "../../modelAccess/llm.js"
 import { logger } from '../../infrastructure/logger.js';
 
@@ -53,6 +54,11 @@ export class MEconomy extends MBaseComponent {
         this.pub("spent", this.spent)
         this.pub("paceFactor", this._paceFactor())
         this.pub("arousal", this.arousal)
+        telemetry(this, "economy", "energy", {
+            energy: this.energy,
+            spent: this.spent,
+            paceFactor: this._paceFactor(),
+        })
 
         this._boundaries += 1
         if (this._boundaries % 10 === 0 || crossed) {

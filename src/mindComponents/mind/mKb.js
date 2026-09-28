@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { MBaseComponent } from "../shared/mBaseComponent.js"
+import { telemetry } from "../shared/telemetry.js"
 import { complete } from "../../modelAccess/llm.js"
 import { resolveModelRef } from "../../modelAccess/modelConfig.js"
 import { logger } from '../../infrastructure/logger.js';
@@ -123,6 +124,7 @@ Rules: group related ideas into topic files (e.g. attention/interruption.md); ev
             // subscribes (`@filed`) and journals it as an unseen (⌁) backstage note
             // itself, rather than the scribe reaching in to write that note.
             this.fire("filed", { files: ops.map(o => o.file) })
+            telemetry(this, "scribe", "filed", { files: ops.map(o => o.file) })
         }
     }
 
