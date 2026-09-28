@@ -113,8 +113,10 @@ export function parseSpeechDecision(text) {
  *   - "spoken": {text, at} — a completed (non-error) utterance, for a memory to record
  *   - "impulse": {salience, gist, accepted} — every decision, for observability
  *
- * DOM events listened (on parent, bubbling): "interrupt-request" (addressed
- * nudge), "interrupt" (urgent → abort the utterance and attend it).
+ * DOM events listened (on the mind, bubbling): "!scope/@interrupt-request"
+ * (addressedSrc; the addressed nudge), "!scope/@interrupt" (urgentSrc; urgent →
+ * abort the utterance and attend it). Heard on the membrane, not the parent, so a
+ * voice wrapped in a region still hears the mind being spoken to.
  */
 export class MSpeech extends MObserver {
     _boundaryCount = 0
@@ -130,19 +132,19 @@ export class MSpeech extends MObserver {
         this.sub("!scope/identity", id => { this._mindIdentity = id || null }).catch(() => {})
         // Bind to the mind's bubbling interrupt events — but only once m-mind has
         // upgraded into an Amanita component. Component upgrade order is not
-        // guaranteed, and an auto-subscribed "../@…" field can bind before the
-        // mind exists, in which case the ".." ref resolves to nothing and the
+        // guaranteed, and an auto-subscribed "@…" field can bind before the
+        // mind exists, in which case the ref resolves to nothing and the
         // handler silently never fires. That race is exactly why the addressed
         // nudge appeared dead: the voice could not hear it was being spoken to.
         this._bindMindEvents()
     }
 
     _bindMindEvents() {
-        // Bind the mind's bubbling interrupt events on our parent; sub()'s backoff covers
-        // ref resolution, and an @event ref needs no upgraded parent (rejects only if absent).
+        // Bind the mind's bubbling interrupt events on the membrane; sub()'s backoff covers
+        // ref resolution, and an @event ref needs no upgraded mind (rejects only if absent).
         const warn = () => log.warn("could not bind to the mind's interrupt events; speech will only be spontaneous")
-        this.sub("../@interrupt-request", this._onAddressed).catch(warn)
-        this.sub("../@interrupt", this._onUrgent).catch(warn)
+        this.sub(this.attr("addressedSrc") || "!scope/@interrupt-request", this._onAddressed).catch(warn)
+        this.sub(this.attr("urgentSrc") || "!scope/@interrupt", this._onUrgent).catch(warn)
     }
 
     // Being addressed by a voice raises the urge to speak (checked at the next

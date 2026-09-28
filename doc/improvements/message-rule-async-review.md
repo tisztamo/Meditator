@@ -476,6 +476,12 @@ existing seam, none rewrites a mind's behaviour.
    `!scope` for the remaining `../` and `/voice` refs (§2.10); enclosure phase 1
    `closest('m-mind')` → `membrane()` sweep (§2.6); move shared functions out of
    component modules (§2.11); `m-agent` tag switches → roles (§2.8).
+   *Refs done 2026-09-28 (§2.10): m-stream `prompt`, m-speech's interrupt
+   events, m-reason `turn`, m-mind's voice `speaking` and m-ws's frame taps
+   bind `!scope/…` with a `*Src` override; `unit/ref-hygiene.test.js` (§6.4)
+   fails on a bound `../` or `/` ref that is not an override's default (the
+   region's `../..[provides~="aperture"]` role lookup is allowed), and
+   `wiring/wrap-invariance.test.js` wraps each faculty to pin it.*
 
 ---
 

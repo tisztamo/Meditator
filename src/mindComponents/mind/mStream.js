@@ -27,7 +27,9 @@ const log = logger('mStream.js');
  *   - temperature: sampling temperature (default 0.9)
  *
  * Subscriptions:
- *   - "../prompt": receives {system, frame, prefix?, kind?} or a plain string
+ *   - "!scope/prompt" (promptSrc): receives {system, frame, prefix?, kind?} or a plain
+ *     string — the mind's frame, found from anywhere inside it, so a stream wrapped in
+ *     a region still hears it
  *   - "!scope/@hush" (hushSrc): a request; the running burst is superseded and the
  *     reply {hushed, burstIndex} follows, so the mind perceives after the burst stopped
  *
@@ -121,7 +123,7 @@ export class MStream extends MBaseComponent {
     _current = null      // {burst, generation}
     _generation = 0
 
-    "../prompt" = async payload => {
+    _onPrompt = async payload => {
         this._generation += 1
         const generation = this._generation
         this._supersede()
@@ -130,6 +132,8 @@ export class MStream extends MBaseComponent {
 
     onConnect() {
         super.onConnect()
+        this.sub(this.attr("promptSrc") || "!scope/prompt", this._onPrompt)
+            .catch(err => { if (this.isConnected) log.warn('stream prompt bind failed:', err.message) })
         // The mind asks for quiet before it perceives (message-rule.md): stop the
         // running burst now, so its last words are recorded before what reached the
         // mind, not after. The reply is sent once the burst is aborted.

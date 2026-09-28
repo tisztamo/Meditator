@@ -121,8 +121,8 @@ is the mind's identity.
 | `originSrc` | the [`m-origin`](#m-origin)'s `<name>/prompt` (auto-discovered) | the origin seed; raised once at birth as the first thought (see [`m-origin`](#m-origin)); `"off"` disables |
 
 - **Subscribes:** `stream/boundary` (schedule next burst), `@interrupt` (think now);
-  if an [`m-speech`](#m-speech) is present, `<voice>/speaking` (thin thinking while
-  talking); memory's `tail` / `compressed` topics — the frame's narrative content
+  if an [`m-speech`](#m-speech) is present, `!scope/voice/speaking` (`speakingSrc`;
+  thin thinking while talking — its own voice, also in a society); memory's `tail` / `compressed` topics — the frame's narrative content
   is *mirrored* from those, never pulled (see [decoupling.md](decoupling.md)); and, if
   an [`m-facts`](#m-facts) is present, its `pinned` topic — exact keyed facts that
   stand in the frame outside compression; and, if
@@ -217,7 +217,7 @@ supersedes the current burst (the in-flight stream is aborted).
 | `burstTokens` | `350` | max tokens per burst |
 | `temperature` | `0.9` | sampling temperature |
 
-- **Subscribes:** `../prompt` — `{system, frame, prefix?, dedupe?, burstTokens?}` or a plain string.
+- **Subscribes:** `!scope/prompt` (`promptSrc`) — `{system, frame, prefix?, dedupe?, burstTokens?}` or a plain string; the mind's frame, heard from anywhere inside it.
 - **Publishes:**
   - `chunk` — each text fragment as it arrives (the `prefix`, including the landing opener, is emitted as a chunk too);
   - `boundary` — `{reason: completed|error, burstIndex, burstChars, error?}` when a burst ends and was not superseded;
@@ -967,8 +967,10 @@ parallelism.
 
 Plus all `m-observer` attributes.
 
-- **Listens (DOM, on parent):** `interrupt-request` (an external voice raises the
-  urge to speak), `interrupt` (an urgent stimulus aborts an in-flight utterance to attend it).
+- **Listens (DOM, on the mind):** `interrupt-request` (`addressedSrc`, default
+  `!scope/@interrupt-request`; an external voice raises the urge to speak), `interrupt`
+  (`urgentSrc`, default `!scope/@interrupt`; an urgent stimulus aborts an in-flight
+  utterance to attend it).
 - **Publishes:** `speech` (each spoken fragment), `speaking` (`bool`, true while
   talking — `m-mind` thins thinking while it holds), `speech-boundary`
   (`{chars, reason, text}` when an utterance ends), `spoken` (`{text, at}` for a
@@ -1178,7 +1180,7 @@ move out. Swappable without touching the loop, the tools, or the observers.
 | `toolTokens` | `2048` | max tokens per move (arguments ride along with any text) |
 | `temperature` | `0.2` | low — an agent acts, it does not free-associate |
 
-- **Subscribes:** `../turn`. **Publishes:** `reply` `{text, tool_calls,
+- **Subscribes:** `!scope/turn` (`turnSrc`), the enclosing agent's. **Publishes:** `reply` `{text, tool_calls,
   finish_reason}` — on a model error it still publishes (with
   `finish_reason:"error"`), so the loop is never left waiting.
 

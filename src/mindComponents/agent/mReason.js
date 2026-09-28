@@ -30,7 +30,8 @@ const log = logger("mReason.js")
  *     not free-associate.
  *
  * Subscriptions:
- *   - "../turn": the assembled request for this step, published by m-agent.
+ *   - "!scope/turn" (turnSrc): the assembled request for this step, published by
+ *     the enclosing m-agent.
  *
  * Topics published:
  *   - "reply": { text, tool_calls, finish_reason } — the move. On a model/config
@@ -42,12 +43,13 @@ export class MReason extends MBaseComponent {
 
     onConnect() {
         // Subscribe explicitly (not as an auto-sub field) so a misplaced m-reason with
-        // no m-agent parent fails quietly instead of leaking an unhandled ref-resolution
+        // no enclosing m-agent fails quietly instead of leaking an unhandled ref-resolution
         // rejection — the pattern m-mind uses for its optional mirrors. m-agent controls
         // the cadence — it never publishes a new turn until it has drained the last reply
         // — so turns never overlap; the _busy guard is belt-and-suspenders.
-        this.sub("../turn", turn => this._onTurn(turn)).catch(() => {
-            log.warn("m-reason found no ../turn to subscribe to — it must sit directly inside an <m-agent>")
+        const turnSrc = this.attr("turnSrc") || "!scope/turn"
+        this.sub(turnSrc, turn => this._onTurn(turn)).catch(() => {
+            log.warn(`m-reason found no ${turnSrc} to subscribe to — it must sit inside an <m-agent>`)
         })
     }
 

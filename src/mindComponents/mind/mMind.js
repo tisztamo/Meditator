@@ -129,6 +129,8 @@ const LANDING_PHRASES = {
  *   - tailLength: verbatim carryover size in chars (default 1500)
  *   - bridge: "true"|"false" — whether redirects get an LLM-written bridge (default false)
  *   - landingOpener: "true"|"false" — dangling first-person opener after a perceived event (default true)
+ *   - speakingSrc: the voice's `speaking` topic that thins thought while it talks
+ *     (default "!scope/voice/speaking"; "off" disables)
  *
  * Topics published:
  *   - "prompt": the assembled attention frame for each burst (consumed by m-stream)
@@ -267,7 +269,12 @@ export class MMind extends MBaseComponent {
         // If the mind has a speaking voice, follow its "speaking" flag so thinking
         // can be thinned (fewer tokens, slower pace) while it talks — true limited
         // parallelism: the verbal effort goes to speech, but thought never stops.
-        this.sub("/voice/speaking", speaking => { this._speaking = !!speaking }).catch(() => {})
+        // The voice is this mind's own (!scope), never the first `voice` in the document:
+        // in a society each mind follows its own speaker.
+        if (this.attr("speakingSrc") !== "off") {
+            this.sub(this.attr("speakingSrc") || "!scope/voice/speaking", speaking => { this._speaking = !!speaking })
+                .catch(() => {})
+        }
 
         // Mirror memory's content from the topics it publishes, instead of pulling
         // getTail()/getRecent()/getStory() at frame time. Slot-name defaults use

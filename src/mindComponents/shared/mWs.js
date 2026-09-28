@@ -30,8 +30,8 @@ const log = logger("mWs.js");
  *   - src / stateSrc: override which topics feed thought_fragment / status
  *
  * Subscriptions (transport): "!scope/stream/chunk", "!scope/stream/state"
- * Subscriptions (instrument, guarded): "../prompt", "/stream/@boundary",
- *   "../@interrupt-request", "../@interrupt", "/<arbiter>/decision",
+ * Subscriptions (instrument, guarded): "!scope/prompt", "!scope/pace", "/stream/@boundary",
+ *   "!scope/@interrupt-request", "!scope/@interrupt", "/<arbiter>/decision",
  *   "/<economy>/energy", "/<memory>/compressed", "/<scribe>/filed",
  *   "/<hands>/intent", "/<hands>/acted",
  *   "/<voice>/speech", "/<voice>/speaking", "/<voice>/impulse",
@@ -427,7 +427,7 @@ export class MWs extends MBaseComponent {
     if (!mind) return;
 
     // The assembled attention frame for each thinking burst — what the model saw.
-    this.sub("../prompt", payload => {
+    this.sub("!scope/prompt", payload => {
       if (!payload) return;
       if (typeof payload === "string") {
         this._emit("mind", "frame", { frameKind: "raw", frame: payload.slice(0, 8000) });
@@ -465,10 +465,10 @@ export class MWs extends MBaseComponent {
 
     // The burst cadence (the fixed tick), so a viewer can pace its display —
     // slowing the reveal to fill the slack between bursts.
-    this.sub("../pace", pace => pace && this._emit("mind", "pace", { tickMs: pace.tickMs }));
+    this.sub("!scope/pace", pace => pace && this._emit("mind", "pace", { tickMs: pace.tickMs }));
 
     // Every bid for attention (observers, timers, console, ws) and every urgent win.
-    this.sub("../@interrupt-request", e => {
+    this.sub("!scope/@interrupt-request", e => {
       const r = (e && e.detail) || {};
       this._emit("attention", "bid", {
         source: r.source, type: r.type, reason: r.reason,
@@ -476,7 +476,7 @@ export class MWs extends MBaseComponent {
         salience: r.salience, urgent: !!r.urgent, clearsTail: !!r.clearsTail,
       });
     });
-    this.sub("../@interrupt", e => {
+    this.sub("!scope/@interrupt", e => {
       const r = (e && e.detail) || {};
       this._emit("attention", "urgent", {
         type: r.type, reason: r.reason,
