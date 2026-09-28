@@ -10,7 +10,7 @@
     "requestOrientation": 7,
     "_registerCapability": 0,
     "_updateCapability": 0,
-    "getTail": 28,
+    "getTail": 0,
     "getRecentOutput": 0,
     "finalize": 2,
     "runAsJob": 0,

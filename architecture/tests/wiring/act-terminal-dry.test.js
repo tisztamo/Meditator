@@ -12,6 +12,7 @@ import path from "node:path";
 import { delay } from "./setup.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
 import { resetBackendProbe } from "../../../src/infrastructure/sandbox.js";
+import { watchTopic } from "./topicProbe.js";
 
 let mind, stream, memory, act, terminal, journalDir, savedDry, savedBackend;
 const consequences = [];
@@ -97,5 +98,6 @@ test("the deed is journaled backstage (⌁) and never touches the verbatim tail"
     const day = new Date().toISOString().slice(0, 10);
     const journal = fs.readFileSync(path.join(journalDir, `${day}.md`), "utf8");
     expect(journal).toMatch(/⌁ The hands reached out .* via terminal/);
-    expect(memory.getTail()).not.toMatch(/reached out/);
+    const tail = await watchTopic(memory, "tail");
+    expect(tail()).not.toMatch(/reached out/);
 });

@@ -16,8 +16,9 @@ import { delay } from "./setup.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
 import { request } from "../../../src/infrastructure/requestReply.js";
 import { renderStimulus } from "../../../src/infrastructure/interruptRecord.js";
+import { watchTopic } from "./topicProbe.js";
 
-let mind, stream, memory, persistDir, tailSeen, compressedSeen;
+let mind, stream, memory, persistDir, tailSeen, compressedSeen, tail;
 const raised = [];
 const captureRaise = e => { if (e.detail) raised.push(e.detail); };
 
@@ -75,6 +76,7 @@ and the harbor was very quiet that evening.
     tailSeen = null; compressedSeen = null;
     await mind.sub("memory/tail", v => { tailSeen = v; });
     await mind.sub("memory/compressed", v => { compressedSeen = v; });
+    tail = await watchTopic(memory, "tail");
     await delay(10);
 });
 
@@ -92,7 +94,6 @@ test("memory publishes its loaded tail and summaries as topics", () => {
 test("the tail topic tracks every change as the stream flows", async () => {
     stream.pub("chunk", " The lamp turned once more.");
     await delay(10);
-    expect(memory.getTail().includes("lamp turned once more")).toBe(true);
     expect(tailSeen.includes("lamp turned once more")).toBe(true); // the published topic followed
 });
 
@@ -109,15 +110,16 @@ test("the mind's `attended` stimuli are journaled AND enter the tail as a `> ⟂
     const notes = [];
     const origNote = memory.note.bind(memory);
     memory.note = (text, opts) => { notes.push(text); return origNote(text, opts); };
-    const tailBefore = memory.getTail();
+    const tailBefore = tail();
     // The mind's `attended {lines}` request; memory answers once journaled + appended.
     const reply = await request(mind, "attended", { lines: ["A bell rang somewhere in the fog."] });
     expect(reply).toMatchObject({ status: "ok", data: { noted: 1 } });
     memory.note = origNote;
     expect(notes.some(line => line.includes("bell rang"))).toBe(true);
-    expect(memory.getTail().includes("> ⟂ A bell rang somewhere in the fog.")).toBe(true);
+    const after = await tail.until(t => t.includes("> ⟂ A bell rang somewhere in the fog."));
+    expect(after.includes("> ⟂ A bell rang somewhere in the fog.")).toBe(true);
     // ...at the honest position: after everything the mind had already said.
-    expect(memory.getTail().indexOf("> ⟂ A bell rang") > memory.getTail().indexOf(tailBefore.trimEnd().slice(-30))).toBe(true);
+    expect(after.indexOf("> ⟂ A bell rang") > after.indexOf(tailBefore.trimEnd().slice(-30))).toBe(true);
     // ...and the published topic carried the change to the frame's mirror.
     await delay(10);
     expect(tailSeen.includes("> ⟂ A bell rang somewhere in the fog.")).toBe(true);

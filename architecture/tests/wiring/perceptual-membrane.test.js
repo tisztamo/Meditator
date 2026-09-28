@@ -13,6 +13,7 @@ import { InterruptRecord, stimulus } from '../../../src/infrastructure/interrupt
 import { GateVerdict, ControlRequest, RenditionRequest, PerceptReceipt } from '../../../src/infrastructure/perceptionContracts.js';
 import { takeAccepted, takeAdmitted, takeNone, acceptedBy, bidIds } from "./attentionProbe.js";
 import { waitFor, quiet } from "./contracts/helpers.js";
+import { watchTopic } from "./topicProbe.js";
 
 let mind, region, local, global, memory, source, journalDir;
 
@@ -151,7 +152,8 @@ test('closed content is never rendered, dispatched, or journaled; reopening samp
     expect(renders).toBe(0);
     expect(bids).toHaveLength(0);
     expect(takeAccepted(global)).toHaveLength(0);
-    expect(memory.getTail()).not.toContain('secret');
+    const tail = await watchTopic(memory, "tail");
+    expect(tail()).not.toContain('secret');
     expect(fs.existsSync(path.join(journalDir, 'percepts.jsonl'))).toBe(false);
     const debt = region.contactPressure;
     present = 'The simulated light is blue now.';

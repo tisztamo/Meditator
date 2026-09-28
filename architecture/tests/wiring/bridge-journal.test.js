@@ -14,6 +14,7 @@ import path from "node:path";
 import { delay } from "./setup.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
 import { request } from "../../../src/infrastructure/requestReply.js";
+import { watchTopic } from "./topicProbe.js";
 
 let mind, memory, journalDir;
 
@@ -65,9 +66,10 @@ test("the bridge is journaled as a ↪ provenance line, never as inner monologue
     expect(added).toMatch(/And so, turning it over, I keep thinking\./);   // the mind's own words remain as prose
 });
 
-test("the bridge still rides the verbatim tail (the model continues from it)", () => {
+test("the bridge still rides the verbatim tail (the model continues from it)", async () => {
     // The tail is model-facing and must contain the bridge as continuous text.
-    expect(memory.getTail()).toContain(BRIDGE);
+    const tail = await watchTopic(memory, "tail");
+    expect(tail()).toContain(BRIDGE);
 });
 
 test("a pending bridge is consumed once — a later plain flush is untouched", async () => {

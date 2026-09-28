@@ -14,8 +14,9 @@ import path from "node:path";
 import { delay } from "./setup.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
 import { request } from "../../../src/infrastructure/requestReply.js";
+import { watchTopic } from "./topicProbe.js";
 
-let mind, memory, persistDir, tailSeen;
+let mind, memory, persistDir, tailSeen, tail;
 
 beforeAll(async () => {
     if (!customElements.get("m-mind")) {
@@ -54,6 +55,7 @@ and it is enough, and it is enough, and it is enough, and it is enough.
 
     tailSeen = null;
     await mind.sub("memory/tail", v => { tailSeen = v; });
+    tail = await watchTopic(memory, "tail");
     await delay(10);
 });
 
@@ -64,11 +66,11 @@ afterAll(() => {
 const SEED = "I realize I have been going over the same ground; I set it down, let my mind clear, and come back to it fresh. I turn back to something I set down before, about the 3-digit case: “…”";
 
 test("a clear-tail event reseeds the verbatim tail to the breaker's seed", async () => {
-    expect(memory.getTail()).toMatch(/it is enough, and it is enough/);   // the loop, before the cut
+    expect(tail()).toMatch(/it is enough, and it is enough/);   // the loop, before the cut
     const reply = await request(mind, "clear-tail", { seed: SEED, kind: "presence" });
     expect(reply).toMatchObject({ status: "ok", data: { reseeded: true }, from: "memory" });
-    expect(memory.getTail()).toBe(SEED);
-    expect(memory.getTail()).not.toMatch(/it is enough, and it is enough/);   // the loop tail is gone
+    expect(tail()).toBe(SEED);
+    expect(tail()).not.toMatch(/it is enough, and it is enough/);   // the loop tail is gone
 });
 
 test("the cut re-publishes the tail topic so the frame mirror updates", async () => {
@@ -83,7 +85,7 @@ test("the cut drops the compressor overflow so loop spam is never consolidated",
     await request(mind, "clear-tail", { seed: SEED, kind: "presence" });
     await delay(10);
     expect(memory._overflow).toBe("");          // overflow wiped — the loop is not fed forward
-    expect(memory.getTail()).toBe(SEED);
+    expect(tail()).toBe(SEED);
 });
 
 test("the cut the MIND feels (⟂) is its own felt act — never a mechanism (One Rule)", async () => {
@@ -103,7 +105,8 @@ test("the cut the MIND feels (⟂) is its own felt act — never a mechanism (On
 test("the cut ALSO leaves a ⌁ backstage trail of the mechanism (honesty ledger, finding 7)", async () => {
     // Pile overflow so the trail can report a concrete discarded-char count.
     memory._onChunk(" and it is enough".repeat(120));
-    const before = memory.getTail().length + memory._overflow.length;
+    await delay(0);   // the tail topic lands after the chunk
+    const before = tail().length + memory._overflow.length;
     const notes = [];
     const orig = memory.note.bind(memory);
     memory.note = (text, opts = {}) => { notes.push({ text, perceived: opts.perceived !== false }); return orig(text, opts); };
@@ -134,5 +137,5 @@ test("a clear-tail with an empty seed is ignored (never blanks the tail)", async
     await delay(10);
     const reply = await request(mind, "clear-tail", { seed: "   ", kind: "presence" });
     expect(reply).toMatchObject({ status: "ok", data: { reseeded: false } });
-    expect(memory.getTail()).toBe(SEED);   // unchanged by the empty seed
+    expect(tail()).toBe(SEED);   // unchanged by the empty seed
 });

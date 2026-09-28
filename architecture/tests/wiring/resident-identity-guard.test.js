@@ -16,6 +16,7 @@ import path from "node:path";
 import { delay } from "./setup.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
 import { writeManifest, FORMAT_VERSION } from "../../../src/infrastructure/manifest.js";
+import { watchTopic } from "./topicProbe.js";
 
 // A resident home under the vault root so it is `inVault` (the guard only runs for
 // vaulted homes). Dry mode makes commitVault abstain, so nothing is ever committed;
@@ -89,10 +90,11 @@ test("an impostor's wake into a resident's home is refused, and the self is unto
         await delay(300);   // long enough that, absent the guard, the async _load() would populate
 
         // The guard fired before _load(): the resident's self was NOT inherited. Without the
-        // guard, _load would have read the sentinel — getTail() would be "resident tail.".
+        // guard, _load would have read the sentinel — its tail would be "resident tail.".
         const memory = document.querySelector('[name="memory"]');
         expect(memory.loaded).toBeFalsy();
-        expect(memory.getTail()).toBe("");
+        const tail = await watchTopic(memory, "tail");
+        expect(tail()).toBe("");
         expect(memory.getStory()).toBe("");
 
         // And its memory.md is byte-for-byte what it was — never clobbered.

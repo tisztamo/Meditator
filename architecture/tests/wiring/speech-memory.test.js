@@ -6,9 +6,10 @@
 import { test, expect, beforeAll } from "bun:test";
 import A from "amanita";
 import { delay } from "./setup.js";
+import { watchTopic } from "./topicProbe.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
 
-let mind, voice, memory, memory2;
+let mind, voice, memory, memory2, tail, tail2;
 
 beforeAll(async () => {
     if (!customElements.get("m-mind")) {
@@ -34,22 +35,24 @@ beforeAll(async () => {
     voice = mind.querySelector('[name="voice"]');
     memory = mind.querySelector('[name="memory"]');
     memory2 = mind.querySelector('[name="memory2"]');
+    tail = await watchTopic(memory, "tail");
+    tail2 = await watchTopic(memory2, "tail");
 });
 
 test("an aloud utterance reaches memory by event, not by a method call", async () => {
     const said = "I think the light is different today.";
     voice.fire("spoken", { text: said });
     await delay(10);
-    expect(memory.getTail().includes(said)).toBe(true);
-    expect(memory.getTail().includes("(aloud)")).toBe(true);
+    expect(tail().includes(said)).toBe(true);
+    expect(tail().includes("(aloud)")).toBe(true);
 });
 
 test("a second memory alongside records the same utterance (broadcast fan-out)", async () => {
     const said = "And the street is quiet for once.";
     voice.fire("spoken", { text: said });
     await delay(10);
-    expect(memory.getTail().includes(said)).toBe(true);
-    expect(memory2.getTail().includes(said)).toBe(true);
+    expect(tail().includes(said)).toBe(true);
+    expect(tail2().includes(said)).toBe(true);
 });
 
 test("a late subscriber is not replayed past utterances (the event is transient)", async () => {
@@ -66,11 +69,12 @@ test("a late subscriber is not replayed past utterances (the event is transient)
     late.setAttribute("journal", "off");
     mind.appendChild(late);
     await delay(80);
+    const lateTail = await watchTopic(late, "tail");
 
     const after = "Said after the latecomer arrived.";
     voice.fire("spoken", { text: after });
     await delay(10);
 
-    expect(late.getTail().includes(earlier)).toBe(false);
-    expect(late.getTail().includes(after)).toBe(true);
+    expect(lateTail().includes(earlier)).toBe(false);
+    expect(lateTail().includes(after)).toBe(true);
 });

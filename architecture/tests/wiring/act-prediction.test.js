@@ -17,6 +17,7 @@ import {
     PREDICTION_EVENT, PREDICTION_SETTLED_EVENT, PREDICTION_DELIVERY, MAX_PREDICTION_LIFETIME_MS,
 } from "../../../src/infrastructure/predictionContracts.js";
 import { offerFixtureHand } from "./fixtureHand.js";
+import { watchTopic } from "./topicProbe.js";
 
 /** What an arbiter hears: a bid's wire form rebuilt with its sender's trust; a stimulus as sent. */
 const heard = e => isBidData(e.detail) ? AttentionBid.from(e.detail, { trusted: sentByComponent(e) }) : e.detail;
@@ -194,7 +195,8 @@ test("expect never enters execute, acted, journal, or a frame", async () => {
     const day = new Date().toISOString().slice(0, 10);
     const journal = fs.readFileSync(path.join(journalDir, `${day}.md`), "utf8");
     expect(journal).not.toContain(EXPECT_PHRASE);
-    expect(memory.getTail()).not.toContain(EXPECT_PHRASE);
+    const tail = await watchTopic(memory, "tail");
+    expect(tail()).not.toContain(EXPECT_PHRASE);
 
     const bid = bids.find(d => d instanceof AttentionBid && d.evidence?.actId === seenCtx.actId);
     expect(bid).toBeDefined();

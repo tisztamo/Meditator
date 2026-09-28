@@ -16,6 +16,7 @@ import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
 import { probeBackend, resetBackendProbe } from "../../../src/infrastructure/sandbox.js";
 import { sentByComponent } from "../../../src/infrastructure/messageOrigin.js";
 import { AttentionBid } from "../../../src/infrastructure/attentionBid.js";
+import { watchTopic } from "./topicProbe.js";
 
 let mind, act, terminal, memory, journalDir, workspaceDir, savedDry, savedBackend;
 let BACKEND = "none";
@@ -250,7 +251,8 @@ test("the DEED is journaled backstage (⌁) and never touches the tail; the CONS
     const day = new Date().toISOString().slice(0, 10);
     const journal = fs.readFileSync(path.join(journalDir, `${day}.md`), "utf8");
     expect(journal).toMatch(/⌁ The hands reached out .* via terminal/);   // deed, backstage
-    expect(memory.getTail()).not.toMatch(/reached out/);                  // never seen by the mind
+    const tail = await watchTopic(memory, "tail");
+    expect(tail()).not.toMatch(/reached out/);                  // never seen by the mind
 });
 
 test("dry-run returns a deterministic stub — never real execution (§4.6)", async () => {

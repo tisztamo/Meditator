@@ -2,6 +2,7 @@
 import { test, expect, beforeAll, afterAll } from "bun:test";
 import A from "amanita";
 import { delay } from "./setup.js";
+import { watchTopic } from "./topicProbe.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
 
 let mind, stream, memory, lg, economy, arousalSeen;
@@ -39,14 +40,16 @@ afterAll(async () => {
 
 test("m-memory and m-loop-guard bind to the mind stream", async () => {
     const text = "the quick brown fox jumps over the lazy dog";
+    const tail = await watchTopic(memory, "tail");
     stream.pub("chunk", text);
     await delay(10);
-    expect(memory.getTail().includes(text)).toBe(true);
+    expect(tail().includes(text)).toBe(true);
     expect(lg.window.includes(text)).toBe(true);
 });
 
 test("m-economy binds to stream boundaries and publishes arousal", async () => {
     const text = "the quick brown fox jumps over the lazy dog";
+    const tail = await watchTopic(memory, "tail");
     stream.fire("boundary", { reason: "completed", burstIndex: 1, burstChars: text.length });
     await delay(10);
     expect(typeof economy.arousal).toBe("number");

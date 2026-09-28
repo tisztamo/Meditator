@@ -9,6 +9,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { delay } from "./setup.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
+import { watchTopic } from "./topicProbe.js";
 
 // A real dry-* home, under the vault root so it is `inVault` (the guard only runs
 // for vaulted homes). Unique per run; removed in afterAll.
@@ -59,11 +60,12 @@ afterAll(() => {
     try { fs.rmSync(HOME, { recursive: true, force: true }); } catch { /* best effort */ }
 });
 
-test("a dry run clears a leftover dry-* home and wakes with empty memory", () => {
+test("a dry run clears a leftover dry-* home and wakes with empty memory", async () => {
     const memory = document.querySelector('[name="memory"]');
 
     // The stale self did not load (no illusion of a continuing subject)…
-    expect(memory.getTail()).toBe("");
+    const tail = await watchTopic(memory, "tail");
+    expect(tail()).toBe("");
     expect(memory.getRecent()).toBe("");
     expect(memory.getStory()).toBe("");
 

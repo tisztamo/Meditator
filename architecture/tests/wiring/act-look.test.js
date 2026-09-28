@@ -12,6 +12,7 @@ import path from "node:path";
 import { delay } from "./setup.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
 import { takeAccepted } from "./attentionProbe.js";
+import { watchTopic } from "./topicProbe.js";
 
 let mind, stream, memory, arbiter, act, look, journalDir, savedDry;
 const consequences = [];
@@ -125,5 +126,6 @@ test("the deed is journaled backstage (⌁) and never touches the verbatim tail"
     expect(journal).toMatch(/⌁ The hands reached out .* via look/);
 
     // …and the mind never saw it reach: the deed is not in the verbatim tail.
-    expect(memory.getTail()).not.toMatch(/reached out/);
+    const tail = await watchTopic(memory, "tail");
+    expect(tail()).not.toMatch(/reached out/);
 });

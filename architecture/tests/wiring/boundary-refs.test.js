@@ -1,6 +1,7 @@
 // Amanita 0.5+ boundary refs: !scope / !cluster on reflected boundary attributes.
 import { test, expect, beforeAll } from "bun:test";
 import { delay } from "./setup.js";
+import { watchTopic } from "./topicProbe.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
 
 let society, prover, checker, proverMemory, checkerMemory;
@@ -37,10 +38,12 @@ test("loader reflects boundary on identity roots", () => {
 
 test("!scope binds to the nearest mind, not the society", async () => {
     const chunk = "prover-only tail seed";
+    const proverTail = await watchTopic(proverMemory, "tail");
+    const checkerTail = await watchTopic(checkerMemory, "tail");
     prover.querySelector("m-stream").pub("chunk", chunk);
     await delay(20);
-    expect(proverMemory.getTail().includes(chunk)).toBe(true);
-    expect(checkerMemory.getTail().includes(chunk)).toBe(false);
+    expect(proverTail().includes(chunk)).toBe(true);
+    expect(checkerTail().includes(chunk)).toBe(false);
 });
 
 test("!cluster reaches a named member mind", async () => {
