@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { parseNotebook } from "./mNote.js";
+import { parseNotebook } from "./notebook.js";
 
 /**
  * The mind's own kept thoughts, gathered from BOTH places it sets them down, so the

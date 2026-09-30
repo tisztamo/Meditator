@@ -533,6 +533,18 @@ existing seam, none rewrites a mind's behaviour.
    (§7.3, §2.6), m-terminal's mode likewise, m-reason binds `!scope/turn`
    (§2.10), and m-agent shares `shared/hands.js` with m-act (§7.3).
    `wiring/agent-roles.test.js` runs the loop on custom-tag parts.*
+   *Imports done 2026-09-30 (§2.11): the shared pure functions moved out of
+   component modules into `shared/`: the compression length loop and prompt
+   (`compression.js`, used by m-memory and m-context), the weather, daylight and
+   feed mappers (`senseMappers.js`, used by the three senses and m-look), the
+   speech-decision parser (`speechDecision.js`, m-speech and m-act), the notebook
+   parser (`notebook.js`, read by the recall sources) and the `{{interlocutor}}`
+   fill (`interlocutor.js`, m-mind and m-speech). Memory no longer imports the
+   loader: the loader records the architecture source and the resolved custom
+   components in `infrastructure/runningBundle.js`, and memory reads that record
+   to snapshot a home. The loader's own getters delegate to it.
+   `unit/import-hygiene.test.js` fails when a built-in module imports another
+   component's module (a base class it extends is allowed) or the loader.*
 
 ---
 

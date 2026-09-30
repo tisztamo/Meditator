@@ -2,20 +2,21 @@ import { readFile } from "fs/promises";
 import { dirname, resolve as resolvePath } from "path";
 import { logger } from '../infrastructure/logger';
 import { expandArchitecture } from "./templating.js";
+import { recordArchitecture, runningArchitecture } from '../infrastructure/runningBundle.js';
 
 const log = logger('architecture.js');
 
 // The source of the running mind's architecture, captured when the file is read at
-// startup: { path, content }. The mind's memory snapshots `content` into its home at
-// wake, so a home always carries the architecture that ran it (lifecycle.md §2 — the
-// twin of runtimeSHA, a fact established when the mind ran, not re-supplied later).
-// Null until readArchitectureFile() runs — e.g. unit tests build the DOM directly —
-// in which case no snapshot is written.
-let loaded = null;
+// startup: { path, content }, recorded in infrastructure/runningBundle.js. The mind's
+// memory snapshots `content` into its home at wake, so a home always carries the
+// architecture that ran it (lifecycle.md §2 — the twin of runtimeSHA, a fact
+// established when the mind ran, not re-supplied later). Null until
+// readArchitectureFile() runs — e.g. unit tests build the DOM directly — in which
+// case no snapshot is written.
 
 /** The architecture source of the running mind, or null if none was read. */
 export function getLoadedArchitecture() {
-  return loaded;
+  return runningArchitecture();
 }
 
 /** Replace each HTML comment with same-length blanks (newlines kept), so a component
@@ -26,7 +27,7 @@ const maskComments = (content) => content.replace(/<!--[\s\S]*?-->/g, (m) => m.r
 
 /** Clears the loaded architecture (test hygiene; no production caller). */
 export function resetLoadedArchitecture() {
-  loaded = null;
+  recordArchitecture(null);
 }
 
 /**
@@ -292,7 +293,7 @@ export async function readArchitectureFile() {
       content = applyInterlocutorOverride(content, interlocutorOverride);
       log.info(`Applied MEDITATOR_INTERLOCUTOR override → interlocutor="${interlocutorOverride.trim()}"`);
     }
-    loaded = { path: filePath, content };
+    recordArchitecture({ path: filePath, content });
     return content;
   } catch (error) {
     throw new Error(`Failed to read file: ${filePath}. Error: ${error.message}`);

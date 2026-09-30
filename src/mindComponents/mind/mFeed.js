@@ -1,5 +1,6 @@
 import A from "amanita"
 import { MSense } from "./mSense.js"
+import { parseFeedTitles } from "../shared/senseMappers.js"
 import { parseTime } from '../../config/timeParser.js';
 import { logger } from '../../infrastructure/logger.js';
 
@@ -94,40 +95,6 @@ export class MFeed extends MSense {
         this._cachedAt = Date.now()
         return this._cached
     }
-}
-
-function decodeText(s) {
-    return s
-        .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")   // unwrap CDATA
-        .replace(/<[^>]+>/g, "")                          // strip any stray markup
-        .replace(/&amp;/g, "&")
-        .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
-        .replace(/&quot;/g, '"').replace(/&#0*39;|&apos;/g, "'")
-        .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
-        .replace(/\s+/g, " ")
-        .trim()
-}
-
-/**
- * Extracts item/entry titles from an RSS or Atom feed, in document order. Pure
- * and exported so it can be tested without the network. The channel/feed-level
- * <title> is naturally skipped: we only read titles found *inside* an <item>
- * (RSS) or <entry> (Atom).
- *
- * @param {string} xml
- * @returns {string[]}
- */
-export function parseFeedTitles(xml) {
-    if (!xml) return []
-    const titles = []
-    const blocks = xml.match(/<(item|entry)\b[\s\S]*?<\/\1>/gi) || []
-    for (const block of blocks) {
-        const m = block.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)
-        if (!m) continue
-        const text = decodeText(m[1])
-        if (text) titles.push(text)
-    }
-    return titles
 }
 
 A.define('m-feed', MFeed);

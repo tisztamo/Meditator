@@ -23,24 +23,23 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import path from 'path';
 import { logger } from '../infrastructure/logger';
 import { getComponentLayers } from './componentLoading.js';
+import { beginComponentLoad, recordComponentSource, runningComponentSources, runningBundleDir } from '../infrastructure/runningBundle.js';
 
 const log = logger('componentResolver.js');
 
-// Module-level state describing the most recent load — mirrors getLoadedArchitecture()
-// in architecture.js. mMemory reads these at wake to snapshot the custom components a
-// mind ran with into its home (doc/improvements/component-hierarchy.md §5.4 — the M2
-// snapshot step; harmless until then).
-let loadedSources = [];         // [{ tag, path, layer }] resolved winners, in resolve order
-let bundleComponentsDir = null; // absolute path to <dir(archml)>/components, or null
+// The most recent load is recorded in infrastructure/runningBundle.js, beside the
+// architecture source. mMemory reads it there at wake to snapshot the custom
+// components a mind ran with into its home (doc/improvements/component-hierarchy.md
+// §5.4). These getters stay for the loader's own callers and tests.
 
 /** The non-built-in components the last load resolved — the ones a home must snapshot. */
 export function getLoadedComponentSources() {
-  return loadedSources.filter(s => s.layer !== 'built-in');
+  return runningComponentSources();
 }
 
 /** The bundle's components/ directory for the last load (whether or not it contributed). */
 export function getBundleComponentsDir() {
-  return bundleComponentsDir;
+  return runningBundleDir();
 }
 
 /** "m-stream" → "mStream". Exported so the loader shares one definition. */
@@ -103,9 +102,8 @@ export function buildComponentResolver({ archmlPath } = {}) {
     return { name: def.name, dirs, index, bundle: !!def.bundle };
   });
 
-  // Reset the load-scoped state (mirrors architecture.js's single `loaded`).
-  loadedSources = [];
-  bundleComponentsDir = layers.find((l) => l.bundle)?.dirs[0] || null;
+  // Reset the load-scoped record (runningBundle.js, beside the architecture source).
+  beginComponentLoad({ bundleDir: layers.find((l) => l.bundle)?.dirs[0] || null });
 
   /** Resolve a tag to { path, layer } or null (not found). Throws on intra-layer ambiguity. */
   function resolve(tag) {
@@ -136,7 +134,7 @@ export function buildComponentResolver({ archmlPath } = {}) {
         shadowed.map((s) => `  - ${s.path} (${s.layer} layer)`).join('\n')
       );
     }
-    loadedSources.push({ tag, path: winner.path, layer: winner.layer });
+    recordComponentSource({ tag, path: winner.path, layer: winner.layer });
     return winner;
   }
 

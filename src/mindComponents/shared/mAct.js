@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 import { MObserver } from "../mind/mObserver.js"
-import { parseSpeechDecision } from "../mind/mSpeech.js"
+import { parseSpeechDecision } from "./speechDecision.js"
 import { validateAgainstSchema } from "./toolSchema.js"
 import { HandRegistry } from "./hands.js"
 import { completeWithTools, complete } from "../../modelAccess/llm.js"

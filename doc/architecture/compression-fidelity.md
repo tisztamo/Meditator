@@ -42,9 +42,11 @@
 > proposed fixes (none age-based):
 > [improvements/compressor-not-distilling.md](../improvements/compressor-not-distilling.md).
 >
-> §1–§4 in `MMemory._compress` / `compressToFit` / `buildCompressionPrompt` /
-> `nearestToTarget` (`src/mindComponents/mind/mMemory.js`); §5's recall-pool in
-> `src/mindComponents/recallSources.js`, read by `m-recall` and `m-resurface`.
+> §1–§4 in `MMemory._compress` (`src/mindComponents/mind/mMemory.js`) and
+> `compressToFit` / `buildCompressionPrompt` / `nearestToTarget`
+> (`src/mindComponents/shared/compression.js`, shared with `m-context`); §5's
+> recall-pool in `src/mindComponents/shared/recallSources.js`, read by `m-recall`
+> and `m-resurface`.
 > Unit coverage in `architecture/tests/unit/memory-compress.test.js` and
 > `recall-sources.test.js`. **§5's richer variant — a KB digest into the compressor
 > — remains proposed.** Companion to [memory.md](memory.md).

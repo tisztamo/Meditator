@@ -3,6 +3,7 @@ import { enclosingOf, part } from "../shared/enclosure.js"
 import { complete } from "../../modelAccess/llm.js"
 import { resolveModelRef } from "../../modelAccess/modelConfig.js"
 import { makePhrasebook } from "../shared/i18n.js"
+import { fillInterlocutor } from "../shared/interlocutor.js"
 import { parseTime } from '../../config/timeParser.js';
 import { logger } from '../../infrastructure/logger.js';
 import { InterruptRecord, stimulus, withPerceivedEvents } from '../../infrastructure/interruptRecord.js';
@@ -144,17 +145,6 @@ const LANDING_PHRASES = {
 export function tickDelay(tickMs, sinceStartMs) {
     return Math.max(0, tickMs - sinceStartMs)
 }
-/** Fill the {{interlocutor}} placeholder in identity prose with the mind's
- *  companion name (m-mind's `interlocutor` attribute, set in the file or at wake
- *  via MEDITATOR_INTERLOCUTOR). With no name it falls back to a warm generic so
- *  the sentence still reads — though an architecture that uses the placeholder
- *  should give an `interlocutor="…"` default. Shared with m-speech so the
- *  spoken-voice system prompt resolves the same name the thinking frame does. */
-export function fillInterlocutor(text, name) {
-    const who = (name || "").trim() || "whoever comes to talk with you"
-    return (text || "").replace(/\{\{\s*interlocutor\s*\}\}/gi, who)
-}
-
 /** One frozen receipt per stimulus in an assembleFrame call. `renditionText` is
  *  the string that actually entered the prefill, not a source-offered unused form.
  *  `requestId` is copied from the percept as acquisition lineage, not causation.

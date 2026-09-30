@@ -1,8 +1,6 @@
 import A from "amanita"
 import { MBaseComponent } from "./mBaseComponent.js"
-import { describeWeather } from "../mind/mWeather.js"
-import { bandFor } from "../mind/mDaylight.js"
-import { parseFeedTitles } from "../mind/mFeed.js"
+import { describeWeather, bandFor, parseFeedTitles } from "./senseMappers.js"
 import { isDryRun } from "../../modelAccess/llm.js"
 import { logger } from '../../infrastructure/logger.js';
 

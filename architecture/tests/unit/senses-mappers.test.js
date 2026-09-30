@@ -1,8 +1,6 @@
 // Pure mappers for afferent senses — deterministic, no DOM.
 import { test, expect } from "bun:test";
-import { bandFor } from "../../../src/mindComponents/mind/mDaylight.js";
-import { describeWeather } from "../../../src/mindComponents/mind/mWeather.js";
-import { parseFeedTitles } from "../../../src/mindComponents/mind/mFeed.js";
+import { bandFor, describeWeather, parseFeedTitles } from "../../../src/mindComponents/shared/senseMappers.js";
 
 const SUBSTRATE = /cursor|token|latency|\bprocess\b|runtime|\bprompt\b|\bmodel\b|gpu|cpu|\bmemory\b|buffer|\bbyte|\bthread\b|socket|interrupt/i;
 
