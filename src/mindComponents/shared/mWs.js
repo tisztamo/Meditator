@@ -47,6 +47,8 @@ export class MWs extends MBaseComponent {
   // The camera does not gravitate: m-ws taps everything, and letting it join the
   // space would bend the layout toward the observer (plenum.md §3.5).
   static spaceParticipates = false;
+  // A port: input arrives over it. An agent with one is a service (m-agent).
+  static provides = { port: true };
 
   server = null;
   clients = new Set();

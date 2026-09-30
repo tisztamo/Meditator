@@ -108,7 +108,9 @@ export class MAgent extends MBaseComponent {
     _taskActive = false      // a task's loop is currently running (between start and finish)
     _retired = false         // permanently stopped (a one-shot agent that finished its task)
     _pendingTasks = []       // tasks that arrived before wake completed, drained in _begin
-    _hasContext = false      // whether an <m-context> ref was wired (so we wait for restore)
+    _reasonBound = false     // the reasoner's reply / up are subscribed (_bindParts)
+    _reasonUp = false        // the reasoner's retained `up` (the loop waits for it)
+    _hasContext = false      // whether a working memory was bound (so we wait for restore)
     _contextReady = false    // whether the context restore has been delivered at least once
     _restoredMessages = null // a persisted transcript to resume from (from m-context)
     _restoredStep = 0
@@ -172,25 +174,8 @@ export class MAgent extends MBaseComponent {
             }
         }
 
-        // m-reason's move for the turn we just published. Subscribed explicitly (not as
-        // an auto-sub field) with a .catch(): a bare/misconfigured agent with no
-        // <m-reason> then fails quietly instead of leaking an unhandled ref-resolution
-        // rejection when the ref never resolves. (The loop itself won't start without a
-        // reasoner — _whenAlive throws and _begin bails.)
-        this.sub("reason/reply", reply => this._onReply(reply)).catch(() => {})
-
-        // The optional <m-context> (agent-loop.md §10) is the agent's working memory: it
-        // restores a persisted transcript on wake (so a service resumes mid-task) and asks
-        // to compact the working set when it overruns its budget. Both are retained topics
-        // we mirror from an auto-discovered child, never a reach-in — the same decoupled
-        // idiom as reason/reply. Absent m-context, the transcript simply grows unbounded.
-        const context = this.querySelector("m-context[name]")
-        const ctxName = context?.getAttribute("name")
-        this._hasContext = !!ctxName
-        if (ctxName) {
-            this.sub(`${ctxName}/restore`, r => this._onRestore(r)).catch(() => {})
-            this.sub(`${ctxName}/compacted`, c => this._onCompacted(c)).catch(() => {})
-        }
+        // The reasoner and the optional working memory are found by role in the wake
+        // loop (_bindParts), not here.
 
         // A subagent offers itself as a blocking HAND only when its enclosing entity is a
         // mind's <m-act> (agent-loop.md §11): m-act (the parent) has already connected and
@@ -275,21 +260,21 @@ export class MAgent extends MBaseComponent {
         this._drainPendingTasks()
     }
 
-    /** Wait until m-reason is upgraded, the objective mirror has landed (if declared),
+    /** Wait until the reasoner is up, the objective mirror has landed (if declared),
      *  and tool registrations have gone quiet — so the very first turn already carries
      *  the tools (the terminal probes its sandbox asynchronously). */
     async _whenAlive() {
         let ready = false
         for (let i = 0; i < 100; i++) {
             if (this._sleeping) return   // disconnected during wake — stop quietly
-            const reason = this.querySelector("m-reason")
-            const reasonReady = reason && reason.on
+            this._bindParts()
             const objectiveReady = !this._hasObjective || this._objectiveReady
             const contextReady = !this._hasContext || this._contextReady
-            if (reasonReady && objectiveReady && contextReady) { ready = true; break }
-            await delay(100)
+            if (this._reasonUp && objectiveReady && contextReady) { ready = true; break }
+            // The reasoner's `up` ends the wait early (it lands just after connect).
+            await new Promise(resolve => { this._wakeTick = resolve; setTimeout(resolve, 100) })
         }
-        if (!ready) throw new Error("m-reason did not come up in time")
+        if (!ready) throw new Error("the reasoner did not come up in time")
 
         // Tool settle: break once the tool count has been stable for `toolSettleMs`,
         // hard-capped so a perpetually-registering tool cannot stall the wake.
@@ -304,6 +289,40 @@ export class MAgent extends MBaseComponent {
             } else {
                 last = this._tools.length
                 stableFor = 0
+            }
+        }
+    }
+
+    /** Bind the parts the loop talks to, by role (review §2.8), each once it is there.
+     *  The reasoner is the part that provides `reasoner`, addressed by its name: we hear
+     *  its move as `reply`, and its retained `up` says when it can take a turn. The
+     *  optional working memory (agent-loop.md §10) is the named part that provides
+     *  `context`: it restores a persisted transcript on wake (so a service resumes
+     *  mid-task) and asks to compact the working set when it overruns its budget; absent
+     *  one, the transcript simply grows unbounded. Both are retained topics we mirror,
+     *  never a reach-in. Called from the wake loop rather than onConnect: an agent that
+     *  upgrades before its parts' classes are defined cannot see their roles at connect.
+     *  Subscribed with a .catch(), so a misconfigured part fails quietly instead of
+     *  leaking an unhandled ref-resolution rejection. */
+    _bindParts() {
+        if (!this._reasonBound) {
+            const reasoner = this.part("reasoner")[0]
+            const name = reasoner?.getAttribute("name")
+            if (name) {
+                this._reasonBound = true
+                this.sub(`${name}/reply`, reply => this._onReply(reply)).catch(() => {})
+                this.sub(`${name}/up`, up => { this._reasonUp = !!up; this._wakeTick?.() }).catch(() => {})
+            } else if (reasoner && !this._unnamedReasoner) {
+                this._unnamedReasoner = true
+                log.warn(`"${this.attr("name") || "agent"}" has an unnamed reasoner — it cannot be addressed`)
+            }
+        }
+        if (!this._hasContext) {
+            const name = this.part("context").find(el => el.hasAttribute("name"))?.getAttribute("name")
+            if (name) {
+                this._hasContext = true
+                this.sub(`${name}/restore`, r => this._onRestore(r)).catch(() => {})
+                this.sub(`${name}/compacted`, c => this._onCompacted(c)).catch(() => {})
             }
         }
     }
@@ -856,8 +875,10 @@ export class MAgent extends MBaseComponent {
 
     /** Whether the agent has a membrane (a task port) it could receive work over — the
      *  service-mode signal: with one, a finished agent returns to idle to await the next
-     *  task instead of retiring, and a task-less agent waits for its first task. */
-    _hasMembrane() { return !!this.querySelector("m-ws, m-console") }
+     *  task instead of retiring, and a task-less agent waits for its first task. A port
+     *  is any part that provides `port` (m-ws, m-console, or a substitute); a nested
+     *  sub-agent's port is its own, not ours (review §2.8). */
+    _hasMembrane() { return this.part("port").length > 0 }
 
     /**
      * The sleep ritual, for graceful shutdown (start.js). An agent holds no narrative

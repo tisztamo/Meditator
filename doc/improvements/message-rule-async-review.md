@@ -521,6 +521,18 @@ existing seam, none rewrites a mind's behaviour.
    identity root. `wiring/enclosure-by-role.test.js` pins custom-tag roots and
    their vault homes; `wiring/telemetry.test.js`'s society test now runs on
    custom `x-society` / `x-mind` tags.*
+   *Agent parts done 2026-09-30 (§2.8): `m-reason` provides `reasoner`,
+   `m-context` provides `context`, and `m-ws` / `m-console` provide `port`. The
+   agent binds its reasoner and working memory by role and by name, waits for the
+   reasoner's retained `up` instead of polling `.on`, and is a service when a part
+   provides `port`, so a nested sub-agent's `m-console` no longer makes its parent
+   one. The binding runs in the wake loop, not onConnect: an agent that upgrades
+   before its parts' classes are defined (a tag already defined when the markup
+   lands) sees them as plain elements at connect. The other §2.8
+   items were already gone: the hand-vs-job switch goes by `enclosing('hands')`
+   (§7.3, §2.6), m-terminal's mode likewise, m-reason binds `!scope/turn`
+   (§2.10), and m-agent shares `shared/hands.js` with m-act (§7.3).
+   `wiring/agent-roles.test.js` runs the loop on custom-tag parts.*
 
 ---
 

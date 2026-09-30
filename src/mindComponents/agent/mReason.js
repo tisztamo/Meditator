@@ -39,6 +39,9 @@ const log = logger("mReason.js")
  *     field) so the loop is never left waiting forever.
  */
 export class MReason extends MBaseComponent {
+    // The agent finds its reasoner by this role, not by tag (review §2.8).
+    static provides = { reasoner: true }
+
     _busy = false
 
     onConnect() {

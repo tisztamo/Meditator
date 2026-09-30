@@ -15,6 +15,9 @@ const log = logger('mConsole.js');
  * "sleep-requested" {by: "console"} on `/sleep` (start.js ends the process).
  */
 export class MConsole extends MBaseComponent {
+    // A port: input arrives over it. An agent with one is a service (m-agent).
+    static provides = { port: true }
+
     _rl = null
 
     onConnect() {

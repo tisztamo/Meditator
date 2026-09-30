@@ -1114,7 +1114,8 @@ See [Memory & the vault](memory.md).
 
 ## `m-console`
 
-Terminal input/output. No attributes.
+Terminal input/output. No attributes. `provides port`: an agent with a port is a
+service.
 
 - Active only if stdin is a TTY or `MEDITATOR_STDIN=1`.
 - A typed line → `External / ConsoleInput` stimulus, **urgent, salience 1**.
@@ -1124,7 +1125,8 @@ Terminal input/output. No attributes.
 ## `m-ws`
 
 WebSocket server — the live stream and external voice. Full protocol in the
-[WebSocket API](../websocket-api.md).
+[WebSocket API](../websocket-api.md). `provides port`: an agent with a port is a
+service.
 
 | Attribute | Default | Meaning |
 |-----------|---------|---------|
@@ -1167,8 +1169,11 @@ in `architecture/agents/`.
 The kernel: assembles each turn, runs the tool calls the reasoner emits, appends
 the observations, and loops. Its text content is the agent's **charter** (the
 standing system prompt), as `<m-mind>`'s content is a mind's identity. With a
-membrane (`<m-ws>` / `<m-console>`) it is a **service**: inbound input arrives as
-a bubbling `task` event and the agent idles between tasks instead of retiring.
+part that `provides port` (`<m-ws>`, `<m-console>`) it is a **service**: inbound
+input arrives as a bubbling `task` event and the agent idles between tasks
+instead of retiring. It finds its reasoner and working memory by role too
+(`reasoner`, `context`), addressed by name, so a substitute under any tag works;
+a nested sub-agent's parts are its own.
 
 | Attribute | Default | Meaning |
 |-----------|---------|---------|
@@ -1188,8 +1193,10 @@ a bubbling `task` event and the agent idles between tasks instead of retiring.
 
 ### `m-reason`
 
-The reasoner — the twin of `m-stream`, owning exactly one seam: turn in, next
-move out. Swappable without touching the loop, the tools, or the observers.
+The reasoner (`provides reasoner`; needs a `name`) — the twin of `m-stream`,
+owning exactly one seam: turn in, next move out. Swappable without touching the
+loop, the tools, or the observers. The agent waits for its `up` before the first
+turn.
 
 | Attribute | Default | Meaning |
 |-----------|---------|---------|
@@ -1211,7 +1218,8 @@ Needs a `name` (it publishes its text on `prompt`, which `m-agent` mirrors).
 
 ### `m-context`
 
-The agent's working memory — the twin of `m-memory`, and a pure observer:
+The agent's working memory (`provides context`; needs a `name`) — the twin of
+`m-memory`, and a pure observer:
 **compaction** (when the transcript exceeds `budget`, the oldest messages are
 condensed into one summary; the split never orphans a `tool` message from its
 `assistant`) and **persistence** (the transcript survives restarts; a service

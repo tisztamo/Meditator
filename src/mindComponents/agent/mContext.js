@@ -51,6 +51,9 @@ const log = logger("mContext.js")
  *   - "compacted": {summarizeCount, summary} — a compaction for m-agent to apply.
  */
 export class MContext extends MBaseComponent {
+    // The agent finds its working memory by this role, not by tag (review §2.8).
+    static provides = { context: true }
+
     _messages = []          // mirror of the agent's transcript (the working set)
     _step = 0               // last seen step index, persisted for resume
     _compacting = false
