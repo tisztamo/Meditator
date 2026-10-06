@@ -3,6 +3,7 @@ import fs from "node:fs/promises"
 import path from "node:path"
 import { MBaseComponent } from "../shared/mBaseComponent.js"
 import { closestRole, part } from "../shared/enclosure.js"
+import { AGENT_JOB_REQUEST, JOB_PROGRESS, subagentName } from "../shared/agentJobs.js"
 import { probeBackend } from "../../infrastructure/sandbox.js"
 import { JobRegistry } from "../../infrastructure/jobRegistry.js"
 import { isDryRun } from "../../modelAccess/llm.js"
@@ -46,8 +47,9 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
  * holds — §16, "why this stays correct in the transcript").
  *
  * PARALLEL SUB-AGENTS (§16). A background job can be another <m-agent>, not just a shell:
- * spawn_agent hands the task to a nested role="subagent" child (via its runAsJob handle)
- * and registers it in the SAME registry, so check / wait / kill / list_jobs treat sub-agent
+ * spawn_agent asks a nested role="subagent" child, by name, to take the task (an
+ * `agent-job` request, shared/agentJobs.js; its progress is its `jobProgress` topic, and
+ * kill cancels the request) and registers it in the SAME registry, so check / wait / kill / list_jobs treat sub-agent
  * jobs exactly like shell jobs — parallel sub-agents fall out of the same abstraction for
  * free. Each sub-agent runs one task at a time (its transcript is single-threaded), so real
  * parallelism comes from declaring DISTINCT sub-agents and spawning each.
@@ -66,6 +68,9 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
  *   - wall: per-job wall-clock cap (default "10m" — jobs are the long-running path).
  *   - defaultWait: default timeout for wait() when the model omits one (default "120s").
  *   - maxWait: hard cap on a single wait() so a poll can never hang the loop (default "300s").
+ *   - agentWall: per sub-agent job wall-clock cap; past it the job is cancelled (default "1h").
+ *   - agentStartDeadline: how long a sub-agent may take to start a job before it counts as
+ *     not ready (default "5s").
  *   - mem / cpu / fileSize / maxProcs / maxOutput / network: sandbox limits, as m-terminal.
  */
 export class MJobs extends MBaseComponent {
@@ -73,7 +78,8 @@ export class MJobs extends MBaseComponent {
     _agent = null            // the enclosing agent, found by role
     _runDir = null
     _runCount = 0
-    _subagents = []          // { name, el } sub-agents this agent may spawn as background jobs
+    _subagents = []          // { name } sub-agents this agent may spawn as background jobs, by name
+    _agentJobSeq = 0
     _waiters = new Set()     // resolvers for in-flight wait() calls, woken by an inbound message
     _sleeping = false
 
@@ -142,9 +148,13 @@ export class MJobs extends MBaseComponent {
     _discoverSubagents() {
         const parent = this._agent
         if (!parent) return []
-        return part(parent, "agent")
+        const names = part(parent, "agent")
             .filter(el => (el.getAttribute("role") || "").toLowerCase() === "subagent")
-            .map(el => ({ name: el.getAttribute("name") || "subagent", el }))
+            .map(subagentName)
+        // A job is addressed by name, so two sub-agents of one name would both take it.
+        const unique = [...new Set(names)]
+        if (unique.length < names.length) log.warn("two sub-agents share a name — give each a distinct name; only one is offered per name")
+        return unique.map(name => ({ name }))
     }
 
     _offerTools({ shell = true, agents = false } = {}) {
@@ -288,21 +298,8 @@ export class MJobs extends MBaseComponent {
         if (!sub) {
             return { observation: `error: no such sub-agent "${wanted}". Available: ${names.join(", ") || "(none)"}`, isError: true }
         }
-        if (typeof sub.el.runAsJob !== "function") {
-            return { observation: `sub-agent "${sub.name}" is not ready yet — try again in a moment`, isError: true }
-        }
-        if (!sub.el.available) {
-            return { observation: `sub-agent "${sub.name}" is busy with another task. Wait for it, or spawn a different sub-agent.`, isError: true }
-        }
-
-        const label = (purpose || body).trim()
-        const short = label.length > 60 ? label.slice(0, 60) + "…" : label
-        // Started through the SAME registry as a shell job, so check/wait/kill/list treat it
-        // identically. runAsJob returns the {done, kill} handle wrapping the sub-agent's loop.
-        const job = this._registry.start(
-            onData => sub.el.runAsJob(body, { onData }),
-            { kind: "agent", command: `sub-agent ${sub.name}: ${short}` },
-        )
+        const job = await this._startAgentJob(sub.name, body, purpose)
+        if (job.error) return { observation: job.error, isError: true }
         log.info(`spawned ${job.id} → sub-agent "${sub.name}"`)
         return {
             observation: `started ${job.id}: sub-agent "${sub.name}" is working on it in the background. `
@@ -310,6 +307,82 @@ export class MJobs extends MBaseComponent {
                 + `you will also be told when it finishes.`,
             data: { id: job.id, agent: sub.name },
         }
+    }
+
+    /**
+     * Ask sub-agent `name` to take `task` (shared/agentJobs.js) and register the job in
+     * the same registry as shell jobs. Resolves to the Job once the sub-agent has
+     * started it, or to {error} when it is busy or does not answer within
+     * `agentStartDeadline` (default 5s; it is not up yet). Its progress is heard on its
+     * `jobProgress` topic; kill and the `agentWall` cap (default 1h) cancel the request.
+     */
+    async _startAgentJob(name, task, purpose) {
+        const jobId = `${this.getAttribute("name") || "jobs"}-${++this._agentJobSeq}-${Date.now().toString(36)}`
+        let sink = null
+        const early = []
+        const tap = text => { if (sink) sink(text); else early.push(text) }
+        let markStarted
+        const started = new Promise(resolve => { markStarted = resolve })
+        const progress = await this.sub(`!scope/${name}/${JOB_PROGRESS}`, p => {
+            if (!p || p.jobId !== jobId) return
+            if (p.started) markStarted()
+            else if (p.text) tap(p.text)
+        }).catch(() => null)
+        const unsub = () => { if (progress) this.unsub(progress).catch(() => {}) }
+
+        const wall = this._timeAttr("agentWall", "1h")
+        const abort = new AbortController()
+        let timedOut = false
+        const wallTimer = setTimeout(() => { timedOut = true; abort.abort() }, wall)
+        const reply = this.request(AGENT_JOB_REQUEST, { agent: name, task, jobId }, {
+            deadline: wall + 5000, signal: abort.signal,
+        })
+        const first = await Promise.race([
+            started.then(() => "started"),
+            reply.then(() => "replied"),
+            delay(this._timeAttr("agentStartDeadline", "5s")).then(() => "silent"),
+        ])
+        // A reply before the start was heard is either a refusal or a task that finished
+        // that fast (still a job, already done).
+        const answered = first === "replied" ? await reply : null
+        const finished = answered?.status === "ok" && answered.data?.accepted !== false
+        if (first !== "started" && !finished) {
+            clearTimeout(wallTimer)
+            abort.abort()
+            unsub()
+            if (answered?.data?.reason === "busy") {
+                return { error: `sub-agent "${name}" is busy with another task. Wait for it, or spawn a different sub-agent.` }
+            }
+            return { error: `sub-agent "${name}" is not ready yet — try again in a moment` }
+        }
+
+        const label = (purpose || task).trim()
+        const short = label.length > 60 ? label.slice(0, 60) + "…" : label
+        const startedAt = Date.now()
+        const done = reply.then(r => {
+            clearTimeout(wallTimer)
+            unsub()
+            const ok = r.status === "ok" && r.data?.accepted
+            const answer = ok ? String(r.data.answer || "").trim()
+                : r.status === "error" ? `the sub-agent failed: ${r.error}`
+                : "the work was stopped"
+            if (answer) tap(`\n${answer}\n`)   // the final summary lands in the job's tail for check/wait
+            return {
+                screen: answer, exitCode: ok && !r.data.isError ? 0 : 1, signal: null,
+                timedOut, truncated: false, durationMs: Date.now() - startedAt,
+            }
+        })
+        // Started through the SAME registry as a shell job, so check/wait/kill/list treat it
+        // identically.
+        return this._registry.start(onData => {
+            sink = onData
+            for (const text of early.splice(0)) onData(text)
+            return { done, kill: () => abort.abort() }
+        }, { kind: "agent", command: `sub-agent ${name}: ${short}` })
+    }
+
+    _timeAttr(name, fallback) {
+        try { return parseTime(this.attr(name) || fallback) } catch { return parseTime(fallback) }
     }
 
     // ── check ──────────────────────────────────────────────────────────────────

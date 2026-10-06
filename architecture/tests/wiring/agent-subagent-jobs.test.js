@@ -12,6 +12,15 @@ import A from "amanita";
 import { delay } from "./setup.js";
 import { loadMindComponents } from "../../../src/startup/loadMindComponents.js";
 import { resetBackendProbe } from "../../../src/infrastructure/sandbox.js";
+import { MBaseComponent } from "../../../src/mindComponents/shared/mBaseComponent.js";
+import { governProposals } from "../../../src/mindComponents/shared/governance.js";
+
+// A governor that permits every call, but only after 800ms: it holds a worker mid-step.
+class SlowGovernor extends MBaseComponent {
+    static provides = { governor: true };
+    onConnect() { governProposals(this, () => delay(800).then(() => undefined)).catch(() => {}); }
+}
+if (!customElements.get("t-slow-governor")) customElements.define("t-slow-governor", SlowGovernor);
 
 let savedDry, savedBackend;
 
@@ -170,9 +179,9 @@ test("a busy sub-agent turns work away rather than corrupting its single-threade
     workerA._taskActive = false;                       // restore
 });
 
-test("_abortTask (what kill invokes on an agent job) stops the loop at a safe point", async () => {
+test("_abortTask (what a cancelled agent job invokes) stops the loop at a safe point", async () => {
     const { workerB } = await build();
-    // Put the worker mid-task, then abort as registry.kill()→handle.kill() would.
+    // Put the worker mid-task, then abort as a cancelled `agent-job` request would.
     workerB._taskActive = true;
     workerB._done = false;
     let resolved = null;
@@ -181,6 +190,46 @@ test("_abortTask (what kill invokes on an agent job) stops the loop at a safe po
     expect(workerB._taskActive).toBe(false);           // reset to idle
     expect(resolved).toBeTruthy();                     // the in-flight handle resolved
     expect(resolved.reason).toMatch(/the work was stopped/);
+});
+
+test("kill reaches the sub-agent as a cancel message: its loop stops at a safe point", async () => {
+    // A worker held mid-step: its governor answers each proposal only after 800ms, so the
+    // kill lands while a tool call is still awaiting permission. The held step resumes
+    // after the abort and must change nothing (the task it belonged to is over).
+    document.body.innerHTML = `
+      <m-agent name="lead" maxSteps="10" toolSettleMs="60">
+        You are the lead.
+        <m-reason name="reason"></m-reason>
+        <m-agent name="worker-slow" role="subagent" maxSteps="8" toolSettleMs="60" stopWhen="finish-tool">
+          You are a worker.
+          <m-reason name="reason" toolTokens="512" temperature="0.1"></m-reason>
+          <m-terminal name="terminal" wall="10s" network="off"></m-terminal>
+          <t-slow-governor name="norm"></t-slow-governor>
+        </m-agent>
+        <m-jobs name="jobs" wall="30s" network="off"></m-jobs>
+      </m-agent>`;
+    await loadMindComponents(document);
+    const agent = document.querySelector("m-agent");
+    const worker = agent.querySelector('[name="worker-slow"]');
+    for (let i = 0; i < 200 && !(agent._alive && worker._alive); i++) await delay(20);
+    const tool = name => agent._tools.find(t => t.name === name)?.execute;
+    const finished = [];
+    worker.addEventListener("done", e => finished.push(e.detail));
+
+    await tool("spawn_agent")({ agent: "worker-slow", task: "the long piece" });
+    const out = await tool("kill")({ id: "job-1" });
+    expect(out.data.state).toBe("killed");
+    for (let i = 0; i < 200 && !finished.length; i++) await delay(10);
+    expect(finished[0]?.reason).toMatch(/the work was stopped/);
+    // The held step resumes and is dropped: no further turn for the task that ended.
+    let turnsAfter = 0;
+    worker.on("turn", () => { turnsAfter += 1; });
+    await delay(0);
+    turnsAfter = 0;                                     // the retained turn replays on subscribe
+    await delay(1200);
+    expect(turnsAfter).toBe(0);
+    expect(finished.length).toBe(1);
+    expect(worker.busy).toBe(false);
 });
 
 test("with a sandbox but no sub-agents, spawn_agent is NOT offered (only shell jobs)", async () => {

@@ -120,6 +120,19 @@ to). `finalize`/`persists`/`takePending` are documented exceptions;
 - `mJobs.js:291-303` calls `sub.el.runAsJob()` and reads `sub.el.available` on
   child agents; `mJobs.js:131` attaches its listener on `closest("m-agent")`.
 
+*Done 2026-10-06 for m-jobs, the last of these: the lead's m-jobs sends an
+`agent-job {agent, task, jobId}` request (`shared/agentJobs.js`, membrane-local).
+The sub-agent, bound on its lead, answers only its own name: at once with
+`{accepted: false}` when busy, otherwise at the end with `{accepted: true,
+answer, isError}`. It publishes its start and each step on its `jobProgress`
+topic. Kill and the `agentWall` cap (default 1h) cancel the request, and the
+sub-agent aborts its task when it hears the cancel. A start not heard within
+`agentStartDeadline` (5s) counts as not ready. `runAsJob` is gone. Testing it
+under chaos found a bug in m-agent's abort that was there before: a step still
+awaiting its tool calls (or monitors) when the task was aborted resumed
+afterwards and carried on the dead task, publishing a new turn. A task
+generation counter now drops it.*
+
 ### 2.6 Identity-root lookups are tag-bound — *enclosure phase 1 never ran*
 
 `closest('m-mind'|'m-agent'|'m-society')` in ~15 components, plus

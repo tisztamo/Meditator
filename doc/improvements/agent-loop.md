@@ -763,6 +763,9 @@ doc deliberately stops at the seam and leaves norms to that doc.
    reports, wait-times-out, wait-interrupted-by-message, finished-job-notifies-via-nudge,
    kill-suppresses-notice, killAll-on-disconnect). → §16.
 7. **Parallel sub-agents — a background job that is another `<m-agent>`.** ✅ **DONE (2026-07-02).**
+   *(2026-10-06: `runAsJob` is gone. `<m-jobs>` asks the sub-agent with an `agent-job` request,
+   hears progress on its `jobProgress` topic, and kills by cancelling the request
+   (`shared/agentJobs.js`; message-rule-async-review.md §2.5). The registry side is unchanged.)*
    The §16 payoff with NO new subsystem — a background job need not be a shell command. `JobRegistry`
    grew a generic `start(makeHandle, meta)` (register a `Job` around any `{done, kill}` handle + its
    tail sink); `spawn` is now a thin specialization of it over the sandbox runner, and `Job.kind`

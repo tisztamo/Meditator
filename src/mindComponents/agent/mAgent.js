@@ -4,6 +4,7 @@ import { validateAgainstSchema } from "../shared/toolSchema.js"
 import { HandRegistry } from "../shared/hands.js"
 import { providesOf } from "../shared/enclosure.js"
 import { proposeCall, DEFAULT_GOVERN_DEADLINE_MS } from "../shared/governance.js"
+import { serveAgentJobs, AGENT_JOB_REQUEST, JOB_PROGRESS } from "../shared/agentJobs.js"
 import { responderName, rosterAnswered } from "../../infrastructure/requestReply.js"
 import { parseTime } from "../../config/timeParser.js"
 import { logger } from "../../infrastructure/logger.js"
@@ -96,6 +97,7 @@ export class MAgent extends MBaseComponent {
     _messages = []           // the transcript: user / assistant(+tool_calls) / tool messages
     _step = 0
     _awaitingReply = false   // true between publishing a turn and draining its reply
+    _taskGen = 0             // bumped when a task ends; a step still awaiting its tools drops its results
     _alive = false
     _done = false
     _sleeping = false
@@ -119,6 +121,8 @@ export class MAgent extends MBaseComponent {
     _pendingIntent = null    // the mind's decide-stage intent for the current hand call
     _handLeadIdx = -1        // rotates the first-person framing of a returned outcome
     _ready = null            // resolves once the reasoner + tools are up (awaited by a hand call)
+    _jobLead = null          // the lead agent whose <m-jobs> asks this sub-agent for jobs (§16)
+    _onAgentJob = null       // the `agent-job` responder bound on the lead
     _resolveReady = null
 
     onConnect() {
@@ -186,8 +190,11 @@ export class MAgent extends MBaseComponent {
         // rather than as a blocking tool. (Checking the nearest enclosing entity — not just
         // any ancestor m-act — so a sub-agent nested in a sub-agent inside a mind is not
         // mistaken for the mind's own hand.)
+        // As a background job it answers its lead's <m-jobs> by message
+        // (shared/agentJobs.js): an `agent-job` request heard on the lead.
         const assembler = this.enclosing("hands")
         if (this._asHand && assembler && !providesOf(assembler, "agent")) this._offerAsHand()
+        if (this._asHand && assembler && providesOf(assembler, "agent")) this._serveJobs(assembler)
 
         this._begin()
     }
@@ -195,6 +202,8 @@ export class MAgent extends MBaseComponent {
     onDisconnect() {
         this._sleeping = true
         this.pub("sleeping", true)
+        if (this._jobLead) this._jobLead.removeEventListener(AGENT_JOB_REQUEST, this._onAgentJob)
+        this._jobLead = null
     }
 
     /** The closed menu: every offered tool, normalized (shared/hands.js). The model can
@@ -424,7 +433,11 @@ export class MAgent extends MBaseComponent {
         const pendingReply = this._plainStreak.filter(t => t && t.trim())
         this._plainStreak = []
 
+        // A task ended while this step awaited (an abort: kill, sleep) leaves the step's
+        // results to nobody: the next task must not be finished by this one's tail.
+        const task = this._taskGen
         const { toolMessages, observations, finished } = await this._runCalls(calls)
+        if (task !== this._taskGen) return
         for (const m of toolMessages) this._messages.push(m)
         this.pub("transcript", [...this._messages])
 
@@ -437,6 +450,7 @@ export class MAgent extends MBaseComponent {
             calls: calls.map(c => ({ id: c.id, name: c.function?.name, args: safeArgs(c.function?.arguments) })),
             observations,
         })
+        if (task !== this._taskGen) return
 
         if (finished) {
             // Prefer the conversational prose the model actually produced (the reply the
@@ -586,6 +600,7 @@ export class MAgent extends MBaseComponent {
     _finish(answer, reason, extra = {}) {
         if (this._done) return
         this._done = true
+        this._taskGen += 1
         this._taskActive = false
         const detail = { answer: answer || null, steps: this._step, reason, ...extra }
         this.pub("status", { state: extra.error ? "error" : "done", step: this._step, maxSteps: this._maxSteps(), done: true, answer: answer || null, reason })
@@ -670,7 +685,7 @@ export class MAgent extends MBaseComponent {
      *  External sensation. Sequential by construction: the mind's m-act is single-flight
      *  and awaits this, so a second call cannot overlap; if one somehow does, it is turned
      *  away rather than corrupting the in-flight transcript. */
-    async _runAsHand(args, ctx) {
+    async _runAsHand(args, ctx, { signal = null } = {}) {
         const task = String(args?.task ?? ctx?.intent ?? "").trim()
         if (!task) return { observation: "there was no task to carry out", isError: true }
 
@@ -681,6 +696,9 @@ export class MAgent extends MBaseComponent {
         if (this._taskActive || this._handResolve) {
             return { observation: "still finishing the last piece of work; leaving it to complete first", isError: true }
         }
+        // A background job cancelled while the agent was still coming up never starts
+        // (a cancel after this point aborts the running task instead).
+        if (signal?.aborted) return { observation: "the work was stopped", isError: true }
 
         const outcome = new Promise(resolve => { this._handResolve = resolve })
         this._pendingIntent = ctx?.intent || null
@@ -749,36 +767,40 @@ export class MAgent extends MBaseComponent {
     get busy() { return this._taskActive || !!this._handResolve }
 
     /** Whether this agent can take a background task right now (agent-loop.md §16). It need
-     *  not be _alive yet — runAsJob awaits readiness — only not asleep, retired, or busy. */
+     *  not be _alive yet — the task awaits readiness — only not asleep, retired, or busy. */
     get available() { return !this._sleeping && !this._retired && !this.busy }
 
     /**
-     * Run one task IN THE BACKGROUND for a spawning agent, shaped as a job HANDLE
-     * ({done, kill}) so the job registry tracks a sub-agent exactly like a sandbox run —
-     * this is what makes "a background job can be another <m-agent>" (agent-loop.md §16)
-     * fall out for free: parallel sub-agents with the same spawn / check / wait / kill.
+     * Answer the lead's `agent-job` requests: run one task IN THE BACKGROUND for the
+     * lead's <m-jobs>, which registers it beside its shell jobs so check / wait / kill
+     * treat both alike (agent-loop.md §16: "a background job can be another <m-agent>").
      *
      * It reuses the very same single-task loop as the mind-hand path (_runAsHand): the
-     * task is seeded, the whole tool-calling loop runs, and the outcome resolves the
-     * handle. Each `step` boundary is streamed to `onData` so `check` shows progress, and
-     * the final answer is fed as a last chunk so `check`/`wait` surface it. kill aborts
-     * the task (a synthetic finish) — the same safe-point as a mind putting the hand down.
+     * task is seeded, the whole tool-calling loop runs, and the outcome is the reply.
+     * Each `step` is published on `jobProgress` so `check` shows progress. A cancel
+     * (kill, or the job's wall clock) aborts the task with a synthetic finish — the same
+     * safe point as a mind putting the hand down.
      */
-    runAsJob(task, { onData } = {}) {
-        const tap = typeof onData === "function" ? onData : () => {}
-        const onStep = e => { try { tap(renderStep(e?.detail)) } catch { /* a tail hiccup must not break the loop */ } }
-        this.addEventListener("step", onStep)
-        const done = (async () => {
-            try {
-                const out = await this._runAsHand({ task }, {})
-                const answer = String(out?.observation ?? "").trim()
-                if (answer) tap(`\n${answer}\n`)   // the final summary lands in the job's tail for check/wait
-                return { screen: answer, exitCode: out?.isError ? 1 : 0, signal: null, timedOut: false, truncated: false, durationMs: 0 }
-            } finally {
-                this.removeEventListener("step", onStep)
-            }
-        })()
-        return { done, kill: () => this._abortTask("the work was stopped") }
+    _serveJobs(lead) {
+        this._jobLead = lead
+        this._onAgentJob = serveAgentJobs(this, lead, {
+            busy: () => !this.available,
+            run: async (task, { jobId, signal }) => {
+                const onStep = e => {
+                    try { this.pub(JOB_PROGRESS, { jobId, text: renderStep(e?.detail) }) } catch { /* a tail hiccup must not break the loop */ }
+                }
+                const onAbort = () => this._abortTask("the work was stopped")
+                this.addEventListener("step", onStep)
+                signal?.addEventListener("abort", onAbort, { once: true })
+                try {
+                    const out = await this._runAsHand({ task }, {}, { signal })
+                    return { answer: String(out?.observation ?? "").trim(), isError: !!out?.isError }
+                } finally {
+                    this.removeEventListener("step", onStep)
+                    signal?.removeEventListener("abort", onAbort)
+                }
+            },
+        })
     }
 
     /** Abort the current background task at a safe point: end the loop with a synthetic
