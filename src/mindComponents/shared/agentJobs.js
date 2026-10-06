@@ -7,8 +7,9 @@
 //   sub-agent, bound on the lead, answers only its own name:
 //     busy      → reply {accepted: false, reason: "busy"} at once
 //     otherwise → publishes `jobProgress {jobId, started: true}`, then one
-//                 `jobProgress {jobId, text}` per step, and replies at the end
-//                 {accepted: true, answer, isError}
+//                 `jobProgress {jobId, seq, text}` per step, and replies at the end
+//                 {accepted: true, answer, isError, progress: [every step's text]}
+//                 (a line heard out of order is taken from the reply instead, M5)
 //
 // Kill and the wall-clock cap abort the request's signal: the seam's
 // `request-cancel` follows the request's path to the lead, where the sub-agent
@@ -28,7 +29,7 @@ export function subagentName(el) {
 /**
  * Serve `agent-job` requests addressed to `agent` (by name), heard on its lead
  * (an address found by lookup at connect). `run(task, {jobId, signal})` resolves to
- * the task's outcome {answer, isError}; `busy()` turns work away. Returns the
+ * the task's outcome {answer, isError, progress}; `busy()` turns work away. Returns the
  * listener, for removeEventListener on the lead.
  */
 export function serveAgentJobs(agent, lead, { busy, run }) {
@@ -37,6 +38,9 @@ export function serveAgentJobs(agent, lead, { busy, run }) {
         if (busy()) return { accepted: false, reason: "busy" }
         agent.pub(JOB_PROGRESS, { jobId: detail.jobId, started: true })
         const out = await run(String(detail.task ?? ""), { jobId: detail.jobId, signal })
-        return { accepted: true, answer: String(out?.answer ?? ""), isError: !!out?.isError }
+        return {
+            accepted: true, answer: String(out?.answer ?? ""), isError: !!out?.isError,
+            progress: Array.isArray(out?.progress) ? out.progress.map(String) : [],
+        }
     }, { on: lead })
 }

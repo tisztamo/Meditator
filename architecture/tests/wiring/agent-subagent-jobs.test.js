@@ -146,8 +146,11 @@ test("a finished sub-agent job NOTIFIES the lead: a nudge folded into its next t
     expect(agent._nudges.length).toBe(0);              // nothing while it runs
     await tool("wait")({ id: "job-1", timeout: "10s" });
     // The registry's onComplete fired a `nudge`; the lead caught it and queued it for its
-    // next turn — the "best last" way to learn a job finished (agent-loop.md §16).
-    expect(agent._nudges.some(t => /job-1/.test(t) && /finished its work/.test(t))).toBe(true);
+    // next turn — the "best last" way to learn a job finished (agent-loop.md §16). The
+    // nudge is an event, so it may land just after wait() returns.
+    const nudged = () => agent._nudges.some(t => /job-1/.test(t) && /finished its work/.test(t));
+    for (let i = 0; i < 100 && !nudged(); i++) await delay(10);
+    expect(nudged()).toBe(true);
 });
 
 test("spawn_agent on an unknown sub-agent is a clean error listing the available ones", async () => {

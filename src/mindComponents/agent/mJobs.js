@@ -323,10 +323,13 @@ export class MJobs extends MBaseComponent {
         const tap = text => { if (sink) sink(text); else early.push(text) }
         let markStarted
         const started = new Promise(resolve => { markStarted = resolve })
+        // Progress lines are numbered: one heard out of order waits for the reply, which
+        // repeats them all.
+        let seen = 0
         const progress = await this.sub(`!scope/${name}/${JOB_PROGRESS}`, p => {
             if (!p || p.jobId !== jobId) return
             if (p.started) markStarted()
-            else if (p.text) tap(p.text)
+            else if (p.seq === seen && p.text) { tap(p.text); seen += 1 }
         }).catch(() => null)
         const unsub = () => { if (progress) this.unsub(progress).catch(() => {}) }
 
@@ -363,6 +366,8 @@ export class MJobs extends MBaseComponent {
             clearTimeout(wallTimer)
             unsub()
             const ok = r.status === "ok" && r.data?.accepted
+            const lines = Array.isArray(r.data?.progress) ? r.data.progress : []
+            for (const text of lines.slice(seen)) tap(String(text))
             const answer = ok ? String(r.data.answer || "").trim()
                 : r.status === "error" ? `the sub-agent failed: ${r.error}`
                 : "the work was stopped"

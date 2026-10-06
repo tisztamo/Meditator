@@ -131,7 +131,11 @@ sub-agent aborts its task when it hears the cancel. A start not heard within
 under chaos found a bug in m-agent's abort that was there before: a step still
 awaiting its tool calls (or monitors) when the task was aborted resumed
 afterwards and carried on the dead task, publishing a new turn. A task
-generation counter now drops it.*
+generation counter now drops it. Progress lines carry a `seq` and the reply
+repeats them all, so a line that arrives late or out of order is filled in from
+the reply (M5). Under `jitter` the progress lines used to be lost: the worker
+heard its own `step` event after the task had ended. The sub-agent job tests
+now pass on 10 of 10 jitter seeds.*
 
 ### 2.6 Identity-root lookups are tag-bound — *enclosure phase 1 never ran*
 

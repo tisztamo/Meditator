@@ -123,6 +123,7 @@ export class MAgent extends MBaseComponent {
     _ready = null            // resolves once the reasoner + tools are up (awaited by a hand call)
     _jobLead = null          // the lead agent whose <m-jobs> asks this sub-agent for jobs (§16)
     _onAgentJob = null       // the `agent-job` responder bound on the lead
+    _job = null              // the background job running now: {jobId, lines} (its progress so far)
     _resolveReady = null
 
     onConnect() {
@@ -476,6 +477,17 @@ export class MAgent extends MBaseComponent {
      *  guard hears it too, and its answer is not this loop's to take). Observers that
      *  never answer (m-context, m-report, m-ws) hear the same event, unchanged. */
     async _consultMonitors(step) {
+        // A background job's progress line for this step (shared/agentJobs.js): numbered,
+        // and repeated in full in the job's reply, so none is lost to reordering (M5).
+        if (this._job) {
+            const { jobId, lines } = this._job
+            let text = null
+            try { text = renderStep(step) } catch { /* a tail hiccup must not break the loop */ }
+            if (text) {
+                lines.push(text)
+                this.pub(JOB_PROGRESS, { jobId, seq: lines.length - 1, text })
+            }
+        }
         const roster = this.part("monitor").map(responderName)
         const { status, replies } = await this.requestAll("step", step, {
             until: rosterAnswered(roster),
@@ -777,7 +789,8 @@ export class MAgent extends MBaseComponent {
      *
      * It reuses the very same single-task loop as the mind-hand path (_runAsHand): the
      * task is seeded, the whole tool-calling loop runs, and the outcome is the reply.
-     * Each `step` is published on `jobProgress` so `check` shows progress. A cancel
+     * Each step is published on `jobProgress` so `check` shows progress, and the reply
+     * repeats every line. A cancel
      * (kill, or the job's wall clock) aborts the task with a synthetic finish — the same
      * safe point as a mind putting the hand down.
      */
@@ -786,17 +799,15 @@ export class MAgent extends MBaseComponent {
         this._onAgentJob = serveAgentJobs(this, lead, {
             busy: () => !this.available,
             run: async (task, { jobId, signal }) => {
-                const onStep = e => {
-                    try { this.pub(JOB_PROGRESS, { jobId, text: renderStep(e?.detail) }) } catch { /* a tail hiccup must not break the loop */ }
-                }
                 const onAbort = () => this._abortTask("the work was stopped")
-                this.addEventListener("step", onStep)
+                const job = { jobId, lines: [] }
+                this._job = job
                 signal?.addEventListener("abort", onAbort, { once: true })
                 try {
                     const out = await this._runAsHand({ task }, {}, { signal })
-                    return { answer: String(out?.observation ?? "").trim(), isError: !!out?.isError }
+                    return { answer: String(out?.observation ?? "").trim(), isError: !!out?.isError, progress: job.lines }
                 } finally {
-                    this.removeEventListener("step", onStep)
+                    if (this._job === job) this._job = null
                     signal?.removeEventListener("abort", onAbort)
                 }
             },
