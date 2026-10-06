@@ -6,6 +6,8 @@ import { langOf } from "./i18n.js";
 import { logger } from "../../infrastructure/logger.js";
 
 const log = logger("mWs.js");
+// How long the transport waits for its mind (and stream) to come up before wiring taps.
+const READY_DEADLINE_MS = 5000;
 
 /**
  * WebSocket server component: the live window onto a running mind. It does two
@@ -397,28 +399,43 @@ export class MWs extends MBaseComponent {
     return !!closestRole(this, "agent") && !closestRole(this, "mind");
   }
 
-  /** Wait (up to ~5s) for the mind and its stream to upgrade into Amanita
-   *  components, so topic refs resolve instead of racing the upgrade. */
+  /** Wait (up to ~5s) for the mind and its stream to come up, so topic refs resolve
+   *  instead of racing the upgrade. Heard on each part's retained `up` topic
+   *  (MBaseComponent), never read off the element: this mind's as `!scope`, a society
+   *  peer's as `!cluster/<member>`. */
   async _whenReady() {
-    // An agent has no m-stream to wait on — just wait for the <m-agent> to upgrade so
-    // its status topic resolves, then return.
-    if (this._forAgent()) {
-      for (let i = 0; i < 100; i++) {
-        const agent = closestRole(this, "agent");
-        if (agent && agent.on) return;
-        await new Promise(resolve => setTimeout(resolve, 50));
-      }
-      return;
+    // An agent has no m-stream to wait on — just wait for the agent itself.
+    if (this._forAgent()) return this._whenUp("!scope", READY_DEADLINE_MS);
+    const own = this._mind();
+    const ownStream = (this.attr("src") || "!scope/stream/chunk").replace(/\/[^/]*$/, "");
+    const waits = [];
+    for (const mind of this._controlScopeMinds()) {
+      const member = mind === own ? null : mind.getAttribute("name");
+      if (mind !== own && !member) continue;
+      const scope = member ? `!cluster/${member}` : "!scope";
+      waits.push(this._whenUp(scope, READY_DEADLINE_MS));
+      waits.push(this._whenUp(member ? `${scope}/stream` : ownStream, READY_DEADLINE_MS));
     }
-    for (let i = 0; i < 100; i++) {
-      const minds = this._controlScopeMinds();
-      const ready = minds.length && minds.every(mind => {
-        const stream = mind && mind.querySelector("m-stream");
-        return mind && mind.on && stream && stream.on;
-      });
-      if (ready) return;
-      await new Promise(resolve => setTimeout(resolve, 50));
-    }
+    await Promise.all(waits);
+  }
+
+  /** Resolves when `ref`'s retained `up` is true, or at the deadline (M6). */
+  _whenUp(ref, deadline) {
+    return new Promise(resolve => {
+      let desc = null;
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        if (desc) this.unsub(desc).catch(() => {});
+        resolve();
+      };
+      const timer = setTimeout(finish, deadline);
+      this.sub(`${ref}/up`, up => { if (up) finish(); })
+        .then(d => { desc = d; if (done && d) this.unsub(d).catch(() => {}); })
+        .catch(finish);
+    });
   }
 
   /**

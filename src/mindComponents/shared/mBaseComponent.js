@@ -262,21 +262,12 @@ export class MBaseComponent extends A(HTMLElement) {
     }
 
     /**
-     * Retrieves prompt content from various sources
-     * Checks named components, prompt attribute, m-prompt child, or direct text content
+     * This component's own prompt: the prompt attribute, an m-prompt child (a plain
+     * element it owns), or its direct text content
      *
-     * @param {string} [promptName] - Optional name of a child component to get prompt from
      * @returns {string} The prompt content
      */
-    getPrompt(promptName) {
-        if (promptName) {
-            const namedEl = this.querySelector(`[name="${promptName}"]`)
-            if (namedEl && namedEl.getPrompt) {
-                return namedEl.getPrompt()
-            }
-            console.debug(`Could not find element with name "${promptName}" that has getPrompt() method`)
-        }
-
+    getPrompt() {
         const promptAttr = this.attr("prompt")
         if (promptAttr) {
             return promptAttr

@@ -25,6 +25,7 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
 // memory that never answers costs this once; after that the frame waits only
 // UNANSWERED_FRAME_NOTE_MS for it (degrade, M6).
 const FRAME_NOTE_DEADLINE_MS = 2000
+const STREAM_TAIL_KEEP = 16000                // chars of the stream's own words kept for a memoryless tail
 const UNANSWERED_FRAME_NOTE_MS = 200
 const unansweredFrameNotes = new WeakMap()   // mind → Set of note names memory left unanswered
 
@@ -201,6 +202,7 @@ export class MMind extends MBaseComponent {
     _sleeping = false
     _speaking = false
     _memTail = ""            // mirrors of memory's content, fed by its topics (not pulled)
+    _streamTail = ""         // the stream's recent words, from its `chunk` topic (tail without memory)
     _memRecent = ""
     _memStory = ""
     _pendingImage = null     // a generated image's pixels, held one-shot for the next burst (VLM voice)
@@ -246,6 +248,13 @@ export class MMind extends MBaseComponent {
         if (streamEl) {
             this.sub(`${addr(streamEl)}/up`, up => { this._streamUp = !!up })
                 .catch(err => { if (this.isConnected) log.warn('mind stream up bind failed:', err.message) })
+            // The stream's own words, heard as it publishes them: the tail when no
+            // memory keeps one (never read off the stream at frame time).
+            this.sub(`${addr(streamEl)}/chunk`, text => {
+                if (!text) return
+                this._streamTail += text
+                if (this._streamTail.length > STREAM_TAIL_KEEP) this._streamTail = this._streamTail.slice(-STREAM_TAIL_KEEP / 2)
+            }).catch(() => {})
         }
         const memoryEl = this.querySelector('m-memory')
         this._hasMemory = !!memoryEl
@@ -721,11 +730,7 @@ export class MMind extends MBaseComponent {
             dedupe: entry.slice(-100),
             kind: "clear",
         }
-        if (this._speaking) {
-            const base = Number(this.querySelector('m-stream')?.getAttribute("burstTokens") || 350)
-            const factor = Number(this.attr("speakingTokensFactor") || 0.35)
-            payload.burstTokens = Math.max(60, Math.round(base * factor))
-        }
+        if (this._speaking) payload.burstFactor = Number(this.attr("speakingTokensFactor") || 0.35)
         return payload
     }
 
@@ -752,13 +757,12 @@ export class MMind extends MBaseComponent {
      */
     async assembleFrame(stimuli) {
         stimuli = stimuli.map(s => AttentionBid.evidenceOf(s))
-        const stream = this.querySelector('m-stream')
         const tailLength = Number(this.attr("tailLength") || 1500)
 
         // The mind's working narrative comes from memory's topics (mirrored in
         // onConnect), never pulled. With no memory, fall back to the stream's own
-        // recent output for the tail.
-        const tail = (this._memTail || stream?.getRecentOutput(tailLength) || "").slice(-tailLength)
+        // recent output for the tail, as heard on its `chunk` topic.
+        const tail = (this._memTail || this._streamTail || "").slice(-tailLength)
         const story = this._memStory
         const recent = this._memRecent
         const facts = this._factsPinned
@@ -862,11 +866,7 @@ export class MMind extends MBaseComponent {
         this._pendingImage = null
         // While the voice is speaking, thin the thinking burst so most of the
         // verbal effort goes to the utterance (m-stream honors payload.burstTokens).
-        if (this._speaking) {
-            const base = Number(stream?.getAttribute("burstTokens") || 350)
-            const factor = Number(this.attr("speakingTokensFactor") || 0.35)
-            payload.burstTokens = Math.max(60, Math.round(base * factor))
-        }
+        if (this._speaking) payload.burstFactor = Number(this.attr("speakingTokensFactor") || 0.35)
         if (stimuli.length) this.fire('percepts-attended', frameReceipts(stimuli, rendered).map(r => ({ ...r })))
         return payload
     }

@@ -91,7 +91,6 @@ test("m-mind places pinned facts in a separate verbatim frame section", async ()
         _factsPinned: "[puzzle]\n[[1,2],[3,4]]",
         _speaking: false,
         attr(name) { return name === "tailLength" ? "1500" : null },
-        querySelector(sel) { return sel === "m-stream" ? { getRecentOutput: () => "" } : null },
         _identity() { return "I check exact grids." },
         fire() {},
     };

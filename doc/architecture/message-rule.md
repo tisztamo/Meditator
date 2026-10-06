@@ -135,7 +135,8 @@ hazard applies to any new retained topic: its name must not shadow a member.
 Still handle calls after the pilot: `mind.sleep()` itself (start.js, m-ws,
 m-console) and the mind's reads of the stream (`burstIndex`, `onceBoundary`
 listening on the stream element, `getRecentOutput`). The sleep step (below)
-removed all but `getRecentOutput`. Sleep fan-out ordering is carried by the sleep burst's
+removed all but `getRecentOutput`, and the handle lint (2026-10-06) removed that:
+a memoryless mind keeps the stream's words from its `chunk` topic. Sleep fan-out ordering is carried by the sleep burst's
 latency, not by a reply: a mind with no stream asks memory to commit in the same
 tick the parts learn `sleeping`.
 
@@ -419,6 +420,28 @@ the loop at that turn", using real components on both sides and no method calls
 to drive or observe. Each passes today. The ones that depend on synchronous
 dispatch fail under chaos and are listed in the baseline. A migration step is
 done when its contract turns green under chaos without changing the test.
+
+**Static checks** (`architecture/tests/unit/`, part of `bun run test`). Three
+scans of the built-in components keep what chaos cannot see from coming back:
+
+- `handle-hygiene.test.js` (M4, review §6.3). It follows what a lookup returns
+  (`part`, `enclosing`, `membrane`, `closestRole`, `closest`, `querySelector`, …)
+  through chains, bindings, `for … of` loops and array callbacks. It fails on any
+  member that is not an address, tree structure or listening: attributes,
+  `localName`, `children`, `addEventListener` on the membrane, a plain child's
+  `textContent`, and the array methods are allowed. Calling it or reading its
+  JavaScript state (`.on`, `.aperture`, `getRecentOutput()`) is not. A line that
+  must reach further says why in a `handle-ok:` comment. The scan is a
+  heuristic: a handle that passes through a helper function's return value is not
+  followed.
+- `ref-hygiene.test.js` (review §6.4, §2.10): no `../` or absolute ref binds
+  unless it is the default of an overridable `*Src`.
+- `import-hygiene.test.js` (review §2.11): no component module imports another
+  component's module or the loader.
+
+The host process is not a component and is not scanned. Its crash handler
+(`start.js`) calls `markCrashSync()` on every memory directly, because a dying
+process has no event loop left to deliver a message.
 
 **Where it stands (2026-09-26, first baseline).** Under `macrotask` + `json`,
 235 of 1127 unit and wiring tests fail, 13 plain-data violation kinds are

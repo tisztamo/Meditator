@@ -386,6 +386,21 @@ Rather than migrating from the audit list, make the test suite tell the truth:
    `closest(`, `querySelector(` unless the member is in an allowlist
    (`getAttribute`, `hasAttribute`, `localName`, `addEventListener` on the
    membrane for structural events). This is §3.3, mechanically.
+   *Built 2026-10-06 as `unit/handle-hygiene.test.js`, a bun test like the other
+   hygiene checks, since ESLint is not installed. Besides direct chains it
+   follows bindings, `for … of` loops and array callbacks, and it flags property
+   reads as well as calls (`.on` and `.aperture` were the reads it found). Its first run
+   found five reaches, all fixed in the same commit: m-mind's
+   `stream.getRecentOutput()` (a memoryless mind now keeps the stream's words from
+   its `chunk` topic) and its read of the stream's `burstTokens` attribute (the
+   frame sends `burstFactor` and the stream scales its own budget); m-ws polling
+   `.on` on the mind, agent and stream (it now waits on their retained `up`
+   topics, with a deadline); m-region's uniqueness walk reading `child.aperture`
+   (now `providesOf`); and an unused `getPrompt(name)` branch in MBaseComponent
+   that called the named child. The same commit replaced m-region's
+   `querySelector('m-economy')` / `('m-stream')` tag checks with a check for a
+   part of the name its default ref resolves to, plus `boundarySrc` /
+   `arousalSrc` overrides.*
 4. **Ref hygiene test.** Fail on `"../"` and leading-`/` refs in components
    unless a `*Src` override exists (§2.10).
 

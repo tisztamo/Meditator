@@ -29,9 +29,9 @@ const log = logger('mStream.js');
  *   - temperature: sampling temperature (default 0.9)
  *
  * Subscriptions:
- *   - "!scope/prompt" (promptSrc): receives {system, frame, prefix?, kind?} or a plain
- *     string — the mind's frame, found from anywhere inside it, so a stream wrapped in
- *     a region still hears it
+ *   - "!scope/prompt" (promptSrc): receives {system, frame, prefix?, kind?, burstTokens?,
+ *     burstFactor?} or a plain string — the mind's frame, found from anywhere inside
+ *     it, so a stream wrapped in a region still hears it
  *   - "!scope/@hush" (hushSrc): a request; the running burst is superseded and the
  *     reply {hushed, burstIndex} follows, so the mind perceives after the burst stopped
  *
@@ -116,10 +116,18 @@ export function buildBurstMessages({ system, userTurn, prefill, thinking, image 
     return messages
 }
 
+/** A burst's token budget. The frame may thin a burst (`burstFactor`, e.g. while the
+ *  voice speaks, floor 60) without knowing this stream's own budget; an explicit
+ *  `burstTokens` wins. */
+export function burstBudget({ burstTokens, burstFactor } = {}, ownTokens = 350) {
+    if (burstTokens) return Number(burstTokens)
+    if (burstFactor) return Math.max(60, Math.round(ownTokens * Number(burstFactor)))
+    return ownTokens
+}
+
 export class MStream extends MBaseComponent {
     static provides = { [CHAIN_ROLE]: true }
 
-    chunkHistory = []
     streamState = "idle"
     burstIndex = 0
     _current = null      // {burst, generation}
@@ -162,8 +170,9 @@ export class MStream extends MBaseComponent {
     }
 
     async _startBurst(payload, generation) {
-        const { system, instruction, prefill, frame, prefix, dedupe, burstTokens, image } =
+        const { system, instruction, prefill, frame, prefix, dedupe, burstTokens, burstFactor, image } =
             typeof payload === 'string' ? { frame: payload } : payload
+        const maxTokens = burstBudget({ burstTokens, burstFactor }, Number(this.attr("burstTokens") || 350))
 
         this.burstIndex += 1
         const burstIndex = this.burstIndex
@@ -204,7 +213,7 @@ export class MStream extends MBaseComponent {
                 model: voiceModel,
                 messages,
                 continueFinal,
-                maxTokens: Number(burstTokens || this.attr("burstTokens") || 350),
+                maxTokens,
                 temperature: Number(this.attr("temperature") || 0.9),
                 debugTag: "stream",
                 debugEl: this,
@@ -317,10 +326,6 @@ export class MStream extends MBaseComponent {
     }
 
     _emitChunk(text) {
-        this.chunkHistory.push(text)
-        if (this.chunkHistory.length > 4000) {
-            this.chunkHistory.splice(0, this.chunkHistory.length - 2000)
-        }
         this.pub("chunk", text)
         process.stdout.write(text)
     }
@@ -330,20 +335,5 @@ export class MStream extends MBaseComponent {
         const oldState = this.streamState
         this.streamState = newState
         this.pub("state", { oldState, newState, timestamp: new Date().toISOString() })
-    }
-
-    /**
-     * Recent verbatim output — fallback tail source when no m-memory is present.
-     * @param {number} maxChars
-     * @returns {string}
-     */
-    getRecentOutput(maxChars = 1000) {
-        let total = 0
-        let start = this.chunkHistory.length
-        while (start > 0 && total < maxChars) {
-            start -= 1
-            total += this.chunkHistory[start].length
-        }
-        return this.chunkHistory.slice(start).join("")
     }
 }

@@ -114,13 +114,14 @@ is the mind's identity.
 | `bridge` | `false` | `"true"` inserts a utility-model transition sentence before the landing opener; unused unless set |
 | `landingOpener` | `true` | `"false"` skips the dangling first-person opener after a perceived event; on unless set |
 | `speakingPaceFactor` | `2.5` | pace multiplier while the voice is speaking (slower thinking) |
-| `speakingTokensFactor` | `0.35` | burst-token multiplier while speaking (thinner thoughts, floor 60) |
+| `speakingTokensFactor` | `0.35` | burst-token multiplier while speaking, sent as the frame's `burstFactor` (thinner thoughts; the stream applies it to its own `burstTokens`, floor 60) |
 | `tailSrc` / `compressedSrc` | the memory's `<name>/tail` and `<name>/compressed` (auto-discovered) | the narrative content mirrored into the frame; `"off"` disables |
 | `factsSrc` | the facts component's `<name>/pinned` (auto-discovered) | pinned verbatim facts mirrored into every frame; `"off"` disables |
 | `embodimentSrc` | the hands' `<name>/embodiment` (auto-discovered) | the body schema woven into the identity (efference); `"off"` disables |
 | `originSrc` | the [`m-origin`](#m-origin)'s `<name>/prompt` (auto-discovered) | the origin seed; raised once at birth as the first thought (see [`m-origin`](#m-origin)); `"off"` disables |
 
-- **Subscribes:** `stream/boundary` (schedule next burst), `@interrupt` (think now);
+- **Subscribes:** `stream/boundary` (schedule next burst), `stream/chunk` (the
+  stream's own words, the tail when no memory keeps one), `@interrupt` (think now);
   if an [`m-speech`](#m-speech) is present, `!scope/voice/speaking` (`speakingSrc`;
   thin thinking while talking — its own voice, also in a society); memory's `tail` / `compressed` topics — the frame's narrative content
   is *mirrored* from those, never pulled (see [decoupling.md](decoupling.md)); and, if
@@ -130,12 +131,12 @@ is the mind's identity.
   schema woven into the identity so the mind knows what it can reach; and, if an
   [`m-origin`](#m-origin) is present, its `prompt` topic — the origin seed, raised once
   at birth (see [`m-origin`](#m-origin)).
-- **Publishes:** `prompt` — `{system, frame, prefix?, dedupe, kind, burstTokens?}`; and
+- **Publishes:** `prompt` — `{system, frame, prefix?, dedupe, kind, burstTokens?, burstFactor?}`; and
   `attended` — the rendered stimuli entering a frame, which a memory journals as
   perceived (⟂) notes.
 - **Key behavior:** error boundaries trigger an exponential backoff (×2 up to ×8);
   the inter-burst pause is also multiplied by the economy pace factor and, while
-  speaking, by `speakingPaceFactor` (with `burstTokens` thinned) — so most verbal
+  speaking, by `speakingPaceFactor` (with the burst thinned by `burstFactor`) — so most verbal
   effort goes to the utterance while thought keeps trickling. Exposes `sleep()`
   for the [sleep ritual](memory.md#sleep-is-announced).
 
@@ -217,7 +218,7 @@ supersedes the current burst (the in-flight stream is aborted).
 | `burstTokens` | `350` | max tokens per burst |
 | `temperature` | `0.9` | sampling temperature |
 
-- **Subscribes:** `!scope/prompt` (`promptSrc`) — `{system, frame, prefix?, dedupe?, burstTokens?}` or a plain string; the mind's frame, heard from anywhere inside it.
+- **Subscribes:** `!scope/prompt` (`promptSrc`) — `{system, frame, prefix?, dedupe?, burstTokens?, burstFactor?}` or a plain string; the mind's frame, heard from anywhere inside it. An explicit `burstTokens` sets the burst's budget; a `burstFactor` scales this stream's own `burstTokens` (floor 60).
 - **Publishes:**
   - `chunk` — each text fragment as it arrives (the `prefix`, including the landing opener, is emitted as a chunk too);
   - `boundary` — `{reason: completed|error, burstIndex, burstChars, error?}` when a burst ends and was not superseded;
@@ -305,6 +306,8 @@ aperture (C1/S1) may provide the role without `modality`.
 | `dwell` | `30s` | minimum time between aperture changes |
 | `contactHorizon` | `10m` | weak time-only pressure reaches 1 after this awake interval |
 | `requestedFloor` | `0` | salience floor when the observation answers a control request the mind issued. The route exists; this default is not a chosen confirmation policy. |
+| `boundarySrc` | `!scope/stream/@boundary` | the burst boundary that advances the aperture; the default is bound only when the membrane has a part named `stream`; `"off"` unbinds |
+| `arousalSrc` | `!scope/economy/arousal` | the arousal the aperture advances with; the default is bound only when the membrane has a part named `economy`; `"off"` unbinds |
 
 Registered source elements (never payload fields) declare:
 

@@ -75,6 +75,10 @@ function andThen(value, f) {
  *     (default "500ms"); a gate that has not answered by then denies (gate-missing)
  *   - regulateDeadline: how long a substituted regulator may take to answer one
  *     op (default "2s"); a silent one changes nothing
+ *   - boundarySrc / arousalSrc: the burst boundary that advances the aperture and
+ *     the arousal it is advanced with (defaults "!scope/stream/@boundary" and
+ *     "!scope/economy/arousal", bound only when the membrane has a part of that
+ *     name); "off" unbinds
  * Interior role: `regulator` — contact dynamics (debt, habituation, reflex).
  *   Resolved at connect via part('regulator'), then kept only if
  *   enclosingOf(el, 'aperture') === this, so a nested aperture's regulator is
@@ -188,11 +192,15 @@ export class MRegion extends MBaseComponent {
             this._membraneSleeping = !!sleeping
             if (sleeping) this._onMindSleeping()
         }).catch(() => {})
-        if (mind?.querySelector('m-stream')) {
-            this.sub('!scope/stream/@boundary', () => this.onBoundary()).catch(() => {})
-        }
-        if (mind?.querySelector('m-economy')) {
-            this.sub('!scope/economy/arousal', value => { this._arousal = value }).catch(() => {})
+        // The stream's boundaries and the economy's arousal are heard by name. A
+        // default ref is bound only when the membrane has a part of that name (what
+        // `!scope/<name>` resolves to), so a mind without one starts no retry.
+        const named = name => !!mind?.querySelector(`[name="${name}"]`)
+        const boundarySrc = this.attr('boundarySrc') || (named('stream') ? '!scope/stream/@boundary' : 'off')
+        if (boundarySrc !== 'off') this.sub(boundarySrc, () => this.onBoundary()).catch(() => {})
+        const arousalSrc = this.attr('arousalSrc') || (named('economy') ? '!scope/economy/arousal' : 'off')
+        if (arousalSrc !== 'off') {
+            this.sub(arousalSrc, value => { if (typeof value === 'number') this._arousal = value }).catch(() => {})
         }
         this._requestedFloor()
         // Every aperture on a candidate's path answers the issuer's request with its
@@ -795,7 +803,7 @@ export class MRegion extends MBaseComponent {
         const walk = node => {
             for (const child of node.children || []) {
                 if (isMembrane(child)) continue
-                if (child !== this && child.aperture && gateIdOf(child) === id) {
+                if (child !== this && providesOf(child, 'aperture') && gateIdOf(child) === id) {
                     throw new Error(`Aperture names must be unique within a membrane (${id})`)
                 }
                 walk(child)
