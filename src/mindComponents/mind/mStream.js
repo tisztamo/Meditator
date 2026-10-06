@@ -1,6 +1,7 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
 import { ENERGY } from "../shared/infoton.js"
 import { telemetry } from "../shared/telemetry.js"
+import { spend } from "../shared/usage.js"
 import { FilterChain, CHAIN_ROLE, DEFAULT_FILTER_DEADLINE_MS } from "../shared/streamFilters.js"
 import { chatStream } from "../../modelAccess/llm.js"
 import { resolveModelRef } from "../../modelAccess/modelConfig.js"
@@ -259,15 +260,26 @@ export class MStream extends MBaseComponent {
             if (!context.superseded) pass(await chain.flush())
 
             if (!context.superseded) {
+                this._charge(context)
                 this._finishBurst({ reason: "completed", burstIndex, burstChars })
             }
         } catch (error) {
             if (context?.superseded) return
             log.error("Burst error:", error.message || error)
+            this._charge(context)
             this._finishBurst({ reason: "error", burstIndex, burstChars, error: error.message || String(error) })
         } finally {
+            this._charge(context)
             if (this._current === context) this._current = null
         }
+    }
+
+    /** Attribute a burst's usage once its loop has ended, before its boundary
+     *  where there is one, so the economy's reading at that boundary includes it. */
+    _charge(context) {
+        if (!context || context.charged) return
+        context.charged = true
+        spend(this, context.burst.usage)
     }
 
     _finishBurst(boundary) {

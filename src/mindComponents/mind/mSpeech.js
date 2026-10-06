@@ -9,6 +9,7 @@ import { chatStream, complete } from "../../modelAccess/llm.js"
 import { resolveModelRef } from "../../modelAccess/modelConfig.js"
 import { parseTime } from '../../config/timeParser.js';
 import { logger } from '../../infrastructure/logger.js';
+import { spend, spent } from "../shared/usage.js"
 
 const log = logger('mSpeech.js');
 
@@ -168,14 +169,14 @@ export class MSpeech extends MObserver {
         const model = addressed
             ? resolveModelRef(this.attr("model") || this.env("model"), "voice")
             : resolveModelRef(this.attr("decisionModel") || this.env("utilityModel"), "utility")
-        const result = await complete({
+        const result = spent(this, await complete({
             model,
             maxTokens: 120,
             temperature: 0.7,
             prompt: this._decisionPrompt(addressed),
             debugTag: "speech-impulse",
             debugEl: this,
-        })
+        }))
         const raw = (result.text || "").trim()
         const parsed = parseSpeechDecision(raw)
         log.debug(`decision (addressed=${!!addressed}): ${JSON.stringify(raw).slice(0, 300)} -> say=${parsed.say ? JSON.stringify(parsed.say.slice(0, 80)) : "none"} salience=${parsed.salience}`)
@@ -216,8 +217,9 @@ export class MSpeech extends MObserver {
 
         let said = ""
         let reason = "completed"
+        let burst = null
         try {
-            const burst = await chatStream({
+            burst = await chatStream({
                 model,
                 messages,
                 // The spoken voice speaks cleanly: never surface the model's reasoning
@@ -238,6 +240,8 @@ export class MSpeech extends MObserver {
             reason = "error"
             log.warn("Speech burst failed:", error.message || error)
         } finally {
+            // The burst's usage is known once its loop has ended (or broken off).
+            if (burst) spend(this, burst.usage)
             this._burst = null
             this._speaking = false
             this.pub("speaking", false)

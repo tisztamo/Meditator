@@ -15,6 +15,7 @@ import { mindHome, inVault, ensureVault, commitVault, assertNotRetired, assertId
 import { FORMAT_VERSION, recordWake, tierOf } from '../../infrastructure/manifest.js';
 import { runningArchitecture, runningComponentSources, runningBundleDir } from '../../infrastructure/runningBundle.js';
 import { readBundleSync, diffBundles, describeIdentityChange } from '../../infrastructure/identityDiff.js';
+import { spent } from "../shared/usage.js"
 
 const log = logger('mMemory.js');
 
@@ -627,14 +628,14 @@ export class MMemory extends MBaseComponent {
             established, fresh, targetChars, tier, contextBefore, contextAfter,
             lang: langOf(this),
             generate: async (prompt, maxTokens) => {
-                const result = await complete({
+                const result = spent(this, await complete({
                     model: resolveModelRef(this.attr("model") || this.env("utilityModel"), "utility"),
                     maxTokens,
                     temperature: 0.3,
                     debugTag: `memory-${tier}`,
                     debugEl: this,
                     prompt,
-                })
+                }))
                 return result.text
             },
         })

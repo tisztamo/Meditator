@@ -29,6 +29,7 @@ import { issueOwnerBid } from '../../infrastructure/bidderPolicy.js';
 import { mindHome } from '../../infrastructure/memoryVault.js';
 import { parseTime } from '../../config/timeParser.js';
 import { logger } from '../../infrastructure/logger.js';
+import { spent } from "./usage.js"
 
 /** Ceiling on how many live actIds this producer tracks. Oldest expire without mismatch. */
 const MAX_LIVE_ACTS = 32
@@ -279,14 +280,14 @@ export class MAct extends MObserver {
     /** DECIDE: is the mind reaching toward something a hand could realize? Cheap, no tools. */
     async _decide() {
         const model = resolveModelRef(this.attr("decisionModel") || this.env("utilityModel"), "utility")
-        const result = await complete({
+        const result = spent(this, await complete({
             model,
             maxTokens: 120,
             temperature: 0.6,
             prompt: this._decisionPrompt(),
             debugTag: "act-decide",
             debugEl: this,
-        })
+        }))
         const raw = (result.text || "").trim()
         // Reuse m-speech's tolerant parser: a non-NONE reply is the reach gist, with
         // an optional strength in whatever shape the small model produced it.
@@ -357,7 +358,7 @@ export class MAct extends MObserver {
         const recalled = await this._recallForReach(decision.gist)
 
         const realizeTokens = Number(this.attr("realizeTokens") || 2048)
-        const runRealize = maxTokens => completeWithTools({
+        const runRealize = async maxTokens => spent(this, await completeWithTools({
             model,
             messages: [
                 { role: "system", content: this._realizeSystem() },
@@ -369,7 +370,7 @@ export class MAct extends MObserver {
             temperature: 0.2,
             debugTag: "act-realize",
             debugEl: this,
-        })
+        }))
 
         let result
         try {

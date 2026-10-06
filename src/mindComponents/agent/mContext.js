@@ -7,6 +7,7 @@ import { complete } from "../../modelAccess/llm.js"
 import { resolveModelRef } from "../../modelAccess/modelConfig.js"
 import { mindHome } from "../../infrastructure/memoryVault.js"
 import { logger } from "../../infrastructure/logger.js"
+import { spent } from "../shared/usage.js"
 
 const log = logger("mContext.js")
 
@@ -126,14 +127,14 @@ export class MContext extends MBaseComponent {
                 tier: "brief",
                 buildPrompt: buildBriefPrompt,
                 generate: async (prompt, maxTokens) => {
-                    const result = await complete({
+                    const result = spent(this, await complete({
                         model: resolveModelRef(this.attr("model") || this.env("utilityModel"), "utility"),
                         maxTokens,
                         temperature: 0.3,
                         debugTag: "context",
                         debugEl: this,
                         prompt,
-                    })
+                    }))
                     return result.text
                 },
             })

@@ -3,6 +3,7 @@ import { MBaseComponent } from "../shared/mBaseComponent.js"
 import { completeWithTools } from "../../modelAccess/llm.js"
 import { resolveModelRef } from "../../modelAccess/modelConfig.js"
 import { logger } from "../../infrastructure/logger.js"
+import { spent } from "../shared/usage.js"
 
 const log = logger("mReason.js")
 
@@ -93,7 +94,7 @@ export class MReason extends MBaseComponent {
             ...(turn.system ? [{ role: "system", content: turn.system }] : []),
             ...turn.messages,
         ]
-        const result = await completeWithTools({
+        const result = spent(this, await completeWithTools({
             model,
             messages,
             tools: turn.tools?.length ? turn.tools : undefined,
@@ -102,7 +103,7 @@ export class MReason extends MBaseComponent {
             temperature: Number(this.attr("temperature") ?? 0.2),
             debugTag: "reason",
             debugEl: this,
-        })
+        }))
         return {
             text: result.text || "",
             tool_calls: result.tool_calls || [],

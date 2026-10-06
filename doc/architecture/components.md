@@ -1071,14 +1071,19 @@ Plus all `m-observer` attributes.
 
 ## `m-economy`
 
-The mind's metabolism — reads real API cost and slows the mind as the budget drains.
+The mind's metabolism — adds up the model spend inside its mind and slows the mind
+as the budget drains. Every component that calls a model fires `usage {promptTokens,
+completionTokens, cost}` for that call (`shared/usage.js`); the economy hears it on
+its membrane, so in a society each mind is charged for its own calls only, and a
+mind also pays for the sub-agents inside it.
 
 | Attribute | Default | Meaning |
 |-----------|---------|---------|
 | `budget` | `1.00` | USD for this run |
 | `estInPrice` | `0.15` | USD/million input tokens, used only if the provider doesn't report cost |
 | `estOutPrice` | `1.00` | USD/million output tokens, same |
-| `boundarySrc` | `/stream/boundary` | when to re-read usage |
+| `usageSrc` | `!scope/@usage` | where spend is heard |
+| `boundarySrc` | `!scope/stream/@boundary` | when to convert the spend heard so far into energy |
 
 - **Publishes:** `energy` (`0..1`), `spent` (USD).
 - **API used by the mind:** `paceFactor()` → ×1 (fresh, energy > 0.5), ×2 (tiring,

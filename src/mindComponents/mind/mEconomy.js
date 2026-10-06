@@ -1,22 +1,24 @@
 import { MBaseComponent } from "../shared/mBaseComponent.js"
 import { telemetry } from "../shared/telemetry.js"
-import { getUsageTotals } from "../../modelAccess/llm.js"
+import { USAGE_EVENT } from "../shared/usage.js"
 import { logger } from '../../infrastructure/logger.js';
 
 const log = logger('mEconomy.js');
 
 /**
- * The mind's metabolism. Reads accumulated API usage at every burst boundary,
- * converts it to spend (OpenRouter reports true cost; otherwise estimated from
- * token counts), and exposes a pace factor that m-mind multiplies into its
- * inter-burst pause. A mind low on energy thinks more slowly; a mind out of
- * budget all but sleeps — it never dies, the watchdog still ticks.
+ * The mind's metabolism. Adds up the model usage spent inside its membrane (each
+ * call's `usage` event, fired by the component that made it; shared/usage.js), and
+ * at every burst boundary converts it to spend (OpenRouter reports true cost;
+ * otherwise estimated from token counts) and exposes a pace factor that m-mind
+ * multiplies into its inter-burst pause. A mind low on energy thinks more slowly;
+ * a mind out of budget all but sleeps — it never dies, the watchdog still ticks.
  *
  * @interface
  * Attributes:
  *   - budget: USD for this run (default "1.00")
  *   - estInPrice / estOutPrice: USD per million tokens used only when the
  *     provider does not report cost (defaults 0.15 / 1.00)
+ *   - usageSrc: where spend is heard (default "!scope/@usage")
  *
  * Topics published:
  *   - "energy" (0..1) — budget head-room, the metabolic reading
@@ -33,13 +35,24 @@ export class MEconomy extends MBaseComponent {
     spent = 0
     arousal = 1
     _boundaries = 0
+    _totals = { requests: 0, promptTokens: 0, completionTokens: 0, cost: 0 }
 
     onConnect() {
+        this.sub(this.attr("usageSrc") || `!scope/@${USAGE_EVENT}`, this._onUsage)
         this.sub(this.attr("boundarySrc") || "!scope/stream/@boundary", this._onBoundary)
     }
 
+    _onUsage = e => {
+        const usage = e?.detail
+        if (!usage) return
+        this._totals.requests += 1
+        this._totals.promptTokens += Number(usage.promptTokens) || 0
+        this._totals.completionTokens += Number(usage.completionTokens) || 0
+        this._totals.cost += Number(usage.cost) || 0
+    }
+
     _onBoundary = () => {
-        const totals = getUsageTotals()
+        const totals = this._totals
         const estimated = (totals.promptTokens * Number(this.attr("estInPrice") || 0.15)
             + totals.completionTokens * Number(this.attr("estOutPrice") || 1.0)) / 1e6
         this.spent = totals.cost > 0 ? totals.cost : estimated

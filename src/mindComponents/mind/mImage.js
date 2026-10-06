@@ -5,6 +5,7 @@ import { resolveModelRef } from "../../modelAccess/modelConfig.js";
 import { decide, readChoice } from "../../modelAccess/decide.js";
 import { parseTime } from "../../config/timeParser.js";
 import { logger } from "../../infrastructure/logger.js";
+import { spent } from "../shared/usage.js";
 
 const log = logger("mImage.js");
 
@@ -206,7 +207,7 @@ export class MImage extends MObserver {
    *  Returns { salience } when a picture is wanted (the composer then writes it),
    *  else null. */
   async _gateDecision(model) {
-    const result = await decide({
+    const result = spent(this, await decide({
       model,
       state: {
         thinking: `…${this.window.slice(-2400)}`,
@@ -226,7 +227,7 @@ export class MImage extends MObserver {
       } },
       debugTag: "image-gate",
       debugEl: this,
-    });
+    }));
     if (!result) return null;
     const { value, confidence } = readChoice(result.answers?.picture);
     if (value !== "yes") return null;
@@ -236,14 +237,14 @@ export class MImage extends MObserver {
   /** The legacy completion gate (the judge is a completion model). */
   async _gateLegacy() {
     const model = resolveModelRef(this.attr("decisionModel") || this.env("utilityModel"), "utility");
-    const result = await complete({
+    const result = spent(this, await complete({
       model,
       maxTokens: 180,
       temperature: 0.6,
       prompt: this._decisionPrompt(),
       debugTag: "image-impulse",
       debugEl: this,
-    });
+    }));
     const parsed = parseImageDecision((result.text || "").trim());
     const salience = parsed.salience != null ? parsed.salience : 0.55;
     return parsed.prompt ? { prompt: parsed.prompt, salience } : null;
@@ -252,14 +253,14 @@ export class MImage extends MObserver {
   /** The composer: writes the chart-and-text prompt FROM THE THINKING. */
   async _compose() {
     const model = resolveModelRef(this.attr("decisionModel") || this.env("utilityModel"), "utility");
-    const result = await complete({
+    const result = spent(this, await complete({
       model,
       maxTokens: 320,
       temperature: 0.4,
       prompt: this._composerPrompt(),
       debugTag: "image-compose",
       debugEl: this,
-    });
+    }));
     const text = (result.text || "").trim();
     if (!text) return null;
     if (/^["']?none\b/i.test(text)) return null;
@@ -274,7 +275,7 @@ export class MImage extends MObserver {
 
     const prompt = this._imagePrompt(decision.prompt);
     try {
-      const image = await generateImage({
+      const image = spent(this, await generateImage({
         prompt,
         model: this.attr("model") || undefined,
         size: this.attr("size") || undefined,
@@ -283,7 +284,7 @@ export class MImage extends MObserver {
         outputFormat: this.attr("outputFormat") || undefined,
         debugTag: "image-generate",
         debugEl: this,
-      });
+      }));
       this._imagesMade += 1;
       this._lastPrompt = prompt;
       const payload = {

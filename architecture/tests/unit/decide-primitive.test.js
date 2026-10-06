@@ -173,9 +173,8 @@ test("the judge role MAY hold a decision provider — that is the point of Phase
 // --- the call --------------------------------------------------------------
 
 test("decide() posts the documented body and returns answers, usage and latency", async () => {
-    const { decide, llm } = await load(YAML, { profile: "cloud-jev" });
+    const { decide } = await load(YAML, { profile: "cloud-jev" });
     const calls = stubFetch({ status: 200, body: VERDICT_PAYLOAD });
-    const before = llm.getUsageTotals();
 
     const result = await decide.decide({
         state: { expected: "a list", perceived: "a list came back" },
@@ -193,11 +192,10 @@ test("decide() posts the documented body and returns answers, usage and latency"
     expect(result.model).toBe("jev-1.13.0");
     expect(result.latencyMs).toBeGreaterThanOrEqual(0);
 
-    // Usage lands in the one economy, priced at the published input rate; output is free.
+    // The result carries its usage for the caller to attribute (shared/usage.js),
+    // priced at the published input rate; output is free.
     expect(result.usage.prompt_tokens).toBe(637);
-    const after = llm.getUsageTotals();
-    expect(after.promptTokens - before.promptTokens).toBe(637);
-    expect(after.cost - before.cost).toBeCloseTo(637 * decide.DECISION_INPUT_PRICE_PER_TOKEN, 12);
+    expect(result.usage.cost).toBeCloseTo(637 * decide.DECISION_INPUT_PRICE_PER_TOKEN, 12);
 });
 
 test("decide() needs at least one question", async () => {

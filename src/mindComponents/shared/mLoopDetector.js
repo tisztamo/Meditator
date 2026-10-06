@@ -5,6 +5,7 @@ import { complete } from "../../modelAccess/llm.js"
 import { decide, readChoice } from "../../modelAccess/decide.js"
 import { resolveModelRef } from "../../modelAccess/modelConfig.js"
 import { logger } from '../../infrastructure/logger.js';
+import { spent } from "./usage.js"
 
 const log = logger('mLoopDetector.js');
 
@@ -248,32 +249,31 @@ export class MLoopDetector extends MObserver {
 
     /** The original engine: one utility-model call, five fields parsed back out of prose. */
     async _detectCompletion(spec, text) {
-        const result = await complete({
+        const result = spent(this, await complete({
             model: spec,
             maxTokens: 120,
             temperature: 0.2,
             debugTag: "loop-detector",
             debugEl: this,
             prompt: this._prompt(text),
-        })
+        }))
         return { ...parseLoopReply(result.text || ""), engine: "llm", model: spec.model, confidence: null, strength: null }
     }
 
     /** The Jev engine: one decide() call, three questions, no text anywhere. */
     async _detectDecision(spec, text) {
-        const result = await decide({
+        const result = spent(this, await decide({
             model: spec,
             state: `…${text.slice(-1800)}`,
             questions: loopQuestions(),
             debugTag: "loop-detector",
             debugEl: this,
-        })
+        }))
         if (!result) return null   // decide() soft-fails to null, like complete() does
         return { ...readLoopDecision(result.answers), engine: "jev", model: result.model }
     }
 
     _prompt(text) {
-        // "the loop sense of a mind" is the distinctive opener the dry-run model keys on.
         return `You are the loop sense of a mind. Below is the verbatim tail of its inner monologue — the words it is about to continue from.
 
 <tail>

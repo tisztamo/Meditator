@@ -397,6 +397,9 @@ the interlocutor-voice ingress path; `m-observer`'s overridable `src`; `<templat
 3. **Unique names.** The society must guarantee them; templating supplies them.
 4. **Economy/budget.** N minds = N token meters. The society should expose an
    aggregate `m-economy` (sum of members) so a population can't silently 6× the burn.
+   Each member's economy is charged for its own calls only (the caller fires
+   `usage`, review §2.3), and `usage` is not stopped at a membrane, so an economy
+   on the society itself would hear every member's spend.
 
 **Encapsulation is the safety rail:** because the rule is "relative inside, ports
 across," the blast radius of a wrong wire is one edge in the graph, not a silent

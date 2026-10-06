@@ -2,7 +2,7 @@ import { logger } from '../infrastructure/logger.js';
 import { dumpPrompt } from '../infrastructure/promptDebug.js';
 import { VERDICT_GLOSSES } from '../infrastructure/judgeCompare.js';
 import { modelForRole, resolveModelRef } from './modelConfig.js';
-import { isDryRun, recordUsage } from './llm.js';
+import { isDryRun } from './llm.js';
 
 const log = logger('decide.js');
 
@@ -17,7 +17,8 @@ const log = logger('decide.js');
  * no OpenAI shape. See doc/plans/jev-system-one-integration.md.
  *
  * Failure discipline mirrors complete(): a soft failure returns null rather than
- * throwing, usage lands in getUsageTotals(), MEDITATOR_DRY_RUN=1 answers offline.
+ * throwing, a result carries its usage for the caller to attribute (like every
+ * llm.js call; mindComponents/shared/usage.js), MEDITATOR_DRY_RUN=1 answers offline.
  * The one thing that throws is a config bug — a model that is not on a decision
  * provider — because that never heals by waiting.
  */
@@ -38,7 +39,9 @@ const BACKOFF_MAX_MS = 30000;
 
 // Module state: a shared cooldown, so a rate-limited endpoint is not hammered by
 // every component in the mind at once. A call inside the cooldown soft-fails
-// immediately instead of spending its deadline on a request that will 429.
+// immediately instead of spending its deadline on a request that will 429. It is
+// process-wide on purpose: the rate limit belongs to the endpoint and the key every
+// mind in the process shares, not to any one mind (message-rule review §2.3).
 let backoffUntil = 0;
 let backoffStreak = 0;
 
@@ -319,7 +322,6 @@ function accountUsage(payload, body) {
     cost: promptTokens * DECISION_INPUT_PRICE_PER_TOKEN,
   };
   if (estimated) usage.estimated = true;
-  recordUsage(usage);
   return usage;
 }
 
@@ -336,7 +338,6 @@ function dryDecide({ spec, state, questions }) {
   }
   const promptTokens = Math.ceil(JSON.stringify({ state, questions }).length / 4);
   const usage = { prompt_tokens: promptTokens, completion_tokens: 0, cost: 0 };
-  recordUsage(usage);
   return { answers, usage, latencyMs: 0, model: spec?.model || 'dry-decide' };
 }
 

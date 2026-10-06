@@ -2,6 +2,7 @@ import { MObserver } from "./mObserver.js"
 import { complete } from "../../modelAccess/llm.js"
 import { resolveModelRef } from "../../modelAccess/modelConfig.js"
 import { logger } from '../../infrastructure/logger.js';
+import { spent } from "../shared/usage.js"
 
 const log = logger('mAssociate.js');
 
@@ -30,7 +31,7 @@ export class MAssociate extends MObserver {
 
         this._busy = true
         try {
-            const result = await complete({
+            const result = spent(this, await complete({
                 model: resolveModelRef(this.attr("model") || this.env("utilityModel"), "utility"),
                 maxTokens: 120,
                 temperature: 0.9,
@@ -48,7 +49,7 @@ If nothing comes to mind, output exactly: NONE
 Otherwise output exactly two lines:
 SALIENCE: <0.0-1.0, how strongly this calls for attention>
 THOUGHT: <one first-person sentence, e.g. "This reminds me of …">`,
-            })
+            }))
 
             const text = result.text.trim()
             if (/^NONE\b/i.test(text)) return

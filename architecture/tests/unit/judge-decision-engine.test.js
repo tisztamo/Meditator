@@ -85,13 +85,15 @@ async function load({ profile }) {
     }
 }
 
-/** A host with just the surface `_judge` touches: attributes, ancestor env, and
- * the two transport seams, each recording what it was handed. */
+/** A host with just the surface `_judge` touches: attributes, ancestor env, the
+ * two transport seams, each recording what it was handed, and fire() for the
+ * call's usage (shared/usage.js). */
 function host({ attrs = {}, decide, complete } = {}) {
-    const calls = { decide: [], complete: [] };
+    const calls = { decide: [], complete: [], fired: [] };
     const el = Object.create(MJudge.prototype);
     el.attr = name => attrs[name];
     el.env = () => undefined;
+    el.fire = (name, detail) => { calls.fired.push({ name, detail }); };
     el._decide = async opts => { calls.decide.push(opts); return decide ? decide(opts) : null; };
     el._complete = async opts => { calls.complete.push(opts); return complete ? complete(opts) : { text: "" }; };
     return { el, calls };
@@ -123,6 +125,8 @@ test("a decision provider routes the judge through decide(), not complete()", as
     const judged = await el._judge("the count comes back 8", "The screen comes back with: 12");
 
     expect(judged).toEqual({ verdict: "mismatch", confidence: 0.94 });
+    // The judge attributes the call's spend itself.
+    expect(calls.fired).toEqual([{ name: "usage", detail: { promptTokens: 637, completionTokens: 0, cost: 0.0000268 } }]);
     expect(calls.complete).toHaveLength(0);
     expect(calls.decide).toHaveLength(1);
 
@@ -210,6 +214,8 @@ test("dry run still answers, so an architecture on this profile wakes offline", 
     const el = Object.create(MJudge.prototype);
     el.attr = name => (name === "model" ? "judge" : undefined);
     el.env = () => undefined;
+    const fired = [];
+    el.fire = (name, detail) => { fired.push({ name, detail }); };
 
     const judged = await el._judge("x", "y");
 
@@ -217,4 +223,6 @@ test("dry run still answers, so an architecture on this profile wakes offline", 
     // Zero confidence is the honest offline strength, and it is what bidderPolicy
     // multiplies by — a dry verdict can never read as evidence.
     expect(judged.confidence).toBe(0);
+    // The offline call is attributed like a live one.
+    expect(fired.map(f => f.name)).toEqual(["usage"]);
 });

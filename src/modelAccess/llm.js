@@ -14,8 +14,10 @@ const log = logger('llm.js');
  * Set MEDITATOR_DRY_RUN=1 to replace all calls with a deterministic offline stub,
  * so the whole mind loop can be exercised without network or cost.
  *
- * Usage (tokens and, where the provider reports it, real cost in USD) is accumulated
- * in module state and can be read with getUsageTotals() — m-economy builds on this.
+ * Every call returns its usage (tokens and, where the provider reports it, real
+ * cost in USD) and keeps no total: the component that made the call attributes it
+ * (`spend()` in mindComponents/shared/usage.js), so each mind's economy is charged
+ * for its own spend only (message-rule review §2.3).
  */
 
 export const DEFAULT_MODELS = {
@@ -53,35 +55,6 @@ function requireCompletion(spec) {
     );
   }
   return spec;
-}
-
-const totals = {
-  requests: 0,
-  promptTokens: 0,
-  completionTokens: 0,
-  cost: 0,          // USD, only from providers that report it (OpenRouter)
-  errors: 0,
-};
-
-export function getUsageTotals() {
-  return { ...totals };
-}
-
-/**
- * Record usage from a transport that is not a chat completion (decide()), so
- * every call the mind makes lands in one economy. Same accumulator, same shape:
- * { prompt_tokens, completion_tokens, cost }.
- */
-export function recordUsage(usage) {
-  addUsage(usage);
-}
-
-function addUsage(usage) {
-  totals.requests += 1;
-  if (!usage) return;
-  totals.promptTokens += usage.prompt_tokens || 0;
-  totals.completionTokens += usage.completion_tokens || 0;
-  if (typeof usage.cost === 'number') totals.cost += usage.cost;
 }
 
 // Extracts a readable detail string from an OpenAI-SDK / fetch error: HTTP
@@ -203,6 +176,9 @@ function asMessages({ messages, prompt, system }) {
 // Non-streamed completion with retry; gated by a small semaphore so a burst of
 // observer/compression calls cannot starve the connection pool. Streams are not
 // gated (there is one stream at a time and it must never wait behind utilities).
+// The semaphore is process-wide on purpose: it guards the process's connections
+// and the endpoint behind them, which every mind in the process shares, not any
+// one mind's state (message-rule review §2.3).
 // ---------------------------------------------------------------------------
 
 const MAX_CONCURRENT = Number(process.env.MEDITATOR_MAX_CONCURRENCY || 4);
@@ -265,7 +241,6 @@ export async function complete(opts) {
   try {
     return await withSlot(async () => {
       const response = await client.chat.completions.create(request);
-      addUsage(response.usage);
       const choice = response.choices?.[0];
       const text = choice?.message?.content || '';
       const finish = choice?.finish_reason;
@@ -284,7 +259,6 @@ export async function complete(opts) {
   } catch (error) {
     const status = error?.status;
     if (status && status !== 429 && status < 500) {
-      totals.errors += 1;
       log.warn(`completion failed (${provider.key} model="${provider.model}"): ${errorDetail(error)} — client error, not retried`);
     } else {
       log.debug(`completion soft-failed (${provider.key} model="${provider.model}"): ${errorDetail(error)} — overload/transient, not retried, not counted`);
@@ -299,9 +273,9 @@ export async function complete(opts) {
  * m-act: given a capability menu as `tools`, a capable model picks a hand and its
  * args. The conscious stream is NEVER given tools; only this is.
  *
- * Reuses the exact request path, retry/backoff, concurrency (withSlot) and
- * economy (addUsage) of complete(); it only adds `tools`/`tool_choice` to the
- * request and reads `tool_calls` back.
+ * Reuses the exact request path, retry/backoff and concurrency (withSlot) of
+ * complete(), and returns its usage the same way; it only adds `tools`/`tool_choice`
+ * to the request and reads `tool_calls` back.
  *
  * @param {Object} opts
  * @param {string} [opts.model] - model id; defaults to the voice model (the actor)
@@ -348,7 +322,6 @@ export async function completeWithTools(opts) {
   try {
     return await withSlot(async () => {
       const response = await client.chat.completions.create(request);
-      addUsage(response.usage);
       const choice = response.choices?.[0];
       const message = choice?.message || {};
       const toolCalls = message.tool_calls || [];
@@ -364,7 +337,6 @@ export async function completeWithTools(opts) {
   } catch (error) {
     const status = error?.status;
     if (status && status !== 429 && status < 500) {
-      totals.errors += 1;
       log.warn(`completeWithTools failed (${provider.key} model="${provider.model}"): ${errorDetail(error)} — client error, not retried. `
         + `If this is a local model, verify vLLM was launched with --enable-auto-tool-choice and a matching --tool-call-parser (efference.md §4).`);
     } else {
@@ -469,7 +441,6 @@ export async function chatStream(opts) {
     }
     const status = error?.status;
     if (status && status !== 429 && status < 500) {
-      totals.errors += 1;
       log.warn(`stream open failed (${provider.key} model="${provider.model}"): ${errorDetail(error)} — client error`);
     } else {
       log.debug(`stream open soft-failed (${provider.key} model="${provider.model}"): ${errorDetail(error)} — overload/transient, not counted`);
@@ -544,7 +515,6 @@ export async function chatStream(opts) {
           log.debug(`stream aborted after ${chunks} chunks, ${contentChars} content chars`);
           return; // cancelled on purpose — end quietly
         }
-        totals.errors += 1;
         log.warn(`stream error after ${chunks} chunks, ${contentChars} content chars (${provider.key} model="${provider.model}"): ${errorDetail(error)}`);
         throw error;
       } finally {
@@ -552,7 +522,6 @@ export async function chatStream(opts) {
         // Thinking mode ended the burst at the think→answer transition: abort so the
         // server stops generating the answer text we are dropping.
         if (endedAtThinking) { try { controller.abort(); } catch { /* already closed */ } }
-        addUsage(burst.usage);
       }
       log.debug(`stream done: ${chunks} chunks, ${contentChars} content chars, ${reasoningChars} reasoning chars, finish=${finish}${endedAtThinking ? ' (ended at think→answer transition)' : ''}, usage=${burst.usage ? JSON.stringify(burst.usage) : 'none'}`);
       // A clean 200 stream that yields no visible content: the mind had nothing to
@@ -618,7 +587,6 @@ export async function generateImage(opts = {}) {
     const image = response.data?.[0] || {};
     const b64 = image.b64_json || null;
     const mimeType = `image/${outputFormat || 'png'}`;
-    addUsage(response.usage);
     return {
       model,
       prompt,
@@ -631,7 +599,6 @@ export async function generateImage(opts = {}) {
       usage: response.usage || null,
     };
   } catch (error) {
-    totals.errors += 1;
     log.warn(`image generation failed (openai model="${model}"): ${errorDetail(error)}`);
     throw error;
   }
@@ -639,7 +606,11 @@ export async function generateImage(opts = {}) {
 
 // ---------------------------------------------------------------------------
 // Dry-run stub: a deterministic offline mind. Streams cycle through canned
-// passages; completions answer by sniffing what kind of utility call this is.
+// passages; completions answer by the call's `debugTag` (the kind of call its
+// component names), never by the prompt's text: matching prose made the stub
+// know every component by its wording, and a mind's own words could steer it
+// (memory's compression got the association reply whenever its thinking said
+// "remind"). An unknown tag gets "Noted." (message-rule review §2.3).
 // ---------------------------------------------------------------------------
 
 const CANNED_THOUGHTS = [
@@ -673,8 +644,7 @@ let dryActCounter = 0;
 let dryLoopCounter = 0;
 
 function dryStream(opts = {}) {
-  const prompt = (opts.messages || []).map(m => m.content).join('\n');
-  const speaking = /speaking ALOUD|say it aloud|only the spoken words/i.test(prompt);
+  const speaking = opts.debugTag === 'speech-voice';
   const text = speaking
     ? DRY_UTTERANCES[dryUtteranceCounter++ % DRY_UTTERANCES.length]
     : CANNED_THOUGHTS[dryStreamCounter++ % CANNED_THOUGHTS.length];
@@ -689,76 +659,76 @@ function dryStream(opts = {}) {
         await delay(12);
         yield word;
       }
-      addUsage(burst.usage);
     },
   };
   return burst;
 }
 
-function dryComplete({ prompt = '', messages }) {
-  const text = prompt || (messages || []).map(m => m.content).join('\n');
-  let reply;
-  if (/impulse to SPEAK/i.test(text)) {
-    // The volitional speech impulse (mSpeech) — speak roughly every other check.
-    drySpeechCounter += 1;
-    reply = drySpeechCounter % 2 === 0
-      ? '[0.82] I want to say this out loud, just once: the silence here is not empty, it has a texture.'
-      : 'NONE';
-  } else if (/impulse to REACH/i.test(text)) {
-    // The volitional reach impulse (mAct decide stage) — reach roughly every
-    // other check, so the dry seedling exercises both the act and the decline path.
-    dryActCounter += 1;
-    reply = dryActCounter % 2 === 0
-      ? '[0.78] I find myself wondering what the light is doing outside right now.'
-      : 'NONE';
-  } else if (/loop sense of a mind/i.test(text)) {
-    // The loop detector (mLoopDetector): report a presence loop on roughly every third
-    // check, so a dry/smoke run exercises the detect → bid → clear-tail pipeline; otherwise
-    // report no loop.
-    dryLoopCounter += 1;
-    reply = dryLoopCounter % 3 === 0
-      ? 'LOOPING: yes\nSCORE: 0.8\nKIND: presence\nVOCABULARY: presence, stillness, enough, now\nWHY: It keeps restating that being here is enough without a new step.'
-      : 'LOOPING: no\nSCORE: 0.1\nKIND: other\nVOCABULARY:\nWHY: The thought is moving.';
-  } else if (/drift sense of a mind/i.test(text)) {
-    // The drift generator (mDrift arm B): a few short, far, first-person fragments —
-    // randomness as the seed, so a dry run exercises the generate → choose pipeline.
-    reply = 'I wonder what the tide is doing on the far shore, where no one is watching.\n' +
-      'There is a kind of knot the river unties by simply keeping on.\n' +
-      'The bell in the valley answers a question no one up here asked.\n' +
-      'I keep a seed I never planted, and it does not mind the waiting.\n' +
-      'The lighthouse keeps its own count of the years, and it is not wrong.';
-  } else if (/most genuinely turn toward/i.test(text)) {
-    // The drift chooser (mDrift arm B): name the one fragment to turn toward — the second
-    // candidate, verbatim, so a dry run exercises the choose path (not the first/default).
-    reply = 'There is a kind of knot the river unties by simply keeping on.';
-  } else if (/mid-thought transition|attention turns/i.test(text)) {
-    reply = 'Hold on — something just shifted, and I want to turn toward it without dropping the thread entirely.';
-  } else if (/remind|associat/i.test(text)) {
-    dryAssociateCounter += 1;
-    reply = dryAssociateCounter % 3 === 0
-      ? 'SALIENCE: 0.7\nTHOUGHT: This reminds me of how rivers carve canyons — attendance, not force.'
-      : 'NONE';
-  } else if (/visual imagination|image prompt|nothing genuinely visual/i.test(text)) {
-    dryImageCounter += 1;
-    reply = dryImageCounter % 2 === 0
-      ? '[0.82] A small moonlit room with a brass key on the windowsill, rain making silver lines on the glass.'
-      : 'NONE';
-  } else if (/condense|compress|shorter version|summary/i.test(text)) {
-    reply = 'Earlier I drifted between sounds and their names, the honesty of small tools, and memory as an over-eager editor; the running thread is a wish to attend rather than to push.';
-  } else {
-    reply = 'Noted.';
-  }
-  addUsage({ prompt_tokens: 200, completion_tokens: 40, cost: 0 });
-  return { text: reply, usage: null };
+// The utility replies by debugTag. A tag missing here falls back to its prefix
+// ("memory-recent" → "memory"), so a component's tiers share one reply.
+const DRY_REPLIES = {
+  // The volitional speech impulse (mSpeech) — speak roughly every other check.
+  'speech-impulse': () => (++drySpeechCounter % 2 === 0
+    ? '[0.82] I want to say this out loud, just once: the silence here is not empty, it has a texture.'
+    : 'NONE'),
+  // The volitional reach impulse (mAct decide stage) — reach roughly every
+  // other check, so the dry seedling exercises both the act and the decline path.
+  'act-decide': () => (++dryActCounter % 2 === 0
+    ? '[0.78] I find myself wondering what the light is doing outside right now.'
+    : 'NONE'),
+  // The loop detector (mLoopDetector): report a presence loop on roughly every third
+  // check, so a dry/smoke run exercises the detect → bid → clear-tail pipeline; otherwise
+  // report no loop.
+  'loop-detector': () => (++dryLoopCounter % 3 === 0
+    ? 'LOOPING: yes\nSCORE: 0.8\nKIND: presence\nVOCABULARY: presence, stillness, enough, now\nWHY: It keeps restating that being here is enough without a new step.'
+    : 'LOOPING: no\nSCORE: 0.1\nKIND: other\nVOCABULARY:\nWHY: The thought is moving.'),
+  // The drift generator (mDrift arm B): a few short, far, first-person fragments —
+  // randomness as the seed, so a dry run exercises the generate → choose pipeline.
+  'drift-gen': () => 'I wonder what the tide is doing on the far shore, where no one is watching.\n' +
+    'There is a kind of knot the river unties by simply keeping on.\n' +
+    'The bell in the valley answers a question no one up here asked.\n' +
+    'I keep a seed I never planted, and it does not mind the waiting.\n' +
+    'The lighthouse keeps its own count of the years, and it is not wrong.',
+  // The drift chooser (mDrift arm B): name the one fragment to turn toward — the second
+  // candidate, verbatim, so a dry run exercises the choose path (not the first/default).
+  'drift-choose': () => 'There is a kind of knot the river unties by simply keeping on.',
+  // The mind's bridge into a stimulus (mMind).
+  'bridge': () => 'Hold on — something just shifted, and I want to turn toward it without dropping the thread entirely.',
+  'associate': () => (++dryAssociateCounter % 3 === 0
+    ? 'SALIENCE: 0.7\nTHOUGHT: This reminds me of how rivers carve canyons — attendance, not force.'
+    : 'NONE'),
+  // The visual imagination (mImage): its completion gate and its composer.
+  'image-impulse': dryImageReply,
+  'image-compose': dryImageReply,
+  // Compression: memory's tiers and an agent's context compaction.
+  'memory': dryCondensed,
+  'context': dryCondensed,
+};
+
+function dryImageReply() {
+  return ++dryImageCounter % 2 === 0
+    ? '[0.82] A small moonlit room with a brass key on the windowsill, rain making silver lines on the glass.'
+    : 'NONE';
+}
+
+function dryCondensed() {
+  return 'Earlier I drifted between sounds and their names, the honesty of small tools, and memory as an over-eager editor; the running thread is a wish to attend rather than to push.';
+}
+
+function dryComplete({ debugTag = '' } = {}) {
+  const reply = DRY_REPLIES[debugTag] ?? DRY_REPLIES[debugTag.split('-')[0]];
+  return { text: reply ? reply() : 'Noted.', usage: { prompt_tokens: 200, completion_tokens: 40, cost: 0 } };
 }
 
 // The realize stage offline: if a "look" hand is on the menu, reach for it (the
 // canonical example), choosing daylight — fully offline and deterministic, so the
 // whole efferent loop runs in a dry seedling without network. m-look short-circuits
 // to canned experiences under dry-run for the other subjects too.
-function dryCompleteWithTools({ tools = [], messages, debugTag } = {}) {
-  addUsage({ prompt_tokens: 220, completion_tokens: 20, cost: 0 });
+function dryCompleteWithTools(opts) {
+  return { ...dryToolReply(opts), usage: { prompt_tokens: 220, completion_tokens: 20, cost: 0 } };
+}
 
+function dryToolReply({ tools = [], messages, debugTag } = {}) {
   // The AGENT reasoner offline (agent-loop.md §12): drive the whole tool-calling loop
   // deterministically without a model. Decide from the transcript itself (how many
   // tool observations already came back) so it is stateless and per-agent: take two
@@ -902,7 +872,6 @@ function dryCompleteWithTools({ tools = [], messages, debugTag } = {}) {
 function dryImage(opts = {}) {
   const prompt = (opts.prompt || '').trim();
   const b64 = Buffer.from(DRY_IMAGE_SVG, 'utf8').toString('base64');
-  addUsage({ prompt_tokens: 80, completion_tokens: 0, cost: 0 });
   return {
     model: opts.model || process.env.OPENAI_IMAGE_MODEL || 'dry-image',
     prompt,
@@ -912,6 +881,6 @@ function dryImage(opts = {}) {
     b64,
     dataUrl: `data:image/svg+xml;base64,${b64}`,
     url: null,
-    usage: null,
+    usage: { prompt_tokens: 80, completion_tokens: 0, cost: 0 },
   };
 }

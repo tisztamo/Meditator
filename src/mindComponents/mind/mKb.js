@@ -6,6 +6,7 @@ import { complete } from "../../modelAccess/llm.js"
 import { resolveModelRef } from "../../modelAccess/modelConfig.js"
 import { logger } from '../../infrastructure/logger.js';
 import { mindHome } from '../../infrastructure/memoryVault.js';
+import { spent } from "../shared/usage.js"
 
 const log = logger('mKb.js');
 
@@ -83,7 +84,7 @@ export class MKb extends MBaseComponent {
         if (recentThought.length < 400) return
 
         const tree = await this._tree(dir)
-        const result = await complete({
+        const result = spent(this, await complete({
             model: resolveModelRef(this.attr("model") || this.env("utilityModel"), "utility"),
             maxTokens: 900,
             temperature: 0.3,
@@ -109,7 +110,7 @@ END
 OP: NONE
 
 Rules: group related ideas into topic files (e.g. attention/interruption.md); evolve existing files via APPEND rather than duplicating; keep index.md a short map of the tree (WRITE it when the tree changes); plain thoughtful markdown, the mind's own first person voice is fine. Also maintain self/values.md — a living statement of what this mind genuinely seems to care about, in its own voice; WRITE it anew when its values clarify rather than letting it grow stale.`,
-        })
+        }))
 
         const ops = parseOps(result.text, Number(this.attr("maxOps") || 4))
         for (const op of ops) {

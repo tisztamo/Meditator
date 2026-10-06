@@ -5,6 +5,7 @@ import { complete } from '../../modelAccess/llm.js'
 import { decide, verdictChoice, readChoice } from '../../modelAccess/decide.js'
 import { resolveModelRef } from '../../modelAccess/modelConfig.js'
 import { logger } from '../../infrastructure/logger.js'
+import { spent } from '../shared/usage.js'
 
 const log = logger('mJudge.js')
 
@@ -121,7 +122,7 @@ export class MJudge extends MComparator {
         const temperature = Number(this.attr('temperature') ?? 0)
         const startedAt = Date.now()
         try {
-            const result = await this._complete({
+            const result = spent(this, await this._complete({
                 model,
                 maxTokens: Number.isFinite(maxTokens) && maxTokens > 0 ? maxTokens : JUDGE_MAX_TOKENS,
                 temperature: Number.isFinite(temperature) ? temperature : 0,
@@ -129,7 +130,7 @@ export class MJudge extends MComparator {
                 debugTag: 'judge-compare',
                 debugEl: this,
                 signal,
-            })
+            }))
             const judged = parseJudgeReply(result?.text || '')
             this._noteJudgement({
                 engine: 'completion', model: model?.model ?? null,
@@ -160,7 +161,7 @@ export class MJudge extends MComparator {
      */
     async _judgeByDecision(model, expectText, evidenceText, { deadline, signal } = {}) {
         try {
-            const result = await this._decide({
+            const result = spent(this, await this._decide({
                 model,
                 state: {
                     expected: typeof expectText === 'string' ? expectText : '',
@@ -171,7 +172,7 @@ export class MJudge extends MComparator {
                 signal,
                 debugTag: 'judge-compare',
                 debugEl: this,
-            })
+            }))
             if (!result) {
                 this._noteJudgement({
                     engine: 'decision', model: model?.model ?? null,

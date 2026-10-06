@@ -9,6 +9,7 @@ import { makePhrasebook } from "../shared/i18n.js"
 import { mindHome } from '../../infrastructure/memoryVault.js';
 import { parseTime } from '../../config/timeParser.js';
 import { logger } from '../../infrastructure/logger.js';
+import { spent } from "../shared/usage.js"
 
 const log = logger('mDrift.js');
 
@@ -201,7 +202,7 @@ export class MDrift extends MObserver {
     async _generate(tail, spec) {
         const n = Number(this.attr("candidates") || 5)
         const salt = Math.floor(Math.random() * 1_000_000)
-        const result = await complete({
+        const result = spent(this, await complete({
             model: spec,
             maxTokens: 200,
             temperature: 1.2,
@@ -216,7 +217,7 @@ export class MDrift extends MObserver {
 Seed: ${salt}
 
 ${n} lines:`,
-        })
+        }))
         const text = (result?.text || "").trim()
         if (!text) return []
         return text.split(/\r?\n/)
@@ -228,7 +229,7 @@ ${n} lines:`,
     /** The chooser: one fragment, by context. Decision engine (a `choice`) or completion (names one). */
     async _choose(tail, candidates, spec) {
         if (spec.kind === "decision") {
-            const result = await decide({
+            const result = spent(this, await decide({
                 model: spec,
                 state: this._choosePrompt(tail, candidates),
                 questions: {
@@ -240,12 +241,12 @@ ${n} lines:`,
                 },
                 debugTag: "drift-choose",
                 debugEl: this,
-            })
+            }))
             if (!result) return null
             const chosen = readChoice(result.answers?.turn)
             return candidates.includes(chosen.value) ? chosen.value : (chosen.value || candidates[0])
         }
-        const result = await complete({
+        const result = spent(this, await complete({
             model: spec,
             maxTokens: 60,
             temperature: 0.3,
@@ -254,7 +255,7 @@ ${n} lines:`,
             prompt: `${this._choosePrompt(tail, candidates)}
 
 Reply with EXACTLY the one fragment above the mind would most genuinely turn toward — copy it verbatim, nothing else.`,
-        })
+        }))
         const reply = (result?.text || "").trim()
         return candidates.find(c => reply.includes(c) || c.includes(reply)) || candidates[0]
     }

@@ -545,6 +545,23 @@ existing seam, none rewrites a mind's behaviour.
    to snapshot a home. The loader's own getters delegate to it.
    `unit/import-hygiene.test.js` fails when a built-in module imports another
    component's module (a base class it extends is allowed) or the loader.*
+   *Usage done 2026-10-06 (§2.3), which completes step 9: llm.js keeps no usage
+   total any more, and every call (`complete`, `completeWithTools`, `chatStream`,
+   `generateImage`, `decide`, dry or live) returns its usage. The component that
+   made the call fires `usage {promptTokens, completionTokens, cost}`
+   (`shared/usage.js`: `spend(el, usage)`, or `spent(el, result)` around an
+   awaited call), and m-economy adds up what it hears on `!scope/@usage`. The
+   membrane does not stop `usage`, so a mind pays for its sub-agents and an
+   economy on a society would hear every member. The streams attribute a burst
+   before its boundary, so the economy's reading at that boundary still includes
+   it. The dry-run stubs answer by `debugTag` and never by prompt text. That
+   changed one thing: memory's compression used to get the association reply or
+   "Noted." whenever its thinking said "remind", and now always gets the condensed
+   reply. The concurrency semaphore and `decide()`'s backoff stay process-wide on
+   purpose. They guard the process's connections and the endpoint's rate limit,
+   which every mind in the process shares, so they are not one mind's state.
+   `wiring/usage.test.js` pins two minds charged apart and a host charged for its
+   sub-agent; `unit/dry-run-tags.test.js` pins selection by tag.*
 
 ---
 

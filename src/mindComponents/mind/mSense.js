@@ -5,6 +5,7 @@ import { decide } from '../../modelAccess/decide.js';
 import { logger } from '../../infrastructure/logger.js';
 import { parseTime } from '../../config/timeParser.js';
 import { SourcePort } from '../shared/sources.js';
+import { spent } from '../shared/usage.js';
 
 const log = logger('mSense.js');
 
@@ -249,14 +250,14 @@ export class MSense extends MBaseComponent {
             if (deadline != null && Date.now() >= deadline) break
             let answer
             try {
-                answer = await this._decide({
+                answer = spent(this, await this._decide({
                     model: deciderRef,
                     state: { target: template, candidate: text },
                     questions: { targetMatch: targetMatchQuestion() },
                     deadline,
                     debugTag: 'tier1-target-match',
                     debugEl: this,
-                })
+                }))
             } catch (error) {
                 log.warn(`[${this._name()}] tier-1 decider "${deciderRef}" is not usable: ${error?.message || error}`)
                 return null

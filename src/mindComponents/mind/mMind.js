@@ -13,6 +13,7 @@ import { AttentionBid } from '../../infrastructure/attentionBid.js';
 import { PerceptReceipt } from '../../infrastructure/perceptionContracts.js';
 import { request } from '../../infrastructure/requestReply.js';
 import { randomUUID } from 'node:crypto';
+import { spent } from "../shared/usage.js"
 
 const log = logger('mMind.js');
 
@@ -903,7 +904,7 @@ ${self ? `About you:\n${self}` : ""}${body ? `\n\nSome things about how you meet
     async _writeBridge(tail, stimuli) {
         const fallback = "Hold on — something just happened, and I feel my attention turning toward it."
         try {
-            const result = await complete({
+            const result = spent(this, await complete({
                 model: resolveModelRef(this.attr("bridgeModel") || this.env("utilityModel"), "utility"),
                 maxTokens: 90,
                 temperature: 0.6,
@@ -916,7 +917,7 @@ Then this happens:
 ${stimuli.map(s => `- ${s.renderForFrame()}`).join("\n")}
 
 Write the one or two sentences of inner monologue (first person, present tense) in which the mind's attention turns from its current thought toward what just happened — a natural mid-thought transition, not a summary. Output only those sentences.`,
-            })
+            }))
             const bridge = result.text.trim().replace(/^["']|["']$/g, "")
             return bridge || fallback
         } catch (error) {

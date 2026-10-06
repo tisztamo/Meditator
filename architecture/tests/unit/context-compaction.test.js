@@ -72,7 +72,6 @@ test("the initial prompt states the budget and carries the transcript", () => {
     const p = buildBriefPrompt({ text: "USER: hi", targetChars: 500 });
     expect(p).toContain("AT MOST 500 characters");
     expect(p).toContain("<transcript>");
-    expect(p).toMatch(/condense/i);   // so the offline dry-run stub recognizes it as a summary
 });
 
 test("the re-drive prompt tightens the model's own over-long draft", () => {
